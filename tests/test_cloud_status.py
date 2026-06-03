@@ -368,6 +368,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "supervisors-body" in html
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
+        assert "config-form" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
@@ -521,6 +522,133 @@ def test_cloud_status_server_rejects_invalid_data_catalog_preview_points(tmp_pat
             assert exc.code == 400
             payload = json.loads(exc.read().decode("utf-8"))
         assert payload["error"] == "preview_points must be between 2 and 500"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
+    data_root = tmp_path / "data"
+    state_dir = tmp_path / "state"
+    data_root.mkdir()
+    data_file = data_root / "SPY_5min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_options", timeout=5) as resp:
+            options = json.loads(resp.read().decode("utf-8"))
+        assert "no_edge_template" in {plugin["id"] for plugin in options["plugins"]}
+
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "name": "Test Draft",
+                "plugin_id": "no_edge_template",
+                "mode": "simulated_paper",
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "starting_cash": 25000,
+                "history_bars": 20,
+                "max_steps": 5,
+                "max_orders_per_run": 1,
+                "max_notional_per_order": 100,
+                "max_quantity": 10,
+                "max_cash_quantity": 100,
+                "max_gross_exposure_pct": 0.05,
+                "save": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(draft_req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        draft = payload["draft"]
+        assert draft["name"] == "Test_Draft"
+        assert draft["validation"] == {"valid": True, "errors": []}
+        assert draft["config"]["runner"]["mode"] == "simulated_paper"
+        assert draft["config"]["data"]["files"] == {"SPY": str(data_file)}
+        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in draft["yaml"]
+        assert draft["saved_path"]
+        assert Path(draft["saved_path"]).exists()
+        assert Path(draft["saved_path"]).is_relative_to(state_dir)
+        assert "--validate-only" in draft["commands"]["validate"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_config_draft_rejects_unsupported_plugin(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "plugin_id": "unknown",
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(draft_req, timeout=5)
+            raise AssertionError("expected unsupported plugin response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "unsupported plugin_id: unknown"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_config_draft_rejects_data_outside_roots(tmp_path):
+    data_root = tmp_path / "data"
+    other_root = tmp_path / "other"
+    data_root.mkdir()
+    other_root.mkdir()
+    data_file = other_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "plugin_id": "no_edge_template",
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(draft_req, timeout=5)
+            raise AssertionError("expected outside data root response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "data file must be inside a configured data root"
     finally:
         server.shutdown()
         server.server_close()

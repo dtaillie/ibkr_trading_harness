@@ -116,6 +116,8 @@ strategies private.
 - Keep expanding the web dashboard into a public workbench: usage guidance,
   saved-data inspection, replay/simulation setup, and monitoring should live in
   one browser surface.
+- Keep the public config builder limited to public examples and non-live modes
+  until stronger schema, authorization, and execution controls are in place.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,

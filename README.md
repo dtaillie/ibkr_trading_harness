@@ -181,10 +181,12 @@ stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
 dashboard can also inspect configured local CSV/parquet data roots, showing
 coverage summaries, timestamp/gap metadata, and small downsampled price
-previews. Real deployments can add `max_age_seconds` to configured runs,
-supervisors, and remote-control audit settings to alert on stale local
-artifacts. The receiver also keeps a bounded read view over `status_history.jsonl`
-through `/status_history`, and the dashboard shows recent snapshots so missed
+previews. The dashboard can generate and validate example plugin-runner config
+drafts from saved data, limited to public no-edge plugins and non-live modes.
+Real deployments can add `max_age_seconds` to configured runs, supervisors, and
+remote-control audit settings to alert on stale local artifacts. The receiver
+also keeps a bounded read view over `status_history.jsonl` through
+`/status_history`, and the dashboard shows recent snapshots so missed
 heartbeats, warning periods, and recovery events are easier to inspect. Run
 configs can opt into `recent_events` telemetry, which publishes bounded
 summaries of recent decisions, orders, and fills without including raw strategy

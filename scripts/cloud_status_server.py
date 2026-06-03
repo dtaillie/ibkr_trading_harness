@@ -9,6 +9,7 @@ import json
 import os
 import mimetypes
 import re
+import sys
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +18,11 @@ from typing import Any, Iterable
 from urllib.parse import parse_qs, unquote, urlparse
 
 import pandas as pd
+import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from live.plugin_runner import validate_config as validate_runner_config
 
 
 ALLOWED_COMMAND_ACTIONS = {
@@ -45,6 +51,27 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
 BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
+CONFIG_BUILDER_PLUGINS = (
+    {
+        "id": "no_edge_template",
+        "label": "No-edge template",
+        "spec": "examples.strategies.no_edge_template:create_strategy",
+        "status": "example_only",
+    },
+    {
+        "id": "no_edge_stock",
+        "label": "No-edge stock",
+        "spec": "examples.strategies.no_edge_stock_signal:create_strategy",
+        "status": "example_only",
+    },
+    {
+        "id": "no_edge_crypto",
+        "label": "No-edge crypto",
+        "spec": "examples.strategies.no_edge_crypto_signal:create_strategy",
+        "status": "example_only",
+    },
+)
+CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 
 
 def utc_now() -> str:
@@ -363,6 +390,178 @@ def build_data_catalog(
         "error_count": len(errors),
         "limit": limit,
         "preview_points": preview_points,
+    }
+
+
+def slugify(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip()).strip("._-")
+    return slug[:80] or "workbench_config"
+
+
+def public_plugin_by_id(plugin_id: str) -> dict[str, str] | None:
+    return next((plugin for plugin in CONFIG_BUILDER_PLUGINS if plugin["id"] == plugin_id), None)
+
+
+def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]:
+    candidate = Path(raw_path)
+    path = candidate if candidate.is_absolute() else ROOT / candidate
+    path = path.resolve()
+    if path.suffix.lower() not in {".csv", ".parquet"}:
+        raise ValueError("data file must be .csv or .parquet")
+    if not path.exists():
+        raise ValueError(f"data file does not exist: {raw_path}")
+    if not any(path.is_relative_to(root) for root in data_roots):
+        raise ValueError("data file must be inside a configured data root")
+    return path, path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path)
+
+
+def number_field(payload: dict[str, Any], key: str, default: float, *, integer: bool = False) -> int | float:
+    raw = payload.get(key, default)
+    try:
+        value = int(raw) if integer else float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be numeric") from exc
+    if value <= 0:
+        raise ValueError(f"{key} must be > 0")
+    return value
+
+
+def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
+    name = slugify(str(payload.get("name") or "workbench_example"))
+    plugin_id = str(payload.get("plugin_id") or "no_edge_template")
+    plugin = public_plugin_by_id(plugin_id)
+    if plugin is None:
+        raise ValueError(f"unsupported plugin_id: {plugin_id}")
+    mode = str(payload.get("mode") or "replay").replace("-", "_").lower()
+    if mode not in CONFIG_BUILDER_MODES:
+        raise ValueError(f"mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
+
+    datasets = payload.get("datasets") or []
+    if not isinstance(datasets, list) or not datasets:
+        raise ValueError("datasets must be a non-empty list")
+    data_files: dict[str, str] = {}
+    for item in datasets:
+        if not isinstance(item, dict):
+            raise ValueError("each dataset must be a mapping")
+        symbol = str(item.get("symbol") or "").strip().upper()
+        raw_path = str(item.get("path") or "").strip()
+        if not symbol:
+            raise ValueError("dataset symbol is required")
+        if not raw_path:
+            raise ValueError("dataset path is required")
+        _, rel_path = data_path_allowed(raw_path, data_roots)
+        data_files[symbol] = rel_path
+    if not data_files:
+        raise ValueError("at least one dataset is required")
+
+    starting_cash = number_field(payload, "starting_cash", 10000)
+    history_bars = number_field(payload, "history_bars", 100, integer=True)
+    max_steps = number_field(payload, "max_steps", 100, integer=True)
+    max_orders = number_field(payload, "max_orders_per_run", 1, integer=True)
+    max_notional = number_field(payload, "max_notional_per_order", 100)
+    max_quantity = number_field(payload, "max_quantity", 10)
+    max_cash_quantity = number_field(payload, "max_cash_quantity", 100)
+    max_gross_exposure_pct = number_field(payload, "max_gross_exposure_pct", 0.05)
+
+    config = {
+        "description": (
+            "GENERATED EXAMPLE ONLY. Public workbench draft using a no-edge "
+            "strategy plugin. This demonstrates wiring and validation only."
+        ),
+        "metadata": {
+            "strategy_plugin": plugin["spec"],
+            "status": plugin["status"],
+        },
+        "strategy": {
+            "example_parameter": True,
+        },
+        "runner": {
+            "mode": mode,
+            "starting_cash": starting_cash,
+            "history_bars": history_bars,
+            "max_steps": max_steps,
+            "output_dir": f"paper_logs/workbench/{name}",
+            "clean_output_dir": True,
+        },
+        "data": {
+            "source": "files",
+            "timestamp_column": str(payload.get("timestamp_column") or "timestamp"),
+            "files": data_files,
+        },
+        "execution": {
+            "allowed_symbols": sorted(data_files),
+            "allowed_sides": ["buy", "sell"],
+            "allowed_order_types": ["market"],
+            "allow_short": False,
+            "require_current_price": True,
+            "max_orders_per_run": max_orders,
+            "max_notional_per_order": max_notional,
+            "max_quantity": max_quantity,
+            "max_cash_quantity": max_cash_quantity,
+            "max_gross_exposure_pct": max_gross_exposure_pct,
+            "sim_slippage_bps": float(payload.get("sim_slippage_bps", 0) or 0),
+            "sim_commission_bps": float(payload.get("sim_commission_bps", 0) or 0),
+        },
+        "control": {
+            "pause_marker": f"paper_logs/control/{name}.pause",
+        },
+        "broker": {
+            "host": "127.0.0.1",
+            "port": 4002,
+            "client_id": 301,
+        },
+        "notes": [
+            "Generated by the public workbench.",
+            "Example only; do not trade this configuration.",
+            "Paper mode is intentionally not generated for public example plugins.",
+        ],
+    }
+    yaml_text = yaml.safe_dump(config, sort_keys=False)
+    errors = validate_runner_config(config, config_path=ROOT / "config" / f"{name}.yaml")
+    saved_path = None
+    if bool(payload.get("save", False)):
+        drafts_dir = state_dir / "config_drafts"
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+        path = drafts_dir / f"{name}.yaml"
+        path.write_text(yaml_text, encoding="utf-8")
+        saved_path = str(path)
+
+    command_path = saved_path or f"<write-yaml-to>/{name}.yaml"
+    return {
+        "name": name,
+        "plugin": plugin,
+        "config": config,
+        "yaml": yaml_text,
+        "saved_path": saved_path,
+        "validation": {
+            "valid": not errors,
+            "errors": errors,
+        },
+        "commands": {
+            "validate": f"python3 live/plugin_runner.py --config {command_path} --validate-only",
+            "replay": f"python3 live/plugin_runner.py --config {command_path} --mode replay",
+            "simulated_paper": f"python3 live/plugin_runner.py --config {command_path} --mode simulated-paper",
+        },
+    }
+
+
+def config_builder_options() -> dict[str, Any]:
+    return {
+        "plugins": list(CONFIG_BUILDER_PLUGINS),
+        "modes": list(CONFIG_BUILDER_MODES),
+        "defaults": {
+            "name": "workbench_example",
+            "starting_cash": 10000,
+            "history_bars": 100,
+            "max_steps": 100,
+            "max_orders_per_run": 1,
+            "max_notional_per_order": 100,
+            "max_quantity": 10,
+            "max_cash_quantity": 100,
+            "max_gross_exposure_pct": 0.05,
+            "sim_slippage_bps": 0,
+            "sim_commission_bps": 0,
+        },
     }
 
 
@@ -701,6 +900,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"ok": True, "result": result})
             return
+        if self.path == "/config_draft":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = build_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "draft": result})
+            return
         else:
             json_response(self, 404, {"error": "not found"})
             return
@@ -747,6 +957,11 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/config_options":
+            if not self.require_auth():
+                return
+            json_response(self, 200, config_builder_options())
             return
         if parsed.path in {"/", "/index.html"}:
             index = self.dashboard_dir / "index.html"

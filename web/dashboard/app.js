@@ -2,6 +2,8 @@ const state = {
   status: null,
   history: [],
   dataCatalog: { datasets: [], errors: [] },
+  configOptions: { plugins: [], modes: [], defaults: {} },
+  configDraft: null,
   commands: [],
   results: [],
 };
@@ -193,6 +195,69 @@ function renderDataCatalog() {
     : "";
 }
 
+function replaceOptions(select, options) {
+  const current = select.value;
+  select.innerHTML = options.map((option) => (
+    `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+  )).join("");
+  if (options.some((option) => option.value === current)) {
+    select.value = current;
+  }
+}
+
+function renderConfigBuilder() {
+  const options = state.configOptions || {};
+  const defaults = options.defaults || {};
+  const plugins = (options.plugins || []).map((plugin) => ({
+    value: plugin.id,
+    label: `${plugin.label} (${plugin.status})`,
+  }));
+  const modes = (options.modes || []).map((mode) => ({ value: mode, label: mode }));
+  const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
+    value: dataset.path,
+    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} - ${dataset.path}`,
+  }));
+  if (plugins.length) replaceOptions($("config-plugin"), plugins);
+  if (modes.length) replaceOptions($("config-mode"), modes);
+  replaceOptions($("config-dataset"), datasets);
+
+  const defaultFields = {
+    "config-name": defaults.name,
+    "config-starting-cash": defaults.starting_cash,
+    "config-history-bars": defaults.history_bars,
+    "config-max-steps": defaults.max_steps,
+    "config-max-orders": defaults.max_orders_per_run,
+    "config-max-notional": defaults.max_notional_per_order,
+    "config-max-quantity": defaults.max_quantity,
+    "config-max-cash": defaults.max_cash_quantity,
+    "config-max-exposure": defaults.max_gross_exposure_pct,
+    "config-slippage": defaults.sim_slippage_bps,
+    "config-commission": defaults.sim_commission_bps,
+  };
+  for (const [id, value] of Object.entries(defaultFields)) {
+    if (!$(`${id}`).value && value !== undefined) $(`${id}`).value = String(value);
+  }
+
+  const draft = state.configDraft;
+  if (!draft) {
+    $("config-validation").innerHTML = `<span class="muted">No draft generated</span>`;
+    $("config-yaml").value = "";
+    $("config-commands").innerHTML = "";
+    return;
+  }
+  const valid = draft.validation && draft.validation.valid;
+  const errors = (draft.validation && draft.validation.errors) || [];
+  $("config-validation").innerHTML = valid
+    ? `<span class="status-ok">valid</span>${draft.saved_path ? ` <span class="muted">${escapeHtml(draft.saved_path)}</span>` : ""}`
+    : `<span class="status-bad">invalid</span> <span class="muted">${escapeHtml(errors.join("; "))}</span>`;
+  $("config-yaml").value = draft.yaml || "";
+  $("config-commands").innerHTML = draft.commands
+    ? Object.entries(draft.commands).map(([name, command]) => (
+        `<dt>${escapeHtml(name)}</dt><dd><span class="mono">${escapeHtml(command)}</span></dd>`
+      )).join("")
+    : "";
+}
+
 function renderRuns() {
   const runs = (state.status && state.status.runs) || [];
   $("runs-body").innerHTML = runs.length
@@ -376,6 +441,7 @@ function renderResults() {
 function renderAll() {
   renderMetrics();
   renderDataCatalog();
+  renderConfigBuilder();
   renderRuns();
   renderRunEvents();
   renderSupervisors();
@@ -395,13 +461,49 @@ async function refresh() {
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
+  const configOptions = await fetchJson("/config_options");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+  state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   renderAll();
+}
+
+async function generateConfigDraft(event) {
+  event.preventDefault();
+  const path = $("config-dataset").value;
+  const dataset = (state.dataCatalog.datasets || []).find((item) => item.path === path);
+  if (!dataset) {
+    $("config-validation").innerHTML = `<span class="status-bad">Select a saved dataset first</span>`;
+    return;
+  }
+  const payload = {
+    name: $("config-name").value,
+    plugin_id: $("config-plugin").value,
+    mode: $("config-mode").value,
+    datasets: [{ symbol: dataset.symbol, path: dataset.path }],
+    starting_cash: $("config-starting-cash").value,
+    history_bars: $("config-history-bars").value,
+    max_steps: $("config-max-steps").value,
+    max_orders_per_run: $("config-max-orders").value,
+    max_notional_per_order: $("config-max-notional").value,
+    max_quantity: $("config-max-quantity").value,
+    max_cash_quantity: $("config-max-cash").value,
+    max_gross_exposure_pct: $("config-max-exposure").value,
+    sim_slippage_bps: $("config-slippage").value,
+    sim_commission_bps: $("config-commission").value,
+    save: $("config-save").checked,
+  };
+  const response = await fetchJson("/config_draft", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  state.configDraft = response.draft;
+  renderConfigBuilder();
+  $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
 }
 
 async function queueCommand(event) {
@@ -474,6 +576,11 @@ function init() {
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {
       $("last-refresh").textContent = `Command failed: ${err.message}`;
+    });
+  });
+  $("config-form").addEventListener("submit", (event) => {
+    generateConfigDraft(event).catch((err) => {
+      $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("commands-body").addEventListener("click", (event) => {

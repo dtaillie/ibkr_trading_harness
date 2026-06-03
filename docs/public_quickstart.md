@@ -178,6 +178,11 @@ stale local artifacts raise dashboard alerts.
 Repeat `--data-root` to include additional local CSV/parquet roots such as a
 private cache directory. Data roots are scanned locally; the dashboard receives
 coverage summaries and small downsampled previews, not full bar files.
+The Config Builder section can generate and validate example plugin-runner YAML
+from a selected saved dataset. It only offers public no-edge plugins and
+replay/shadow/simulated-paper modes; it does not submit broker orders. If you
+enable "Save draft locally", the YAML is written under the dashboard state
+directory and the UI shows local runner commands for validation and replay.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 
