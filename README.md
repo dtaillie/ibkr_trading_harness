@@ -227,6 +227,12 @@ Run this before publishing:
 python3 scripts/public_readiness_audit.py
 ```
 
+Use strict mode in CI or before pushing a public branch:
+
+```bash
+python3 scripts/public_readiness_audit.py --fail-on-review
+```
+
 The private source tree can regenerate this public subset with
 `scripts/export_public_repo.py --force`. Repeated exports preserve the
 destination repo's `.git` directory, so history and remotes survive refreshes.

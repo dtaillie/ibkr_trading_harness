@@ -45,6 +45,12 @@ python3 scripts/public_readiness_audit.py
 
 Treat any `BLOCKER` as a file that must not be copied to the public repo
 without sanitization or exclusion. Treat `REVIEW` as a manual inspection item.
+For CI or a final pre-push gate, use strict mode so both `BLOCKER` and `REVIEW`
+findings fail the check:
+
+```bash
+python3 scripts/public_readiness_audit.py --fail-on-review
+```
 
 Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
 repeatable public copy. If the destination is already a Git repo, `--force`

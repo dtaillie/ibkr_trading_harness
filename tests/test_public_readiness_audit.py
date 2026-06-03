@@ -35,3 +35,33 @@ def test_audit_treats_ignored_runtime_files_as_inventory(tmp_path: Path):
 
     assert "tracked_private_blockers: 0" in result.stdout
     assert "ignored_private_runtime_items: 1" in result.stdout
+
+
+def test_audit_strict_mode_fails_on_review_findings(tmp_path: Path):
+    repo = tmp_path / "candidate"
+    repo.mkdir()
+    run_git(repo, "init")
+
+    (repo / ".gitignore").write_text("paper_logs/\n", encoding="utf-8")
+    local_path = "/" + "home" + "/example/project"
+    (repo / "README.md").write_text(f"local path {local_path}\n", encoding="utf-8")
+
+    normal = subprocess.run(
+        [sys.executable, str(AUDIT_SCRIPT)],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert normal.returncode == 0
+    assert "review_items: 1" in normal.stdout
+
+    strict = subprocess.run(
+        [sys.executable, str(AUDIT_SCRIPT), "--fail-on-review"],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert strict.returncode == 3
+    assert "review_items: 1" in strict.stdout

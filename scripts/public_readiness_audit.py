@@ -7,6 +7,7 @@ it points out files and token classes that need a human review first.
 
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import re
 import subprocess
@@ -168,6 +169,14 @@ def print_section(title: str, findings: list[Finding]) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Audit a public repo candidate for private paths and sensitive tokens")
+    parser.add_argument(
+        "--fail-on-review",
+        action="store_true",
+        help="Exit non-zero on REVIEW findings as well as BLOCKER findings",
+    )
+    args = parser.parse_args()
+
     publishable = git_publishable_files() if in_git_repo() else all_local_files()
     tracked_private = tracked_private_findings(publishable)
     sensitive = scan_sensitive_tokens(publishable)
@@ -195,6 +204,8 @@ def main() -> None:
     print(f"ignored_private_runtime_items: {len(ignored_inventory)}")
     if blockers:
         raise SystemExit(2)
+    if args.fail_on_review and reviews:
+        raise SystemExit(3)
 
 
 if __name__ == "__main__":

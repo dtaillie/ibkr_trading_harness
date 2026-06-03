@@ -20,7 +20,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Public readiness audit
-        run: python scripts/public_readiness_audit.py
+        run: python scripts/public_readiness_audit.py --fail-on-review
 
       - name: Compile Python files
         run: find . -name '*.py' -not -path './.git/*' -print0 | xargs -0 python -m py_compile

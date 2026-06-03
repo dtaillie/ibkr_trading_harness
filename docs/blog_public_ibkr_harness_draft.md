@@ -92,6 +92,8 @@ The audit is conservative. It checks for private runtime paths, account-like
 tokens, local home paths, credential assignments, and private plugin references.
 It is not a substitute for review, but it gives the public repo a repeatable
 gate.
+For CI, run `python3 scripts/public_readiness_audit.py --fail-on-review` so
+sensitive review findings block the build instead of relying on manual review.
 
 The next public milestone is richer operations around the generic runner:
 continuous market-hours loops, stronger config schemas, broker-agnostic
