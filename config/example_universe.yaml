@@ -1,0 +1,8 @@
+description: >
+  EXAMPLE ONLY. Public-safe stock universe for documentation and dry-run wiring.
+  Replace with your own private universe before running a real strategy.
+
+symbols:
+  - SPY
+  - QQQ
+  - IWM

@@ -1,0 +1,53 @@
+description: >
+  EXAMPLE ONLY. Generic public plugin-runner config using a no-edge strategy
+  and local sample bars. This demonstrates wiring only; it is not a viable
+  strategy.
+
+metadata:
+  strategy_plugin: examples.strategies.no_edge_template:create_strategy
+  status: example_only
+
+strategy:
+  example_parameter: true
+
+runner:
+  mode: replay
+  starting_cash: 10000
+  history_bars: 20
+  output_dir: paper_logs/example_plugin_runner
+  clean_output_dir: true
+
+data:
+  source: files
+  timestamp_column: timestamp
+  files:
+    SPY: examples/data/SPY_5min_sample.csv
+
+execution:
+  allowed_sides:
+    - buy
+    - sell
+  allowed_order_types:
+    - market
+  allow_short: false
+  require_current_price: true
+  max_orders_per_run: 1
+  max_notional_per_order: 100
+  max_quantity: 10
+  max_cash_quantity: 100
+  max_gross_exposure_pct: 0.05
+  sim_slippage_bps: 0
+  sim_commission_bps: 0
+
+control:
+  pause_marker: paper_logs/control/example_plugin_runner.pause
+
+broker:
+  host: 127.0.0.1
+  port: 4002
+  client_id: 301
+
+notes:
+  - Example only; do not trade this.
+  - Paper mode submits IBKR orders only with --confirm-paper-orders.
+  - Point metadata.strategy_plugin at a private plugin for real paper testing.

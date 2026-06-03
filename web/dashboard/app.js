@@ -1,0 +1,419 @@
+const state = {
+  status: null,
+  history: [],
+  commands: [],
+  results: [],
+};
+
+const commandFields = {
+  pause_runner: [],
+  request_status: [],
+  resume_runner: [],
+  run_supervisor_once: ["supervisor"],
+  summarize_run: ["run"],
+  supervisor_status: ["supervisor"],
+  validate_config: ["config"],
+  validate_supervisor_config: ["supervisor"],
+};
+
+const commandParamNames = {
+  config: "config_id",
+  run: "run_id",
+  supervisor: "supervisor_id",
+};
+
+const $ = (id) => document.getElementById(id);
+
+function token() {
+  return sessionStorage.getItem("statusToken") || "";
+}
+
+function headers() {
+  const out = { "Content-Type": "application/json" };
+  const value = token();
+  if (value) out.Authorization = `Bearer ${value}`;
+  return out;
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...headers(), ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+function text(value) {
+  if (value === null || value === undefined || value === "") return "n/a";
+  return String(value);
+}
+
+function escapeHtml(value) {
+  return text(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
+function money(value) {
+  if (value === null || value === undefined || value === "") return "n/a";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(number);
+}
+
+function age(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  if (number < 120) return `${Math.round(number)}s`;
+  if (number < 7200) return `${Math.round(number / 60)}m`;
+  if (number < 172800) return `${Math.round(number / 3600)}h`;
+  return `${Math.round(number / 86400)}d`;
+}
+
+function statusClass(value) {
+  if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
+  if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
+  if (value === "failed" || value === "rejected" || value === "unknown" || value === false) return "status-bad";
+  return "";
+}
+
+function row(cells) {
+  return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+}
+
+function statusText(value) {
+  const label = text(value);
+  return `<span class="${statusClass(value)}">${escapeHtml(label)}</span>`;
+}
+
+function renderMetrics() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const runs = payload.runs || [];
+  const supervisors = payload.supervisors || [];
+  const remote = payload.remote_control || {};
+  const alerts = payload.alerts || [];
+  const history = state.history || [];
+  $("subtitle").textContent = `${text(payload.node_id)} - ${text(payload.generated_at)}`;
+  $("metric-status").textContent = text(payload.status);
+  $("metric-status").className = statusClass(payload.status);
+  $("metric-gateway").textContent = gateway.enabled ? text(gateway.reachable) : "disabled";
+  $("metric-gateway").className = statusClass(gateway.reachable);
+  $("metric-runs").textContent = String(runs.length);
+  $("metric-supervisors").textContent = String(supervisors.length);
+  $("metric-supervisors").className = supervisors.some((item) => item.status && item.status !== "ok") ? "status-warn" : "status-ok";
+  const latestRemote = remote.latest_event || {};
+  const latestRemoteResult = latestRemote.result || {};
+  const latestRemotePost = latestRemoteResult.post_result || {};
+  const remoteBad = latestRemote.event === "poll_failed" || latestRemoteResult.status === "failed" || latestRemoteResult.status === "rejected" || latestRemotePost.status === "failed";
+  $("metric-remote").textContent = remote.enabled ? (remote.audit_exists ? "audit" : "empty") : "off";
+  $("metric-remote").className = remoteBad ? "status-warn" : "status-ok";
+  $("metric-alerts").textContent = String(alerts.length);
+  $("metric-alerts").className = alerts.length ? "status-warn" : "status-ok";
+  $("metric-history").textContent = String(history.length);
+  $("command-node").value = payload.node_id || $("command-node").value || "example-local-trader";
+  if (supervisors.length && !$("command-supervisor").value) {
+    $("command-supervisor").value = supervisors[0].id || "";
+  }
+}
+
+function renderRuns() {
+  const runs = (state.status && state.status.runs) || [];
+  $("runs-body").innerHTML = runs.length
+    ? runs.map((run) => {
+        const metrics = run.metrics || {};
+        return row([
+          escapeHtml(run.id),
+          statusText(run.status),
+          escapeHtml(metrics.mode),
+          escapeHtml(metrics.decisions),
+          escapeHtml(metrics.orders),
+          escapeHtml(metrics.fills),
+          escapeHtml(metrics.rejections),
+          escapeHtml(money(metrics.final_equity)),
+          escapeHtml(metrics.last_decision_time),
+          `<span class="${statusClass((run.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((run.freshness || {}).age_seconds))}</span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function runEventRows() {
+  const runs = (state.status && state.status.runs) || [];
+  const events = [];
+  for (const run of runs) {
+    const recent = run.recent_events || {};
+    for (const event of recent.decisions || []) {
+      events.push({
+        run_id: run.id,
+        type: "decision",
+        timestamp: event.timestamp,
+        status: event.paused ? "paused" : "ok",
+        symbol: (event.symbols || []).join(", "),
+        detail: `intents=${text(event.intents)} step=${text(event.step)}`,
+      });
+    }
+    for (const event of recent.orders || []) {
+      events.push({
+        run_id: run.id,
+        type: "order",
+        timestamp: event.timestamp,
+        status: event.status,
+        symbol: event.symbol,
+        detail: `${text(event.side)} ${text(event.order_type)} qty=${text(event.quantity)} cash=${text(event.cash_quantity)} reason=${text(event.reason)} tag=${text(event.tag)}`,
+      });
+    }
+    for (const event of recent.fills || []) {
+      events.push({
+        run_id: run.id,
+        type: "fill",
+        timestamp: event.timestamp,
+        status: "filled",
+        symbol: event.symbol,
+        detail: `${text(event.side)} qty=${text(event.quantity)} price=${text(event.price)} commission=${text(event.commission)} tag=${text(event.tag)}`,
+      });
+    }
+  }
+  return events
+    .filter((event) => event.timestamp)
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))
+    .slice(0, 30);
+}
+
+function renderRunEvents() {
+  const events = runEventRows();
+  $("run-events-body").innerHTML = events.length
+    ? events.map((event) => row([
+        escapeHtml(event.timestamp),
+        escapeHtml(event.run_id),
+        escapeHtml(event.type),
+        statusText(event.status),
+        escapeHtml(event.symbol),
+        escapeHtml(event.detail),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+}
+
+function renderSupervisors() {
+  const supervisors = (state.status && state.status.supervisors) || [];
+  $("supervisors-body").innerHTML = supervisors.length
+    ? supervisors.map((supervisor) => row([
+        escapeHtml(supervisor.id),
+        statusText(supervisor.status),
+        escapeHtml((supervisor.jobs || []).length),
+        escapeHtml(supervisor.generated_at),
+        `<span class="${statusClass((supervisor.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((supervisor.freshness || {}).age_seconds))}</span>`,
+        `<span class="mono">${escapeHtml(JSON.stringify(supervisor.job_status_counts || {}, null, 2))}</span>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+}
+
+function renderRemoteControl() {
+  const remote = (state.status && state.status.remote_control) || {};
+  const latest = remote.latest_event || {};
+  const latestResult = latest.result || {};
+  const latestLabel = latest.event
+    ? `${text(latest.event)} ${text(latestResult.action)} ${text(latestResult.status)}`
+    : "none";
+  $("remote-control-body").innerHTML = row([
+    remote.enabled ? statusText(remote.audit_exists ? "ok" : "waiting") : statusText("disabled"),
+    escapeHtml(latestLabel),
+    `<span class="${statusClass((remote.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((remote.freshness || {}).age_seconds))}</span>`,
+    `<span class="mono">${escapeHtml(JSON.stringify(remote.result_status_counts || {}, null, 2))}</span>`,
+    `<span class="mono">${escapeHtml(JSON.stringify(remote.post_status_counts || {}, null, 2))}</span>`,
+    escapeHtml(remote.audit_log),
+  ]);
+}
+
+function renderAlerts() {
+  const alerts = (state.status && state.status.alerts) || [];
+  $("alerts-body").innerHTML = alerts.length
+    ? alerts.map((alert) => row([
+        statusText(alert.level === "warn" ? "warn" : alert.level),
+        escapeHtml(alert.kind),
+        escapeHtml(alert.message),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", ""]);
+}
+
+function renderGateway() {
+  const gateway = (state.status && state.status.gateway) || {};
+  const pairs = [
+    ["Enabled", text(gateway.enabled)],
+    ["Host", text(gateway.host)],
+    ["Port", text(gateway.port)],
+    ["Reachable", text(gateway.reachable)],
+    ["Latency", gateway.latency_ms === null || gateway.latency_ms === undefined ? "n/a" : `${gateway.latency_ms} ms`],
+    ["Error", text(gateway.error)],
+  ];
+  $("gateway-list").innerHTML = pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
+}
+
+function renderHistory() {
+  $("history-body").innerHTML = state.history.length
+    ? state.history.map((snapshot) => {
+        const remoteLabel = snapshot.remote_latest_event
+          ? `${text(snapshot.remote_latest_event)} ${text(snapshot.remote_latest_action)} ${text(snapshot.remote_latest_status)}`
+          : "none";
+        return row([
+          escapeHtml(snapshot.received_at),
+          escapeHtml(snapshot.node_id),
+          statusText(snapshot.status),
+          statusText(snapshot.gateway_reachable),
+          escapeHtml(snapshot.alert_count),
+          `<span class="mono">${escapeHtml(JSON.stringify(snapshot.run_status_counts || {}, null, 2))}</span>`,
+          `<span class="mono">${escapeHtml(JSON.stringify(snapshot.supervisor_status_counts || {}, null, 2))}</span>`,
+          escapeHtml(remoteLabel),
+        ]);
+      }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+}
+
+function renderCommands() {
+  $("commands-body").innerHTML = state.commands.length
+    ? state.commands.map((command) => row([
+        escapeHtml(command.command_id),
+        escapeHtml(command.node_id),
+        escapeHtml(command.action),
+        `<span class="mono">${escapeHtml(JSON.stringify(command.params || {}, null, 2))}</span>`,
+        statusText(command.status),
+        escapeHtml(command.created_at),
+        command.status === "pending"
+          ? `<button type="button" class="secondary cancel-command" data-command-id="${escapeHtml(command.command_id)}" data-node-id="${escapeHtml(command.node_id)}">Cancel</button>`
+          : "",
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
+}
+
+function renderResults() {
+  $("results-body").innerHTML = state.results.length
+    ? state.results.slice(-20).reverse().map((result) => row([
+        escapeHtml(result.command_id),
+        escapeHtml(result.action),
+        statusText(result.status),
+        escapeHtml(result.received_at),
+        `<span class="mono">${escapeHtml(JSON.stringify(result.result || result.error || {}, null, 2))}</span>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", ""]);
+}
+
+function renderAll() {
+  renderMetrics();
+  renderRuns();
+  renderRunEvents();
+  renderSupervisors();
+  renderRemoteControl();
+  renderAlerts();
+  renderGateway();
+  renderHistory();
+  renderCommands();
+  renderResults();
+  $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
+}
+
+async function refresh() {
+  const node = $("command-node").value || (state.status && state.status.node_id) || "";
+  const status = await fetchJson("/status");
+  state.status = status;
+  const nodeId = encodeURIComponent(node || status.node_id || "");
+  const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
+  const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
+  const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
+  state.history = history.history || [];
+  state.commands = commands.commands || [];
+  state.results = results.results || [];
+  renderAll();
+}
+
+async function queueCommand(event) {
+  event.preventDefault();
+  const action = $("command-action").value;
+  const params = {};
+  for (const field of commandFields[action] || []) {
+    const value = $(`command-${field}`).value.trim();
+    if (!value) {
+      $(`command-${field}`).focus();
+      $("last-refresh").textContent = `${commandParamNames[field]} is required`;
+      return;
+    }
+    params[commandParamNames[field]] = value;
+  }
+  await fetchJson("/commands", {
+    method: "POST",
+    body: JSON.stringify({
+      node_id: $("command-node").value.trim(),
+      action,
+      params,
+    }),
+  });
+  await refresh();
+}
+
+async function cancelCommand(commandId, nodeId) {
+  await fetchJson("/commands/cancel", {
+    method: "POST",
+    body: JSON.stringify({
+      command_id: commandId,
+      node_id: nodeId,
+    }),
+  });
+  await refresh();
+}
+
+function updateCommandFields() {
+  const action = $("command-action").value;
+  const visible = new Set(commandFields[action] || []);
+  for (const field of ["run", "config", "supervisor"]) {
+    const label = $(`command-${field}-field`);
+    const input = $(`command-${field}`);
+    const shown = visible.has(field);
+    label.classList.toggle("hidden", !shown);
+    input.required = shown;
+    input.disabled = !shown;
+  }
+}
+
+function initToken() {
+  $("auth-token").value = token();
+  $("save-token").addEventListener("click", () => {
+    sessionStorage.setItem("statusToken", $("auth-token").value);
+    refresh().catch((err) => {
+      $("last-refresh").textContent = `Refresh failed: ${err.message}`;
+    });
+  });
+}
+
+function init() {
+  initToken();
+  updateCommandFields();
+  $("command-action").addEventListener("change", updateCommandFields);
+  $("refresh").addEventListener("click", () => {
+    refresh().catch((err) => {
+      $("last-refresh").textContent = `Refresh failed: ${err.message}`;
+    });
+  });
+  $("command-form").addEventListener("submit", (event) => {
+    queueCommand(event).catch((err) => {
+      $("last-refresh").textContent = `Command failed: ${err.message}`;
+    });
+  });
+  $("commands-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;
+    cancelCommand(target.dataset.commandId || "", target.dataset.nodeId || "").catch((err) => {
+      $("last-refresh").textContent = `Cancel failed: ${err.message}`;
+    });
+  });
+  refresh().catch((err) => {
+    $("last-refresh").textContent = `Refresh failed: ${err.message}`;
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);

@@ -1,0 +1,16 @@
+[Unit]
+Description=IBKR Paper Gateway launcher
+Documentation=file:%h/git/algo_trade_public/docs/public_quickstart.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/git/algo_trade_public
+ExecStart=%h/git/algo_trade_public/scripts/start_ibgateway_paper.sh
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=20m
+
+[Install]
+WantedBy=default.target

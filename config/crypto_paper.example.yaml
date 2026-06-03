@@ -1,0 +1,75 @@
+description: >
+  EXAMPLE ONLY. This file demonstrates config shape for a crypto paper/sim
+  runner. It is intentionally vanilla and is not a viable trading strategy.
+
+metadata:
+  registry_id: example_crypto_runner
+  runner_label: example_crypto_runner
+  runner_id: example_crypto_runner
+  signal_plugin: examples.strategies.no_edge_crypto_signal:create_plugin
+  order_tag_prefix: example_crypto
+  status: example_only
+
+strategy:
+  # Deliberately inert demo values. These are not tuned.
+  lookback_h: 24
+  hold_h: 1
+  top_n: 1
+  min_abs_signal: 0.99
+  require_negative_signal: true
+  min_hour_coverage: 0.8
+  market_symbols:
+    - BTC-USD
+    - ETH-USD
+  target_exclude_symbols:
+    - BTC-USD
+    - ETH-USD
+  target_symbols:
+    - EXAMPLE1-USD
+    - EXAMPLE2-USD
+  exit:
+    enabled: true
+    trailing_stop_pct: 0.01
+
+data:
+  symbols_file: config/crypto_universe_example.yaml
+  exchange: ZEROHASH
+  what_to_show: AGGTRADES
+  duration: 2 D
+  min_minutes_per_hour: 45
+  max_data_age_minutes: 90
+  use_live_snapshot_for_current_close: true
+  snapshot_wait_seconds: 3
+
+broker:
+  host: 127.0.0.1
+  port: 4002
+  client_id: 241
+  market_data_type: 3
+  live_market_data_type: 1
+
+sizing:
+  position_pct: 0.01
+  max_position_usd: 100
+  cash_buffer: 0.95
+  min_order_usd: 25
+  min_position_qty: 0.00000001
+  min_position_value_usd: 1
+  quantity_precision: 6
+  sim_starting_cash: 10000
+  sim_slippage_bps: 15
+  sim_fee_bps: 10
+
+ops:
+  max_consecutive_order_failures: 3
+  order_failure_cooldown_hours: 12
+
+paths:
+  log_dir: paper_logs/example_crypto_runner
+  state_path: paper_logs/example_crypto_runner/state.json
+  ledger_path: paper_logs/example_crypto_runner/ledger.csv
+
+notes:
+  - Example only; do not trade this.
+  - Replace with a private strategy config before paper or live testing.
+  - Keep real strategy parameters out of public repos.

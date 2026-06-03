@@ -1,0 +1,48 @@
+description: >
+  EXAMPLE ONLY. Public-safe remote command worker config. The cloud side queues
+  low-risk commands; the local worker polls and enforces this allowlist.
+
+node_id: example-local-trader
+
+server:
+  commands_url: http://127.0.0.1:8765/commands
+  results_url: http://127.0.0.1:8765/command_results
+  token_env: null  # e.g. TRADING_STATUS_TOKEN
+  timeout_seconds: 5.0
+
+worker:
+  poll_seconds: 10
+
+audit:
+  enabled: true
+  log_file: paper_logs/remote_control/audit.jsonl
+
+allowed_actions:
+  - request_status
+  - supervisor_status
+  - summarize_run
+  - validate_config
+  - validate_supervisor_config
+  - run_supervisor_once
+  - pause_runner
+  - resume_runner
+
+status_config: config/cloud_status.example.yaml
+
+control:
+  pause_marker: paper_logs/control/example_plugin_runner.pause
+
+configs:
+  example_plugin_runner: config/plugin_runner.example.yaml
+
+supervisors:
+  example_plugin_supervisor: config/plugin_supervisor.example.yaml
+
+runs:
+  example_plugin_runner: paper_logs/example_plugin_runner
+
+notes:
+  - No arbitrary shell commands are supported.
+  - No broker credentials are stored here.
+  - run_supervisor_once can launch configured local jobs; remove it from allowed_actions for monitoring-only deployments.
+  - Pause/resume writes/removes the marker used by config/plugin_runner.example.yaml.

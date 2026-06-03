@@ -1,0 +1,45 @@
+description: >
+  EXAMPLE ONLY. Public-safe registry shape for local strategy configs. Copy to
+  config/strategy_registry.yaml for private/local use. This example does not
+  describe viable strategies.
+
+strategies:
+  - id: example_generic_plugin_runner
+    label: Example Generic Plugin Runner
+    asset_class: example
+    mode: replay
+    status: example_only
+    config_path: config/plugin_runner.example.yaml
+    plugin: examples.strategies.no_edge_template:create_strategy
+    runner_command: python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --mode replay --max-steps 3
+    public: true
+    notes:
+      - Demonstrates generic runner wiring only.
+      - Not a viable strategy.
+
+  - id: example_stock_runner
+    label: Example Stock Runner
+    asset_class: equities
+    mode: paper
+    status: example_only
+    config_path: config/stock_paper.example.yaml
+    plugin: examples.strategies.no_edge_stock_signal:create_plugin
+    runner_command: null
+    public: true
+    notes:
+      - Demonstrates stock signal plugin shape only.
+      - Not a viable strategy.
+
+  - id: example_crypto_runner
+    label: Example Crypto Runner
+    asset_class: crypto
+    mode: simulated_paper
+    status: example_only
+    config_path: config/crypto_paper.example.yaml
+    plugin: examples.strategies.no_edge_crypto_signal:create_plugin
+    runner_command: null
+    exit_monitor_command: null
+    public: true
+    notes:
+      - Demonstrates crypto signal plugin shape only.
+      - Not a viable strategy.

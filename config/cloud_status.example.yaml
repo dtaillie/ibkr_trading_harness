@@ -1,0 +1,42 @@
+description: >
+  EXAMPLE ONLY. Public-safe cloud/status telemetry config. This pushes generic
+  runner status only; it does not include broker credentials or strategy logic.
+
+node_id: example-local-trader
+
+gateway:
+  enabled: false
+  host: 127.0.0.1
+  port: 4002
+  timeout_seconds: 1.0
+
+runs:
+  - id: example_plugin_runner
+    path: paper_logs/example_plugin_runner
+    # Optional freshness alert threshold for real deployments.
+    # max_age_seconds: 900
+    recent_events:
+      enabled: true
+      max_rows: 5
+
+supervisors:
+  - id: example_plugin_supervisor
+    path: paper_logs/plugin_supervisor/status.json
+    # max_age_seconds: 300
+
+remote_control:
+  enabled: true
+  audit:
+    log_file: paper_logs/remote_control/audit.jsonl
+    max_events: 50
+    # max_age_seconds: 300
+
+publish:
+  file: paper_logs/cloud_status/latest_status.json
+  endpoint: null
+  token_env: null  # e.g. TRADING_STATUS_TOKEN
+  timeout_seconds: 5.0
+
+notes:
+  - Keep real endpoint tokens in environment variables, not config files.
+  - This is read-only telemetry. Remote commands are intentionally separate.

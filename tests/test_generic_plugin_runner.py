@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+import yaml
+
+from live.plugin_runner import ConfigValidationError, run_from_config, validate_config_file
+
+
+def write_sample_bars(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100,1000",
+                "2026-01-02T14:35:00Z,100,102,99,101,1000",
+                "2026-01-02T14:40:00Z,101,103,100,102,1000",
+            ]
+        )
+        + "\n"
+    )
+
+
+def write_config(
+    path: Path,
+    *,
+    bars_path: Path,
+    output_dir: Path,
+    plugin: str,
+    strategy: dict | None = None,
+    execution: dict | None = None,
+    control: dict | None = None,
+) -> None:
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "metadata": {"strategy_plugin": plugin},
+                "strategy": strategy or {},
+                "runner": {
+                    "mode": "replay",
+                    "starting_cash": 10000,
+                    "history_bars": 10,
+                    "output_dir": str(output_dir),
+                },
+                "data": {
+                    "source": "files",
+                    "timestamp_column": "timestamp",
+                    "files": {"SPY": str(bars_path)},
+                },
+                "execution": {
+                    "allow_short": False,
+                    "sim_slippage_bps": 0,
+                    "sim_commission_bps": 0,
+                    **(execution or {}),
+                },
+                "control": control or {},
+            },
+            sort_keys=False,
+        )
+    )
+
+
+def test_replay_runner_records_no_edge_decisions(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+    )
+
+    result = run_from_config(config_path, mode_override="replay")
+
+    assert result.decisions == 3
+    assert result.orders == 0
+    records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert records[-1]["diagnostics"]["symbols_seen"] == ["SPY"]
+
+
+def test_validate_config_file_does_not_create_output_dir(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+    )
+
+    config = validate_config_file(config_path)
+
+    assert config["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
+    assert not output_dir.exists()
+
+
+def test_simulated_paper_fills_order_intent(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 1000},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.decisions == 3
+    assert result.orders == 1
+    assert result.fills == 1
+    assert result.rejections == 0
+    assert result.final_positions["SPY"] == pytest.approx(10.0)
+    assert result.final_cash == pytest.approx(9000.0)
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["tag"] == "fixture_buy_once"
+
+
+def test_paper_mode_requires_explicit_confirmation(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+    )
+
+    with pytest.raises(ValueError, match="confirm-paper-orders"):
+        run_from_config(config_path, mode_override="paper")
+
+
+def test_validate_config_file_reports_missing_data_file(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_config(
+        config_path,
+        bars_path=tmp_path / "missing.csv",
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "does not exist" in str(exc.value)
+    assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_unsupported_order_type(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        execution={"allowed_order_types": ["market", "limit"]},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "execution.allowed_order_types" in str(exc.value)
+    assert "limit" in str(exc.value)
+
+
+def test_runner_rejects_order_above_notional_limit(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 5000},
+        execution={"max_notional_per_order": 1000},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 1
+    assert result.fills == 0
+    assert result.rejections == 1
+    records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert records[-1]["status"] == "rejected"
+    assert "max_notional_per_order" in records[-1]["reason"]
+
+
+def test_runner_rejects_short_sale_when_disabled(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "side": "sell", "quantity": 1, "cash_quantity": None},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 1
+    assert result.fills == 0
+    assert result.rejections == 1
+    records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert "exceeds held quantity" in records[-1]["reason"]
+
+
+def test_runner_enforces_max_orders_per_run(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 100, "repeat": True},
+        execution={"max_orders_per_run": 1},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 3
+    assert result.fills == 1
+    assert result.rejections == 2
+    records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert records[-1]["reason"] == "max_orders_per_run 1 reached"
+
+
+def test_runner_honors_pause_marker_before_strategy_evaluation(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    pause_marker = tmp_path / "control" / "runner.pause"
+    pause_marker.parent.mkdir()
+    pause_marker.write_text("paused\n")
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 1000},
+        control={"pause_marker": str(pause_marker)},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.decisions == 3
+    assert result.orders == 0
+    assert result.fills == 0
+    assert result.final_cash == pytest.approx(10000.0)
+    records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert records[-1]["signal"] == {"paused": True}
+    assert records[-1]["diagnostics"]["pause_marker"] == str(pause_marker)
+    assert not (output_dir / "orders.jsonl").exists()

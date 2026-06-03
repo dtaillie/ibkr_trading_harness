@@ -1,0 +1,39 @@
+description: >
+  EXAMPLE ONLY. Public-safe generic supervisor config. This demonstrates how to
+  schedule local plugin-runner commands and publish local status. It is not a
+  viable strategy configuration.
+
+node_id: example-local-trader
+
+supervisor:
+  state_file: paper_logs/plugin_supervisor/status.json
+  log_dir: paper_logs/plugin_supervisor/jobs
+  poll_seconds: 30
+
+jobs:
+  - id: example_plugin_runner
+    enabled: true
+    cwd: .
+    process_mode: blocking
+    command:
+      - python3
+      - live/plugin_runner.py
+      - --config
+      - config/plugin_runner.example.yaml
+      - --mode
+      - replay
+      - --max-steps
+      - "3"
+    run_dir: paper_logs/example_plugin_runner
+    pause_marker: paper_logs/control/example_plugin_runner.pause
+    schedule:
+      market: always
+      run_on_start: true
+      interval_seconds: 3600
+      max_runtime_seconds: 60
+
+notes:
+  - Commands are argv lists, not shell strings.
+  - Use process_mode=managed for long-running paper/shadow processes.
+  - Keep private strategy commands in ignored local configs.
+  - Pause/resume writes or removes the configured pause marker.

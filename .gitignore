@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+cache/
+*.png
+*.log
+*.zip
+.claude/*
+!.claude/agents/
+graphify-out/
+*.parquet
+algo_trade_sessions.log
+algo_trade_current_session.log
+.algo_trade_stop
+
+# Local/private runtime config. Commit only sanitized examples.
+config/*.env
+!config/*.env.example
+config/*_paper.yaml
+!config/*.example.yaml
+config/strategy_registry.yaml
+!config/strategy_registry.example.yaml
+config/*_private.yaml
+config/*_local.yaml
+config/local/
+
+# Runtime artifacts.
+paper_logs/
+
+# Private notes/research direction.
+docs/private_*.md
+docs/strategy_research_backlog.md
+analysis_out/
+scripts/r*.py
+
+# Private strategy plugins.
+private/

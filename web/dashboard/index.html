@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Harness Status</title>
+  <link rel="stylesheet" href="/dashboard/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Trading Harness Status</h1>
+      <p id="subtitle">Waiting for telemetry</p>
+    </div>
+    <div class="toolbar">
+      <label class="token-field">
+        <span>Token</span>
+        <input id="auth-token" type="password" autocomplete="off">
+      </label>
+      <button id="save-token" type="button">Save</button>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="metrics">
+      <div class="metric">
+        <span>Status</span>
+        <strong id="metric-status">n/a</strong>
+      </div>
+      <div class="metric">
+        <span>Gateway</span>
+        <strong id="metric-gateway">n/a</strong>
+      </div>
+      <div class="metric">
+        <span>Runs</span>
+        <strong id="metric-runs">0</strong>
+      </div>
+      <div class="metric">
+        <span>Supervisors</span>
+        <strong id="metric-supervisors">0</strong>
+      </div>
+      <div class="metric">
+        <span>Remote</span>
+        <strong id="metric-remote">n/a</strong>
+      </div>
+      <div class="metric">
+        <span>Alerts</span>
+        <strong id="metric-alerts">0</strong>
+      </div>
+      <div class="metric">
+        <span>History</span>
+        <strong id="metric-history">0</strong>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Recent Status</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Node</th>
+              <th>Status</th>
+              <th>Gateway</th>
+              <th>Alerts</th>
+              <th>Runs</th>
+              <th>Supervisors</th>
+              <th>Remote</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Runs</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Mode</th>
+              <th>Decisions</th>
+              <th>Orders</th>
+              <th>Fills</th>
+              <th>Rejections</th>
+              <th>Final Equity</th>
+              <th>Last Decision</th>
+              <th>Age</th>
+            </tr>
+          </thead>
+          <tbody id="runs-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Recent Run Events</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Run</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Symbol</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="run-events-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Supervisors</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Jobs</th>
+              <th>Generated</th>
+              <th>Age</th>
+              <th>Job Statuses</th>
+            </tr>
+          </thead>
+          <tbody id="supervisors-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Remote Control</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Audit</th>
+              <th>Latest Event</th>
+              <th>Age</th>
+              <th>Result Statuses</th>
+              <th>Post Statuses</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody id="remote-control-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="split">
+      <div>
+        <div class="section-head">
+          <h2>Alerts</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Level</th>
+                <th>Kind</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="alerts-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <h2>Gateway</h2>
+        </div>
+        <dl id="gateway-list" class="kv"></dl>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Commands</h2>
+      </div>
+      <form id="command-form" class="command-form">
+        <label>
+          <span>Node</span>
+          <input id="command-node" name="node_id" type="text">
+        </label>
+        <label>
+          <span>Action</span>
+          <select id="command-action" name="action">
+            <option value="request_status">request_status</option>
+            <option value="supervisor_status">supervisor_status</option>
+            <option value="summarize_run">summarize_run</option>
+            <option value="validate_config">validate_config</option>
+            <option value="validate_supervisor_config">validate_supervisor_config</option>
+            <option value="run_supervisor_once">run_supervisor_once</option>
+            <option value="pause_runner">pause_runner</option>
+            <option value="resume_runner">resume_runner</option>
+          </select>
+        </label>
+        <label id="command-run-field">
+          <span>Run ID</span>
+          <input id="command-run" name="run_id" type="text">
+        </label>
+        <label id="command-config-field">
+          <span>Config ID</span>
+          <input id="command-config" name="config_id" type="text">
+        </label>
+        <label id="command-supervisor-field">
+          <span>Supervisor ID</span>
+          <input id="command-supervisor" name="supervisor_id" type="text">
+        </label>
+        <button type="submit">Queue</button>
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Node</th>
+              <th>Action</th>
+              <th>Params</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="commands-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Command Results</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Received</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="last-refresh">Not refreshed</span>
+  </footer>
+
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+description: >
+  EXAMPLE ONLY. This file demonstrates config shape and execution options for a
+  stock paper runner. It is intentionally vanilla and is not a viable trading
+  strategy.
+
+strategy: example_non_viable_intraday_template
+
+metadata:
+  registry_id: example_stock_runner
+  runner_label: example_stock_runner
+  signal_plugin: examples.strategies.no_edge_stock_signal:create_plugin
+  status: example_only
+
+universe:
+  symbols_from: config/example_universe.yaml
+  index_confirm_symbols:
+    - SPY
+    - QQQ
+    - IWM
+
+selection:
+  # Deliberately conservative demo values. These are not tuned.
+  lookback_days: 5
+  recent_calendar_days: 30
+  min_abs_gap: 0.99
+  min_first30_volume_ratio: 99.0
+  min_first30_dollar_volume: 1000000000
+  max_candidates_per_day: 1
+  require_index_gap_confirmation: false
+
+signal:
+  opening_range_start_minute: 570
+  opening_range_end_minute: 595
+  fail_check_minute: 625
+  entry_minute: 630
+  exit_minute: 955
+  trade: example_no_edge_signal
+
+risk:
+  target_R: 1.0
+  min_stop_pct: 0.01
+  max_stop_pct: 0.02
+  max_trades_per_day: 1
+  max_daily_loss_pct: 0.005
+  max_gross_exposure: 0.05
+  reject_stale_or_missing_bars: true
+
+execution:
+  # Supported values: market, midprice, adaptive_market, adaptive_limit.
+  entry_order_style: market
+  entry_adaptive_priority: Patient
+  entry_limit_cap_bps: 10.0
+  order_ref_prefix: EXAMPLE_STOCK
+
+paths:
+  log_dir: paper_logs/example_stock_runner
+  state_path: paper_logs/example_stock_runner/paper_state.json
+  order_log: paper_logs/example_stock_runner/paper_orders.csv
+  fill_log: paper_logs/example_stock_runner/paper_fills.csv
+  eod_flatten_log: paper_logs/example_stock_runner/paper_eod_flatten.csv
+
+paper_logging:
+  enabled: true
+
+notes:
+  - Example only; do not trade this.
+  - Replace with a private strategy config before paper or live testing.
+  - Keep real strategy parameters out of public repos.
