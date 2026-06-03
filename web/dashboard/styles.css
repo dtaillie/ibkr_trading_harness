@@ -264,6 +264,16 @@ section {
   font-size: 12px;
 }
 
+.artifact-head {
+  margin-top: 18px;
+}
+
+.artifact-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 0.58fr);
+  gap: 12px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -370,6 +380,7 @@ footer {
 @media (max-width: 820px) {
   .topbar,
   .split,
+  .artifact-grid,
   .builder-output {
     display: block;
   }

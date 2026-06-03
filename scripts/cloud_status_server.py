@@ -63,8 +63,10 @@ CONFIG_BUILDER_PLUGINS = (
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
+WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
+MAX_ARTIFACT_ROWS = 500
 OUTPUT_TAIL_BYTES = 8000
 
 
@@ -727,6 +729,126 @@ def list_config_draft_runs(state_dir: Path, *, limit: int = 20) -> dict[str, Any
     return {"runs": runs, "count": len(runs), "total": total, "limit": limit}
 
 
+def safe_workbench_output_dir(config: dict[str, Any]) -> Path:
+    runner = config.get("runner") or {}
+    raw_output_dir = str(runner.get("output_dir") or "").strip()
+    if not raw_output_dir:
+        raise ValueError("runner.output_dir is required")
+    candidate = Path(raw_output_dir)
+    output_dir = candidate if candidate.is_absolute() else ROOT / candidate
+    output_dir = output_dir.resolve()
+    root = WORKBENCH_OUTPUT_ROOT.resolve()
+    if not output_dir.is_relative_to(root):
+        raise ValueError("runner.output_dir must be inside paper_logs/workbench")
+    return output_dir
+
+
+def read_json_file(path: Path) -> dict[str, Any] | None:
+    if not path.exists() or not path.is_file():
+        return None
+    with path.open() as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else None
+
+
+def read_jsonl_tail(path: Path, *, limit: int) -> list[dict[str, Any]]:
+    if not path.exists() or not path.is_file():
+        return []
+    rows: deque[dict[str, Any]] = deque(maxlen=limit)
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return list(rows)
+
+
+def summarize_decision_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    intents = row.get("intents")
+    diagnostics = row.get("diagnostics") if isinstance(row.get("diagnostics"), dict) else {}
+    symbols = diagnostics.get("symbols") or diagnostics.get("symbols_seen")
+    if not isinstance(symbols, list):
+        symbols = []
+    return {
+        "timestamp": row.get("timestamp"),
+        "step": row.get("step"),
+        "mode": row.get("mode"),
+        "intent_count": len(intents) if isinstance(intents, list) else 0,
+        "paused": bool(diagnostics.get("paused")),
+        "symbols": [str(symbol) for symbol in symbols[:25]],
+    }
+
+
+def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "timestamp": row.get("timestamp"),
+        "status": row.get("status"),
+        "symbol": row.get("symbol"),
+        "side": row.get("side"),
+        "order_type": row.get("order_type"),
+        "quantity": row.get("quantity"),
+        "cash_quantity": row.get("cash_quantity"),
+        "reason": row.get("reason"),
+        "tag": row.get("tag"),
+    }
+
+
+def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "timestamp": row.get("timestamp"),
+        "symbol": row.get("symbol"),
+        "side": row.get("side"),
+        "quantity": row.get("quantity"),
+        "price": row.get("price"),
+        "commission": row.get("commission"),
+        "tag": row.get("tag"),
+        "simulated": row.get("simulated"),
+    }
+
+
+def load_config_draft_artifacts(
+    state_dir: Path,
+    draft_id: str,
+    *,
+    data_roots: list[Path],
+    limit: int = 100,
+) -> dict[str, Any]:
+    path = config_draft_path(state_dir, draft_id)
+    config = read_yaml_mapping(path)
+    errors = validate_workbench_draft_config(
+        config,
+        config_path=path,
+        data_roots=data_roots,
+        action="replay",
+    )
+    if errors:
+        raise ValueError("; ".join(errors))
+    output_dir = safe_workbench_output_dir(config)
+    summary = read_json_file(output_dir / "summary.json")
+    decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
+    orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
+    fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
+    return {
+        "draft_id": path.stem,
+        "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
+        "summary": summary,
+        "counts": {
+            "decisions": len(decisions_raw),
+            "orders": len(orders_raw),
+            "fills": len(fills_raw),
+        },
+        "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
+        "orders": [summarize_order_artifact(row) for row in orders_raw],
+        "fills": [summarize_fill_artifact(row) for row in fills_raw],
+        "limit": limit,
+    }
+
+
 def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
     draft_id = str(payload.get("draft_id") or "").strip()
     if not draft_id:
@@ -1227,6 +1349,26 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, list_config_draft_runs(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/config_draft_artifacts":
+            if not self.require_auth():
+                return
+            draft_id = str(params.get("draft_id", [""])[0]).strip()
+            if not draft_id:
+                json_response(self, 400, {"error": "draft_id is required"})
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=MAX_ARTIFACT_ROWS)
+                payload = load_config_draft_artifacts(
+                    self.state_dir,
+                    draft_id,
+                    data_roots=self.data_roots,
+                    limit=limit,
+                )
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path in {"/", "/index.html"}:
             index = self.dashboard_dir / "index.html"

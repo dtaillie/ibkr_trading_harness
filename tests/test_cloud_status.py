@@ -679,10 +679,85 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert replay["summary"]["decisions"] == 2
         assert replay["summary"]["fills"] == 0
 
+        with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
+            artifacts = json.loads(resp.read().decode("utf-8"))
+        assert artifacts["draft_id"] == "Run_Draft"
+        assert artifacts["summary"]["mode"] == "replay"
+        assert artifacts["counts"] == {"decisions": 2, "fills": 0, "orders": 0}
+        assert artifacts["decisions"][0]["intent_count"] == 0
+        assert artifacts["decisions"][0]["symbols"] == ["SPY"]
+        assert "signal" not in artifacts["decisions"][0]
+        assert artifacts["orders"] == []
+        assert artifacts["fills"] == []
+
         with request.urlopen(f"{base}/config_draft_runs?limit=5", timeout=5) as resp:
             runs = json.loads(resp.read().decode("utf-8"))
         assert runs["total"] == 2
         assert [run["action"] for run in runs["runs"]] == ["replay", "validate"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_artifacts_reject_output_outside_workbench(tmp_path):
+    data_root = tmp_path / "data"
+    state_dir = tmp_path / "state"
+    drafts_dir = state_dir / "config_drafts"
+    data_root.mkdir()
+    drafts_dir.mkdir(parents=True)
+    data_file = data_root / "SPY.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    bad_draft = drafts_dir / "Bad_Output.yaml"
+    bad_draft.write_text(
+        "\n".join(
+            [
+                "metadata:",
+                "  strategy_plugin: examples.strategies.no_edge_template:create_strategy",
+                "  status: example_only",
+                "strategy: {}",
+                "runner:",
+                "  mode: replay",
+                "  starting_cash: 10000",
+                "  history_bars: 2",
+                "  max_steps: 1",
+                "  output_dir: paper_logs/not_workbench",
+                "data:",
+                "  source: files",
+                "  timestamp_column: timestamp",
+                "  files:",
+                f"    SPY: {data_file}",
+                "execution:",
+                "  allowed_symbols: [SPY]",
+                "  allowed_sides: [buy, sell]",
+                "  allowed_order_types: [market]",
+                "broker: {}",
+                "control: {}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            request.urlopen(f"{base}/config_draft_artifacts?draft_id=Bad_Output", timeout=5)
+            raise AssertionError("expected unsafe output response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "runner.output_dir must be inside paper_logs/workbench"
     finally:
         server.shutdown()
         server.server_close()

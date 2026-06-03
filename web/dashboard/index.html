@@ -227,6 +227,7 @@
               <th>Symbols</th>
               <th>Modified</th>
               <th>Output</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="config-drafts-body"></tbody>
@@ -245,9 +246,67 @@
               <th>Fills</th>
               <th>Rejects</th>
               <th>Detail</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="config-runs-body"></tbody>
+        </table>
+      </div>
+      <div class="section-head artifact-head">
+        <h2>Run Artifacts</h2>
+        <span id="artifact-title" class="section-note">No run selected</span>
+      </div>
+      <div class="artifact-grid">
+        <dl id="artifact-summary" class="kv"></dl>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Step</th>
+                <th>Mode</th>
+                <th>Intents</th>
+                <th>State</th>
+                <th>Symbols</th>
+              </tr>
+            </thead>
+            <tbody id="artifact-decisions-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Status</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Type</th>
+              <th>Qty</th>
+              <th>Cash Qty</th>
+              <th>Reason</th>
+              <th>Tag</th>
+            </tr>
+          </thead>
+          <tbody id="artifact-orders-body"></tbody>
+        </table>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Commission</th>
+              <th>Sim</th>
+              <th>Tag</th>
+            </tr>
+          </thead>
+          <tbody id="artifact-fills-body"></tbody>
         </table>
       </div>
     </section>

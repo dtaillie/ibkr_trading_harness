@@ -6,6 +6,7 @@ const state = {
   configDraft: null,
   configDrafts: { drafts: [], errors: [] },
   configRuns: { runs: [] },
+  configArtifacts: null,
   commands: [],
   results: [],
 };
@@ -279,8 +280,9 @@ function renderWorkbenchRuns() {
         escapeHtml((draft.symbols || []).join(", ")),
         escapeHtml(draft.modified_at),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
+        `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Inspect</button>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 
   const runs = (state.configRuns && state.configRuns.runs) || [];
   $("config-runs-body").innerHTML = runs.length
@@ -299,9 +301,72 @@ function renderWorkbenchRuns() {
           escapeHtml(summary.fills),
           escapeHtml(summary.rejections),
           `<span class="mono">${escapeHtml(detail)}</span>`,
+          `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Inspect</button>`,
         ]);
       }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderWorkbenchArtifacts() {
+  const artifacts = state.configArtifacts || {};
+  const summary = artifacts.summary || {};
+  $("artifact-title").textContent = artifacts.draft_id
+    ? `${artifacts.draft_id} - ${text(artifacts.output_dir)}`
+    : "No run selected";
+  const pairs = [
+    ["Mode", text(summary.mode)],
+    ["Decisions", text(summary.decisions)],
+    ["Orders", text(summary.orders)],
+    ["Fills", text(summary.fills)],
+    ["Rejections", text(summary.rejections)],
+    ["Final Cash", money(summary.final_cash)],
+    ["Final Equity", money(summary.final_equity)],
+    ["Positions", JSON.stringify(summary.final_positions || {})],
+  ];
+  $("artifact-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+
+  const decisions = artifacts.decisions || [];
+  $("artifact-decisions-body").innerHTML = decisions.length
+    ? decisions.map((decision) => row([
+        escapeHtml(decision.timestamp),
+        escapeHtml(decision.step),
+        escapeHtml(decision.mode),
+        escapeHtml(decision.intent_count),
+        statusText(decision.paused ? "paused" : "ok"),
+        escapeHtml((decision.symbols || []).join(", ")),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+
+  const orders = artifacts.orders || [];
+  $("artifact-orders-body").innerHTML = orders.length
+    ? orders.map((orderItem) => row([
+        escapeHtml(orderItem.timestamp),
+        statusText(orderItem.status),
+        escapeHtml(orderItem.symbol),
+        escapeHtml(orderItem.side),
+        escapeHtml(orderItem.order_type),
+        escapeHtml(orderItem.quantity),
+        escapeHtml(orderItem.cash_quantity),
+        escapeHtml(orderItem.reason),
+        escapeHtml(orderItem.tag),
+      ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+
+  const fills = artifacts.fills || [];
+  $("artifact-fills-body").innerHTML = fills.length
+    ? fills.map((fill) => row([
+        escapeHtml(fill.timestamp),
+        escapeHtml(fill.symbol),
+        escapeHtml(fill.side),
+        escapeHtml(fill.quantity),
+        escapeHtml(fill.price),
+        escapeHtml(fill.commission),
+        escapeHtml(fill.simulated),
+        escapeHtml(fill.tag),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
 }
 
 function renderRuns() {
@@ -489,6 +554,7 @@ function renderAll() {
   renderDataCatalog();
   renderConfigBuilder();
   renderWorkbenchRuns();
+  renderWorkbenchArtifacts();
   renderRuns();
   renderRunEvents();
   renderSupervisors();
@@ -561,6 +627,13 @@ async function generateConfigDraft(event) {
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
 }
 
+async function loadConfigArtifacts(draftId) {
+  const response = await fetchJson(`/config_draft_artifacts?draft_id=${encodeURIComponent(draftId)}&limit=100`);
+  state.configArtifacts = response;
+  renderWorkbenchArtifacts();
+  $("last-refresh").textContent = `Artifacts loaded: ${new Date().toLocaleString()}`;
+}
+
 async function runConfigDraft(event) {
   event.preventDefault();
   const draftId = $("config-run-draft").value;
@@ -581,6 +654,9 @@ async function runConfigDraft(event) {
   const run = response.run || {};
   $("config-run-status").innerHTML = statusText(run.status);
   state.configRuns = await fetchJson("/config_draft_runs?limit=20");
+  if (($("config-run-action").value || "") !== "validate") {
+    await loadConfigArtifacts(draftId);
+  }
   renderWorkbenchRuns();
   $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
 }
@@ -667,6 +743,15 @@ function init() {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  for (const id of ["config-drafts-body", "config-runs-body"]) {
+    $(id).addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-draft")) return;
+      loadConfigArtifacts(target.dataset.draftId || "").catch((err) => {
+        $("last-refresh").textContent = `Artifact load failed: ${err.message}`;
+      });
+    });
+  }
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;

@@ -184,7 +184,9 @@ and replay/shadow/simulated-paper modes; it does not submit broker orders. If
 you enable "Save draft locally", the YAML is written under the dashboard state
 directory. Saved drafts can then be validated, replayed, or simulated-paper-run
 from the dashboard with bounded `max_steps` and timeout controls, and recent
-workbench run results are shown below the draft list.
+workbench run results are shown below the draft list. Use Inspect on a saved
+draft or run row to review summarized `summary.json`, decisions, orders, and
+fills. The artifact view intentionally omits raw strategy signal payloads.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

@@ -184,7 +184,10 @@ coverage summaries, timestamp/gap metadata, and small downsampled price
 previews. The dashboard can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
-file-based data under configured data roots, and non-live modes.
+file-based data under configured data roots, and non-live modes. Saved draft
+runs can be inspected through summarized artifacts for decisions, orders, and
+fills; raw strategy signal payloads are not returned by the public artifact
+view.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through
