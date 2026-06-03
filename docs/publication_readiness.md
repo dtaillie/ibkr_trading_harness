@@ -46,6 +46,10 @@ python3 scripts/public_readiness_audit.py
 Treat any `BLOCKER` as a file that must not be copied to the public repo
 without sanitization or exclusion. Treat `REVIEW` as a manual inspection item.
 
+Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
+repeatable public copy. If the destination is already a Git repo, `--force`
+preserves its `.git` directory while replacing the exported working-tree files.
+
 ## Recommended Public Repo Shape
 
 - `framework/`

@@ -227,6 +227,10 @@ Run this before publishing:
 python3 scripts/public_readiness_audit.py
 ```
 
+The private source tree can regenerate this public subset with
+`scripts/export_public_repo.py --force`. Repeated exports preserve the
+destination repo's `.git` directory, so history and remotes survive refreshes.
+
 ## Documentation
 
 - `docs/public_quickstart.md`

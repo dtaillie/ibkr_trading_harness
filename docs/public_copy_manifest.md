@@ -37,6 +37,9 @@ pushing this working tree.
 Use `scripts/export_public_repo.py` to create the current conservative public
 copy candidate. It intentionally excludes strategy-shaped intraday paper runners
 while including the generic strategy-plugin runner.
+When `--force` is used against an existing public repo, the exporter refreshes
+the working tree while preserving the destination `.git` directory so commit
+history and remotes survive repeated exports.
 
 ## Exclude
 

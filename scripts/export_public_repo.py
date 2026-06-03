@@ -50,6 +50,7 @@ COPY_FILES = [
     "tests/fixtures/__init__.py",
     "tests/fixtures/order_once_plugin.py",
     "tests/test_cloud_status.py",
+    "tests/test_export_public_repo.py",
     "tests/test_generic_plugin_runner.py",
     "tests/test_market_calendar.py",
     "tests/test_plugin_supervisor.py",
@@ -105,6 +106,23 @@ def assert_exists(path: Path) -> None:
         raise FileNotFoundError(path)
 
 
+def public_readme_source() -> Path:
+    private_readme = ROOT / "README.public.md"
+    if private_readme.exists():
+        return private_readme
+    return ROOT / "README.md"
+
+
+def clear_destination(dest_root: Path) -> None:
+    for path in dest_root.iterdir():
+        if path.name == ".git":
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export conservative public repo copy")
     parser.add_argument("--dest", default="../algo_trade_public")
@@ -115,8 +133,9 @@ def main() -> None:
     if dest_root.exists():
         if not args.force:
             raise SystemExit(f"{dest_root} exists; pass --force to replace it")
-        shutil.rmtree(dest_root)
-    dest_root.mkdir(parents=True)
+        clear_destination(dest_root)
+    else:
+        dest_root.mkdir(parents=True)
 
     for rel in COPY_DIRS:
         src = ROOT / rel
@@ -124,11 +143,13 @@ def main() -> None:
         copy_tree(src, dest_root)
 
     for rel in COPY_FILES:
-        src = ROOT / rel
-        assert_exists(src)
         if rel == "README.public.md":
+            src = public_readme_source()
+            assert_exists(src)
             copy_file(src, dest_root, "README.md")
         else:
+            src = ROOT / rel
+            assert_exists(src)
             copy_file(src, dest_root)
 
     for rel in CONFIG_FILES:
@@ -144,7 +165,8 @@ def main() -> None:
     print("Next:")
     print(f"  cd {dest_root}")
     print("  python3 scripts/public_readiness_audit.py")
-    print("  git init && git status")
+    print("  git init  # only needed for a new destination")
+    print("  git status")
 
 
 if __name__ == "__main__":
