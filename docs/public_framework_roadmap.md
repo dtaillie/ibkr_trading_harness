@@ -116,6 +116,9 @@ strategies private.
 - Keep expanding the web dashboard into a public workbench: usage guidance,
   saved-data inspection, replay/simulation setup, and monitoring should live in
   one browser surface.
+- Keep saved-data inspection bounded and local-first: summaries, sampled price
+  paths, gap rows, and quality stats should be exposed without uploading full
+  bar files through the cloud prototype.
 - Keep the public config builder and saved-draft runner limited to public
   generic examples, configured local data roots, bounded subprocess execution,
   and non-live modes until stronger schema, authorization, and execution

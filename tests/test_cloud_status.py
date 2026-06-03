@@ -527,6 +527,74 @@ def test_cloud_status_server_rejects_invalid_data_catalog_preview_points(tmp_pat
         server.server_close()
 
 
+def test_cloud_status_server_serves_data_detail(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY_5min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.0,1000",
+                "2026-01-02T14:35:00Z,100,102,99,101.0,0",
+                "2026-01-02T14:50:00Z,101,103,100,102.0,1500",
+                "2026-01-02T14:55:00Z,102,104,101,103.0,2000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_detail?path={data_file}&preview_points=4&gap_limit=5", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+
+        assert detail["path"] == str(data_file)
+        assert detail["symbol"] == "SPY"
+        assert detail["rows"] == 4
+        assert detail["column_map"]["close"] == "close"
+        assert detail["coverage"]["median_interval_seconds"] == 300.0
+        assert detail["coverage"]["largest_gap_seconds"] == 900.0
+        assert detail["coverage"]["estimated_missing_intervals"] == 2
+        assert detail["gaps"][0]["estimated_missing_intervals"] == 2
+        assert detail["price_stats"]["start_close"] == 100.0
+        assert detail["price_stats"]["end_close"] == 103.0
+        assert abs(detail["price_stats"]["total_return_pct"] - 3.0) < 1e-9
+        assert detail["return_stats"]["count"] == 3
+        assert detail["volume_stats"]["zero_rows"] == 1
+        assert len(detail["preview"]) == 4
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_data_detail_rejects_outside_roots(tmp_path):
+    data_root = tmp_path / "data"
+    other_root = tmp_path / "other"
+    data_root.mkdir()
+    other_root.mkdir()
+    data_file = other_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            request.urlopen(f"{base}/data_detail?path={data_file}", timeout=5)
+            raise AssertionError("expected outside data root response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "data file must be inside a configured data root"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
     data_root = tmp_path / "data"
     state_dir = tmp_path / "state"

@@ -106,11 +106,59 @@
               <th>Preview</th>
               <th>Size</th>
               <th>Path</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="data-catalog-body"></tbody>
         </table>
       </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Data Detail</h2>
+        <span id="data-detail-title" class="section-note">No dataset selected</span>
+      </div>
+      <div class="data-detail-grid">
+        <dl id="data-detail-summary" class="kv"></dl>
+        <div id="data-detail-chart" class="detail-chart-wrap"></div>
+      </div>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Nulls</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Rows</th>
+                </tr>
+              </thead>
+              <tbody id="data-quality-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Gaps</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Gap</th>
+                  <th>Missing</th>
+                </tr>
+              </thead>
+              <tbody id="data-gaps-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </section>
 
     <section>

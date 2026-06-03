@@ -178,6 +178,9 @@ stale local artifacts raise dashboard alerts.
 Repeat `--data-root` to include additional local CSV/parquet roots such as a
 private cache directory. Data roots are scanned locally; the dashboard receives
 coverage summaries and small downsampled previews, not full bar files.
+Use Inspect on a saved dataset row to load a local-only detail view with a
+larger sampled price path, timestamp coverage, gap rows, null counts,
+price/return stats, and volume stats.
 The Config Builder section can generate and validate example plugin-runner YAML
 from a selected saved dataset. It only offers public generic no-edge plugins
 and replay/shadow/simulated-paper modes; it does not submit broker orders. If

@@ -181,7 +181,9 @@ stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
 dashboard can also inspect configured local CSV/parquet data roots, showing
 coverage summaries, timestamp/gap metadata, and small downsampled price
-previews. The dashboard can generate, save, validate, replay, and
+previews. Individual datasets can be inspected for larger sampled price paths,
+null counts, gap rows, price/return stats, and volume stats before they are used
+in a replay config. The dashboard can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Saved draft

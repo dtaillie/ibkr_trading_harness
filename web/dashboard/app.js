@@ -2,6 +2,7 @@ const state = {
   status: null,
   history: [],
   dataCatalog: { datasets: [], errors: [] },
+  dataDetail: null,
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
   configDrafts: { drafts: [], errors: [] },
@@ -72,6 +73,18 @@ function money(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(number);
+}
+
+function numberText(value, digits = 4) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  return number.toLocaleString("en-US", { maximumFractionDigits: digits });
+}
+
+function pctText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  return `${number.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
 }
 
 function bytes(value) {
@@ -174,6 +187,26 @@ function miniChart(points) {
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
 }
 
+function detailChart(points) {
+  if (!points || points.length < 2) return `<span class="muted">No price preview available</span>`;
+  const closes = points.map((point) => Number(point.close)).filter((value) => Number.isFinite(value));
+  if (closes.length < 2) return `<span class="muted">No price preview available</span>`;
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const width = 720;
+  const height = 180;
+  const span = max - min || 1;
+  const coords = closes.map((value, index) => {
+    const x = closes.length === 1 ? 0 : (index / (closes.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const last = closes[closes.length - 1];
+  const first = closes[0];
+  const cls = last >= first ? "spark-good" : "spark-bad";
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="sampled close prices"><polyline points="${coords}"></polyline></svg>`;
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -190,12 +223,61 @@ function renderDataCatalog() {
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
+        `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   $("data-catalog-errors").innerHTML = errors.length
     ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
     : "";
+}
+
+function renderDataDetail() {
+  const detail = state.dataDetail || {};
+  const coverage = detail.coverage || {};
+  const quality = detail.quality || {};
+  const price = detail.price_stats || {};
+  const returns = detail.return_stats || {};
+  const volume = detail.volume_stats || {};
+  $("data-detail-title").textContent = detail.path
+    ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
+    : "No dataset selected";
+  const pairs = [
+    ["Rows", numberText(detail.rows, 0)],
+    ["Range", rangeLabel(coverage.first_timestamp, coverage.last_timestamp)],
+    ["Median Step", interval(coverage.median_interval_seconds)],
+    ["Largest Gap", interval(coverage.largest_gap_seconds)],
+    ["Missing Est.", numberText(coverage.estimated_missing_intervals, 0)],
+    ["Duplicates", numberText(coverage.duplicate_timestamps, 0)],
+    ["TZ", text(detail.source_timezone)],
+    ["Close Range", `${numberText(price.min_close)} -> ${numberText(price.max_close)}`],
+    ["Total Return", pctText(price.total_return_pct)],
+    ["Bar Std", pctText(returns.std_pct)],
+    ["Mean Abs Bar", pctText(returns.mean_abs_pct)],
+    ["Volume Median", numberText(volume.median, 0)],
+  ];
+  $("data-detail-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  $("data-detail-chart").innerHTML = detailChart(detail.preview || []);
+
+  const nullCounts = quality.null_counts || {};
+  $("data-quality-body").innerHTML = Object.keys(nullCounts).length
+    ? Object.entries(nullCounts).map(([key, value]) => row([
+        escapeHtml(key),
+        escapeHtml(value),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, ""]);
+
+  const gaps = detail.gaps || [];
+  $("data-gaps-body").innerHTML = gaps.length
+    ? gaps.map((gap) => row([
+        escapeHtml(gap.from_timestamp),
+        escapeHtml(gap.to_timestamp),
+        escapeHtml(interval(gap.gap_seconds)),
+        escapeHtml(gap.estimated_missing_intervals),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", ""]);
 }
 
 function replaceOptions(select, options) {
@@ -552,6 +634,7 @@ function renderResults() {
 function renderAll() {
   renderMetrics();
   renderDataCatalog();
+  renderDataDetail();
   renderConfigBuilder();
   renderWorkbenchRuns();
   renderWorkbenchArtifacts();
@@ -625,6 +708,13 @@ async function generateConfigDraft(event) {
   renderConfigBuilder();
   renderWorkbenchRuns();
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
+}
+
+async function loadDataDetail(path) {
+  const response = await fetchJson(`/data_detail?path=${encodeURIComponent(path)}&preview_points=360&gap_limit=30`);
+  state.dataDetail = response;
+  renderDataDetail();
+  $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadConfigArtifacts(draftId) {
@@ -752,6 +842,13 @@ function init() {
       });
     });
   }
+  $("data-catalog-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
+    loadDataDetail(target.dataset.path || "").catch((err) => {
+      $("last-refresh").textContent = `Data detail failed: ${err.message}`;
+    });
+  });
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import os
 import mimetypes
 import re
@@ -67,6 +68,8 @@ WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
 MAX_ARTIFACT_ROWS = 500
+MAX_DATA_DETAIL_POINTS = 1000
+MAX_DATA_GAP_ROWS = 200
 OUTPUT_TAIL_BYTES = 8000
 
 
@@ -409,6 +412,209 @@ def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]
     if not any(path.is_relative_to(root) for root in data_roots):
         raise ValueError("data file must be inside a configured data root")
     return path, path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path)
+
+
+def read_data_file(path: Path) -> tuple[pd.DataFrame, str]:
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return pd.read_csv(path), "csv"
+    if suffix == ".parquet":
+        return pd.read_parquet(path), "parquet"
+    raise ValueError(f"unsupported data file type: {path.suffix}")
+
+
+def column_named(df: pd.DataFrame, name: str) -> str | None:
+    lower_map = {str(col).lower(): str(col) for col in df.columns}
+    return lower_map.get(name.lower())
+
+
+def finite_float(raw: Any) -> float | None:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def numeric_stats(series: pd.Series) -> dict[str, Any]:
+    numeric = pd.to_numeric(series, errors="coerce")
+    valid = numeric.dropna()
+    return {
+        "count": int(valid.count()),
+        "missing": int(numeric.isna().sum()),
+        "min": finite_float(valid.min()) if not valid.empty else None,
+        "max": finite_float(valid.max()) if not valid.empty else None,
+        "mean": finite_float(valid.mean()) if not valid.empty else None,
+        "median": finite_float(valid.median()) if not valid.empty else None,
+        "std": finite_float(valid.std()) if len(valid) > 1 else None,
+    }
+
+
+def pct(value: float | None) -> float | None:
+    return finite_float(value * 100.0) if value is not None else None
+
+
+def build_data_detail(
+    raw_path: str,
+    *,
+    data_roots: list[Path],
+    preview_points: int = 300,
+    gap_limit: int = 20,
+) -> dict[str, Any]:
+    if preview_points < 2 or preview_points > MAX_DATA_DETAIL_POINTS:
+        raise ValueError(f"preview_points must be between 2 and {MAX_DATA_DETAIL_POINTS}")
+    if gap_limit < 1 or gap_limit > MAX_DATA_GAP_ROWS:
+        raise ValueError(f"gap_limit must be between 1 and {MAX_DATA_GAP_ROWS}")
+
+    path, rel_path = data_path_allowed(raw_path, data_roots)
+    root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+    df, fmt = read_data_file(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    parsed_ts = pd.Series([], dtype="datetime64[ns, UTC]")
+    source_tz = None
+    if raw_ts is not None:
+        source_tz = source_timezone_label(raw_ts)
+        parsed_ts = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce"))
+
+    parsed_valid = parsed_ts.dropna()
+    ordered = parsed_valid.sort_values()
+    diffs = ordered.diff().dropna().dt.total_seconds() if not ordered.empty else pd.Series([], dtype="float64")
+    median_interval = finite_float(diffs.median()) if not diffs.empty else None
+    largest_gap = finite_float(diffs.max()) if not diffs.empty else None
+    gap_rows = []
+    estimated_missing = 0
+    if median_interval and median_interval > 0 and len(ordered) > 1:
+        previous = ordered.iloc[0]
+        for current in ordered.iloc[1:]:
+            gap_seconds = float((current - previous).total_seconds())
+            if gap_seconds > median_interval * 1.5:
+                missing = max(0, round(gap_seconds / median_interval) - 1)
+                estimated_missing += missing
+                if len(gap_rows) < gap_limit:
+                    gap_rows.append({
+                        "from_timestamp": previous.isoformat(),
+                        "to_timestamp": current.isoformat(),
+                        "gap_seconds": finite_float(gap_seconds),
+                        "estimated_missing_intervals": int(missing),
+                    })
+            previous = current
+
+    columns = {
+        "timestamp": ts_col,
+        "open": column_named(df, "open"),
+        "high": column_named(df, "high"),
+        "low": column_named(df, "low"),
+        "close": close_column(df),
+        "volume": volume_column(df),
+    }
+    null_counts = {
+        str(col): int(df[col].isna().sum())
+        for col in df.columns
+        if int(df[col].isna().sum()) > 0
+    }
+    if raw_ts is not None:
+        null_counts["timestamp_parse_failures"] = int(parsed_ts.isna().sum())
+
+    close_col = columns["close"]
+    volume_col = columns["volume"]
+    price_stats: dict[str, Any] = {}
+    return_stats: dict[str, Any] = {}
+    volume_stats: dict[str, Any] = {}
+    preview = []
+    if close_col and raw_ts is not None:
+        scoped = pd.DataFrame({
+            "timestamp": pd.to_datetime(raw_ts, utc=True, errors="coerce"),
+            "close": pd.to_numeric(df[close_col], errors="coerce"),
+        })
+        for name in ("open", "high", "low"):
+            col = columns[name]
+            if col:
+                scoped[name] = pd.to_numeric(df[col], errors="coerce")
+        if volume_col:
+            scoped["volume"] = pd.to_numeric(df[volume_col], errors="coerce")
+        scoped = scoped.dropna(subset=["timestamp", "close"]).sort_values("timestamp")
+        closes = scoped["close"].dropna()
+        if not closes.empty:
+            first_close = finite_float(closes.iloc[0])
+            last_close = finite_float(closes.iloc[-1])
+            total_return = (
+                (last_close / first_close - 1.0)
+                if first_close is not None and first_close != 0 and last_close is not None
+                else None
+            )
+            price_stats = {
+                "start_close": first_close,
+                "end_close": last_close,
+                "min_close": finite_float(closes.min()),
+                "max_close": finite_float(closes.max()),
+                "total_return_pct": pct(total_return),
+            }
+            returns = closes.pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
+            if not returns.empty:
+                positive = returns[returns > 0]
+                return_stats = {
+                    "count": int(returns.count()),
+                    "mean_pct": pct(finite_float(returns.mean())),
+                    "median_pct": pct(finite_float(returns.median())),
+                    "std_pct": pct(finite_float(returns.std())) if len(returns) > 1 else None,
+                    "min_pct": pct(finite_float(returns.min())),
+                    "max_pct": pct(finite_float(returns.max())),
+                    "mean_abs_pct": pct(finite_float(returns.abs().mean())),
+                    "positive_pct": pct(float(len(positive)) / float(len(returns))),
+                }
+        if volume_col and "volume" in scoped:
+            volume_numeric = scoped["volume"]
+            volume_stats = {
+                **numeric_stats(volume_numeric),
+                "zero_rows": int((volume_numeric.fillna(-1) == 0).sum()),
+                "sum": finite_float(volume_numeric.sum()),
+            }
+        for idx in evenly_sample_indices(len(scoped), preview_points):
+            row = scoped.iloc[idx]
+            item = {
+                "timestamp": row["timestamp"].isoformat(),
+                "close": finite_float(row["close"]),
+            }
+            for name in ("open", "high", "low", "volume"):
+                if name in scoped and pd.notna(row.get(name)):
+                    item[name] = finite_float(row[name])
+            preview.append(item)
+
+    stat = path.stat()
+    return {
+        "path": rel_path,
+        "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
+        "format": fmt,
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "rows": int(len(df)),
+        "columns": [str(col) for col in df.columns],
+        "symbol": infer_symbol(path, df),
+        "bar_size": infer_bar_size(path, df),
+        "column_map": columns,
+        "source_timezone": source_tz,
+        "normalized_timezone": "UTC" if source_tz else None,
+        "coverage": {
+            "first_timestamp": ordered.iloc[0].isoformat() if not ordered.empty else None,
+            "last_timestamp": ordered.iloc[-1].isoformat() if not ordered.empty else None,
+            "median_interval_seconds": median_interval,
+            "largest_gap_seconds": largest_gap,
+            "estimated_missing_intervals": int(estimated_missing),
+            "duplicate_timestamps": int(parsed_valid.duplicated().sum()) if not parsed_valid.empty else 0,
+            "timestamp_parse_failures": int(parsed_ts.isna().sum()) if raw_ts is not None else None,
+        },
+        "quality": {
+            "null_counts": null_counts,
+            "gap_count_returned": len(gap_rows),
+        },
+        "price_stats": price_stats,
+        "return_stats": return_stats,
+        "volume_stats": volume_stats,
+        "gaps": gap_rows,
+        "preview": preview,
+        "preview_points": preview_points,
+    }
 
 
 def number_field(payload: dict[str, Any], key: str, default: float, *, integer: bool = False) -> int | float:
@@ -1325,6 +1531,27 @@ class StatusHandler(BaseHTTPRequestHandler):
                 limit = parse_limit(params, default=50, maximum=200)
                 preview_points = int(params.get("preview_points", ["80"])[0])
                 payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_detail":
+            if not self.require_auth():
+                return
+            raw_path = str(params.get("path", [""])[0]).strip()
+            if not raw_path:
+                json_response(self, 400, {"error": "path is required"})
+                return
+            try:
+                preview_points = int(params.get("preview_points", ["300"])[0])
+                gap_limit = int(params.get("gap_limit", ["20"])[0])
+                payload = build_data_detail(
+                    raw_path,
+                    data_roots=self.data_roots,
+                    preview_points=preview_points,
+                    gap_limit=gap_limit,
+                )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
