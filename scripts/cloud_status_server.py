@@ -8,12 +8,15 @@ import html
 import json
 import os
 import mimetypes
+import re
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import parse_qs, unquote, urlparse
+
+import pandas as pd
 
 
 ALLOWED_COMMAND_ACTIONS = {
@@ -40,6 +43,8 @@ COMMAND_PARAM_FIELDS = {
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
+DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
+BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
 
 
 def utc_now() -> str:
@@ -158,6 +163,207 @@ def parse_limit(params: dict[str, list[str]], *, default: int = 50, maximum: int
     if value < 1 or value > maximum:
         raise ValueError(f"limit must be between 1 and {maximum}")
     return value
+
+
+def parse_bool_param(params: dict[str, list[str]], key: str, *, default: bool) -> bool:
+    raw = params.get(key, [str(default).lower()])[0].strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{key} must be true or false")
+
+
+def parse_data_roots(raw_roots: list[Path] | None) -> list[Path]:
+    roots = raw_roots if raw_roots else list(DEFAULT_DATA_ROOTS)
+    out = []
+    for root in roots:
+        path = root if root.is_absolute() else ROOT / root
+        out.append(path.resolve())
+    return out
+
+
+def data_file_candidates(data_roots: list[Path], *, limit: int) -> list[Path]:
+    files: list[Path] = []
+    for root in data_roots:
+        if not root.exists() or not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.is_file() and path.suffix.lower() in {".csv", ".parquet"}:
+                files.append(path)
+                if len(files) >= limit:
+                    return files
+    return files
+
+
+def infer_symbol(path: Path, df: pd.DataFrame) -> str | None:
+    if "symbol" in df.columns:
+        values = [str(value).upper() for value in df["symbol"].dropna().unique()[:2]]
+        if len(values) == 1:
+            return values[0]
+    match = re.match(r"([A-Za-z0-9.-]+)", path.stem)
+    return match.group(1).upper() if match else None
+
+
+def infer_bar_size(path: Path, df: pd.DataFrame) -> str | None:
+    if "bar_size" in df.columns:
+        values = [str(value) for value in df["bar_size"].dropna().unique()[:2]]
+        if len(values) == 1:
+            return values[0]
+    lowered = "/".join(part.lower() for part in path.parts)
+    for token in BAR_SIZE_TOKENS:
+        if token in lowered:
+            return token
+    return None
+
+
+def timestamp_column(df: pd.DataFrame) -> str | None:
+    lower_map = {str(col).lower(): str(col) for col in df.columns}
+    for name in ("timestamp", "datetime", "date", "time"):
+        if name in lower_map:
+            return lower_map[name]
+    return None
+
+
+def source_timezone_label(raw: pd.Series | pd.Index) -> str:
+    dtype = getattr(raw, "dtype", None)
+    if getattr(dtype, "tz", None) is not None:
+        return str(dtype.tz)
+    sample = [str(value) for value in list(raw.dropna()[:20] if isinstance(raw, pd.Series) else raw.dropna()[:20])]
+    if any(re.search(r"(Z|[+-]\d{2}:?\d{2})$", value) for value in sample):
+        return "offset-aware"
+    return "naive/unknown"
+
+
+def close_column(df: pd.DataFrame) -> str | None:
+    lower_map = {str(col).lower(): str(col) for col in df.columns}
+    return lower_map.get("close") or lower_map.get("last")
+
+
+def volume_column(df: pd.DataFrame) -> str | None:
+    lower_map = {str(col).lower(): str(col) for col in df.columns}
+    return lower_map.get("volume")
+
+
+def evenly_sample_indices(length: int, points: int) -> list[int]:
+    if length <= points:
+        return list(range(length))
+    if points <= 1:
+        return [length - 1]
+    step = (length - 1) / (points - 1)
+    return sorted({round(index * step) for index in range(points)})
+
+
+def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[str, Any]:
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        df = pd.read_csv(path)
+        fmt = "csv"
+    elif suffix == ".parquet":
+        df = pd.read_parquet(path)
+        fmt = "parquet"
+    else:
+        raise ValueError(f"unsupported data file type: {path.suffix}")
+
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    parsed_ts = pd.Series([], dtype="datetime64[ns, UTC]")
+    source_tz = None
+    if raw_ts is not None:
+        source_tz = source_timezone_label(raw_ts)
+        parsed_ts = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce")).dropna()
+
+    first_ts = last_ts = None
+    median_interval = largest_gap = None
+    estimated_missing = None
+    if not parsed_ts.empty:
+        ordered = parsed_ts.sort_values()
+        first_ts = ordered.iloc[0].isoformat()
+        last_ts = ordered.iloc[-1].isoformat()
+        diffs = ordered.diff().dropna().dt.total_seconds()
+        if not diffs.empty:
+            median_interval = float(diffs.median())
+            largest_gap = float(diffs.max())
+            if median_interval > 0:
+                estimated_missing = int(
+                    sum(max(0, round(float(diff) / median_interval) - 1) for diff in diffs if diff > median_interval * 1.5)
+                )
+
+    close_col = close_column(df)
+    volume_col = volume_column(df)
+    preview = []
+    if close_col and not parsed_ts.empty:
+        scoped = pd.DataFrame({
+            "timestamp": pd.to_datetime(raw_ts, utc=True, errors="coerce"),
+            "close": pd.to_numeric(df[close_col], errors="coerce"),
+        })
+        if volume_col:
+            scoped["volume"] = pd.to_numeric(df[volume_col], errors="coerce")
+        scoped = scoped.dropna(subset=["timestamp", "close"]).sort_values("timestamp")
+        for idx in evenly_sample_indices(len(scoped), preview_points):
+            row = scoped.iloc[idx]
+            item = {
+                "timestamp": row["timestamp"].isoformat(),
+                "close": float(row["close"]),
+            }
+            if volume_col and pd.notna(row.get("volume")):
+                item["volume"] = float(row["volume"])
+            preview.append(item)
+
+    stat = path.stat()
+    return {
+        "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+        "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
+        "format": fmt,
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "rows": int(len(df)),
+        "columns": [str(col) for col in df.columns],
+        "symbol": infer_symbol(path, df),
+        "bar_size": infer_bar_size(path, df),
+        "timestamp_column": ts_col,
+        "source_timezone": source_tz,
+        "normalized_timezone": "UTC" if source_tz else None,
+        "first_timestamp": first_ts,
+        "last_timestamp": last_ts,
+        "median_interval_seconds": median_interval,
+        "largest_gap_seconds": largest_gap,
+        "estimated_missing_intervals": estimated_missing,
+        "close_column": close_col,
+        "volume_column": volume_col,
+        "preview": preview,
+    }
+
+
+def build_data_catalog(
+    data_roots: list[Path],
+    *,
+    limit: int = 50,
+    preview_points: int = 80,
+) -> dict[str, Any]:
+    if preview_points < 2 or preview_points > 500:
+        raise ValueError("preview_points must be between 2 and 500")
+    datasets = []
+    errors = []
+    files = data_file_candidates(data_roots, limit=limit)
+    for path in files:
+        root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+        try:
+            datasets.append(summarize_data_file(path, root=root, preview_points=preview_points))
+        except Exception as exc:
+            errors.append({
+                "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+                "error": str(exc),
+            })
+    return {
+        "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
+        "datasets": datasets,
+        "errors": errors,
+        "count": len(datasets),
+        "error_count": len(errors),
+        "limit": limit,
+        "preview_points": preview_points,
+    }
 
 
 def read_json_body(handler: BaseHTTPRequestHandler, *, max_bytes: int = 1_000_000) -> dict[str, Any] | None:
@@ -432,6 +638,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     state_dir = Path("paper_logs/cloud_status_server")
     auth_token_env: str | None = None
     dashboard_dir = DEFAULT_DASHBOARD_DIR
+    data_roots = list(DEFAULT_DATA_ROOTS)
 
     def auth_token(self) -> str | None:
         if not self.auth_token_env:
@@ -529,6 +736,18 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"results": load_command_results(self.state_dir, node_id=node_id)})
             return
+        if parsed.path == "/data_catalog":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=50, maximum=200)
+                preview_points = int(params.get("preview_points", ["80"])[0])
+                payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
         if parsed.path in {"/", "/index.html"}:
             index = self.dashboard_dir / "index.html"
             if index.exists():
@@ -556,6 +775,7 @@ def create_server(
     *,
     auth_token_env: str | None = None,
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
+    data_roots: list[Path] | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
@@ -563,6 +783,7 @@ def create_server(
     Handler.state_dir = state_dir
     Handler.auth_token_env = auth_token_env
     Handler.dashboard_dir = dashboard_dir
+    Handler.data_roots = parse_data_roots(data_roots)
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -572,6 +793,13 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--state-dir", type=Path, default=Path("paper_logs/cloud_status_server"))
     parser.add_argument("--dashboard-dir", type=Path, default=DEFAULT_DASHBOARD_DIR)
+    parser.add_argument(
+        "--data-root",
+        action="append",
+        type=Path,
+        default=None,
+        help="Local data root to scan for CSV/parquet files. Can be repeated. Defaults to examples/data.",
+    )
     parser.add_argument("--auth-token-env", default=None, help="Optional env var containing bearer token")
     args = parser.parse_args()
 
@@ -581,6 +809,7 @@ def main() -> None:
         args.state_dir,
         auth_token_env=args.auth_token_env,
         dashboard_dir=args.dashboard_dir,
+        data_roots=args.data_root,
     )
     print(f"Serving status dashboard at http://{args.host}:{server.server_address[1]}/")
     server.serve_forever()

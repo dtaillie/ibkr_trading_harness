@@ -177,15 +177,18 @@ order evaluation.
 The public repo includes a read-only telemetry prototype. The local machine can
 publish runner summaries, supervisor status, remote-control audit summaries,
 and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
-stores the latest status and serves a small dashboard from `web/dashboard/`. It
-does not execute commands or store broker credentials. Real deployments can add
-`max_age_seconds` to configured runs, supervisors, and remote-control audit
-settings to alert on stale local artifacts. The receiver also keeps a bounded
-read view over `status_history.jsonl` through `/status_history`, and the
-dashboard shows recent snapshots so missed heartbeats, warning periods, and
-recovery events are easier to inspect. Run configs can opt into
-`recent_events` telemetry, which publishes bounded summaries of recent
-decisions, orders, and fills without including raw strategy signal payloads.
+stores the latest status and serves a small workbench dashboard from
+`web/dashboard/`. It does not execute commands or store broker credentials. The
+dashboard can also inspect configured local CSV/parquet data roots, showing
+coverage summaries, timestamp/gap metadata, and small downsampled price
+previews. Real deployments can add `max_age_seconds` to configured runs,
+supervisors, and remote-control audit settings to alert on stale local
+artifacts. The receiver also keeps a bounded read view over `status_history.jsonl`
+through `/status_history`, and the dashboard shows recent snapshots so missed
+heartbeats, warning periods, and recovery events are easier to inspect. Run
+configs can opt into `recent_events` telemetry, which publishes bounded
+summaries of recent decisions, orders, and fills without including raw strategy
+signal payloads.
 
 The repo also includes a remote-control prototype that keeps execution local.
 The cloud side queues commands, and the local worker polls and enforces an

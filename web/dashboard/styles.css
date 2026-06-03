@@ -149,7 +149,44 @@ section {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+.section-note {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.guide-item {
+  min-height: 92px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.guide-item strong,
+.guide-item span {
+  display: block;
+}
+
+.guide-item strong {
+  font-size: 13px;
+}
+
+.guide-item span {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .split {
@@ -236,6 +273,27 @@ tr:last-child td {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+.sparkline {
+  display: block;
+  width: 180px;
+  height: 46px;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.spark-good {
+  color: var(--good);
+}
+
+.spark-bad {
+  color: var(--bad);
 }
 
 footer {

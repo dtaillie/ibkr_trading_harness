@@ -1,6 +1,7 @@
 const state = {
   status: null,
   history: [],
+  dataCatalog: { datasets: [], errors: [] },
   commands: [],
   results: [],
 };
@@ -68,7 +69,25 @@ function money(value) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(number);
 }
 
+function bytes(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  if (number < 1024) return `${number} B`;
+  if (number < 1024 * 1024) return `${(number / 1024).toFixed(1)} KB`;
+  if (number < 1024 * 1024 * 1024) return `${(number / 1024 / 1024).toFixed(1)} MB`;
+  return `${(number / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
 function age(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  if (number < 120) return `${Math.round(number)}s`;
+  if (number < 7200) return `${Math.round(number / 60)}m`;
+  if (number < 172800) return `${Math.round(number / 3600)}h`;
+  return `${Math.round(number / 86400)}d`;
+}
+
+function interval(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   if (number < 120) return `${Math.round(number)}s`;
@@ -118,10 +137,60 @@ function renderMetrics() {
   $("metric-alerts").textContent = String(alerts.length);
   $("metric-alerts").className = alerts.length ? "status-warn" : "status-ok";
   $("metric-history").textContent = String(history.length);
+  $("metric-data").textContent = String((state.dataCatalog.datasets || []).length);
   $("command-node").value = payload.node_id || $("command-node").value || "example-local-trader";
   if (supervisors.length && !$("command-supervisor").value) {
     $("command-supervisor").value = supervisors[0].id || "";
   }
+}
+
+function rangeLabel(start, end) {
+  if (!start && !end) return "n/a";
+  return `${text(start)} -> ${text(end)}`;
+}
+
+function miniChart(points) {
+  if (!points || points.length < 2) return `<span class="muted">n/a</span>`;
+  const closes = points.map((point) => Number(point.close)).filter((value) => Number.isFinite(value));
+  if (closes.length < 2) return `<span class="muted">n/a</span>`;
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const width = 180;
+  const height = 46;
+  const span = max - min || 1;
+  const coords = closes.map((value, index) => {
+    const x = closes.length === 1 ? 0 : (index / (closes.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const last = closes[closes.length - 1];
+  const first = closes[0];
+  const cls = last >= first ? "spark-good" : "spark-bad";
+  return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
+}
+
+function renderDataCatalog() {
+  const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
+  $("data-catalog-body").innerHTML = datasets.length
+    ? datasets.map((dataset) => row([
+        escapeHtml(dataset.symbol),
+        escapeHtml(dataset.bar_size),
+        escapeHtml(dataset.format),
+        escapeHtml(dataset.rows),
+        escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp)),
+        escapeHtml(interval(dataset.median_interval_seconds)),
+        escapeHtml(dataset.estimated_missing_intervals),
+        escapeHtml(dataset.source_timezone),
+        miniChart(dataset.preview || []),
+        escapeHtml(bytes(dataset.size_bytes)),
+        `<span class="mono">${escapeHtml(dataset.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", ""]);
+  const errors = catalog.errors || [];
+  $("data-catalog-errors").innerHTML = errors.length
+    ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
+    : "";
 }
 
 function renderRuns() {
@@ -306,6 +375,7 @@ function renderResults() {
 
 function renderAll() {
   renderMetrics();
+  renderDataCatalog();
   renderRuns();
   renderRunEvents();
   renderSupervisors();
@@ -324,9 +394,11 @@ async function refresh() {
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
+  const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
+  state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   renderAll();

@@ -155,6 +155,7 @@ export TRADING_STATUS_TOKEN='replace-me'
 python3 scripts/cloud_status_server.py \
   --host 127.0.0.1 \
   --port 8765 \
+  --data-root examples/data \
   --auth-token-env TRADING_STATUS_TOKEN
 ```
 
@@ -167,12 +168,16 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
-Open `http://127.0.0.1:8765/` to view the dashboard. It shows node health,
-Gateway reachability, runs, supervisors, remote-control audit health, alerts,
-queued commands, and command results.
+Open `http://127.0.0.1:8765/` to view the dashboard. It shows a basic workflow
+guide, saved-data coverage, node health, Gateway reachability, runs,
+supervisors, remote-control audit health, alerts, queued commands, and command
+results.
 For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.
+Repeat `--data-root` to include additional local CSV/parquet roots such as a
+private cache directory. Data roots are scanned locally; the dashboard receives
+coverage summaries and small downsampled previews, not full bar files.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

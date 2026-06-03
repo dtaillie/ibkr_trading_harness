@@ -363,10 +363,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/", timeout=5) as resp:
             html = resp.read().decode("utf-8")
-        assert "Trading Harness Status" in html
+        assert "Trading Harness Workbench" in html
         assert "/dashboard/app.js" in html
         assert "supervisors-body" in html
         assert "remote-control-body" in html
+        assert "data-catalog-body" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
@@ -461,6 +462,65 @@ def test_cloud_status_server_rejects_invalid_status_history_limit(tmp_path):
             assert exc.code == 400
             payload = json.loads(exc.read().decode("utf-8"))
         assert payload["error"] == "limit must be between 1 and 500"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_data_catalog(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "SPY_5min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+                "2026-01-02T14:45:00Z,100.75,102,100.5,101.25,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=5&preview_points=3", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["count"] == 1
+        dataset = payload["datasets"][0]
+        assert dataset["symbol"] == "SPY"
+        assert dataset["bar_size"] == "5min"
+        assert dataset["rows"] == 3
+        assert dataset["timestamp_column"] == "timestamp"
+        assert dataset["source_timezone"] == "offset-aware"
+        assert dataset["normalized_timezone"] == "UTC"
+        assert dataset["median_interval_seconds"] == 450.0
+        assert dataset["largest_gap_seconds"] == 600.0
+        assert dataset["estimated_missing_intervals"] == 0
+        assert len(dataset["preview"]) == 3
+        assert dataset["preview"][-1]["close"] == 101.25
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_rejects_invalid_data_catalog_preview_points(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[tmp_path / "missing"])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            request.urlopen(f"{base}/data_catalog?preview_points=1", timeout=5)
+            raise AssertionError("expected invalid preview points response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "preview_points must be between 2 and 500"
     finally:
         server.shutdown()
         server.server_close()

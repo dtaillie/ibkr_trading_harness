@@ -8,8 +8,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <h1>Trading Harness Status</h1>
+      <div>
+      <h1>Trading Harness Workbench</h1>
       <p id="subtitle">Waiting for telemetry</p>
     </div>
     <div class="toolbar">
@@ -51,6 +51,65 @@
       <div class="metric">
         <span>History</span>
         <strong id="metric-history">0</strong>
+      </div>
+      <div class="metric">
+        <span>Data Sets</span>
+        <strong id="metric-data">0</strong>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Workflow</h2>
+      </div>
+      <div class="guide-grid">
+        <div class="guide-item">
+          <strong>Connect</strong>
+          <span>Start IBKR Gateway or TWS locally. Keep credentials outside this repo.</span>
+        </div>
+        <div class="guide-item">
+          <strong>Fetch</strong>
+          <span>Use the data-only fetchers to populate local CSV/parquet history.</span>
+        </div>
+        <div class="guide-item">
+          <strong>Inspect</strong>
+          <span>Check saved data coverage, gaps, timestamps, and sample price paths below.</span>
+        </div>
+        <div class="guide-item">
+          <strong>Replay</strong>
+          <span>Run example or private plugins through replay and simulated-paper configs.</span>
+        </div>
+        <div class="guide-item">
+          <strong>Operate</strong>
+          <span>Monitor runs, queue safe local commands, and review recent telemetry.</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Saved Data</h2>
+        <span id="data-catalog-errors" class="section-note"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Bar</th>
+              <th>Format</th>
+              <th>Rows</th>
+              <th>Range</th>
+              <th>Median Step</th>
+              <th>Missing</th>
+              <th>Source TZ</th>
+              <th>Preview</th>
+              <th>Size</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody id="data-catalog-body"></tbody>
+        </table>
       </div>
     </section>
 

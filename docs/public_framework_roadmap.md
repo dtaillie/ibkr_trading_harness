@@ -113,11 +113,15 @@ strategies private.
 - Treat the web dashboard as the canonical UI for now; defer any standalone
   launchable UI until it provides capabilities beyond duplicating the web
   interface.
+- Keep expanding the web dashboard into a public workbench: usage guidance,
+  saved-data inspection, replay/simulation setup, and monitoring should live in
+  one browser surface.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,
   expected hold windows, MAE/MFE, and current stop/exit state.
-- Add fetch-job screens for progress, ETA, failures, retries, and data coverage.
+- Add fetch-job screens for progress, ETA, failures, retries, and richer data
+  coverage.
 - Add config editors only after schemas and validation are reliable.
 
 ## Documentation
