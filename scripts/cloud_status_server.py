@@ -9,7 +9,9 @@ import json
 import os
 import mimetypes
 import re
+import subprocess
 import sys
+import time
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,20 +60,12 @@ CONFIG_BUILDER_PLUGINS = (
         "spec": "examples.strategies.no_edge_template:create_strategy",
         "status": "example_only",
     },
-    {
-        "id": "no_edge_stock",
-        "label": "No-edge stock",
-        "spec": "examples.strategies.no_edge_stock_signal:create_strategy",
-        "status": "example_only",
-    },
-    {
-        "id": "no_edge_crypto",
-        "label": "No-edge crypto",
-        "spec": "examples.strategies.no_edge_crypto_signal:create_strategy",
-        "status": "example_only",
-    },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
+CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
+MAX_DRAFT_RUN_STEPS = 500
+MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
+OUTPUT_TAIL_BYTES = 8000
 
 
 def utc_now() -> str:
@@ -549,6 +543,7 @@ def config_builder_options() -> dict[str, Any]:
     return {
         "plugins": list(CONFIG_BUILDER_PLUGINS),
         "modes": list(CONFIG_BUILDER_MODES),
+        "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
         "defaults": {
             "name": "workbench_example",
             "starting_cash": 10000,
@@ -561,8 +556,252 @@ def config_builder_options() -> dict[str, Any]:
             "max_gross_exposure_pct": 0.05,
             "sim_slippage_bps": 0,
             "sim_commission_bps": 0,
+            "run_timeout_seconds": 30,
         },
     }
+
+
+def config_drafts_dir(state_dir: Path) -> Path:
+    return state_dir / "config_drafts"
+
+
+def config_draft_runs_path(state_dir: Path) -> Path:
+    return state_dir / "config_draft_runs.jsonl"
+
+
+def config_draft_path(state_dir: Path, draft_id: str) -> Path:
+    safe_id = slugify(draft_id)
+    path = (config_drafts_dir(state_dir) / f"{safe_id}.yaml").resolve()
+    root = config_drafts_dir(state_dir).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("draft_id is invalid")
+    if not path.exists() or not path.is_file():
+        raise ValueError(f"config draft not found: {safe_id}")
+    return path
+
+
+def read_yaml_mapping(path: Path) -> dict[str, Any]:
+    with path.open() as f:
+        config = yaml.safe_load(f) or {}
+    if not isinstance(config, dict):
+        raise ValueError("config draft must be a YAML mapping")
+    return config
+
+
+def config_draft_record(path: Path) -> dict[str, Any]:
+    config = read_yaml_mapping(path)
+    runner = config.get("runner") or {}
+    metadata = config.get("metadata") or {}
+    data = config.get("data") or {}
+    stat = path.stat()
+    return {
+        "draft_id": path.stem,
+        "path": str(path),
+        "name": path.stem,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "size_bytes": stat.st_size,
+        "mode": runner.get("mode"),
+        "output_dir": runner.get("output_dir"),
+        "plugin": metadata.get("strategy_plugin") or metadata.get("plugin"),
+        "status": metadata.get("status"),
+        "symbols": sorted((data.get("files") or {}).keys()) if isinstance(data.get("files"), dict) else [],
+    }
+
+
+def list_config_drafts(state_dir: Path) -> dict[str, Any]:
+    root = config_drafts_dir(state_dir)
+    if not root.exists():
+        return {"drafts": [], "count": 0}
+    drafts = []
+    errors = []
+    for path in sorted(root.glob("*.yaml")):
+        try:
+            drafts.append(config_draft_record(path))
+        except Exception as exc:
+            errors.append({"path": str(path), "error": str(exc)})
+    return {"drafts": drafts, "count": len(drafts), "errors": errors, "error_count": len(errors)}
+
+
+def bounded_positive_int(
+    payload: dict[str, Any],
+    key: str,
+    *,
+    default: int,
+    maximum: int,
+) -> int:
+    raw = payload.get(key, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be an integer") from exc
+    if value <= 0 or value > maximum:
+        raise ValueError(f"{key} must be between 1 and {maximum}")
+    return value
+
+
+def validate_workbench_draft_config(
+    config: dict[str, Any],
+    *,
+    config_path: Path,
+    data_roots: list[Path],
+    action: str,
+) -> list[str]:
+    errors = validate_runner_config(config, config_path=config_path)
+    metadata = config.get("metadata") or {}
+    runner = config.get("runner") or {}
+    data = config.get("data") or {}
+    spec = metadata.get("strategy_plugin") or metadata.get("plugin")
+    allowed_specs = {plugin["spec"] for plugin in CONFIG_BUILDER_PLUGINS}
+    if spec not in allowed_specs:
+        errors.append("workbench drafts can only run public generic no-edge plugins")
+    if metadata.get("status") != "example_only":
+        errors.append("workbench drafts must be marked metadata.status=example_only")
+    mode = str(runner.get("mode", "replay")).replace("-", "_").lower()
+    if mode not in CONFIG_BUILDER_MODES:
+        errors.append(f"runner.mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
+    if action not in CONFIG_DRAFT_RUN_ACTIONS:
+        errors.append(f"action must be one of {', '.join(CONFIG_DRAFT_RUN_ACTIONS)}")
+    if str(data.get("source", "files")).lower() != "files":
+        errors.append("workbench drafts can only run file-based data")
+    files = data.get("files") or {}
+    if isinstance(files, dict):
+        for raw_path in files.values():
+            try:
+                data_path_allowed(str(raw_path), data_roots)
+            except ValueError as exc:
+                errors.append(str(exc))
+    return errors
+
+
+def tail_text(value: str | bytes | None, *, max_bytes: int = OUTPUT_TAIL_BYTES) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        raw = value[-max_bytes:]
+        return raw.decode("utf-8", errors="replace")
+    encoded = value.encode("utf-8", errors="replace")
+    return encoded[-max_bytes:].decode("utf-8", errors="replace")
+
+
+def run_summary_for_config(config: dict[str, Any]) -> dict[str, Any] | None:
+    runner = config.get("runner") or {}
+    output_dir = runner.get("output_dir")
+    if not output_dir:
+        return None
+    summary_path = (ROOT / str(output_dir) / "summary.json").resolve()
+    if not summary_path.exists() or not summary_path.is_file():
+        return None
+    try:
+        with summary_path.open() as f:
+            summary = json.load(f)
+    except json.JSONDecodeError:
+        return None
+    return summary if isinstance(summary, dict) else None
+
+
+def append_config_draft_run(state_dir: Path, record: dict[str, Any]) -> None:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    with config_draft_runs_path(state_dir).open("a") as f:
+        f.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def list_config_draft_runs(state_dir: Path, *, limit: int = 20) -> dict[str, Any]:
+    path = config_draft_runs_path(state_dir)
+    if not path.exists():
+        return {"runs": [], "count": 0, "total": 0, "limit": limit}
+    rows: deque[dict[str, Any]] = deque(maxlen=limit)
+    total = 0
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            total += 1
+            rows.append(row)
+    runs = list(reversed(rows))
+    return {"runs": runs, "count": len(runs), "total": total, "limit": limit}
+
+
+def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
+    draft_id = str(payload.get("draft_id") or "").strip()
+    if not draft_id:
+        raise ValueError("draft_id is required")
+    action = str(payload.get("action") or "validate").replace("-", "_").lower()
+    if action not in CONFIG_DRAFT_RUN_ACTIONS:
+        raise ValueError(f"action must be one of {', '.join(CONFIG_DRAFT_RUN_ACTIONS)}")
+    max_steps = bounded_positive_int(payload, "max_steps", default=100, maximum=MAX_DRAFT_RUN_STEPS)
+    timeout_seconds = bounded_positive_int(
+        payload,
+        "timeout_seconds",
+        default=30,
+        maximum=MAX_DRAFT_RUN_TIMEOUT_SECONDS,
+    )
+    path = config_draft_path(state_dir, draft_id)
+    config = read_yaml_mapping(path)
+    errors = validate_workbench_draft_config(
+        config,
+        config_path=path,
+        data_roots=data_roots,
+        action=action,
+    )
+    if errors:
+        raise ValueError("; ".join(errors))
+
+    command = [sys.executable, "live/plugin_runner.py", "--config", str(path)]
+    if action == "validate":
+        command.append("--validate-only")
+    else:
+        command.extend(["--mode", action.replace("_", "-"), "--max-steps", str(max_steps)])
+
+    started = time.monotonic()
+    started_at = utc_now()
+    run_id = f"draft-{int(datetime.now(timezone.utc).timestamp() * 1000000)}"
+    status = "completed"
+    returncode: int | None = None
+    stdout = ""
+    stderr = ""
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        returncode = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+        if completed.returncode != 0:
+            status = "failed"
+    except subprocess.TimeoutExpired as exc:
+        status = "timeout"
+        stdout = tail_text(exc.stdout)
+        stderr = tail_text(exc.stderr)
+
+    duration_seconds = round(time.monotonic() - started, 3)
+    summary = run_summary_for_config(config) if action != "validate" else None
+    record = {
+        "run_id": run_id,
+        "draft_id": path.stem,
+        "action": action,
+        "status": status,
+        "returncode": returncode,
+        "started_at": started_at,
+        "finished_at": utc_now(),
+        "duration_seconds": duration_seconds,
+        "command": command,
+        "stdout_tail": tail_text(stdout),
+        "stderr_tail": tail_text(stderr),
+        "summary": summary,
+    }
+    append_config_draft_run(state_dir, record)
+    return record
 
 
 def read_json_body(handler: BaseHTTPRequestHandler, *, max_bytes: int = 1_000_000) -> dict[str, Any] | None:
@@ -911,6 +1150,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"ok": True, "draft": result})
             return
+        if self.path == "/config_draft/run":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = run_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "run": result})
+            return
         else:
             json_response(self, 404, {"error": "not found"})
             return
@@ -962,6 +1212,21 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, config_builder_options())
+            return
+        if parsed.path == "/config_drafts":
+            if not self.require_auth():
+                return
+            json_response(self, 200, list_config_drafts(self.state_dir))
+            return
+        if parsed.path == "/config_draft_runs":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=20, maximum=100)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, list_config_draft_runs(self.state_dir, limit=limit))
             return
         if parsed.path in {"/", "/index.html"}:
             index = self.dashboard_dir / "index.html"

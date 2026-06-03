@@ -550,7 +550,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         base = f"http://127.0.0.1:{server.server_address[1]}"
         with request.urlopen(f"{base}/config_options", timeout=5) as resp:
             options = json.loads(resp.read().decode("utf-8"))
-        assert "no_edge_template" in {plugin["id"] for plugin in options["plugins"]}
+        plugin_ids = {plugin["id"] for plugin in options["plugins"]}
+        assert plugin_ids == {"no_edge_template"}
+        assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
 
         draft_req = request.Request(
             f"{base}/config_draft",
@@ -585,6 +587,162 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert Path(draft["saved_path"]).exists()
         assert Path(draft["saved_path"]).is_relative_to(state_dir)
         assert "--validate-only" in draft["commands"]["validate"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_runs_saved_config_draft(tmp_path):
+    data_root = tmp_path / "data"
+    state_dir = tmp_path / "state"
+    data_root.mkdir()
+    data_file = data_root / "SPY_5min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+                "2026-01-02T14:40:00Z,100.75,102,100.5,101.25,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "name": "Run Draft",
+                "plugin_id": "no_edge_template",
+                "mode": "simulated_paper",
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "starting_cash": 25000,
+                "history_bars": 20,
+                "max_steps": 3,
+                "max_orders_per_run": 1,
+                "max_notional_per_order": 100,
+                "max_quantity": 10,
+                "max_cash_quantity": 100,
+                "max_gross_exposure_pct": 0.05,
+                "save": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(draft_req, timeout=5) as resp:
+            draft_payload = json.loads(resp.read().decode("utf-8"))
+        assert draft_payload["draft"]["name"] == "Run_Draft"
+
+        with request.urlopen(f"{base}/config_drafts", timeout=5) as resp:
+            drafts = json.loads(resp.read().decode("utf-8"))
+        assert drafts["count"] == 1
+        assert drafts["drafts"][0]["draft_id"] == "Run_Draft"
+        assert drafts["drafts"][0]["symbols"] == ["SPY"]
+
+        validate_req = request.Request(
+            f"{base}/config_draft/run",
+            data=json.dumps({
+                "draft_id": "Run_Draft",
+                "action": "validate",
+                "max_steps": 2,
+                "timeout_seconds": 10,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(validate_req, timeout=10) as resp:
+            validate_payload = json.loads(resp.read().decode("utf-8"))
+        assert validate_payload["run"]["status"] == "completed"
+        assert validate_payload["run"]["returncode"] == 0
+
+        replay_req = request.Request(
+            f"{base}/config_draft/run",
+            data=json.dumps({
+                "draft_id": "Run_Draft",
+                "action": "replay",
+                "max_steps": 2,
+                "timeout_seconds": 10,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(replay_req, timeout=10) as resp:
+            replay_payload = json.loads(resp.read().decode("utf-8"))
+        replay = replay_payload["run"]
+        assert replay["status"] == "completed"
+        assert replay["summary"]["mode"] == "replay"
+        assert replay["summary"]["decisions"] == 2
+        assert replay["summary"]["fills"] == 0
+
+        with request.urlopen(f"{base}/config_draft_runs?limit=5", timeout=5) as resp:
+            runs = json.loads(resp.read().decode("utf-8"))
+        assert runs["total"] == 2
+        assert [run["action"] for run in runs["runs"]] == ["replay", "validate"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_path):
+    state_dir = tmp_path / "state"
+    drafts_dir = state_dir / "config_drafts"
+    drafts_dir.mkdir(parents=True)
+    bad_draft = drafts_dir / "Bad.yaml"
+    bad_draft.write_text(
+        "\n".join(
+            [
+                "metadata:",
+                "  strategy_plugin: unsupported.module:create_strategy",
+                "  status: example_only",
+                "strategy: {}",
+                "runner:",
+                "  mode: replay",
+                "  starting_cash: 10000",
+                "  history_bars: 2",
+                "  max_steps: 1",
+                "data:",
+                "  source: files",
+                "  files:",
+                "    SPY: examples/data/SPY_5min_sample.csv",
+                "execution:",
+                "  allowed_symbols: [SPY]",
+                "  allowed_sides: [buy, sell]",
+                "  allowed_order_types: [market]",
+                "broker: {}",
+                "control: {}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        run_req = request.Request(
+            f"{base}/config_draft/run",
+            data=json.dumps({
+                "draft_id": "Bad",
+                "action": "validate",
+                "max_steps": 1,
+                "timeout_seconds": 10,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(run_req, timeout=5)
+            raise AssertionError("expected unsupported plugin response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert "workbench drafts can only run public generic no-edge plugins" in payload["error"]
     finally:
         server.shutdown()
         server.server_close()

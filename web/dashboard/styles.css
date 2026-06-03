@@ -254,6 +254,16 @@ section {
   overflow-x: auto;
 }
 
+.compact-table {
+  margin-top: 12px;
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -4,6 +4,8 @@ const state = {
   dataCatalog: { datasets: [], errors: [] },
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
+  configDrafts: { drafts: [], errors: [] },
+  configRuns: { runs: [] },
   commands: [],
   results: [],
 };
@@ -101,7 +103,7 @@ function interval(value) {
 function statusClass(value) {
   if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
   if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
-  if (value === "failed" || value === "rejected" || value === "unknown" || value === false) return "status-bad";
+  if (value === "failed" || value === "rejected" || value === "timeout" || value === "unknown" || value === false) return "status-bad";
   return "";
 }
 
@@ -213,19 +215,28 @@ function renderConfigBuilder() {
     label: `${plugin.label} (${plugin.status})`,
   }));
   const modes = (options.modes || []).map((mode) => ({ value: mode, label: mode }));
+  const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
   const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
     value: dataset.path,
     label: `${text(dataset.symbol)} ${text(dataset.bar_size)} - ${dataset.path}`,
   }));
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const draftOptions = drafts.map((draft) => ({
+    value: draft.draft_id,
+    label: `${draft.draft_id} - ${text(draft.mode)}`,
+  }));
   if (plugins.length) replaceOptions($("config-plugin"), plugins);
   if (modes.length) replaceOptions($("config-mode"), modes);
+  if (runActions.length) replaceOptions($("config-run-action"), runActions);
   replaceOptions($("config-dataset"), datasets);
+  replaceOptions($("config-run-draft"), draftOptions);
 
   const defaultFields = {
     "config-name": defaults.name,
     "config-starting-cash": defaults.starting_cash,
     "config-history-bars": defaults.history_bars,
     "config-max-steps": defaults.max_steps,
+    "config-run-max-steps": defaults.max_steps,
     "config-max-orders": defaults.max_orders_per_run,
     "config-max-notional": defaults.max_notional_per_order,
     "config-max-quantity": defaults.max_quantity,
@@ -233,6 +244,7 @@ function renderConfigBuilder() {
     "config-max-exposure": defaults.max_gross_exposure_pct,
     "config-slippage": defaults.sim_slippage_bps,
     "config-commission": defaults.sim_commission_bps,
+    "config-run-timeout": defaults.run_timeout_seconds,
   };
   for (const [id, value] of Object.entries(defaultFields)) {
     if (!$(`${id}`).value && value !== undefined) $(`${id}`).value = String(value);
@@ -256,6 +268,40 @@ function renderConfigBuilder() {
         `<dt>${escapeHtml(name)}</dt><dd><span class="mono">${escapeHtml(command)}</span></dd>`
       )).join("")
     : "";
+}
+
+function renderWorkbenchRuns() {
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  $("config-drafts-body").innerHTML = drafts.length
+    ? drafts.map((draft) => row([
+        escapeHtml(draft.draft_id),
+        escapeHtml(draft.mode),
+        escapeHtml((draft.symbols || []).join(", ")),
+        escapeHtml(draft.modified_at),
+        `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", ""]);
+
+  const runs = (state.configRuns && state.configRuns.runs) || [];
+  $("config-runs-body").innerHTML = runs.length
+    ? runs.map((run) => {
+        const summary = run.summary || {};
+        const detail = run.stderr_tail
+          ? run.stderr_tail.split("\n").slice(-2).join(" ")
+          : JSON.stringify(summary || {});
+        return row([
+          escapeHtml(run.finished_at),
+          escapeHtml(run.draft_id),
+          escapeHtml(run.action),
+          statusText(run.status),
+          escapeHtml(run.duration_seconds),
+          escapeHtml(summary.decisions),
+          escapeHtml(summary.fills),
+          escapeHtml(summary.rejections),
+          `<span class="mono">${escapeHtml(detail)}</span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderRuns() {
@@ -442,6 +488,7 @@ function renderAll() {
   renderMetrics();
   renderDataCatalog();
   renderConfigBuilder();
+  renderWorkbenchRuns();
   renderRuns();
   renderRunEvents();
   renderSupervisors();
@@ -462,11 +509,15 @@ async function refresh() {
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
   const configOptions = await fetchJson("/config_options");
+  const configDrafts = await fetchJson("/config_drafts");
+  const configRuns = await fetchJson("/config_draft_runs?limit=20");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
+  state.configDrafts = configDrafts || { drafts: [], errors: [] };
+  state.configRuns = configRuns || { runs: [] };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   renderAll();
@@ -502,8 +553,36 @@ async function generateConfigDraft(event) {
     body: JSON.stringify(payload),
   });
   state.configDraft = response.draft;
+  if (response.draft && response.draft.saved_path) {
+    state.configDrafts = await fetchJson("/config_drafts");
+  }
   renderConfigBuilder();
+  renderWorkbenchRuns();
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
+}
+
+async function runConfigDraft(event) {
+  event.preventDefault();
+  const draftId = $("config-run-draft").value;
+  if (!draftId) {
+    $("config-run-status").innerHTML = `<span class="status-bad">Save a draft before running</span>`;
+    return;
+  }
+  $("config-run-status").innerHTML = `<span class="status-warn">running</span>`;
+  const response = await fetchJson("/config_draft/run", {
+    method: "POST",
+    body: JSON.stringify({
+      draft_id: draftId,
+      action: $("config-run-action").value,
+      max_steps: $("config-run-max-steps").value,
+      timeout_seconds: $("config-run-timeout").value,
+    }),
+  });
+  const run = response.run || {};
+  $("config-run-status").innerHTML = statusText(run.status);
+  state.configRuns = await fetchJson("/config_draft_runs?limit=20");
+  renderWorkbenchRuns();
+  $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
 async function queueCommand(event) {
@@ -581,6 +660,11 @@ function init() {
   $("config-form").addEventListener("submit", (event) => {
     generateConfigDraft(event).catch((err) => {
       $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("config-run-form").addEventListener("submit", (event) => {
+    runConfigDraft(event).catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("commands-body").addEventListener("click", (event) => {

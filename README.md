@@ -181,8 +181,10 @@ stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
 dashboard can also inspect configured local CSV/parquet data roots, showing
 coverage summaries, timestamp/gap metadata, and small downsampled price
-previews. The dashboard can generate and validate example plugin-runner config
-drafts from saved data, limited to public no-edge plugins and non-live modes.
+previews. The dashboard can generate, save, validate, replay, and
+simulated-paper-run example plugin-runner config drafts from saved data. This
+workbench path is deliberately limited to public generic no-edge plugins,
+file-based data under configured data roots, and non-live modes.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

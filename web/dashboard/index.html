@@ -195,6 +195,61 @@
           <dl id="config-commands" class="kv"></dl>
         </div>
       </div>
+      <div class="section-head">
+        <h2>Run Draft</h2>
+        <span id="config-run-status" class="section-note">idle</span>
+      </div>
+      <form id="config-run-form" class="builder-form">
+        <label class="wide-field">
+          <span>Saved Draft</span>
+          <select id="config-run-draft"></select>
+        </label>
+        <label>
+          <span>Action</span>
+          <select id="config-run-action"></select>
+        </label>
+        <label>
+          <span>Max Steps</span>
+          <input id="config-run-max-steps" type="number" min="1" max="500" step="1" value="100">
+        </label>
+        <label>
+          <span>Timeout Seconds</span>
+          <input id="config-run-timeout" type="number" min="1" max="120" step="1">
+        </label>
+        <button type="submit">Run</button>
+      </form>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Draft</th>
+              <th>Mode</th>
+              <th>Symbols</th>
+              <th>Modified</th>
+              <th>Output</th>
+            </tr>
+          </thead>
+          <tbody id="config-drafts-body"></tbody>
+        </table>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Finished</th>
+              <th>Draft</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Seconds</th>
+              <th>Decisions</th>
+              <th>Fills</th>
+              <th>Rejects</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="config-runs-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <section>
