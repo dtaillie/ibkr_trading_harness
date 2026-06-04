@@ -82,6 +82,12 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert result.initial_equity == pytest.approx(10000.0)
     assert result.total_return_pct == pytest.approx(0.0)
     assert result.max_drawdown_pct == pytest.approx(0.0)
+    assert result.elapsed_seconds == pytest.approx(600.0)
+    assert result.elapsed_days == pytest.approx(600.0 / 86400.0)
+    assert result.return_per_day_pct == pytest.approx(0.0)
+    assert result.return_per_month_pct == pytest.approx(0.0)
+    assert result.return_per_year_pct == pytest.approx(0.0)
+    assert result.short_horizon_projection is True
     records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
     assert records[-1]["diagnostics"]["symbols_seen"] == ["SPY"]
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
@@ -131,6 +137,11 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     assert result.account_snapshot_count == 3
     assert result.total_return_pct == pytest.approx(0.2)
     assert result.max_drawdown_pct == pytest.approx(0.0)
+    assert result.elapsed_seconds == pytest.approx(600.0)
+    assert result.return_per_day_pct is not None
+    assert result.return_per_month_pct is not None
+    assert result.return_per_year_pct is not None
+    assert result.short_horizon_projection is True
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["tag"] == "fixture_buy_once"
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]

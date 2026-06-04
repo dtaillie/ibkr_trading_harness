@@ -77,9 +77,16 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["initial_equity"] == 10000.0
     assert abs(metrics["total_return_pct"] - 0.2) < 1e-9
     assert metrics["max_drawdown_pct"] == 0.0
+    assert metrics["elapsed_seconds"] == 300.0
+    assert metrics["elapsed_days"] == 300.0 / 86400.0
+    assert metrics["return_per_day_pct"] is not None
+    assert metrics["return_per_month_pct"] is not None
+    assert metrics["return_per_year_pct"] is not None
+    assert metrics["short_horizon_projection"] is True
     assert metrics["artifact_files"]["account"] is True
     assert "Fills: 1" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
+    assert "Return/day:" in format_text(metrics)
 
 
 def test_summarize_recent_run_events_omits_raw_signal_payload(tmp_path):

@@ -58,6 +58,9 @@ strategies private.
   live orders when configured for paper or shadow mode.
 - Add replay mode that can run a live strategy against stored historical bars for
   deterministic debugging.
+- Keep run summaries time-aware: account telemetry should report elapsed
+  observation time, total return, drawdown, and clearly labeled per-day,
+  per-month, and per-year geometric projections with short-horizon caveats.
 
 ## Local operations
 
@@ -79,8 +82,8 @@ strategies private.
   equity, positions, open orders, signals, fills, errors, and heartbeat status.
 - Keep broker credentials and trading authority only on the trading machine.
 - Add a small web dashboard for remote monitoring from a phone or laptop.
-- Support historical run pages with session artifacts, daily summaries, drawdown,
-  win/loss stats, and recent logs.
+- Support historical run pages with session artifacts, time-normalized return
+  projections, daily summaries, drawdown, win/loss stats, and recent logs.
 - Maintain a recent status-history endpoint and dashboard view so latest-state
   monitoring can be correlated with short-term heartbeat and recovery history.
 - Expose bounded run event summaries for operator context while keeping raw
@@ -125,8 +128,8 @@ strategies private.
   controls are in place.
 - Keep saved-run artifact inspection summarized by default. Public dashboard
   views should show execution context, orders, fills, account snapshots, equity,
-  drawdown, and high-level decision counts without exposing raw private signal
-  payloads.
+  elapsed time, total return, time-normalized return projections, drawdown, and
+  high-level decision counts without exposing raw private signal payloads.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,

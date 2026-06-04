@@ -426,6 +426,11 @@ function renderWorkbenchArtifacts() {
     ["Final Equity", money(performance.final_equity ?? summary.final_equity)],
     ["Return", pctText(performance.total_return_pct)],
     ["Max Drawdown", pctText(performance.max_drawdown_pct)],
+    ["Elapsed Days", numberText(performance.elapsed_days, 4)],
+    ["Return / Day", pctText(performance.return_per_day_pct)],
+    ["Return / Month", pctText(performance.return_per_month_pct)],
+    ["Return / Year", pctText(performance.return_per_year_pct)],
+    ["Projection", performance.short_horizon_projection ? "short horizon" : "full horizon"],
     ["Positions", JSON.stringify(summary.final_positions || {})],
   ];
   $("artifact-summary").innerHTML = pairs.map(([key, value]) => (

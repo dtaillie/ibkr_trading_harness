@@ -111,8 +111,12 @@ max notional per order, short-sale permission, and gross-exposure limits.
 `--validate-only` checks the static parts of this config before a run starts.
 After a run, `scripts/summarize_plugin_run.py <run-dir>` prints decisions,
 orders, fills, rejection reasons, final cash/equity, positions, return, and max
-drawdown from the generic JSONL artifacts. The runner also writes
-`account.jsonl` with per-step cash, equity, positions, and exposure.
+drawdown from the generic JSONL artifacts. When account timestamps are
+available, the summary also prints elapsed days plus geometric return
+projections per day, month, and year. Runs shorter than 30 days are marked as
+short-horizon projections because those rates are useful for scale context but
+are not stable performance estimates. The runner also writes `account.jsonl`
+with per-step cash, equity, positions, and exposure.
 
 ## 7. Generic Local Supervisor
 
@@ -190,8 +194,9 @@ directory. Saved drafts can then be validated, replayed, or simulated-paper-run
 from the dashboard with bounded `max_steps` and timeout controls, and recent
 workbench run results are shown below the draft list. Use Inspect on a saved
 draft or run row to review summarized `summary.json`, decisions, orders, fills,
-account snapshots, return, drawdown, and an equity curve. The artifact view
-intentionally omits raw strategy signal payloads.
+account snapshots, return, drawdown, elapsed time, time-normalized return
+projections, and an equity curve. The artifact view intentionally omits raw
+strategy signal payloads.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

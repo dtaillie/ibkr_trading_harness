@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,18 @@ def finite_float(raw: Any) -> float | None:
 
 
 def account_performance(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    timestamps = []
+    for row in rows:
+        raw = row.get("timestamp")
+        if not raw:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        timestamps.append(parsed.astimezone(timezone.utc))
     equity_values = [finite_float(row.get("equity")) for row in rows]
     equity_values = [value for value in equity_values if value is not None]
     if not equity_values:
@@ -87,21 +100,52 @@ def account_performance(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "initial_equity": None,
             "total_return_pct": None,
             "max_drawdown_pct": None,
+            "account_start_time": timestamps[0].isoformat() if timestamps else None,
+            "account_end_time": timestamps[-1].isoformat() if timestamps else None,
+            "elapsed_seconds": None,
+            "elapsed_days": None,
+            "return_per_day_pct": None,
+            "return_per_month_pct": None,
+            "return_per_year_pct": None,
+            "short_horizon_projection": False,
         }
     initial = equity_values[0]
     final = equity_values[-1]
-    total_return_pct = ((final / initial) - 1.0) * 100.0 if initial else None
+    total_return = (final / initial) - 1.0 if initial else None
+    total_return_pct = total_return * 100.0 if total_return is not None else None
     peak = initial
     max_drawdown = 0.0
     for value in equity_values:
         peak = max(peak, value)
         if peak > 0:
             max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+    elapsed_seconds = None
+    elapsed_days = None
+    return_per_day_pct = None
+    return_per_month_pct = None
+    return_per_year_pct = None
+    if len(timestamps) >= 2:
+        elapsed_seconds = (timestamps[-1] - timestamps[0]).total_seconds()
+        if elapsed_seconds > 0:
+            elapsed_days = elapsed_seconds / 86400.0
+            if total_return is not None and initial > 0 and final > 0:
+                ratio = final / initial
+                return_per_day_pct = finite_float((ratio ** (1.0 / elapsed_days) - 1.0) * 100.0)
+                return_per_month_pct = finite_float((ratio ** (30.4375 / elapsed_days) - 1.0) * 100.0)
+                return_per_year_pct = finite_float((ratio ** (365.25 / elapsed_days) - 1.0) * 100.0)
     return {
         "account_snapshot_count": len(rows),
         "initial_equity": initial,
         "total_return_pct": total_return_pct,
         "max_drawdown_pct": max_drawdown,
+        "account_start_time": timestamps[0].isoformat() if timestamps else None,
+        "account_end_time": timestamps[-1].isoformat() if timestamps else None,
+        "elapsed_seconds": elapsed_seconds,
+        "elapsed_days": elapsed_days,
+        "return_per_day_pct": return_per_day_pct,
+        "return_per_month_pct": return_per_month_pct,
+        "return_per_year_pct": return_per_year_pct,
+        "short_horizon_projection": bool(elapsed_days is not None and elapsed_days < 30.0),
     }
 
 
@@ -216,6 +260,14 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "initial_equity": summary.get("initial_equity", performance["initial_equity"]),
         "total_return_pct": summary.get("total_return_pct", performance["total_return_pct"]),
         "max_drawdown_pct": summary.get("max_drawdown_pct", performance["max_drawdown_pct"]),
+        "account_start_time": summary.get("account_start_time", performance["account_start_time"]),
+        "account_end_time": summary.get("account_end_time", performance["account_end_time"]),
+        "elapsed_seconds": summary.get("elapsed_seconds", performance["elapsed_seconds"]),
+        "elapsed_days": summary.get("elapsed_days", performance["elapsed_days"]),
+        "return_per_day_pct": summary.get("return_per_day_pct", performance["return_per_day_pct"]),
+        "return_per_month_pct": summary.get("return_per_month_pct", performance["return_per_month_pct"]),
+        "return_per_year_pct": summary.get("return_per_year_pct", performance["return_per_year_pct"]),
+        "short_horizon_projection": summary.get("short_horizon_projection", performance["short_horizon_projection"]),
         "artifact_files": {
             "summary": (run_dir / "summary.json").exists(),
             "decisions": (run_dir / "decisions.jsonl").exists(),
@@ -256,6 +308,10 @@ def format_text(metrics: dict[str, Any]) -> str:
         f"Final equity: {format_money(metrics.get('final_equity'))}",
         f"Return: {format_percent(metrics.get('total_return_pct'))}",
         f"Max drawdown: {format_percent(metrics.get('max_drawdown_pct'))}",
+        f"Elapsed days: {metrics.get('elapsed_days') if metrics.get('elapsed_days') is not None else 'n/a'}",
+        f"Return/day: {format_percent(metrics.get('return_per_day_pct'))}",
+        f"Return/month: {format_percent(metrics.get('return_per_month_pct'))}",
+        f"Return/year: {format_percent(metrics.get('return_per_year_pct'))}",
         f"Final positions: {metrics['final_positions']}",
     ]
     return "\n".join(lines)

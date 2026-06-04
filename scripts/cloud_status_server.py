@@ -1032,12 +1032,25 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
 
 def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
     summary = summary or {}
+    timestamps = []
+    for row in rows:
+        raw = row.get("timestamp")
+        if not raw:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        timestamps.append(parsed.astimezone(timezone.utc))
     equity_values = [finite_float(row.get("equity")) for row in rows]
     equity_values = [value for value in equity_values if value is not None]
     if equity_values:
         initial_equity = equity_values[0]
         final_equity = equity_values[-1]
-        total_return_pct = ((final_equity / initial_equity) - 1.0) * 100.0 if initial_equity else None
+        total_return = (final_equity / initial_equity) - 1.0 if initial_equity else None
+        total_return_pct = total_return * 100.0 if total_return is not None else None
         peak = initial_equity
         max_drawdown = 0.0
         for value in equity_values:
@@ -1047,14 +1060,40 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
     else:
         initial_equity = summary.get("initial_equity")
         final_equity = summary.get("final_equity")
+        total_return = None
         total_return_pct = summary.get("total_return_pct")
         max_drawdown = summary.get("max_drawdown_pct")
+    elapsed_seconds = None
+    elapsed_days = None
+    return_per_day_pct = None
+    return_per_month_pct = None
+    return_per_year_pct = None
+    if len(timestamps) >= 2:
+        elapsed_seconds = finite_float((timestamps[-1] - timestamps[0]).total_seconds())
+        if elapsed_seconds is not None and elapsed_seconds > 0:
+            elapsed_days = elapsed_seconds / 86400.0
+            if equity_values and initial_equity and final_equity and initial_equity > 0 and final_equity > 0:
+                ratio = final_equity / initial_equity
+                return_per_day_pct = finite_float((ratio ** (1.0 / elapsed_days) - 1.0) * 100.0)
+                return_per_month_pct = finite_float((ratio ** (30.4375 / elapsed_days) - 1.0) * 100.0)
+                return_per_year_pct = finite_float((ratio ** (365.25 / elapsed_days) - 1.0) * 100.0)
     return {
         "account_snapshot_count": summary.get("account_snapshot_count", len(rows)),
         "initial_equity": summary.get("initial_equity", initial_equity),
         "final_equity": summary.get("final_equity", final_equity),
         "total_return_pct": summary.get("total_return_pct", finite_float(total_return_pct)),
         "max_drawdown_pct": summary.get("max_drawdown_pct", finite_float(max_drawdown)),
+        "account_start_time": summary.get("account_start_time", timestamps[0].isoformat() if timestamps else None),
+        "account_end_time": summary.get("account_end_time", timestamps[-1].isoformat() if timestamps else None),
+        "elapsed_seconds": summary.get("elapsed_seconds", elapsed_seconds),
+        "elapsed_days": summary.get("elapsed_days", elapsed_days),
+        "return_per_day_pct": summary.get("return_per_day_pct", return_per_day_pct),
+        "return_per_month_pct": summary.get("return_per_month_pct", return_per_month_pct),
+        "return_per_year_pct": summary.get("return_per_year_pct", return_per_year_pct),
+        "short_horizon_projection": summary.get(
+            "short_horizon_projection",
+            bool(elapsed_days is not None and elapsed_days < 30.0),
+        ),
     }
 
 

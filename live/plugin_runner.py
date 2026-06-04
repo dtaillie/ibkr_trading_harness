@@ -53,6 +53,14 @@ class RunnerResult:
     initial_equity: float | None = None
     total_return_pct: float | None = None
     max_drawdown_pct: float | None = None
+    account_start_time: str | None = None
+    account_end_time: str | None = None
+    elapsed_seconds: float | None = None
+    elapsed_days: float | None = None
+    return_per_day_pct: float | None = None
+    return_per_month_pct: float | None = None
+    return_per_year_pct: float | None = None
+    short_horizon_projection: bool = False
 
 
 class ConfigValidationError(ValueError):
@@ -494,6 +502,14 @@ def account_snapshot_record(
 
 
 def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    timestamps = []
+    for row in records:
+        raw_ts = row.get("timestamp")
+        if raw_ts is None:
+            continue
+        parsed = pd.to_datetime(raw_ts, utc=True, errors="coerce")
+        if not pd.isna(parsed):
+            timestamps.append(parsed)
     equity_values = [finite_float(row.get("equity")) for row in records]
     equity_values = [value for value in equity_values if value is not None]
     if not equity_values:
@@ -502,21 +518,52 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             "initial_equity": None,
             "total_return_pct": None,
             "max_drawdown_pct": None,
+            "account_start_time": timestamps[0].isoformat() if timestamps else None,
+            "account_end_time": timestamps[-1].isoformat() if timestamps else None,
+            "elapsed_seconds": None,
+            "elapsed_days": None,
+            "return_per_day_pct": None,
+            "return_per_month_pct": None,
+            "return_per_year_pct": None,
+            "short_horizon_projection": False,
         }
     initial = equity_values[0]
     final = equity_values[-1]
-    total_return_pct = ((final / initial) - 1.0) * 100.0 if initial else None
+    total_return = (final / initial) - 1.0 if initial else None
+    total_return_pct = total_return * 100.0 if total_return is not None else None
     peak = equity_values[0]
     max_drawdown = 0.0
     for value in equity_values:
         peak = max(peak, value)
         if peak > 0:
             max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+    elapsed_seconds = None
+    elapsed_days = None
+    return_per_day_pct = None
+    return_per_month_pct = None
+    return_per_year_pct = None
+    if timestamps and len(timestamps) >= 2:
+        elapsed_seconds = finite_float((timestamps[-1] - timestamps[0]).total_seconds())
+        if elapsed_seconds is not None and elapsed_seconds > 0:
+            elapsed_days = elapsed_seconds / 86400.0
+            if total_return is not None and initial > 0 and final > 0:
+                ratio = final / initial
+                return_per_day_pct = finite_float((ratio ** (1.0 / elapsed_days) - 1.0) * 100.0)
+                return_per_month_pct = finite_float((ratio ** (30.4375 / elapsed_days) - 1.0) * 100.0)
+                return_per_year_pct = finite_float((ratio ** (365.25 / elapsed_days) - 1.0) * 100.0)
     return {
         "account_snapshot_count": len(records),
         "initial_equity": initial,
         "total_return_pct": finite_float(total_return_pct),
         "max_drawdown_pct": finite_float(max_drawdown),
+        "account_start_time": timestamps[0].isoformat() if timestamps else None,
+        "account_end_time": timestamps[-1].isoformat() if timestamps else None,
+        "elapsed_seconds": elapsed_seconds,
+        "elapsed_days": elapsed_days,
+        "return_per_day_pct": return_per_day_pct,
+        "return_per_month_pct": return_per_month_pct,
+        "return_per_year_pct": return_per_year_pct,
+        "short_horizon_projection": bool(elapsed_days is not None and elapsed_days < 30.0),
     }
 
 
@@ -1071,6 +1118,14 @@ def run_from_config(
         initial_equity=perf["initial_equity"],
         total_return_pct=perf["total_return_pct"],
         max_drawdown_pct=perf["max_drawdown_pct"],
+        account_start_time=perf["account_start_time"],
+        account_end_time=perf["account_end_time"],
+        elapsed_seconds=perf["elapsed_seconds"],
+        elapsed_days=perf["elapsed_days"],
+        return_per_day_pct=perf["return_per_day_pct"],
+        return_per_month_pct=perf["return_per_month_pct"],
+        return_per_year_pct=perf["return_per_year_pct"],
+        short_horizon_projection=bool(perf["short_horizon_projection"]),
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(

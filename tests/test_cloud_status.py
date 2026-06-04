@@ -755,6 +755,12 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["performance"]["account_snapshot_count"] == 2
         assert artifacts["performance"]["initial_equity"] == 25000.0
         assert artifacts["performance"]["total_return_pct"] == 0.0
+        assert artifacts["performance"]["elapsed_seconds"] == 300.0
+        assert artifacts["performance"]["elapsed_days"] == 300.0 / 86400.0
+        assert artifacts["performance"]["return_per_day_pct"] == 0.0
+        assert artifacts["performance"]["return_per_month_pct"] == 0.0
+        assert artifacts["performance"]["return_per_year_pct"] == 0.0
+        assert artifacts["performance"]["short_horizon_projection"] is True
         assert artifacts["decisions"][0]["intent_count"] == 0
         assert artifacts["decisions"][0]["symbols"] == ["SPY"]
         assert "signal" not in artifacts["decisions"][0]

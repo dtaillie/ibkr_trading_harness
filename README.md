@@ -153,8 +153,11 @@ metadata:
 The generic runner writes `decisions.jsonl`, `orders.jsonl`, `fills.jsonl`,
 `account.jsonl`, and `summary.json` under the configured output directory.
 `account.jsonl` records per-step cash, equity, positions, and exposure, while
-`summary.json` includes account snapshot count, total return, and max drawdown
-when those values are available. IBKR paper mode requires
+`summary.json` includes account snapshot count, total return, max drawdown,
+elapsed account-observation time, and geometric return projections per day,
+month, and year when those values are available. Short run windows are marked
+as short-horizon projections so they are treated as context, not stable
+performance estimates. IBKR paper mode requires
 `--confirm-paper-orders`. The runner also applies config-driven execution
 guards before simulated or paper execution: allowed symbols/sides/order types,
 required current prices, max orders, max quantity/cash/notional, short-sale
@@ -191,8 +194,9 @@ simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Saved draft
 runs can be inspected through summarized artifacts for decisions, orders, fills,
-account snapshots, return, drawdown, and an equity curve; raw strategy signal
-payloads are not returned by the public artifact view.
+account snapshots, return, drawdown, time-normalized return projections, and an
+equity curve; raw strategy signal payloads are not returned by the public
+artifact view.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through
