@@ -10,6 +10,7 @@ const state = {
   configDraft: null,
   alignmentPreview: null,
   configDrafts: { drafts: [], errors: [] },
+  draftValidations: { validations: [] },
   configRuns: { runs: [] },
   runComparison: { runs: [], leaders: {} },
   runDetail: null,
@@ -594,6 +595,44 @@ function renderConfigAlignment(alignment) {
   )).join("");
 }
 
+function draftValidationById() {
+  const rows = (state.draftValidations && state.draftValidations.validations) || [];
+  return Object.fromEntries(rows.map((rowItem) => [rowItem.draft_id, rowItem]));
+}
+
+function draftValidationBadge(draftId) {
+  const validation = draftValidationById()[draftId];
+  if (!validation) return `<span class="muted">not checked</span>`;
+  if (validation.valid) return statusText("ok");
+  const errors = validation.errors || [];
+  const suffix = errors.length ? ` (${errors.length})` : "";
+  const title = errors.length ? ` title="${escapeHtml(errors.join("; "))}"` : "";
+  return `<span class="status-bad"${title}>invalid${escapeHtml(suffix)}</span>`;
+}
+
+function renderDraftValidations() {
+  const payload = state.draftValidations || {};
+  const rows = payload.validations || [];
+  const invalid = rows.filter((rowItem) => !rowItem.valid);
+  const pairs = [
+    ["Checked", text(payload.generated_at)],
+    ["Drafts", numberText(payload.count, 0)],
+    ["Valid", numberText(payload.valid_count, 0)],
+    ["Invalid", numberText(payload.invalid_count, 0)],
+  ];
+  if (invalid.length) {
+    pairs.push([
+      "Errors",
+      invalid.map((rowItem) => (
+        `${rowItem.draft_id}: ${(rowItem.errors || []).join("; ")}`
+      )).join("\n"),
+    ]);
+  }
+  $("config-draft-validations").innerHTML = rows.length || payload.generated_at
+    ? pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`).join("")
+    : `<dt>Checked</dt><dd><span class="muted">Not checked</span></dd>`;
+}
+
 function applyRiskPreset() {
   const presetId = $("config-risk-preset").value;
   const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
@@ -616,16 +655,18 @@ function applyRiskPreset() {
 
 function renderWorkbenchRuns() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  renderDraftValidations();
   $("config-drafts-body").innerHTML = drafts.length
     ? drafts.map((draft) => row([
         escapeHtml(draft.draft_id),
         escapeHtml(draft.mode),
         escapeHtml((draft.symbols || []).join(", ")),
         escapeHtml(draft.modified_at),
+        draftValidationBadge(draft.draft_id),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
 
   const runs = (state.configRuns && state.configRuns.runs) || [];
   $("config-runs-body").innerHTML = runs.length
@@ -1059,6 +1100,7 @@ async function refresh() {
   const diagnostics = await fetchJson("/workbench_diagnostics");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
+  const draftValidations = await fetchJson("/config_draft_validations");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
   const runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
@@ -1070,6 +1112,7 @@ async function refresh() {
   state.diagnostics = diagnostics || {};
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
+  state.draftValidations = draftValidations || { validations: [] };
   state.configRuns = configRuns || { runs: [] };
   state.runComparison = runComparison || { runs: [], leaders: {} };
   state.commands = commands.commands || [];
@@ -1110,6 +1153,7 @@ async function generateConfigDraft(event) {
   state.alignmentPreview = response.draft ? response.draft.alignment || null : null;
   if (response.draft && response.draft.saved_path) {
     state.configDrafts = await fetchJson("/config_drafts");
+    state.draftValidations = await fetchJson("/config_draft_validations");
     state.workbenchStatus = await fetchJson("/workbench_status");
     state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   }
@@ -1197,6 +1241,7 @@ async function deleteConfigDraft(draftId) {
     }),
   });
   state.configDrafts = await fetchJson("/config_drafts");
+  state.draftValidations = await fetchJson("/config_draft_validations");
   state.workbenchStatus = await fetchJson("/workbench_status");
   state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const selected = $("config-run-draft").value;
@@ -1211,6 +1256,13 @@ async function deleteConfigDraft(draftId) {
   renderCleanupPlan();
   renderWorkbenchArtifacts();
   $("last-refresh").textContent = `Draft deleted: ${new Date().toLocaleString()}`;
+}
+
+async function validateDrafts() {
+  state.draftValidations = await fetchJson("/config_draft_validations");
+  renderDraftValidations();
+  renderWorkbenchRuns();
+  $("last-refresh").textContent = `Draft validations refreshed: ${new Date().toLocaleString()}`;
 }
 
 async function loadRunArtifacts(runId) {
@@ -1431,6 +1483,11 @@ function init() {
   $("export-workbench-snapshot").addEventListener("click", () => {
     downloadWorkbenchSnapshot().catch((err) => {
       $("last-refresh").textContent = `Workbench snapshot export failed: ${err.message}`;
+    });
+  });
+  $("validate-drafts").addEventListener("click", () => {
+    validateDrafts().catch((err) => {
+      $("last-refresh").textContent = `Draft validation failed: ${err.message}`;
     });
   });
   $("comparison-filter-status").addEventListener("change", renderRunComparison);

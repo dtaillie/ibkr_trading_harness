@@ -1167,6 +1167,73 @@ def list_config_drafts(state_dir: Path) -> dict[str, Any]:
     return {"drafts": drafts, "count": len(drafts), "errors": errors, "error_count": len(errors)}
 
 
+def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dict[str, Any]:
+    stat = path.stat()
+    base: dict[str, Any] = {
+        "draft_id": path.stem,
+        "path": str(path),
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "size_bytes": stat.st_size,
+        "mode": None,
+        "output_dir": None,
+        "plugin": None,
+        "status": None,
+        "symbols": [],
+        "valid": False,
+        "errors": [],
+        "error_count": 0,
+    }
+    try:
+        config = read_yaml_mapping(path)
+        runner = config.get("runner") or {}
+        metadata = config.get("metadata") or {}
+        data = config.get("data") or {}
+        errors = validate_workbench_draft_config(
+            config,
+            config_path=path,
+            data_roots=data_roots,
+            action="replay",
+        )
+        base.update({
+            "mode": runner.get("mode"),
+            "output_dir": runner.get("output_dir"),
+            "plugin": metadata.get("strategy_plugin") or metadata.get("plugin"),
+            "status": metadata.get("status"),
+            "symbols": sorted((data.get("files") or {}).keys()) if isinstance(data.get("files"), dict) else [],
+            "valid": not errors,
+            "errors": errors,
+            "error_count": len(errors),
+        })
+    except Exception as exc:
+        base["errors"] = [str(exc)]
+        base["error_count"] = 1
+    return base
+
+
+def build_config_draft_validations(state_dir: Path, *, data_roots: list[Path]) -> dict[str, Any]:
+    root = config_drafts_dir(state_dir)
+    if not root.exists():
+        return {
+            "generated_at": utc_now(),
+            "validations": [],
+            "count": 0,
+            "valid_count": 0,
+            "invalid_count": 0,
+        }
+    rows = [
+        config_draft_validation_record(path, data_roots=data_roots)
+        for path in sorted(root.glob("*.yaml"))
+    ]
+    valid_count = sum(1 for row in rows if row.get("valid"))
+    return {
+        "generated_at": utc_now(),
+        "validations": rows,
+        "count": len(rows),
+        "valid_count": valid_count,
+        "invalid_count": len(rows) - valid_count,
+    }
+
+
 def delete_config_draft(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     draft_id = str(payload.get("draft_id") or "").strip()
     if not draft_id:
@@ -2758,6 +2825,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, list_config_drafts(self.state_dir))
+            return
+        if parsed.path == "/config_draft_validations":
+            if not self.require_auth():
+                return
+            payload = build_config_draft_validations(self.state_dir, data_roots=self.data_roots)
+            json_response(self, 200, payload)
             return
         if parsed.path == "/config_draft_detail":
             if not self.require_auth():

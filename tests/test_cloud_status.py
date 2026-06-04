@@ -757,6 +757,15 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in yaml_body
         assert "risk_preset: costed_demo" in yaml_body
 
+        with request.urlopen(f"{base}/config_draft_validations", timeout=5) as resp:
+            validations = json.loads(resp.read().decode("utf-8"))
+        assert validations["count"] == 1
+        assert validations["valid_count"] == 1
+        assert validations["invalid_count"] == 0
+        assert validations["validations"][0]["draft_id"] == "Test_Draft"
+        assert validations["validations"][0]["valid"] is True
+        assert validations["validations"][0]["errors"] == []
+
         bad_delete_req = request.Request(
             f"{base}/config_draft/delete",
             data=json.dumps({"draft_id": "Test_Draft"}).encode("utf-8"),
@@ -1417,6 +1426,15 @@ def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_pat
         assert "workbench drafts can only run public generic no-edge plugins" in detail["validation"]["errors"]
         assert detail["yaml"] == ""
         assert detail["commands"] == {}
+
+        with request.urlopen(f"{base}/config_draft_validations", timeout=5) as resp:
+            validations = json.loads(resp.read().decode("utf-8"))
+        assert validations["count"] == 1
+        assert validations["valid_count"] == 0
+        assert validations["invalid_count"] == 1
+        assert validations["validations"][0]["draft_id"] == "Bad"
+        assert validations["validations"][0]["valid"] is False
+        assert "workbench drafts can only run public generic no-edge plugins" in validations["validations"][0]["errors"]
     finally:
         server.shutdown()
         server.server_close()

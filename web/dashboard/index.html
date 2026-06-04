@@ -312,7 +312,10 @@
       <dl id="config-alignment" class="kv wide-kv"></dl>
       <div class="section-head">
         <h2>Run Draft</h2>
-        <span id="config-run-status" class="section-note">idle</span>
+        <span class="button-pair">
+          <button id="validate-drafts" class="secondary" type="button">Validate Drafts</button>
+          <span id="config-run-status" class="section-note">idle</span>
+        </span>
       </div>
       <form id="config-run-form" class="builder-form">
         <label class="wide-field">
@@ -333,6 +336,7 @@
         </label>
         <button type="submit">Run</button>
       </form>
+      <dl id="config-draft-validations" class="kv wide-kv"></dl>
       <div class="table-wrap compact-table">
         <table>
           <thead>
@@ -341,6 +345,7 @@
               <th>Mode</th>
               <th>Symbols</th>
               <th>Modified</th>
+              <th>Validation</th>
               <th>Output</th>
               <th></th>
             </tr>

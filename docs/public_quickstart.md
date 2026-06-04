@@ -209,7 +209,9 @@ overlap warnings. You can preview that alignment before saving a draft.
 If you enable "Save draft locally", the YAML is written under the dashboard
 state directory. Saved drafts can be reopened for YAML, validation status, and
 local command snippets when they still validate as public workbench examples.
-Use Download on a saved draft row to download the validated example YAML.
+Use Validate Drafts to check every saved YAML against the public workbench
+guardrails, then use Download on a saved draft row to download the validated
+example YAML.
 Use Delete on a saved draft row to remove only that saved YAML; run archives and
 workbench output directories are handled separately by Workbench Maintenance.
 Saved drafts can then be validated, replayed, or simulated-paper-run from the

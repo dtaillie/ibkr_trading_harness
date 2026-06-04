@@ -62,6 +62,7 @@ def run_smoke(
             "export-data-catalog-csv",
             "export-workbench-snapshot",
             "config-preview-alignment",
+            "validate-drafts",
             "export-runs-csv",
             "comparison-filter-summary",
             "diagnostics-note",
@@ -74,6 +75,7 @@ def run_smoke(
         required_js_tokens = [
             "config_draft_yaml",
             "download-draft-yaml",
+            "config_draft_validations",
             "config_draft_runs_export",
             "risk_presets",
         ]
@@ -87,6 +89,7 @@ def run_smoke(
         cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
         snapshot = json.loads(fetch_text(base_url, "/workbench_snapshot_export"))
         options = fetch_json(base_url, "/config_options")
+        draft_validations = fetch_json(base_url, "/config_draft_validations")
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
@@ -94,6 +97,8 @@ def run_smoke(
             raise RuntimeError("data catalog CSV header is missing quality_status")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
+        if "valid_count" not in draft_validations or "invalid_count" not in draft_validations:
+            raise RuntimeError("draft validation summary is missing")
         if diagnostics.get("status") not in {"ok", "warn", "bad"}:
             raise RuntimeError("diagnostics status is invalid")
         if "reclaimable_bytes" not in cleanup_plan:
@@ -117,6 +122,7 @@ def run_smoke(
             "diagnostics_status": diagnostics.get("status"),
             "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
             "risk_preset_count": len(options.get("risk_presets") or []),
+            "draft_validation_count": draft_validations.get("count", 0),
             "alignment_dataset_count": alignment_count,
         }
     finally:

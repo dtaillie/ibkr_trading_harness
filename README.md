@@ -211,7 +211,10 @@ per-symbol timestamp counts; the same alignment summary can be previewed before
 saving a draft. Saved drafts can be reopened for YAML, validation status, data
 alignment, and local command snippets when they still validate as public
 workbench examples, and the validated YAML can be downloaded from the draft
-table. Risk presets in the builder only fill example guardrail and simulated-cost
+table. The draft table includes a bulk validation summary for all saved YAML,
+so unsupported plugins, missing data paths, and non-public example configs are
+visible before a run is attempted. Risk presets in the builder only fill
+example guardrail and simulated-cost
 fields; they are editable and are not strategy recommendations.
 Saved example YAML can be deleted from the draft table
 without touching archived run artifacts. Saved draft runs can be inspected through summarized
