@@ -7,6 +7,7 @@ const state = {
   configDraft: null,
   configDrafts: { drafts: [], errors: [] },
   configRuns: { runs: [] },
+  runComparison: { runs: [], leaders: {} },
   configArtifacts: null,
   commands: [],
   results: [],
@@ -407,6 +408,56 @@ function renderWorkbenchRuns() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
+function comparisonCard(title, run, value) {
+  if (!run) {
+    return `<div class="compare-card"><span>${escapeHtml(title)}</span><strong>n/a</strong><small>No summarized run</small></div>`;
+  }
+  return `
+    <div class="compare-card">
+      <span>${escapeHtml(title)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(text(run.draft_id))} - ${escapeHtml(text(run.action))}</small>
+    </div>
+  `;
+}
+
+function renderRunComparison() {
+  const comparison = state.runComparison || {};
+  const runs = comparison.runs || [];
+  const leaders = comparison.leaders || {};
+  const summaryCount = Number(comparison.summary_count || 0);
+  $("comparison-note").textContent = `${summaryCount} summarized / ${numberText(comparison.total || runs.length, 0)} recorded`;
+  $("comparison-leaders").innerHTML = [
+    comparisonCard("Best Return", leaders.best_total_return, pctText((leaders.best_total_return || {}).total_return_pct)),
+    comparisonCard("Best Return/day", leaders.best_return_per_day, pctText((leaders.best_return_per_day || {}).return_per_day_pct)),
+    comparisonCard("Lowest Drawdown", leaders.lowest_drawdown, pctText((leaders.lowest_drawdown || {}).max_drawdown_pct)),
+    `<div class="compare-card"><span>Short Horizon</span><strong>${escapeHtml(numberText(comparison.short_horizon_count || 0, 0))}</strong><small>Projection-flagged runs</small></div>`,
+  ].join("");
+  $("comparison-body").innerHTML = runs.length
+    ? runs.map((runItem) => {
+        const projection = runItem.summary_available
+          ? (runItem.short_horizon_projection ? "short" : "full")
+          : "n/a";
+        return row([
+          escapeHtml(runItem.finished_at),
+          escapeHtml(runItem.draft_id),
+          escapeHtml(runItem.action),
+          statusText(runItem.status),
+          pctText(runItem.total_return_pct),
+          pctText(runItem.max_drawdown_pct),
+          pctText(runItem.return_per_day_pct),
+          numberText(runItem.elapsed_days, 4),
+          escapeHtml(runItem.fills),
+          escapeHtml(runItem.rejections),
+          escapeHtml(projection),
+          runItem.summary_available
+            ? `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(runItem.draft_id)}">Latest</button>`
+            : "",
+        ]);
+      }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
 function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
@@ -666,6 +717,7 @@ function renderAll() {
   renderDataDetail();
   renderConfigBuilder();
   renderWorkbenchRuns();
+  renderRunComparison();
   renderWorkbenchArtifacts();
   renderRuns();
   renderRunEvents();
@@ -689,6 +741,7 @@ async function refresh() {
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
+  const runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
@@ -696,6 +749,7 @@ async function refresh() {
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
   state.configRuns = configRuns || { runs: [] };
+  state.runComparison = runComparison || { runs: [], leaders: {} };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   renderAll();
@@ -736,6 +790,7 @@ async function generateConfigDraft(event) {
   }
   renderConfigBuilder();
   renderWorkbenchRuns();
+  renderRunComparison();
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
 }
 
@@ -773,10 +828,12 @@ async function runConfigDraft(event) {
   const run = response.run || {};
   $("config-run-status").innerHTML = statusText(run.status);
   state.configRuns = await fetchJson("/config_draft_runs?limit=20");
+  state.runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
   if (($("config-run-action").value || "") !== "validate") {
     await loadConfigArtifacts(draftId);
   }
   renderWorkbenchRuns();
+  renderRunComparison();
   $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
@@ -862,7 +919,7 @@ function init() {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
-  for (const id of ["config-drafts-body", "config-runs-body"]) {
+  for (const id of ["config-drafts-body", "config-runs-body", "comparison-body"]) {
     $(id).addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-draft")) return;

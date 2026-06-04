@@ -196,7 +196,10 @@ file-based data under configured data roots, and non-live modes. Saved draft
 runs can be inspected through summarized artifacts for decisions, orders, fills,
 account snapshots, return, drawdown, time-normalized return projections, and an
 equity curve; raw strategy signal payloads are not returned by the public
-artifact view.
+artifact view. Recent saved draft runs can also be compared side by side by
+return, drawdown, elapsed time, fills, rejections, and short-horizon projection
+status; failed or timed-out runs are not allowed to reuse stale performance
+summaries from earlier successful runs.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

@@ -130,6 +130,10 @@ strategies private.
   views should show execution context, orders, fills, account snapshots, equity,
   elapsed time, total return, time-normalized return projections, drawdown, and
   high-level decision counts without exposing raw private signal payloads.
+- Keep recent-run comparison summarized and artifact-safe: compare returns,
+  drawdown, fills, rejections, elapsed windows, and projection caveats without
+  uploading raw strategy diagnostics or reusing stale summaries from failed
+  executions.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,

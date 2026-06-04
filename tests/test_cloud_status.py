@@ -772,6 +772,81 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             runs = json.loads(resp.read().decode("utf-8"))
         assert runs["total"] == 2
         assert [run["action"] for run in runs["runs"]] == ["replay", "validate"]
+
+        with request.urlopen(f"{base}/config_draft_run_comparison?limit=5", timeout=5) as resp:
+            comparison = json.loads(resp.read().decode("utf-8"))
+        assert comparison["total"] == 2
+        assert comparison["summary_count"] == 1
+        assert comparison["short_horizon_count"] == 1
+        assert comparison["status_counts"] == {"completed": 2}
+        assert comparison["action_counts"] == {"replay": 1, "validate": 1}
+        assert [run["action"] for run in comparison["runs"]] == ["replay", "validate"]
+        assert comparison["runs"][0]["summary_available"] is True
+        assert comparison["runs"][0]["total_return_pct"] == 0.0
+        assert comparison["runs"][0]["return_per_day_pct"] == 0.0
+        assert comparison["runs"][0]["short_horizon_projection"] is True
+        assert comparison["runs"][1]["summary_available"] is False
+        assert comparison["runs"][1]["total_return_pct"] is None
+        assert comparison["leaders"]["best_total_return"]["draft_id"] == "Run_Draft"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_run_comparison_ignores_failed_stale_summary(tmp_path):
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    runs_path = state_dir / "config_draft_runs.jsonl"
+    rows = [
+        {
+            "run_id": "failed-run",
+            "draft_id": "Bad",
+            "action": "replay",
+            "status": "failed",
+            "returncode": 1,
+            "finished_at": "2026-01-02T15:00:00+00:00",
+            "summary": {
+                "mode": "replay",
+                "total_return_pct": 99.0,
+                "return_per_day_pct": 99.0,
+                "max_drawdown_pct": 0.0,
+            },
+        },
+        {
+            "run_id": "good-run",
+            "draft_id": "Good",
+            "action": "replay",
+            "status": "completed",
+            "returncode": 0,
+            "finished_at": "2026-01-02T15:05:00+00:00",
+            "summary": {
+                "mode": "replay",
+                "decisions": 2,
+                "fills": 0,
+                "rejections": 0,
+                "total_return_pct": 1.5,
+                "return_per_day_pct": 2.0,
+                "max_drawdown_pct": -0.25,
+                "elapsed_days": 1.0,
+                "short_horizon_projection": True,
+            },
+        },
+    ]
+    runs_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    server = create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_draft_run_comparison?limit=10", timeout=5) as resp:
+            comparison = json.loads(resp.read().decode("utf-8"))
+        assert comparison["total"] == 2
+        assert comparison["summary_count"] == 1
+        failed = next(row for row in comparison["runs"] if row["draft_id"] == "Bad")
+        assert failed["summary_available"] is False
+        assert failed["total_return_pct"] is None
+        assert comparison["leaders"]["best_total_return"]["draft_id"] == "Good"
+        assert comparison["leaders"]["best_return_per_day"]["draft_id"] == "Good"
     finally:
         server.shutdown()
         server.server_close()

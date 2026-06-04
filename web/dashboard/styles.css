@@ -286,6 +286,34 @@ section {
   margin-top: 18px;
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.compare-card {
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.compare-card span,
+.compare-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compare-card strong {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 18px;
+}
+
 .artifact-grid {
   display: grid;
   grid-template-columns: minmax(250px, 0.28fr) minmax(280px, 0.36fr) minmax(0, 0.36fr);

@@ -935,6 +935,81 @@ def list_config_draft_runs(state_dir: Path, *, limit: int = 20) -> dict[str, Any
     return {"runs": runs, "count": len(runs), "total": total, "limit": limit}
 
 
+def count_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        label = str(row.get(key) or "unknown")
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def successful_run_summary(row: dict[str, Any]) -> dict[str, Any]:
+    summary = row.get("summary") if isinstance(row.get("summary"), dict) else {}
+    if row.get("status") != "completed" or row.get("returncode") not in (0, None):
+        return {}
+    return summary
+
+
+def summarize_config_draft_run_for_comparison(row: dict[str, Any]) -> dict[str, Any]:
+    summary = successful_run_summary(row)
+    return {
+        "run_id": row.get("run_id"),
+        "draft_id": row.get("draft_id"),
+        "action": row.get("action"),
+        "status": row.get("status"),
+        "returncode": row.get("returncode"),
+        "started_at": row.get("started_at"),
+        "finished_at": row.get("finished_at"),
+        "duration_seconds": row.get("duration_seconds"),
+        "summary_available": bool(summary),
+        "mode": summary.get("mode"),
+        "decisions": summary.get("decisions"),
+        "orders": summary.get("orders"),
+        "fills": summary.get("fills"),
+        "rejections": summary.get("rejections"),
+        "initial_equity": summary.get("initial_equity"),
+        "final_equity": summary.get("final_equity"),
+        "final_cash": summary.get("final_cash"),
+        "total_return_pct": summary.get("total_return_pct"),
+        "max_drawdown_pct": summary.get("max_drawdown_pct"),
+        "elapsed_days": summary.get("elapsed_days"),
+        "return_per_day_pct": summary.get("return_per_day_pct"),
+        "return_per_month_pct": summary.get("return_per_month_pct"),
+        "return_per_year_pct": summary.get("return_per_year_pct"),
+        "short_horizon_projection": summary.get("short_horizon_projection"),
+    }
+
+
+def run_with_max_metric(runs: list[dict[str, Any]], metric: str) -> dict[str, Any] | None:
+    eligible = [(finite_float(row.get(metric)), row) for row in runs]
+    eligible = [(value, row) for value, row in eligible if value is not None]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda item: item[0])[1]
+
+
+def build_config_draft_run_comparison(state_dir: Path, *, limit: int = 50) -> dict[str, Any]:
+    payload = list_config_draft_runs(state_dir, limit=limit)
+    runs = [summarize_config_draft_run_for_comparison(row) for row in payload["runs"]]
+    summarized = [row for row in runs if row.get("summary_available")]
+    leaders = {
+        "best_total_return": run_with_max_metric(summarized, "total_return_pct"),
+        "best_return_per_day": run_with_max_metric(summarized, "return_per_day_pct"),
+        "lowest_drawdown": run_with_max_metric(summarized, "max_drawdown_pct"),
+    }
+    return {
+        "runs": runs,
+        "count": len(runs),
+        "total": payload["total"],
+        "limit": payload["limit"],
+        "status_counts": count_values(runs, "status"),
+        "action_counts": count_values(runs, "action"),
+        "summary_count": len(summarized),
+        "short_horizon_count": sum(1 for row in summarized if row.get("short_horizon_projection")),
+        "leaders": leaders,
+    }
+
+
 def safe_workbench_output_dir(config: dict[str, Any]) -> Path:
     runner = config.get("runner") or {}
     raw_output_dir = str(runner.get("output_dir") or "").strip()
@@ -1197,7 +1272,11 @@ def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: li
         stderr = tail_text(exc.stderr)
 
     duration_seconds = round(time.monotonic() - started, 3)
-    summary = run_summary_for_config(config) if action != "validate" else None
+    summary = (
+        run_summary_for_config(config)
+        if action != "validate" and status == "completed" and returncode == 0
+        else None
+    )
     record = {
         "run_id": run_id,
         "draft_id": path.stem,
@@ -1660,6 +1739,16 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, list_config_draft_runs(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/config_draft_run_comparison":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=50, maximum=200)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, build_config_draft_run_comparison(self.state_dir, limit=limit))
             return
         if parsed.path == "/config_draft_artifacts":
             if not self.require_auth():

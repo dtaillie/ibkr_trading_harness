@@ -196,7 +196,10 @@ workbench run results are shown below the draft list. Use Inspect on a saved
 draft or run row to review summarized `summary.json`, decisions, orders, fills,
 account snapshots, return, drawdown, elapsed time, time-normalized return
 projections, and an equity curve. The artifact view intentionally omits raw
-strategy signal payloads.
+strategy signal payloads. The Run Comparison section ranks recent saved draft
+runs by return, return/day, and drawdown using only successful run summaries;
+failed or timed-out runs stay visible for diagnosis but do not carry stale
+metrics from a previous artifact.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 
