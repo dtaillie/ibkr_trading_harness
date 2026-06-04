@@ -240,9 +240,11 @@ orphaned directories after an explicit confirmation request. Cleanup is local
 and bounded to the workbench archive/output roots.
 The Setup Diagnostics panel checks local state-directory writability, configured
 data roots, CSV/parquet file counts, and dashboard asset availability so setup
-problems are visible before a user starts generating configs. The Workbench
-State panel can export a public-safe JSON snapshot of diagnostics, data catalog
-metadata, config options, and recent run summaries for reproducibility notes.
+problems are visible before a user starts generating configs. The Endpoint Map
+panel and `/workbench_endpoints` response list the public dashboard API surface
+for scripting and troubleshooting. The Workbench State panel can export a
+public-safe JSON snapshot of diagnostics, data catalog metadata, config options,
+and recent run summaries for reproducibility notes.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

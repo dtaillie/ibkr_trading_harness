@@ -120,6 +120,239 @@ MAX_DATA_GAP_ROWS = 200
 MAX_CONFIG_DRAFT_DATASETS = 20
 OUTPUT_TAIL_BYTES = 8000
 RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl")
+PUBLIC_ENDPOINTS = (
+    {
+        "method": "GET",
+        "path": "/status",
+        "category": "telemetry",
+        "description": "Return the latest posted node status snapshot.",
+        "response": "JSON status payload",
+    },
+    {
+        "method": "GET",
+        "path": "/status_history",
+        "category": "telemetry",
+        "description": "Return summarized recent status snapshots, optionally filtered by node_id.",
+        "response": "JSON history rows",
+    },
+    {
+        "method": "POST",
+        "path": "/status",
+        "category": "telemetry",
+        "description": "Receive and persist a node status snapshot.",
+        "response": "JSON receipt",
+    },
+    {
+        "method": "GET",
+        "path": "/data_catalog",
+        "category": "data",
+        "description": "Inspect CSV/parquet data files under configured public data roots.",
+        "response": "JSON catalog with quality metadata",
+    },
+    {
+        "method": "GET",
+        "path": "/data_catalog_export",
+        "category": "data",
+        "description": "Download saved data catalog metadata.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
+        "path": "/data_detail",
+        "category": "data",
+        "description": "Inspect one saved data file with coverage, gap, null, and price summaries.",
+        "response": "JSON dataset detail",
+    },
+    {
+        "method": "POST",
+        "path": "/data_alignment",
+        "category": "data",
+        "description": "Preview timestamp alignment for selected saved datasets.",
+        "response": "JSON alignment summary",
+    },
+    {
+        "method": "GET",
+        "path": "/config_options",
+        "category": "config",
+        "description": "Return public config-builder plugin, mode, action, preset, and default options.",
+        "response": "JSON options",
+    },
+    {
+        "method": "POST",
+        "path": "/config_draft",
+        "category": "config",
+        "description": "Generate an example public workbench config draft, optionally saving it locally.",
+        "response": "JSON draft with YAML and validation",
+    },
+    {
+        "method": "GET",
+        "path": "/config_drafts",
+        "category": "config",
+        "description": "List saved public workbench config drafts.",
+        "response": "JSON draft list",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_validations",
+        "category": "config",
+        "description": "Validate every saved draft against public workbench guardrails.",
+        "response": "JSON validation summary",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_detail",
+        "category": "config",
+        "description": "Load one valid saved draft with YAML, commands, and alignment summary.",
+        "response": "JSON draft detail",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_yaml",
+        "category": "config",
+        "description": "Download one validated saved draft YAML file.",
+        "response": "YAML download",
+    },
+    {
+        "method": "POST",
+        "path": "/config_draft/delete",
+        "category": "config",
+        "description": "Delete one saved draft YAML after explicit confirmation.",
+        "response": "JSON deletion result",
+    },
+    {
+        "method": "POST",
+        "path": "/config_draft/run",
+        "category": "config",
+        "description": "Validate, replay, or simulated-paper-run a saved public draft with bounds.",
+        "response": "JSON run record",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_runs",
+        "category": "runs",
+        "description": "List recent saved-draft run records.",
+        "response": "JSON run list",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_run_comparison",
+        "category": "runs",
+        "description": "Return public-safe run comparison metrics and leaders.",
+        "response": "JSON comparison",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_runs_export",
+        "category": "runs",
+        "description": "Download public-safe recent run comparison rows.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_run_detail",
+        "category": "runs",
+        "description": "Return command, timing, stdout, and stderr detail for one run.",
+        "response": "JSON run detail",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_artifacts",
+        "category": "runs",
+        "description": "Return sanitized latest artifacts for a saved draft output directory.",
+        "response": "JSON artifact summary",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_run_artifacts",
+        "category": "runs",
+        "description": "Return sanitized archived artifacts for one saved-draft run.",
+        "response": "JSON artifact summary",
+    },
+    {
+        "method": "GET",
+        "path": "/config_draft_run_artifacts_export",
+        "category": "runs",
+        "description": "Download sanitized archived artifacts for one saved-draft run.",
+        "response": "JSON download",
+    },
+    {
+        "method": "GET",
+        "path": "/workbench_status",
+        "category": "workbench",
+        "description": "Return local draft, run, archive, and cleanup status.",
+        "response": "JSON status summary",
+    },
+    {
+        "method": "GET",
+        "path": "/workbench_cleanup_plan",
+        "category": "workbench",
+        "description": "Preview orphaned workbench archive/output cleanup.",
+        "response": "JSON cleanup plan",
+    },
+    {
+        "method": "POST",
+        "path": "/workbench_cleanup",
+        "category": "workbench",
+        "description": "Dry-run or apply orphaned workbench archive/output cleanup.",
+        "response": "JSON cleanup result",
+    },
+    {
+        "method": "GET",
+        "path": "/workbench_diagnostics",
+        "category": "workbench",
+        "description": "Probe state directory, data roots, and dashboard asset availability.",
+        "response": "JSON diagnostics",
+    },
+    {
+        "method": "GET",
+        "path": "/workbench_snapshot_export",
+        "category": "workbench",
+        "description": "Download a public-safe snapshot of workbench state and metadata.",
+        "response": "JSON download",
+    },
+    {
+        "method": "GET",
+        "path": "/workbench_endpoints",
+        "category": "workbench",
+        "description": "Return this public endpoint map.",
+        "response": "JSON endpoint list",
+    },
+    {
+        "method": "GET",
+        "path": "/commands",
+        "category": "remote",
+        "description": "List pending local remote-control commands.",
+        "response": "JSON command list",
+    },
+    {
+        "method": "POST",
+        "path": "/commands",
+        "category": "remote",
+        "description": "Queue an allow-listed local remote-control command.",
+        "response": "JSON command record",
+    },
+    {
+        "method": "POST",
+        "path": "/commands/cancel",
+        "category": "remote",
+        "description": "Cancel a pending local remote-control command.",
+        "response": "JSON cancel result",
+    },
+    {
+        "method": "GET",
+        "path": "/command_results",
+        "category": "remote",
+        "description": "List recent command results for a node.",
+        "response": "JSON result list",
+    },
+    {
+        "method": "POST",
+        "path": "/command_results",
+        "category": "remote",
+        "description": "Receive and persist a command execution result.",
+        "response": "JSON receipt",
+    },
+)
 
 
 def utc_now() -> str:
@@ -1729,6 +1962,15 @@ def build_workbench_snapshot(
     }
 
 
+def build_workbench_endpoints() -> dict[str, Any]:
+    return {
+        "generated_at": utc_now(),
+        "endpoints": list(PUBLIC_ENDPOINTS),
+        "count": len(PUBLIC_ENDPOINTS),
+        "categories": count_values(PUBLIC_ENDPOINTS, "category"),
+    }
+
+
 def build_workbench_status(state_dir: Path) -> dict[str, Any]:
     drafts_dir = config_drafts_dir(state_dir)
     artifacts_root = config_draft_run_artifacts_root(state_dir)
@@ -2820,6 +3062,11 @@ class StatusHandler(BaseHTTPRequestHandler):
                 filename="workbench_snapshot.json",
                 content_type="application/json; charset=utf-8",
             )
+            return
+        if parsed.path == "/workbench_endpoints":
+            if not self.require_auth():
+                return
+            json_response(self, 200, build_workbench_endpoints())
             return
         if parsed.path == "/config_drafts":
             if not self.require_auth():

@@ -239,7 +239,9 @@ prunes after the server receives the explicit `prune-workbench` confirmation.
 It is limited to local workbench archive/output roots.
 The Setup Diagnostics section checks whether the local state directory can be
 written, whether configured data roots contain CSV/parquet files, and whether
-dashboard assets are present.
+dashboard assets are present. The Endpoint Map section mirrors
+`/workbench_endpoints`, which lists the public dashboard API surface for scripts
+and troubleshooting.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

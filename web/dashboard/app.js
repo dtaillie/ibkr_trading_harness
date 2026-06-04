@@ -6,6 +6,7 @@ const state = {
   workbenchStatus: {},
   cleanupPlan: {},
   diagnostics: {},
+  endpointMap: { endpoints: [] },
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
   alignmentPreview: null,
@@ -424,6 +425,23 @@ function renderDiagnostics() {
   $("diagnostics-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
   )).join("");
+}
+
+function renderEndpointMap() {
+  const endpointMap = state.endpointMap || {};
+  const endpoints = endpointMap.endpoints || [];
+  $("endpoint-map-note").textContent = endpointMap.generated_at
+    ? `${numberText(endpointMap.count, 0)} endpoints / ${countSummary(endpointMap.categories)}`
+    : "Not loaded";
+  $("endpoint-map-body").innerHTML = endpoints.length
+    ? endpoints.map((endpoint) => row([
+        `<span class="mono">${escapeHtml(endpoint.method)}</span>`,
+        `<span class="mono">${escapeHtml(endpoint.path)}</span>`,
+        escapeHtml(endpoint.category),
+        escapeHtml(endpoint.description),
+        escapeHtml(endpoint.response),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }
 
 function renderDataDetail() {
@@ -1100,6 +1118,7 @@ function renderAll() {
   renderWorkbenchStatus();
   renderCleanupPlan();
   renderDiagnostics();
+  renderEndpointMap();
   renderDataCatalog();
   renderDataDetail();
   renderConfigBuilder();
@@ -1129,6 +1148,7 @@ async function refresh() {
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const diagnostics = await fetchJson("/workbench_diagnostics");
+  const endpointMap = await fetchJson("/workbench_endpoints");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
   const draftValidations = await fetchJson("/config_draft_validations");
@@ -1141,6 +1161,7 @@ async function refresh() {
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
   state.diagnostics = diagnostics || {};
+  state.endpointMap = endpointMap || { endpoints: [] };
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
   state.draftValidations = draftValidations || { validations: [] };

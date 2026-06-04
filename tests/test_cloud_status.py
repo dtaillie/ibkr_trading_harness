@@ -372,10 +372,33 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
         assert "config-form" in html
+        assert "endpoint-map-body" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
         assert ".topbar" in css
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/workbench_endpoints", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        endpoints = {(item["method"], item["path"]) for item in payload["endpoints"]}
+        assert payload["count"] == len(payload["endpoints"])
+        assert payload["categories"]["workbench"] >= 1
+        assert ("GET", "/workbench_snapshot_export") in endpoints
+        assert ("GET", "/workbench_endpoints") in endpoints
+        assert ("GET", "/config_draft_validations") in endpoints
+        assert ("GET", "/config_draft_run_artifacts_export") in endpoints
+        assert ("POST", "/config_draft/run") in endpoints
     finally:
         server.shutdown()
         server.server_close()

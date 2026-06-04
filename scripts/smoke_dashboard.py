@@ -67,6 +67,7 @@ def run_smoke(
             "export-run-artifacts-json",
             "comparison-filter-summary",
             "comparison-sort",
+            "endpoint-map-body",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -80,6 +81,7 @@ def run_smoke(
             "config_draft_validations",
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
+            "workbench_endpoints",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
@@ -89,6 +91,7 @@ def run_smoke(
         catalog = fetch_json(base_url, "/data_catalog?limit=5&preview_points=3")
         data_catalog_csv = fetch_text(base_url, "/data_catalog_export?limit=5")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
+        endpoint_map = fetch_json(base_url, "/workbench_endpoints")
         cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
         snapshot = json.loads(fetch_text(base_url, "/workbench_snapshot_export"))
         options = fetch_json(base_url, "/config_options")
@@ -104,6 +107,9 @@ def run_smoke(
             raise RuntimeError("draft validation summary is missing")
         if diagnostics.get("status") not in {"ok", "warn", "bad"}:
             raise RuntimeError("diagnostics status is invalid")
+        endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
+        if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing workbench_snapshot_export")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot:
@@ -123,6 +129,7 @@ def run_smoke(
             "base_url": base_url,
             "catalog_count": catalog.get("count", 0),
             "diagnostics_status": diagnostics.get("status"),
+            "endpoint_count": endpoint_map.get("count", 0),
             "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
             "risk_preset_count": len(options.get("risk_presets") or []),
             "draft_validation_count": draft_validations.get("count", 0),
