@@ -60,8 +60,22 @@ def test_summarize_plugin_run_metrics(tmp_path):
     write_jsonl(
         run_dir / "account.jsonl",
         [
-            {"timestamp": "2026-01-02T14:30:00+00:00", "cash": 9000.0, "equity": 10000.0},
-            {"timestamp": "2026-01-02T14:35:00+00:00", "cash": 9000.0, "equity": 10020.0},
+            {
+                "timestamp": "2026-01-02T14:30:00+00:00",
+                "cash": 9000.0,
+                "equity": 10000.0,
+                "positions": {"SPY": 10.0},
+                "gross_exposure": 1000.0,
+                "net_exposure": 1000.0,
+            },
+            {
+                "timestamp": "2026-01-02T14:35:00+00:00",
+                "cash": 9000.0,
+                "equity": 10020.0,
+                "positions": {"SPY": 10.0},
+                "gross_exposure": 1020.0,
+                "net_exposure": 1020.0,
+            },
         ],
     )
 
@@ -83,10 +97,16 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["return_per_month_pct"] is not None
     assert metrics["return_per_year_pct"] is not None
     assert metrics["short_horizon_projection"] is True
+    assert metrics["max_gross_exposure"] == 1020.0
+    assert metrics["max_gross_exposure_pct"] == 10.2
+    assert metrics["max_abs_net_exposure"] == 1020.0
+    assert metrics["max_abs_net_exposure_pct"] == 10.2
+    assert metrics["max_position_count"] == 1
     assert metrics["artifact_files"]["account"] is True
     assert "Fills: 1" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
     assert "Return/day:" in format_text(metrics)
+    assert "Max gross exposure:" in format_text(metrics)
 
 
 def test_summarize_recent_run_events_omits_raw_signal_payload(tmp_path):

@@ -650,6 +650,10 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
         assert draft["config"]["data"]["files"] == {"SPY": str(data_file)}
+        assert draft["alignment"]["dataset_count"] == 1
+        assert draft["alignment"]["symbols"] == ["SPY"]
+        assert draft["alignment"]["common_timestamp_count"] == 2
+        assert draft["alignment"]["warning_count"] == 0
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in draft["yaml"]
         assert draft["saved_path"]
         assert Path(draft["saved_path"]).exists()
@@ -660,6 +664,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             detail = json.loads(resp.read().decode("utf-8"))
         assert detail["draft"]["draft_id"] == "Test_Draft"
         assert detail["validation"] == {"valid": True, "errors": []}
+        assert detail["alignment"]["common_timestamp_count"] == 2
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in detail["yaml"]
         assert "--mode simulated-paper" in detail["commands"]["simulated_paper"]
     finally:
@@ -728,6 +733,25 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         with request.urlopen(draft_req, timeout=5) as resp:
             draft_payload = json.loads(resp.read().decode("utf-8"))
         assert draft_payload["draft"]["name"] == "Run_Draft"
+        assert draft_payload["draft"]["alignment"]["symbols"] == ["QQQ", "SPY"]
+        assert draft_payload["draft"]["alignment"]["common_timestamp_count"] == 3
+        assert draft_payload["draft"]["alignment"]["common_coverage_pct"] == 100.0
+
+        alignment_req = request.Request(
+            f"{base}/data_alignment",
+            data=json.dumps({
+                "datasets": [
+                    {"symbol": "SPY", "path": str(data_file)},
+                    {"symbol": "QQQ", "path": str(qqq_file)},
+                ],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(alignment_req, timeout=5) as resp:
+            alignment_payload = json.loads(resp.read().decode("utf-8"))
+        assert alignment_payload["alignment"]["common_timestamp_count"] == 3
+        assert alignment_payload["alignment"]["warning_count"] == 0
 
         with request.urlopen(f"{base}/config_drafts", timeout=5) as resp:
             drafts = json.loads(resp.read().decode("utf-8"))
@@ -750,6 +774,15 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             validate_payload = json.loads(resp.read().decode("utf-8"))
         assert validate_payload["run"]["status"] == "completed"
         assert validate_payload["run"]["returncode"] == 0
+        with request.urlopen(
+            f"{base}/config_draft_run_detail?run_id={validate_payload['run']['run_id']}",
+            timeout=5,
+        ) as resp:
+            validate_detail = json.loads(resp.read().decode("utf-8"))
+        assert validate_detail["action"] == "validate"
+        assert validate_detail["artifact_available"] is False
+        assert validate_detail["summary_available"] is False
+        assert "--validate-only" in " ".join(validate_detail["command"])
 
         replay_req = request.Request(
             f"{base}/config_draft/run",
@@ -771,6 +804,13 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert replay["summary"]["mode"] == "replay"
         assert replay["summary"]["decisions"] == 2
         assert replay["summary"]["fills"] == 0
+        with request.urlopen(f"{base}/config_draft_run_detail?run_id={replay['run_id']}", timeout=5) as resp:
+            replay_detail = json.loads(resp.read().decode("utf-8"))
+        assert replay_detail["action"] == "replay"
+        assert replay_detail["artifact_available"] is True
+        assert replay_detail["summary_available"] is True
+        assert replay_detail["summary"]["decisions"] == 2
+        assert "--mode replay" in " ".join(replay_detail["command"])
 
         with request.urlopen(
             f"{base}/config_draft_run_artifacts?run_id={replay['run_id']}&limit=5",
@@ -783,6 +823,10 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
         assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in run_artifacts["decisions"][0]
+        assert run_artifacts["performance"]["max_gross_exposure"] == 0.0
+        assert run_artifacts["performance"]["max_gross_exposure_pct"] == 0.0
+        assert run_artifacts["performance"]["max_abs_net_exposure"] == 0.0
+        assert run_artifacts["performance"]["max_position_count"] == 0
 
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
@@ -798,6 +842,10 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["performance"]["return_per_month_pct"] == 0.0
         assert artifacts["performance"]["return_per_year_pct"] == 0.0
         assert artifacts["performance"]["short_horizon_projection"] is True
+        assert artifacts["performance"]["max_gross_exposure"] == 0.0
+        assert artifacts["performance"]["max_gross_exposure_pct"] == 0.0
+        assert artifacts["performance"]["max_abs_net_exposure"] == 0.0
+        assert artifacts["performance"]["max_position_count"] == 0
         assert artifacts["decisions"][0]["intent_count"] == 0
         assert artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in artifacts["decisions"][0]
@@ -834,6 +882,8 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert comparison["runs"][0]["total_return_pct"] == 0.0
         assert comparison["runs"][0]["return_per_day_pct"] == 0.0
         assert comparison["runs"][0]["short_horizon_projection"] is True
+        assert comparison["runs"][0]["max_gross_exposure_pct"] == 0.0
+        assert comparison["runs"][0]["max_position_count"] == 0
         assert comparison["runs"][1]["summary_available"] is False
         assert comparison["runs"][1]["artifact_available"] is False
         assert comparison["runs"][1]["total_return_pct"] is None

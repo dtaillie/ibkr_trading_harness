@@ -417,6 +417,37 @@ def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]
     return path, path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path)
 
 
+def selected_data_files(
+    datasets: Any,
+    data_roots: list[Path],
+) -> dict[str, tuple[Path, str]]:
+    if not isinstance(datasets, list) or not datasets:
+        raise ValueError("datasets must be a non-empty list")
+    if len(datasets) > MAX_CONFIG_DRAFT_DATASETS:
+        raise ValueError(f"datasets cannot exceed {MAX_CONFIG_DRAFT_DATASETS}")
+    selected: dict[str, tuple[Path, str]] = {}
+    seen_paths: set[str] = set()
+    for item in datasets:
+        if not isinstance(item, dict):
+            raise ValueError("each dataset must be a mapping")
+        symbol = str(item.get("symbol") or "").strip().upper()
+        raw_path = str(item.get("path") or "").strip()
+        if not symbol:
+            raise ValueError("dataset symbol is required")
+        if not raw_path:
+            raise ValueError("dataset path is required")
+        path, rel_path = data_path_allowed(raw_path, data_roots)
+        if symbol in selected:
+            raise ValueError(f"duplicate dataset symbol: {symbol}")
+        if rel_path in seen_paths:
+            raise ValueError(f"duplicate dataset path: {rel_path}")
+        seen_paths.add(rel_path)
+        selected[symbol] = (path, rel_path)
+    if not selected:
+        raise ValueError("at least one dataset is required")
+    return selected
+
+
 def read_data_file(path: Path) -> tuple[pd.DataFrame, str]:
     suffix = path.suffix.lower()
     if suffix == ".csv":
@@ -455,6 +486,94 @@ def numeric_stats(series: pd.Series) -> dict[str, Any]:
 
 def pct(value: float | None) -> float | None:
     return finite_float(value * 100.0) if value is not None else None
+
+
+def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
+    df, fmt = read_data_file(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    parsed = pd.Series([], dtype="datetime64[ns, UTC]")
+    if raw_ts is not None:
+        parsed = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce"))
+    valid = parsed.dropna().drop_duplicates().sort_values()
+    diffs = valid.diff().dropna().dt.total_seconds() if len(valid) > 1 else pd.Series([], dtype="float64")
+    return {
+        "symbol": symbol,
+        "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+        "format": fmt,
+        "rows": int(len(df)),
+        "timestamp_column": ts_col,
+        "timestamp_count": int(len(valid)),
+        "timestamp_parse_failures": int(parsed.isna().sum()) if raw_ts is not None else None,
+        "first_timestamp": valid.iloc[0].isoformat() if not valid.empty else None,
+        "last_timestamp": valid.iloc[-1].isoformat() if not valid.empty else None,
+        "median_interval_seconds": finite_float(diffs.median()) if not diffs.empty else None,
+        "_timestamps": valid,
+    }
+
+
+def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dict[str, Any]:
+    rows = []
+    warnings = []
+    timestamp_sets = []
+    union_values: set[pd.Timestamp] = set()
+    for symbol, (path, _rel_path) in sorted(selected.items()):
+        summary = timestamp_summary_for_file(symbol, path)
+        timestamps = list(summary.pop("_timestamps"))
+        if not summary["timestamp_column"]:
+            warnings.append(f"{symbol}: no timestamp column found")
+        if not timestamps:
+            warnings.append(f"{symbol}: no parseable timestamps")
+        elif summary["timestamp_parse_failures"]:
+            warnings.append(f"{symbol}: {summary['timestamp_parse_failures']} timestamp parse failures")
+        timestamp_set = set(timestamps)
+        timestamp_sets.append(timestamp_set)
+        union_values.update(timestamp_set)
+        rows.append(summary)
+
+    common_values = set.intersection(*timestamp_sets) if timestamp_sets and all(timestamp_sets) else set()
+    timestamp_counts = [int(row["timestamp_count"]) for row in rows if int(row["timestamp_count"]) > 0]
+    interval_values = [
+        float(row["median_interval_seconds"])
+        for row in rows
+        if row.get("median_interval_seconds") is not None and float(row["median_interval_seconds"]) > 0
+    ]
+    if len(interval_values) > 1 and max(interval_values) / min(interval_values) > 1.05:
+        warnings.append("selected datasets have different median bar intervals")
+    if len(rows) > 1 and timestamp_counts:
+        min_count = min(timestamp_counts)
+        if not common_values:
+            warnings.append("selected datasets have no common timestamps")
+        elif len(common_values) < min_count:
+            warnings.append("selected datasets have partial timestamp overlap")
+
+    common_sorted = sorted(common_values)
+    common_count = len(common_sorted)
+    min_timestamp_count = min(timestamp_counts) if timestamp_counts else 0
+    coverage_pct = (
+        (float(common_count) / float(min_timestamp_count)) * 100.0
+        if min_timestamp_count
+        else None
+    )
+    return {
+        "dataset_count": len(rows),
+        "symbols": [row["symbol"] for row in rows],
+        "rows": rows,
+        "common_timestamp_count": common_count,
+        "union_timestamp_count": len(union_values),
+        "min_timestamp_count": min_timestamp_count,
+        "common_coverage_pct": finite_float(coverage_pct),
+        "common_first_timestamp": common_sorted[0].isoformat() if common_sorted else None,
+        "common_last_timestamp": common_sorted[-1].isoformat() if common_sorted else None,
+        "warnings": warnings,
+        "warning_count": len(warnings),
+        "aligned": bool(rows and common_count > 0 and not warnings),
+    }
+
+
+def build_data_alignment(payload: dict[str, Any], *, data_roots: list[Path]) -> dict[str, Any]:
+    selected = selected_data_files(payload.get("datasets") or [], data_roots)
+    return build_data_alignment_for_files(selected)
 
 
 def build_data_detail(
@@ -641,31 +760,9 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     if mode not in CONFIG_BUILDER_MODES:
         raise ValueError(f"mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
 
-    datasets = payload.get("datasets") or []
-    if not isinstance(datasets, list) or not datasets:
-        raise ValueError("datasets must be a non-empty list")
-    if len(datasets) > MAX_CONFIG_DRAFT_DATASETS:
-        raise ValueError(f"datasets cannot exceed {MAX_CONFIG_DRAFT_DATASETS}")
-    data_files: dict[str, str] = {}
-    seen_paths: set[str] = set()
-    for item in datasets:
-        if not isinstance(item, dict):
-            raise ValueError("each dataset must be a mapping")
-        symbol = str(item.get("symbol") or "").strip().upper()
-        raw_path = str(item.get("path") or "").strip()
-        if not symbol:
-            raise ValueError("dataset symbol is required")
-        if not raw_path:
-            raise ValueError("dataset path is required")
-        _, rel_path = data_path_allowed(raw_path, data_roots)
-        if symbol in data_files:
-            raise ValueError(f"duplicate dataset symbol: {symbol}")
-        if rel_path in seen_paths:
-            raise ValueError(f"duplicate dataset path: {rel_path}")
-        seen_paths.add(rel_path)
-        data_files[symbol] = rel_path
-    if not data_files:
-        raise ValueError("at least one dataset is required")
+    selected = selected_data_files(payload.get("datasets") or [], data_roots)
+    data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
+    alignment = build_data_alignment_for_files(selected)
 
     starting_cash = number_field(payload, "starting_cash", 10000)
     history_bars = number_field(payload, "history_bars", 100, integer=True)
@@ -751,6 +848,7 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
             "errors": errors,
         },
         "commands": plugin_runner_commands(command_path),
+        "alignment": alignment,
     }
 
 
@@ -921,6 +1019,15 @@ def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list
         action="replay",
     )
     valid = not errors
+    alignment: dict[str, Any] = {}
+    if valid:
+        data = config.get("data") or {}
+        files = data.get("files") or {}
+        selected = {
+            str(symbol).upper(): data_path_allowed(str(raw_path), data_roots)
+            for symbol, raw_path in files.items()
+        } if isinstance(files, dict) else {}
+        alignment = build_data_alignment_for_files(selected) if selected else {}
     return {
         "draft": config_draft_record(path),
         "validation": {
@@ -929,6 +1036,7 @@ def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list
         },
         "yaml": path.read_text(encoding="utf-8") if valid else "",
         "commands": plugin_runner_commands(str(path)) if valid else {},
+        "alignment": alignment,
     }
 
 
@@ -1083,6 +1191,28 @@ def find_config_draft_run(state_dir: Path, run_id: str) -> dict[str, Any]:
     return found
 
 
+def load_config_draft_run_detail(state_dir: Path, run_id: str) -> dict[str, Any]:
+    row = find_config_draft_run(state_dir, run_id)
+    summary = row.get("summary") if isinstance(row.get("summary"), dict) else None
+    return {
+        "run_id": row.get("run_id"),
+        "draft_id": row.get("draft_id"),
+        "action": row.get("action"),
+        "status": row.get("status"),
+        "returncode": row.get("returncode"),
+        "started_at": row.get("started_at"),
+        "finished_at": row.get("finished_at"),
+        "duration_seconds": row.get("duration_seconds"),
+        "command": row.get("command") if isinstance(row.get("command"), list) else [],
+        "stdout_tail": row.get("stdout_tail") or "",
+        "stderr_tail": row.get("stderr_tail") or "",
+        "artifact_available": bool(row.get("artifact_path")),
+        "artifact_path": row.get("artifact_path"),
+        "summary_available": bool(summary),
+        "summary": summary,
+    }
+
+
 def count_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -1126,6 +1256,11 @@ def summarize_config_draft_run_for_comparison(row: dict[str, Any]) -> dict[str, 
         "return_per_month_pct": summary.get("return_per_month_pct"),
         "return_per_year_pct": summary.get("return_per_year_pct"),
         "short_horizon_projection": summary.get("short_horizon_projection"),
+        "max_gross_exposure": summary.get("max_gross_exposure"),
+        "max_gross_exposure_pct": summary.get("max_gross_exposure_pct"),
+        "max_abs_net_exposure": summary.get("max_abs_net_exposure"),
+        "max_abs_net_exposure_pct": summary.get("max_abs_net_exposure_pct"),
+        "max_position_count": summary.get("max_position_count"),
     }
 
 
@@ -1270,6 +1405,18 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
         timestamps.append(parsed.astimezone(timezone.utc))
     equity_values = [finite_float(row.get("equity")) for row in rows]
     equity_values = [value for value in equity_values if value is not None]
+    gross_values = [finite_float(row.get("gross_exposure")) for row in rows]
+    gross_values = [value for value in gross_values if value is not None]
+    net_values = [finite_float(row.get("net_exposure")) for row in rows]
+    net_values = [value for value in net_values if value is not None]
+    max_gross_exposure = max(gross_values) if gross_values else None
+    max_abs_net_exposure = max((abs(value) for value in net_values), default=None)
+    max_position_count = 0
+    for row in rows:
+        positions = row.get("positions")
+        if isinstance(positions, dict):
+            count = sum(1 for value in positions.values() if finite_float(value) not in (None, 0.0))
+            max_position_count = max(max_position_count, count)
     if equity_values:
         initial_equity = equity_values[0]
         final_equity = equity_values[-1]
@@ -1318,6 +1465,21 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
             "short_horizon_projection",
             bool(elapsed_days is not None and elapsed_days < 30.0),
         ),
+        "max_gross_exposure": summary.get("max_gross_exposure", finite_float(max_gross_exposure)),
+        "max_gross_exposure_pct": summary.get(
+            "max_gross_exposure_pct",
+            finite_float((max_gross_exposure / initial_equity) * 100.0)
+            if initial_equity and max_gross_exposure is not None
+            else None,
+        ),
+        "max_abs_net_exposure": summary.get("max_abs_net_exposure", finite_float(max_abs_net_exposure)),
+        "max_abs_net_exposure_pct": summary.get(
+            "max_abs_net_exposure_pct",
+            finite_float((max_abs_net_exposure / initial_equity) * 100.0)
+            if initial_equity and max_abs_net_exposure is not None
+            else None,
+        ),
+        "max_position_count": summary.get("max_position_count", max_position_count),
     }
 
 
@@ -1857,6 +2019,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"ok": True, "draft": result})
             return
+        if self.path == "/data_alignment":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = build_data_alignment(payload, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "alignment": result})
+            return
         if self.path == "/config_draft/run":
             payload = read_json_body(self)
             if payload is None:
@@ -1984,6 +2157,20 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, build_config_draft_run_comparison(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/config_draft_run_detail":
+            if not self.require_auth():
+                return
+            run_id = str(params.get("run_id", [""])[0]).strip()
+            if not run_id:
+                json_response(self, 400, {"error": "run_id is required"})
+                return
+            try:
+                payload = load_config_draft_run_detail(self.state_dir, run_id)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/config_draft_artifacts":
             if not self.require_auth():

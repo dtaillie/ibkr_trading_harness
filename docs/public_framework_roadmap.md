@@ -126,20 +126,27 @@ strategies private.
   generic examples, configured local data roots, bounded subprocess execution,
   one-or-more selected datasets, duplicate input guards, and non-live modes
   until stronger schema, authorization, and execution controls are in place.
+- Keep multi-dataset drafts alignment-aware: show common timestamps, overlap
+  coverage, common range, cadence warnings, and per-symbol timestamp counts
+  before the operator runs a draft.
 - Keep saved draft inspection public-safe: show YAML and command snippets only
   for drafts that still validate as public workbench examples, and show errors
   without exposing YAML for invalid or manually altered drafts.
 - Keep saved-run artifact inspection summarized by default. Public dashboard
   views should show execution context, orders, fills, account snapshots, equity,
-  elapsed time, total return, time-normalized return projections, drawdown, and
-  high-level decision counts without exposing raw private signal payloads.
+  elapsed time, total return, time-normalized return projections, exposure,
+  position counts, drawdown, and high-level decision counts without exposing raw
+  private signal payloads.
 - Keep recent-run comparison summarized and artifact-safe: compare returns,
-  drawdown, fills, rejections, elapsed windows, and projection caveats without
-  uploading raw strategy diagnostics or reusing stale summaries from failed
-  executions.
+  drawdown, exposure, fills, rejections, elapsed windows, and projection caveats
+  without uploading raw strategy diagnostics or reusing stale summaries from
+  failed executions.
 - Keep successful workbench run artifacts inspectable by exact run id through
   local archived snapshots, so later draft reruns do not erase the operator's
   ability to inspect a prior comparison row.
+- Keep exact-run log detail available for diagnosis: command argv, return code,
+  duration, stdout tail, and stderr tail should be inspectable without exposing
+  raw strategy diagnostics.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,

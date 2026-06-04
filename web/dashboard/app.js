@@ -9,6 +9,7 @@ const state = {
   configDrafts: { drafts: [], errors: [] },
   configRuns: { runs: [] },
   runComparison: { runs: [], leaders: {} },
+  runDetail: null,
   configArtifacts: null,
   commands: [],
   results: [],
@@ -398,6 +399,8 @@ function renderConfigBuilder() {
     $("config-validation").innerHTML = `<span class="muted">No draft generated</span>`;
     $("config-yaml").value = "";
     $("config-commands").innerHTML = "";
+    $("config-alignment-note").textContent = "No draft generated";
+    $("config-alignment").innerHTML = "";
     return;
   }
   const valid = draft.validation && draft.validation.valid;
@@ -411,6 +414,33 @@ function renderConfigBuilder() {
         `<dt>${escapeHtml(name)}</dt><dd><span class="mono">${escapeHtml(command)}</span></dd>`
       )).join("")
     : "";
+  renderConfigAlignment(draft.alignment || {});
+}
+
+function renderConfigAlignment(alignment) {
+  const warnings = alignment.warnings || [];
+  $("config-alignment-note").innerHTML = alignment.dataset_count
+    ? warnings.length
+      ? `<span class="status-warn">${warnings.length} warning${warnings.length === 1 ? "" : "s"}</span>`
+      : `<span class="status-ok">aligned</span>`
+    : "No alignment data";
+  const rows = alignment.rows || [];
+  const symbolSummary = rows.map((item) => (
+    `${text(item.symbol)} rows=${numberText(item.rows, 0)} ts=${numberText(item.timestamp_count, 0)} step=${interval(item.median_interval_seconds)}`
+  )).join("; ");
+  const pairs = [
+    ["Datasets", numberText(alignment.dataset_count, 0)],
+    ["Symbols", (alignment.symbols || []).join(", ")],
+    ["Common Timestamps", numberText(alignment.common_timestamp_count, 0)],
+    ["Union Timestamps", numberText(alignment.union_timestamp_count, 0)],
+    ["Common Coverage", pctText(alignment.common_coverage_pct)],
+    ["Common Range", rangeLabel(alignment.common_first_timestamp, alignment.common_last_timestamp)],
+    ["Warnings", warnings.length ? warnings.join("; ") : "none"],
+    ["Per Symbol", symbolSummary || "n/a"],
+  ];
+  $("config-alignment").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
 }
 
 function renderWorkbenchRuns() {
@@ -443,9 +473,11 @@ function renderWorkbenchRuns() {
           escapeHtml(summary.fills),
           escapeHtml(summary.rejections),
           `<span class="mono">${escapeHtml(detail)}</span>`,
-          run.artifact_path
-            ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(run.run_id)}">Inspect</button>`
-            : `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Latest</button>`,
+          `<span class="button-pair">${
+            run.artifact_path
+              ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(run.run_id)}">Artifacts</button>`
+              : `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Latest</button>`
+          }<button type="button" class="secondary inspect-run-log" data-run-id="${escapeHtml(run.run_id)}">Log</button></span>`,
         ]);
       }).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
@@ -489,16 +521,45 @@ function renderRunComparison() {
           pctText(runItem.total_return_pct),
           pctText(runItem.max_drawdown_pct),
           pctText(runItem.return_per_day_pct),
+          pctText(runItem.max_gross_exposure_pct),
+          escapeHtml(runItem.max_position_count),
           numberText(runItem.elapsed_days, 4),
           escapeHtml(runItem.fills),
           escapeHtml(runItem.rejections),
           escapeHtml(projection),
-          runItem.artifact_available
-            ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(runItem.run_id)}">Artifacts</button>`
-            : "",
+          `<span class="button-pair">${
+            runItem.artifact_available
+              ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(runItem.run_id)}">Artifacts</button>`
+              : ""
+          }<button type="button" class="secondary inspect-run-log" data-run-id="${escapeHtml(runItem.run_id)}">Log</button></span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderRunDetail() {
+  const detail = state.runDetail || {};
+  $("run-log-title").textContent = detail.run_id
+    ? `${text(detail.draft_id)} / ${text(detail.run_id)}`
+    : "No run selected";
+  const pairs = [
+    ["Run ID", text(detail.run_id)],
+    ["Draft", text(detail.draft_id)],
+    ["Action", text(detail.action)],
+    ["Status", text(detail.status)],
+    ["Return Code", text(detail.returncode)],
+    ["Started", text(detail.started_at)],
+    ["Finished", text(detail.finished_at)],
+    ["Seconds", numberText(detail.duration_seconds, 3)],
+    ["Summary", text(detail.summary_available)],
+    ["Artifacts", text(detail.artifact_available)],
+    ["Command", (detail.command || []).join(" ")],
+  ];
+  $("run-log-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  $("run-log-stdout").value = detail.stdout_tail || "";
+  $("run-log-stderr").value = detail.stderr_tail || "";
 }
 
 function renderWorkbenchArtifacts() {
@@ -527,6 +588,9 @@ function renderWorkbenchArtifacts() {
     ["Return / Month", pctText(performance.return_per_month_pct)],
     ["Return / Year", pctText(performance.return_per_year_pct)],
     ["Projection", performance.short_horizon_projection ? "short horizon" : "full horizon"],
+    ["Max Gross Exposure", `${money(performance.max_gross_exposure)} (${pctText(performance.max_gross_exposure_pct)})`],
+    ["Max Abs Net Exposure", `${money(performance.max_abs_net_exposure)} (${pctText(performance.max_abs_net_exposure_pct)})`],
+    ["Max Positions", numberText(performance.max_position_count, 0)],
     ["Positions", JSON.stringify(summary.final_positions || {})],
   ];
   $("artifact-summary").innerHTML = pairs.map(([key, value]) => (
@@ -764,6 +828,7 @@ function renderAll() {
   renderConfigBuilder();
   renderWorkbenchRuns();
   renderRunComparison();
+  renderRunDetail();
   renderWorkbenchArtifacts();
   renderRuns();
   renderRunEvents();
@@ -866,6 +931,7 @@ async function loadConfigDraftDetail(draftId) {
     validation: response.validation || { valid: false, errors: [] },
     yaml: response.yaml || "",
     commands: response.commands || {},
+    alignment: response.alignment || {},
   };
   renderConfigBuilder();
   $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
@@ -876,6 +942,13 @@ async function loadRunArtifacts(runId) {
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
   $("last-refresh").textContent = `Run artifacts loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadRunDetail(runId) {
+  const response = await fetchJson(`/config_draft_run_detail?run_id=${encodeURIComponent(runId)}`);
+  state.runDetail = response;
+  renderRunDetail();
+  $("last-refresh").textContent = `Run log loaded: ${new Date().toLocaleString()}`;
 }
 
 async function runConfigDraft(event) {
@@ -1007,6 +1080,11 @@ function init() {
       if (target.classList.contains("inspect-run-artifacts")) {
         loadRunArtifacts(target.dataset.runId || "").catch((err) => {
           $("last-refresh").textContent = `Run artifact load failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("inspect-run-log")) {
+        loadRunDetail(target.dataset.runId || "").catch((err) => {
+          $("last-refresh").textContent = `Run log load failed: ${err.message}`;
         });
       }
     });

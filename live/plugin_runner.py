@@ -61,6 +61,11 @@ class RunnerResult:
     return_per_month_pct: float | None = None
     return_per_year_pct: float | None = None
     short_horizon_projection: bool = False
+    max_gross_exposure: float | None = None
+    max_gross_exposure_pct: float | None = None
+    max_abs_net_exposure: float | None = None
+    max_abs_net_exposure_pct: float | None = None
+    max_position_count: int = 0
 
 
 class ConfigValidationError(ValueError):
@@ -512,6 +517,18 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             timestamps.append(parsed)
     equity_values = [finite_float(row.get("equity")) for row in records]
     equity_values = [value for value in equity_values if value is not None]
+    gross_values = [finite_float(row.get("gross_exposure")) for row in records]
+    gross_values = [value for value in gross_values if value is not None]
+    net_values = [finite_float(row.get("net_exposure")) for row in records]
+    net_values = [value for value in net_values if value is not None]
+    max_gross_exposure = max(gross_values) if gross_values else None
+    max_abs_net_exposure = max((abs(value) for value in net_values), default=None)
+    max_position_count = 0
+    for row in records:
+        positions = row.get("positions")
+        if isinstance(positions, dict):
+            count = sum(1 for value in positions.values() if finite_float(value) not in (None, 0.0))
+            max_position_count = max(max_position_count, count)
     if not equity_values:
         return {
             "account_snapshot_count": len(records),
@@ -526,6 +543,11 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             "return_per_month_pct": None,
             "return_per_year_pct": None,
             "short_horizon_projection": False,
+            "max_gross_exposure": max_gross_exposure,
+            "max_gross_exposure_pct": None,
+            "max_abs_net_exposure": max_abs_net_exposure,
+            "max_abs_net_exposure_pct": None,
+            "max_position_count": max_position_count,
         }
     initial = equity_values[0]
     final = equity_values[-1]
@@ -564,6 +586,11 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "return_per_month_pct": return_per_month_pct,
         "return_per_year_pct": return_per_year_pct,
         "short_horizon_projection": bool(elapsed_days is not None and elapsed_days < 30.0),
+        "max_gross_exposure": finite_float(max_gross_exposure),
+        "max_gross_exposure_pct": finite_float((max_gross_exposure / initial) * 100.0) if initial and max_gross_exposure is not None else None,
+        "max_abs_net_exposure": finite_float(max_abs_net_exposure),
+        "max_abs_net_exposure_pct": finite_float((max_abs_net_exposure / initial) * 100.0) if initial and max_abs_net_exposure is not None else None,
+        "max_position_count": max_position_count,
     }
 
 
@@ -1126,6 +1153,11 @@ def run_from_config(
         return_per_month_pct=perf["return_per_month_pct"],
         return_per_year_pct=perf["return_per_year_pct"],
         short_horizon_projection=bool(perf["short_horizon_projection"]),
+        max_gross_exposure=perf["max_gross_exposure"],
+        max_gross_exposure_pct=perf["max_gross_exposure_pct"],
+        max_abs_net_exposure=perf["max_abs_net_exposure"],
+        max_abs_net_exposure_pct=perf["max_abs_net_exposure_pct"],
+        max_position_count=int(perf["max_position_count"]),
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(

@@ -251,6 +251,11 @@
           <dl id="config-commands" class="kv"></dl>
         </div>
       </div>
+      <div class="section-head artifact-head">
+        <h2>Data Alignment</h2>
+        <span id="config-alignment-note" class="section-note">No draft generated</span>
+      </div>
+      <dl id="config-alignment" class="kv wide-kv"></dl>
       <div class="section-head">
         <h2>Run Draft</h2>
         <span id="config-run-status" class="section-note">idle</span>
@@ -324,6 +329,8 @@
               <th>Return</th>
               <th>Max DD</th>
               <th>Return/day</th>
+              <th>Gross Exp</th>
+              <th>Positions</th>
               <th>Elapsed</th>
               <th>Fills</th>
               <th>Rejects</th>
@@ -333,6 +340,25 @@
           </thead>
           <tbody id="comparison-body"></tbody>
         </table>
+      </div>
+      <div class="section-head artifact-head">
+        <h2>Run Log</h2>
+        <span id="run-log-title" class="section-note">No run selected</span>
+      </div>
+      <dl id="run-log-summary" class="kv wide-kv"></dl>
+      <div class="builder-output">
+        <div>
+          <div class="section-head">
+            <h2>Stdout</h2>
+          </div>
+          <textarea id="run-log-stdout" spellcheck="false" readonly></textarea>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Stderr</h2>
+          </div>
+          <textarea id="run-log-stderr" spellcheck="false" readonly></textarea>
+        </div>
       </div>
       <div class="section-head artifact-head">
         <h2>Run Artifacts</h2>

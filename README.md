@@ -196,18 +196,22 @@ simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths
-rejected before YAML is written. Saved drafts can be reopened for YAML,
-validation status, and local command snippets when they still validate as public
-workbench examples. Saved draft runs can be inspected through summarized
+rejected before YAML is written. Generated drafts include a data-alignment
+summary for common timestamps, overlap coverage, cadence mismatches, and
+per-symbol timestamp counts. Saved drafts can be reopened for YAML, validation
+status, data alignment, and local command snippets when they still validate as
+public workbench examples. Saved draft runs can be inspected through summarized
 artifacts for decisions, orders, fills, account snapshots, return, drawdown,
-time-normalized return projections, and an equity curve; raw strategy signal
-payloads are not returned by the public artifact view. Successful
-non-validate draft runs also archive a local per-run artifact snapshot so a
-comparison row can inspect the exact run even after the draft output directory
-is overwritten. Recent saved draft runs can also be compared side by side by
-return, drawdown, elapsed time, fills, rejections, and short-horizon projection
-status; failed or timed-out runs are not allowed to reuse stale performance
-summaries from earlier successful runs.
+time-normalized return projections, gross/net exposure, position count, and an
+equity curve; raw strategy signal payloads are not returned by the public
+artifact view. Successful non-validate draft runs also archive a local per-run
+artifact snapshot so a comparison row can inspect the exact run even after the
+draft output directory is overwritten. Recent saved draft runs can also be
+compared side by side by return, drawdown, exposure, elapsed time, fills,
+rejections, and short-horizon projection status; failed or timed-out runs are
+not allowed to reuse stale performance summaries from earlier successful runs.
+Run log detail exposes command argv, return code, duration, and stdout/stderr
+tails for diagnosis.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

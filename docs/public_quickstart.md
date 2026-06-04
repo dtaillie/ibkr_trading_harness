@@ -191,6 +191,9 @@ The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker
 orders. Duplicate symbols and duplicate paths are rejected before YAML is saved.
+Generated drafts include a Data Alignment section with common timestamp count,
+overlap coverage, common range, per-symbol timestamp counts, and cadence or
+overlap warnings.
 If you enable "Save draft locally", the YAML is written under the dashboard
 state directory. Saved drafts can be reopened for YAML, validation status, and
 local command snippets when they still validate as public workbench examples.
@@ -199,13 +202,16 @@ dashboard with bounded `max_steps` and timeout controls, and recent workbench
 run results are shown below the draft list. Use Inspect on a saved draft or run
 row to review summarized `summary.json`, decisions, orders, fills, account
 snapshots, return, drawdown, elapsed time, time-normalized return projections,
-and an equity curve. The artifact view intentionally omits raw strategy signal
-payloads. Successful non-validate runs also archive a local per-run artifact
-snapshot, so a comparison row can inspect that exact run even after a later run
-overwrites the draft's output directory.
+gross/net exposure, max position count, and an equity curve. The artifact view
+intentionally omits raw strategy signal payloads. Successful non-validate runs
+also archive a local per-run artifact snapshot, so a comparison row can inspect
+that exact run even after a later run overwrites the draft's output directory.
+Use Log on a run row to inspect command argv, return code, duration, and
+stdout/stderr tails for the exact run.
 The Run Comparison section ranks recent saved draft runs by return, return/day,
-and drawdown using only successful run summaries; failed or timed-out runs stay
-visible for diagnosis but do not carry stale metrics from a previous artifact.
+drawdown, and exposure using only successful run summaries; failed or timed-out
+runs stay visible for diagnosis but do not carry stale metrics from a previous
+artifact.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 
