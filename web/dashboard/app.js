@@ -586,7 +586,7 @@ function renderWorkbenchRuns() {
         escapeHtml((draft.symbols || []).join(", ")),
         escapeHtml(draft.modified_at),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
-        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button></span>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 
@@ -1099,6 +1099,35 @@ async function loadConfigDraftDetail(draftId) {
   $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
 }
 
+async function deleteConfigDraft(draftId) {
+  if (!draftId) return;
+  if (!window.confirm(`Delete saved draft ${draftId}?`)) {
+    return;
+  }
+  await fetchJson("/config_draft/delete", {
+    method: "POST",
+    body: JSON.stringify({
+      draft_id: draftId,
+      confirm: "delete-draft",
+    }),
+  });
+  state.configDrafts = await fetchJson("/config_drafts");
+  state.workbenchStatus = await fetchJson("/workbench_status");
+  state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
+  const selected = $("config-run-draft").value;
+  if (selected === draftId) {
+    state.configDraft = null;
+    state.alignmentPreview = null;
+    state.configArtifacts = null;
+  }
+  renderConfigBuilder();
+  renderWorkbenchRuns();
+  renderWorkbenchStatus();
+  renderCleanupPlan();
+  renderWorkbenchArtifacts();
+  $("last-refresh").textContent = `Draft deleted: ${new Date().toLocaleString()}`;
+}
+
 async function loadRunArtifacts(runId) {
   const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
   state.configArtifacts = response;
@@ -1289,6 +1318,11 @@ function init() {
       if (target.classList.contains("inspect-draft-detail")) {
         loadConfigDraftDetail(target.dataset.draftId || "").catch((err) => {
           $("last-refresh").textContent = `Draft detail failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("delete-draft")) {
+        deleteConfigDraft(target.dataset.draftId || "").catch((err) => {
+          $("last-refresh").textContent = `Draft delete failed: ${err.message}`;
         });
       }
       if (target.classList.contains("inspect-run-artifacts")) {

@@ -203,7 +203,8 @@ summary for common timestamps, overlap coverage, cadence mismatches, and
 per-symbol timestamp counts; the same alignment summary can be previewed before
 saving a draft. Saved drafts can be reopened for YAML, validation status, data
 alignment, and local command snippets when they still validate as public
-workbench examples. Saved draft runs can be inspected through summarized
+workbench examples, and saved example YAML can be deleted from the draft table
+without touching archived run artifacts. Saved draft runs can be inspected through summarized
 artifacts for decisions, orders, fills, account snapshots, return, drawdown,
 time-normalized return projections, gross/net exposure, position count, and an
 equity curve; raw strategy signal payloads are not returned by the public

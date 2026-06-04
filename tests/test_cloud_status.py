@@ -729,6 +729,35 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert detail["alignment"]["common_timestamp_count"] == 2
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in detail["yaml"]
         assert "--mode simulated-paper" in detail["commands"]["simulated_paper"]
+
+        bad_delete_req = request.Request(
+            f"{base}/config_draft/delete",
+            data=json.dumps({"draft_id": "Test_Draft"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(bad_delete_req, timeout=5)
+            raise AssertionError("expected draft delete confirmation response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            delete_error = json.loads(exc.read().decode("utf-8"))
+        assert delete_error["error"] == "confirm must be 'delete-draft'"
+
+        delete_req = request.Request(
+            f"{base}/config_draft/delete",
+            data=json.dumps({"draft_id": "Test_Draft", "confirm": "delete-draft"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(delete_req, timeout=5) as resp:
+            delete_payload = json.loads(resp.read().decode("utf-8"))
+        assert delete_payload["result"]["deleted"] is True
+        assert delete_payload["result"]["draft"]["draft_id"] == "Test_Draft"
+        assert not Path(draft["saved_path"]).exists()
+        with request.urlopen(f"{base}/config_drafts", timeout=5) as resp:
+            drafts = json.loads(resp.read().decode("utf-8"))
+        assert drafts["count"] == 0
     finally:
         server.shutdown()
         server.server_close()

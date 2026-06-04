@@ -1063,6 +1063,22 @@ def list_config_drafts(state_dir: Path) -> dict[str, Any]:
     return {"drafts": drafts, "count": len(drafts), "errors": errors, "error_count": len(errors)}
 
 
+def delete_config_draft(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    draft_id = str(payload.get("draft_id") or "").strip()
+    if not draft_id:
+        raise ValueError("draft_id is required")
+    if str(payload.get("confirm") or "") != "delete-draft":
+        raise ValueError("confirm must be 'delete-draft'")
+    path = config_draft_path(state_dir, draft_id)
+    record = config_draft_record(path)
+    path.unlink()
+    return {
+        "deleted": True,
+        "draft": record,
+        "deleted_path": str(path),
+    }
+
+
 def plugin_runner_commands(config_path: str) -> dict[str, str]:
     return {
         "validate": f"python3 live/plugin_runner.py --config {config_path} --validate-only",
@@ -2370,6 +2386,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, {"ok": True, "draft": result})
+            return
+        if self.path == "/config_draft/delete":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = delete_config_draft(self.state_dir, payload)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "result": result})
             return
         if self.path == "/data_alignment":
             payload = read_json_body(self)
