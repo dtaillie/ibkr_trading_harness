@@ -223,7 +223,8 @@ stdout/stderr tails for the exact run.
 The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
-artifact. Use Export CSV to download the recent public-safe run summary table.
+artifact. Use the status/action/summary filters to narrow the comparison table,
+and use Export CSV to download the recent public-safe run summary table.
 The Workbench Maintenance section previews orphaned run archives and workbench
 output directories, reports reclaimable bytes, supports a dry run, and only
 prunes after the server receives the explicit `prune-workbench` confirmation.

@@ -224,7 +224,9 @@ draft output directory is overwritten. Recent saved draft runs can also be
 compared side by side by return, drawdown, exposure, elapsed time, fills,
 rejections, and short-horizon projection status; failed or timed-out runs are
 not allowed to reuse stale performance summaries from earlier successful runs.
-Run comparison records can be exported as a CSV of public-safe summary fields.
+The comparison table can be filtered by status, action, and summary
+availability. Run comparison records can be exported as a CSV of public-safe
+summary fields.
 Run log detail exposes command argv, return code, duration, and stdout/stderr
 tails for diagnosis.
 The Workbench Maintenance panel previews orphaned run archives and workbench

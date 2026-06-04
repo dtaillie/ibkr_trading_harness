@@ -62,6 +62,7 @@ def run_smoke(
             "export-data-catalog-csv",
             "config-preview-alignment",
             "export-runs-csv",
+            "comparison-filter-summary",
             "diagnostics-note",
             "cleanup-apply",
         ]

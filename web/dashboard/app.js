@@ -667,12 +667,44 @@ function comparisonCard(title, run, value) {
   `;
 }
 
+function renderComparisonFilterOptions(runs) {
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    const current = select.value;
+    const options = Array.from(new Set(values.map(text).filter((value) => value !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) {
+      select.value = current;
+    }
+  };
+  makeOptions("comparison-filter-status", runs.map((run) => run.status));
+  makeOptions("comparison-filter-action", runs.map((run) => run.action));
+}
+
+function filteredComparisonRuns(runs) {
+  const status = $("comparison-filter-status").value || "";
+  const action = $("comparison-filter-action").value || "";
+  const summary = $("comparison-filter-summary").value || "";
+  return (runs || []).filter((run) => {
+    if (status && text(run.status) !== status) return false;
+    if (action && text(run.action) !== action) return false;
+    if (summary === "yes" && !run.summary_available) return false;
+    if (summary === "no" && run.summary_available) return false;
+    return true;
+  });
+}
+
 function renderRunComparison() {
   const comparison = state.runComparison || {};
-  const runs = comparison.runs || [];
+  const allRuns = comparison.runs || [];
+  renderComparisonFilterOptions(allRuns);
+  const runs = filteredComparisonRuns(allRuns);
   const leaders = comparison.leaders || {};
   const summaryCount = Number(comparison.summary_count || 0);
-  $("comparison-note").textContent = `${summaryCount} summarized / ${numberText(comparison.total || runs.length, 0)} recorded`;
+  $("comparison-note").textContent = `${numberText(runs.length, 0)} shown / ${numberText(comparison.total || allRuns.length, 0)} recorded / ${summaryCount} summarized`;
   $("comparison-leaders").innerHTML = [
     comparisonCard("Best Return", leaders.best_total_return, pctText((leaders.best_total_return || {}).total_return_pct)),
     comparisonCard("Best Return/day", leaders.best_return_per_day, pctText((leaders.best_return_per_day || {}).return_per_day_pct)),
@@ -1382,6 +1414,9 @@ function init() {
       $("last-refresh").textContent = `Data catalog CSV export failed: ${err.message}`;
     });
   });
+  $("comparison-filter-status").addEventListener("change", renderRunComparison);
+  $("comparison-filter-action").addEventListener("change", renderRunComparison);
+  $("comparison-filter-summary").addEventListener("change", renderRunComparison);
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {
       $("last-refresh").textContent = `Command failed: ${err.message}`;
