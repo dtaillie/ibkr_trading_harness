@@ -1352,6 +1352,25 @@ async function downloadRunsCsv() {
   $("last-refresh").textContent = `Run CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadRunArtifactsJson() {
+  const runId = state.configArtifacts && state.configArtifacts.run_id;
+  if (!runId) {
+    $("last-refresh").textContent = "Select archived run artifacts before exporting JSON";
+    return;
+  }
+  const body = await fetchText(`/config_draft_run_artifacts_export?run_id=${encodeURIComponent(runId)}&limit=100`);
+  const blob = new Blob([body], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${runId}_artifacts.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Run artifacts JSON exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogCsv() {
   const body = await fetchText("/data_catalog_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1473,6 +1492,11 @@ function init() {
   $("export-runs-csv").addEventListener("click", () => {
     downloadRunsCsv().catch((err) => {
       $("last-refresh").textContent = `Run CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-run-artifacts-json").addEventListener("click", () => {
+    downloadRunArtifactsJson().catch((err) => {
+      $("last-refresh").textContent = `Run artifact JSON export failed: ${err.message}`;
     });
   });
   $("export-data-catalog-csv").addEventListener("click", () => {

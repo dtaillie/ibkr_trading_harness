@@ -64,6 +64,7 @@ def run_smoke(
             "config-preview-alignment",
             "validate-drafts",
             "export-runs-csv",
+            "export-run-artifacts-json",
             "comparison-filter-summary",
             "diagnostics-note",
             "cleanup-apply",
@@ -76,6 +77,7 @@ def run_smoke(
             "config_draft_yaml",
             "download-draft-yaml",
             "config_draft_validations",
+            "config_draft_run_artifacts_export",
             "config_draft_runs_export",
             "risk_presets",
         ]

@@ -229,7 +229,9 @@ The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
 artifact. Use the status/action/summary filters to narrow the comparison table,
-and use Export CSV to download the recent public-safe run summary table.
+use Export CSV to download the recent public-safe run summary table, and use
+Export JSON in Run Artifacts to download the selected archived run artifact
+summary.
 The Workbench Maintenance section previews orphaned run archives and workbench
 output directories, reports reclaimable bytes, supports a dry run, and only
 prunes after the server receives the explicit `prune-workbench` confirmation.

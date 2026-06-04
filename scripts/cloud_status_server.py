@@ -2952,6 +2952,27 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, payload)
             return
+        if parsed.path == "/config_draft_run_artifacts_export":
+            if not self.require_auth():
+                return
+            run_id = str(params.get("run_id", [""])[0]).strip()
+            if not run_id:
+                json_response(self, 400, {"error": "run_id is required"})
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=MAX_ARTIFACT_ROWS)
+                payload = load_config_draft_run_artifacts(self.state_dir, run_id, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                json.dumps(payload, indent=2, sort_keys=True),
+                filename=f"{slugify(run_id)}_artifacts.json",
+                content_type="application/json; charset=utf-8",
+            )
+            return
         if parsed.path in {"/", "/index.html"}:
             index = self.dashboard_dir / "index.html"
             if index.exists():

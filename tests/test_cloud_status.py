@@ -955,6 +955,20 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["performance"]["max_abs_net_exposure"] == 0.0
         assert run_artifacts["performance"]["max_position_count"] == 0
 
+        with request.urlopen(
+            f"{base}/config_draft_run_artifacts_export?run_id={replay['run_id']}&limit=5",
+            timeout=5,
+        ) as resp:
+            assert resp.headers["Content-Type"].startswith("application/json")
+            assert resp.headers["Content-Disposition"] == (
+                f'attachment; filename="{replay["run_id"]}_artifacts.json"'
+            )
+            exported_artifacts = json.loads(resp.read().decode("utf-8"))
+        assert exported_artifacts["run_id"] == replay["run_id"]
+        assert exported_artifacts["draft_id"] == "Run_Draft"
+        assert exported_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
+        assert "signal" not in exported_artifacts["decisions"][0]
+
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
