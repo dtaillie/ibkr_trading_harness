@@ -738,11 +738,42 @@ function filteredComparisonRuns(runs) {
   });
 }
 
+function comparisonSortMetric(runItem, sortMode) {
+  if (sortMode === "finished_desc") return Date.parse(runItem.finished_at || "");
+  if (sortMode === "return_desc") return Number(runItem.total_return_pct);
+  if (sortMode === "return_day_desc") return Number(runItem.return_per_day_pct);
+  if (sortMode === "drawdown_asc") {
+    const value = Number(runItem.max_drawdown_pct);
+    return Number.isFinite(value) ? Math.abs(value) : Number.NaN;
+  }
+  if (sortMode === "exposure_desc") return Number(runItem.max_gross_exposure_pct);
+  if (sortMode === "positions_desc") return Number(runItem.max_position_count);
+  return Date.parse(runItem.finished_at || "");
+}
+
+function sortedComparisonRuns(runs) {
+  const sortMode = $("comparison-sort").value || "finished_desc";
+  const ascending = sortMode === "drawdown_asc";
+  return (runs || []).map((runItem, index) => ({
+    runItem,
+    index,
+    metric: comparisonSortMetric(runItem, sortMode),
+  })).sort((a, b) => {
+    const aFinite = Number.isFinite(a.metric);
+    const bFinite = Number.isFinite(b.metric);
+    if (!aFinite && !bFinite) return a.index - b.index;
+    if (!aFinite) return 1;
+    if (!bFinite) return -1;
+    if (a.metric === b.metric) return a.index - b.index;
+    return ascending ? a.metric - b.metric : b.metric - a.metric;
+  }).map((item) => item.runItem);
+}
+
 function renderRunComparison() {
   const comparison = state.runComparison || {};
   const allRuns = comparison.runs || [];
   renderComparisonFilterOptions(allRuns);
-  const runs = filteredComparisonRuns(allRuns);
+  const runs = sortedComparisonRuns(filteredComparisonRuns(allRuns));
   const leaders = comparison.leaders || {};
   const summaryCount = Number(comparison.summary_count || 0);
   $("comparison-note").textContent = `${numberText(runs.length, 0)} shown / ${numberText(comparison.total || allRuns.length, 0)} recorded / ${summaryCount} summarized`;
@@ -1517,6 +1548,7 @@ function init() {
   $("comparison-filter-status").addEventListener("change", renderRunComparison);
   $("comparison-filter-action").addEventListener("change", renderRunComparison);
   $("comparison-filter-summary").addEventListener("change", renderRunComparison);
+  $("comparison-sort").addEventListener("change", renderRunComparison);
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {
       $("last-refresh").textContent = `Command failed: ${err.message}`;

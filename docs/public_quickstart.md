@@ -229,7 +229,8 @@ The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
 artifact. Use the status/action/summary filters to narrow the comparison table,
-use Export CSV to download the recent public-safe run summary table, and use
+use the Sort selector to order by finish time, return, return/day, drawdown,
+exposure, or position count, use Export CSV to download the recent public-safe run summary table, and use
 Export JSON in Run Artifacts to download the selected archived run artifact
 summary.
 The Workbench Maintenance section previews orphaned run archives and workbench

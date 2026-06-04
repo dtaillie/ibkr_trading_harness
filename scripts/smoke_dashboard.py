@@ -66,6 +66,7 @@ def run_smoke(
             "export-runs-csv",
             "export-run-artifacts-json",
             "comparison-filter-summary",
+            "comparison-sort",
             "diagnostics-note",
             "cleanup-apply",
         ]

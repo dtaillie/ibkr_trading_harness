@@ -228,9 +228,10 @@ compared side by side by return, drawdown, exposure, elapsed time, fills,
 rejections, and short-horizon projection status; failed or timed-out runs are
 not allowed to reuse stale performance summaries from earlier successful runs.
 The comparison table can be filtered by status, action, and summary
-availability. Run comparison records can be exported as a CSV of public-safe
-summary fields, and selected archived run artifacts can be exported as
-public-safe JSON.
+availability, then sorted by finish time, return, return/day, drawdown,
+exposure, or position count. Run comparison records can be exported as a CSV of
+public-safe summary fields, and selected archived run artifacts can be exported
+as public-safe JSON.
 Run log detail exposes command argv, return code, duration, and stdout/stderr
 tails for diagnosis.
 The Workbench Maintenance panel previews orphaned run archives and workbench
