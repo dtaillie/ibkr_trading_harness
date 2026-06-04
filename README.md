@@ -191,16 +191,18 @@ local CSV/parquet data roots, showing coverage summaries, timestamp/gap
 metadata, and small downsampled price previews. Individual datasets can be
 inspected for larger sampled price paths, null counts, gap rows, price/return
 stats, volume stats, and a compact ok/warn/bad quality summary before they are
-used in a replay config. The dashboard can generate, save, validate, replay, and
+used in a replay config. The saved-data table can be filtered by search text,
+quality status, and bar size. The dashboard can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths
 rejected before YAML is written. Generated drafts include a data-alignment
 summary for common timestamps, overlap coverage, cadence mismatches, and
-per-symbol timestamp counts. Saved drafts can be reopened for YAML, validation
-status, data alignment, and local command snippets when they still validate as
-public workbench examples. Saved draft runs can be inspected through summarized
+per-symbol timestamp counts; the same alignment summary can be previewed before
+saving a draft. Saved drafts can be reopened for YAML, validation status, data
+alignment, and local command snippets when they still validate as public
+workbench examples. Saved draft runs can be inspected through summarized
 artifacts for decisions, orders, fills, account snapshots, return, drawdown,
 time-normalized return projections, gross/net exposure, position count, and an
 equity curve; raw strategy signal payloads are not returned by the public

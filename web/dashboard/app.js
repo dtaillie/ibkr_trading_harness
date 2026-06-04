@@ -7,6 +7,7 @@ const state = {
   cleanupPlan: {},
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
+  alignmentPreview: null,
   configDrafts: { drafts: [], errors: [] },
   configRuns: { runs: [] },
   runComparison: { runs: [], leaders: {} },
@@ -141,6 +142,11 @@ function qualityBadge(status, warnings = []) {
   return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
+function selectedConfigDatasets() {
+  const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
+  return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+}
+
 function renderMetrics() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
@@ -236,11 +242,53 @@ function equityChart(points) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline></svg>`;
 }
 
+function dataCatalogFilters() {
+  return {
+    text: ($("data-filter-text").value || "").trim().toLowerCase(),
+    quality: $("data-filter-quality").value || "",
+    bar: $("data-filter-bar").value || "",
+  };
+}
+
+function filteredDataCatalog(datasets) {
+  const filters = dataCatalogFilters();
+  return (datasets || []).filter((dataset) => {
+    if (filters.quality && dataset.quality_status !== filters.quality) return false;
+    if (filters.bar && text(dataset.bar_size) !== filters.bar) return false;
+    if (filters.text) {
+      const haystack = [
+        dataset.symbol,
+        dataset.bar_size,
+        dataset.path,
+        dataset.root,
+        dataset.source_timezone,
+      ].map(text).join(" ").toLowerCase();
+      if (!haystack.includes(filters.text)) return false;
+    }
+    return true;
+  });
+}
+
+function renderDataFilterOptions(datasets) {
+  const select = $("data-filter-bar");
+  const current = select.value;
+  const bars = Array.from(new Set((datasets || []).map((item) => text(item.bar_size)).filter((item) => item !== "n/a"))).sort();
+  select.innerHTML = [
+    `<option value="">All</option>`,
+    ...bars.map((bar) => `<option value="${escapeHtml(bar)}">${escapeHtml(bar)}</option>`),
+  ].join("");
+  if (bars.includes(current)) {
+    select.value = current;
+  }
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
-  $("data-catalog-body").innerHTML = datasets.length
-    ? datasets.map((dataset) => row([
+  const filtered = filteredDataCatalog(datasets);
+  renderDataFilterOptions(datasets);
+  $("data-catalog-body").innerHTML = filtered.length
+    ? filtered.map((dataset) => row([
         escapeHtml(dataset.symbol),
         escapeHtml(dataset.bar_size),
         escapeHtml(dataset.format),
@@ -257,9 +305,13 @@ function renderDataCatalog() {
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
-  $("data-catalog-errors").innerHTML = errors.length
+  const filterLabel = `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`;
+  const errorText = errors.length
     ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
     : "";
+  $("data-catalog-errors").innerHTML = errorText
+    ? `${escapeHtml(filterLabel)}<br>${errorText}`
+    : escapeHtml(filterLabel);
 }
 
 function renderWorkbenchStatus() {
@@ -403,7 +455,7 @@ function renderConfigBuilder() {
   const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
   const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
     value: dataset.path,
-    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} - ${dataset.path}`,
+    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
   }));
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const draftOptions = drafts.map((draft) => ({
@@ -440,8 +492,7 @@ function renderConfigBuilder() {
     $("config-validation").innerHTML = `<span class="muted">No draft generated</span>`;
     $("config-yaml").value = "";
     $("config-commands").innerHTML = "";
-    $("config-alignment-note").textContent = "No draft generated";
-    $("config-alignment").innerHTML = "";
+    renderConfigAlignment(state.alignmentPreview || {});
     return;
   }
   const valid = draft.validation && draft.validation.valid;
@@ -914,8 +965,7 @@ async function refresh() {
 
 async function generateConfigDraft(event) {
   event.preventDefault();
-  const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
-  const selected = (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+  const selected = selectedConfigDatasets();
   if (!selected.length) {
     $("config-validation").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
     return;
@@ -942,6 +992,7 @@ async function generateConfigDraft(event) {
     body: JSON.stringify(payload),
   });
   state.configDraft = response.draft;
+  state.alignmentPreview = response.draft ? response.draft.alignment || null : null;
   if (response.draft && response.draft.saved_path) {
     state.configDrafts = await fetchJson("/config_drafts");
     state.workbenchStatus = await fetchJson("/workbench_status");
@@ -953,6 +1004,24 @@ async function generateConfigDraft(event) {
   renderWorkbenchStatus();
   renderCleanupPlan();
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
+}
+
+async function previewConfigAlignment() {
+  const selected = selectedConfigDatasets();
+  if (!selected.length) {
+    $("config-alignment-note").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
+    $("config-alignment").innerHTML = "";
+    return;
+  }
+  const response = await fetchJson("/data_alignment", {
+    method: "POST",
+    body: JSON.stringify({
+      datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
+    }),
+  });
+  state.alignmentPreview = response.alignment || {};
+  renderConfigAlignment(state.alignmentPreview);
+  $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadDataDetail(path) {
@@ -980,6 +1049,7 @@ async function loadConfigDraftDetail(draftId) {
     commands: response.commands || {},
     alignment: response.alignment || {},
   };
+  state.alignmentPreview = response.alignment || null;
   renderConfigBuilder();
   $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
 }
@@ -1137,6 +1207,14 @@ function init() {
   $("cleanup-apply").addEventListener("click", () => {
     runWorkbenchCleanup(false).catch((err) => {
       $("last-refresh").textContent = `Cleanup failed: ${err.message}`;
+    });
+  });
+  $("data-filter-text").addEventListener("input", renderDataCatalog);
+  $("data-filter-quality").addEventListener("change", renderDataCatalog);
+  $("data-filter-bar").addEventListener("change", renderDataCatalog);
+  $("config-preview-alignment").addEventListener("click", () => {
+    previewConfigAlignment().catch((err) => {
+      $("config-alignment-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("command-form").addEventListener("submit", (event) => {

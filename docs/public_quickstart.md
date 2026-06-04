@@ -187,13 +187,14 @@ coverage summaries and small downsampled previews, not full bar files.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, volume stats, and a compact ok/warn/bad quality summary.
+Use the search, quality, and bar-size filters to narrow larger local data roots.
 The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker
 orders. Duplicate symbols and duplicate paths are rejected before YAML is saved.
 Generated drafts include a Data Alignment section with common timestamp count,
 overlap coverage, common range, per-symbol timestamp counts, and cadence or
-overlap warnings.
+overlap warnings. You can preview that alignment before saving a draft.
 If you enable "Save draft locally", the YAML is written under the dashboard
 state directory. Saved drafts can be reopened for YAML, validation status, and
 local command snippets when they still validate as public workbench examples.

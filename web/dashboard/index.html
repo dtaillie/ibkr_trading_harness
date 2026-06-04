@@ -112,6 +112,27 @@
         <h2>Saved Data</h2>
         <span id="data-catalog-errors" class="section-note"></span>
       </div>
+      <div class="filter-row">
+        <label>
+          <span>Search</span>
+          <input id="data-filter-text" type="search" placeholder="Symbol or path">
+        </label>
+        <label>
+          <span>Quality</span>
+          <select id="data-filter-quality">
+            <option value="">All</option>
+            <option value="ok">ok</option>
+            <option value="warn">warn</option>
+            <option value="bad">bad</option>
+          </select>
+        </label>
+        <label>
+          <span>Bar</span>
+          <select id="data-filter-bar">
+            <option value="">All</option>
+          </select>
+        </label>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -249,6 +270,7 @@
           <input id="config-save" type="checkbox">
           <span>Save draft locally</span>
         </label>
+        <button id="config-preview-alignment" class="secondary" type="button">Preview Alignment</button>
         <button type="submit">Generate</button>
       </form>
       <div class="builder-output">

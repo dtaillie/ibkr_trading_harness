@@ -125,13 +125,15 @@ strategies private.
 - Keep saved-data inspection bounded and local-first: summaries, sampled price
   paths, gap rows, and quality stats should be exposed without uploading full
   bar files through the cloud prototype.
+- Keep data selection usable for larger roots: filter saved datasets by search
+  text, quality status, and bar size before choosing files for a replay draft.
 - Keep the public config builder and saved-draft runner limited to public
   generic examples, configured local data roots, bounded subprocess execution,
   one-or-more selected datasets, duplicate input guards, and non-live modes
   until stronger schema, authorization, and execution controls are in place.
 - Keep multi-dataset drafts alignment-aware: show common timestamps, overlap
   coverage, common range, cadence warnings, and per-symbol timestamp counts
-  before the operator runs a draft.
+  before the operator saves or runs a draft.
 - Keep saved draft inspection public-safe: show YAML and command snippets only
   for drafts that still validate as public workbench examples, and show errors
   without exposing YAML for invalid or manually altered drafts.
