@@ -514,6 +514,16 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert dataset["quality_warnings"] == []
         assert len(dataset["preview"]) == 3
         assert dataset["preview"][-1]["close"] == 101.25
+
+        with request.urlopen(f"{base}/data_catalog_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="saved_data_catalog.csv"'
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(exported) == 1
+        assert exported[0]["symbol"] == "SPY"
+        assert exported[0]["quality_status"] == "ok"
+        assert exported[0]["bar_size"] == "5min"
     finally:
         server.shutdown()
         server.server_close()

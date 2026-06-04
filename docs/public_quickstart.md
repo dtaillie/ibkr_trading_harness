@@ -192,7 +192,8 @@ larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, volume stats, and a compact ok/warn/bad quality summary.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
-larger local data roots.
+larger local data roots. Use Export CSV to download the saved-data coverage and
+quality summary without exporting full bar data.
 The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker

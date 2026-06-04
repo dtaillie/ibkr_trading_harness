@@ -1268,6 +1268,20 @@ async function downloadRunsCsv() {
   $("last-refresh").textContent = `Run CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataCatalogCsv() {
+  const body = await fetchText("/data_catalog_export?limit=500");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "saved_data_catalog.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
@@ -1361,6 +1375,11 @@ function init() {
   $("export-runs-csv").addEventListener("click", () => {
     downloadRunsCsv().catch((err) => {
       $("last-refresh").textContent = `Run CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-catalog-csv").addEventListener("click", () => {
+    downloadDataCatalogCsv().catch((err) => {
+      $("last-refresh").textContent = `Data catalog CSV export failed: ${err.message}`;
     });
   });
   $("command-form").addEventListener("submit", (event) => {

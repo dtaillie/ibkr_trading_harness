@@ -552,6 +552,40 @@ def build_data_catalog(
     }
 
 
+DATA_CATALOG_EXPORT_FIELDS = (
+    "path",
+    "root",
+    "symbol",
+    "bar_size",
+    "format",
+    "rows",
+    "first_timestamp",
+    "last_timestamp",
+    "median_interval_seconds",
+    "largest_gap_seconds",
+    "estimated_missing_intervals",
+    "quality_status",
+    "quality_warning_count",
+    "timestamp_parse_failures",
+    "duplicate_timestamps",
+    "close_column",
+    "volume_column",
+    "source_timezone",
+    "size_bytes",
+    "modified_at",
+)
+
+
+def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
+    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_CATALOG_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in catalog["datasets"]:
+        writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
+    return out.getvalue()
+
+
 def slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip()).strip("._-")
     return slug[:80] or "workbench_config"
@@ -2604,6 +2638,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_catalog_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=500)
+                csv_body = build_data_catalog_csv(self.data_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="saved_data_catalog.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_detail":
             if not self.require_auth():

@@ -59,6 +59,7 @@ def run_smoke(
         html = fetch_text(base_url, "/")
         required_controls = [
             "data-filter-quality",
+            "export-data-catalog-csv",
             "config-preview-alignment",
             "export-runs-csv",
             "diagnostics-note",
@@ -79,12 +80,15 @@ def run_smoke(
             raise RuntimeError(f"dashboard JS tokens missing: {', '.join(missing_js_tokens)}")
 
         catalog = fetch_json(base_url, "/data_catalog?limit=5&preview_points=3")
+        data_catalog_csv = fetch_text(base_url, "/data_catalog_export?limit=5")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
         options = fetch_json(base_url, "/config_options")
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
+        if "quality_status" not in data_catalog_csv.splitlines()[0]:
+            raise RuntimeError("data catalog CSV header is missing quality_status")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
         if diagnostics.get("status") not in {"ok", "warn", "bad"}:
