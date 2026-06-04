@@ -283,6 +283,13 @@ function renderDataFilterOptions(datasets) {
   }
 }
 
+function countSummary(counts) {
+  const entries = Object.entries(counts || {});
+  return entries.length
+    ? entries.map(([key, value]) => `${key}:${numberText(value, 0)}`).join(" ")
+    : "none";
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -306,7 +313,13 @@ function renderDataCatalog() {
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
-  const filterLabel = `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`;
+  const filterLabel = [
+    `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
+    `quality ${countSummary(catalog.quality_counts)}`,
+    `bars ${countSummary(catalog.bar_size_counts)}`,
+    `rows ${numberText(catalog.row_count_total, 0)}`,
+    `size ${bytes(catalog.size_bytes_total)}`,
+  ].join(" | ");
   const errorText = errors.length
     ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
     : "";

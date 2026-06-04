@@ -187,7 +187,9 @@ coverage summaries and small downsampled previews, not full bar files.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, volume stats, and a compact ok/warn/bad quality summary.
-Use the search, quality, and bar-size filters to narrow larger local data roots.
+The catalog header summarizes quality counts, bar-size counts, total rows, and
+total local file size. Use the search, quality, and bar-size filters to narrow
+larger local data roots.
 The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker

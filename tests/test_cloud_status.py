@@ -493,6 +493,11 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
             payload = json.loads(resp.read().decode("utf-8"))
 
         assert payload["count"] == 1
+        assert payload["quality_counts"] == {"ok": 1}
+        assert payload["bar_size_counts"] == {"5min": 1}
+        assert payload["row_count_total"] == 3
+        assert payload["size_bytes_total"] > 0
+        assert payload["latest_modified_at"]
         dataset = payload["datasets"][0]
         assert dataset["symbol"] == "SPY"
         assert dataset["bar_size"] == "5min"
@@ -549,6 +554,8 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
             payload = json.loads(resp.read().decode("utf-8"))
 
         datasets = {item["symbol"]: item for item in payload["datasets"]}
+        assert payload["quality_counts"] == {"bad": 1, "warn": 1}
+        assert payload["bar_size_counts"] == {"1min": 2}
         assert datasets["WARN"]["quality_status"] == "warn"
         assert any("timestamp parse failures" in item for item in datasets["WARN"]["quality_warnings"])
         assert any("missing close values" in item for item in datasets["WARN"]["quality_warnings"])

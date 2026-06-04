@@ -472,12 +472,18 @@ def build_data_catalog(
                 "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
                 "error": str(exc),
             })
+    modified_values = [str(item.get("modified_at")) for item in datasets if item.get("modified_at")]
     return {
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "datasets": datasets,
         "errors": errors,
         "count": len(datasets),
         "error_count": len(errors),
+        "quality_counts": count_values(datasets, "quality_status"),
+        "bar_size_counts": count_values(datasets, "bar_size"),
+        "row_count_total": sum(int(item.get("rows") or 0) for item in datasets),
+        "size_bytes_total": sum(int(item.get("size_bytes") or 0) for item in datasets),
+        "latest_modified_at": max(modified_values) if modified_values else None,
         "limit": limit,
         "preview_points": preview_points,
     }

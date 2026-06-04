@@ -192,7 +192,8 @@ metadata, and small downsampled price previews. Individual datasets can be
 inspected for larger sampled price paths, null counts, gap rows, price/return
 stats, volume stats, and a compact ok/warn/bad quality summary before they are
 used in a replay config. The saved-data table can be filtered by search text,
-quality status, and bar size. The dashboard can generate, save, validate, replay, and
+quality status, and bar size, and its header summarizes quality counts, bar-size
+counts, total rows, and local file size. The dashboard can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Drafts can use
