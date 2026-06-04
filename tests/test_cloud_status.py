@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import sys
 import threading
@@ -1235,6 +1237,19 @@ def test_cloud_status_server_run_comparison_ignores_failed_stale_summary(tmp_pat
         assert failed["total_return_pct"] is None
         assert comparison["leaders"]["best_total_return"]["draft_id"] == "Good"
         assert comparison["leaders"]["best_return_per_day"]["draft_id"] == "Good"
+
+        with request.urlopen(f"{base}/config_draft_runs_export?limit=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="workbench_runs.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows_exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert [row["draft_id"] for row in rows_exported] == ["Good", "Bad"]
+        good_row = rows_exported[0]
+        failed_row = rows_exported[1]
+        assert good_row["total_return_pct"] == "1.5"
+        assert good_row["summary_available"] == "True"
+        assert failed_row["total_return_pct"] == ""
+        assert failed_row["summary_available"] == "False"
     finally:
         server.shutdown()
         server.server_close()

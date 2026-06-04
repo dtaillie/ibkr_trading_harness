@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import html
+import io
 import json
 import math
 import os
@@ -93,6 +95,23 @@ def text_response(handler: BaseHTTPRequestHandler, status: int, body: str, conte
     raw = body.encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
+def download_text_response(
+    handler: BaseHTTPRequestHandler,
+    status: int,
+    body: str,
+    *,
+    filename: str,
+    content_type: str,
+) -> None:
+    raw = body.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
     handler.wfile.write(raw)
@@ -1670,6 +1689,49 @@ def build_config_draft_run_comparison(state_dir: Path, *, limit: int = 50) -> di
     }
 
 
+RUN_EXPORT_FIELDS = (
+    "finished_at",
+    "started_at",
+    "run_id",
+    "draft_id",
+    "action",
+    "status",
+    "returncode",
+    "duration_seconds",
+    "summary_available",
+    "artifact_available",
+    "mode",
+    "decisions",
+    "orders",
+    "fills",
+    "rejections",
+    "initial_equity",
+    "final_equity",
+    "final_cash",
+    "total_return_pct",
+    "max_drawdown_pct",
+    "elapsed_days",
+    "return_per_day_pct",
+    "return_per_month_pct",
+    "return_per_year_pct",
+    "short_horizon_projection",
+    "max_gross_exposure_pct",
+    "max_abs_net_exposure_pct",
+    "max_position_count",
+)
+
+
+def build_config_draft_runs_csv(state_dir: Path, *, limit: int = 200) -> str:
+    payload = list_config_draft_runs(state_dir, limit=limit)
+    rows = [summarize_config_draft_run_for_comparison(row) for row in payload["runs"]]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=RUN_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: row.get(field) for field in RUN_EXPORT_FIELDS})
+    return out.getvalue()
+
+
 def safe_workbench_output_dir(config: dict[str, Any]) -> Path:
     runner = config.get("runner") or {}
     raw_output_dir = str(runner.get("output_dir") or "").strip()
@@ -2562,6 +2624,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, build_config_draft_run_comparison(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/config_draft_runs_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=500)
+                csv_body = build_config_draft_runs_csv(self.state_dir, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="workbench_runs.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/config_draft_run_detail":
             if not self.require_auth():

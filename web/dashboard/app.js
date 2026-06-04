@@ -59,6 +59,17 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+async function fetchText(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...headers(), ...(options.headers || {}) },
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return response.text();
+}
+
 function text(value) {
   if (value === null || value === undefined || value === "") return "n/a";
   return String(value);
@@ -1201,6 +1212,20 @@ async function runWorkbenchCleanup(dryRun) {
   $("last-refresh").textContent = `${action}: ${new Date().toLocaleString()}`;
 }
 
+async function downloadRunsCsv() {
+  const body = await fetchText("/config_draft_runs_export?limit=200");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "workbench_runs.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Run CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
@@ -1289,6 +1314,11 @@ function init() {
   $("config-preview-alignment").addEventListener("click", () => {
     previewConfigAlignment().catch((err) => {
       $("config-alignment-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("export-runs-csv").addEventListener("click", () => {
+    downloadRunsCsv().catch((err) => {
+      $("last-refresh").textContent = `Run CSV export failed: ${err.message}`;
     });
   });
   $("command-form").addEventListener("submit", (event) => {
