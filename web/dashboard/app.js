@@ -207,6 +207,24 @@ function detailChart(points) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="sampled close prices"><polyline points="${coords}"></polyline></svg>`;
 }
 
+function equityChart(points) {
+  if (!points || points.length < 2) return `<span class="muted">No equity curve available</span>`;
+  const values = points.map((point) => Number(point.equity)).filter((value) => Number.isFinite(value));
+  if (values.length < 2) return `<span class="muted">No equity curve available</span>`;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const width = 720;
+  const height = 180;
+  const span = max - min || 1;
+  const coords = values.map((value, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline></svg>`;
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -392,6 +410,7 @@ function renderWorkbenchRuns() {
 function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
+  const performance = artifacts.performance || {};
   $("artifact-title").textContent = artifacts.draft_id
     ? `${artifacts.draft_id} - ${text(artifacts.output_dir)}`
     : "No run selected";
@@ -401,13 +420,18 @@ function renderWorkbenchArtifacts() {
     ["Orders", text(summary.orders)],
     ["Fills", text(summary.fills)],
     ["Rejections", text(summary.rejections)],
+    ["Snapshots", text(performance.account_snapshot_count)],
+    ["Initial Equity", money(performance.initial_equity)],
     ["Final Cash", money(summary.final_cash)],
-    ["Final Equity", money(summary.final_equity)],
+    ["Final Equity", money(performance.final_equity ?? summary.final_equity)],
+    ["Return", pctText(performance.total_return_pct)],
+    ["Max Drawdown", pctText(performance.max_drawdown_pct)],
     ["Positions", JSON.stringify(summary.final_positions || {})],
   ];
   $("artifact-summary").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || []);
 
   const decisions = artifacts.decisions || [];
   $("artifact-decisions-body").innerHTML = decisions.length

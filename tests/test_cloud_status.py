@@ -751,12 +751,16 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
         assert artifacts["summary"]["mode"] == "replay"
-        assert artifacts["counts"] == {"decisions": 2, "fills": 0, "orders": 0}
+        assert artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
+        assert artifacts["performance"]["account_snapshot_count"] == 2
+        assert artifacts["performance"]["initial_equity"] == 25000.0
+        assert artifacts["performance"]["total_return_pct"] == 0.0
         assert artifacts["decisions"][0]["intent_count"] == 0
         assert artifacts["decisions"][0]["symbols"] == ["SPY"]
         assert "signal" not in artifacts["decisions"][0]
         assert artifacts["orders"] == []
         assert artifacts["fills"] == []
+        assert artifacts["account"][0]["equity"] == 25000.0
 
         with request.urlopen(f"{base}/config_draft_runs?limit=5", timeout=5) as resp:
             runs = json.loads(resp.read().decode("utf-8"))

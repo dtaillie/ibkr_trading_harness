@@ -288,7 +288,7 @@ section {
 
 .artifact-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 0.58fr);
+  grid-template-columns: minmax(250px, 0.28fr) minmax(280px, 0.36fr) minmax(0, 0.36fr);
   gap: 12px;
 }
 

@@ -57,6 +57,13 @@ def test_summarize_plugin_run_metrics(tmp_path):
             },
         ],
     )
+    write_jsonl(
+        run_dir / "account.jsonl",
+        [
+            {"timestamp": "2026-01-02T14:30:00+00:00", "cash": 9000.0, "equity": 10000.0},
+            {"timestamp": "2026-01-02T14:35:00+00:00", "cash": 9000.0, "equity": 10020.0},
+        ],
+    )
 
     metrics = summarize_run(run_dir)
 
@@ -66,7 +73,13 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["filled_notional"] == 1000.0
     assert metrics["fill_commission"] == 1.25
     assert metrics["unrealized_pnl_estimate"] == 1020.0
+    assert metrics["account_snapshot_count"] == 2
+    assert metrics["initial_equity"] == 10000.0
+    assert abs(metrics["total_return_pct"] - 0.2) < 1e-9
+    assert metrics["max_drawdown_pct"] == 0.0
+    assert metrics["artifact_files"]["account"] is True
     assert "Fills: 1" in format_text(metrics)
+    assert "Return: 0.2%" in format_text(metrics)
 
 
 def test_summarize_recent_run_events_omits_raw_signal_payload(tmp_path):
@@ -140,3 +153,4 @@ def test_summarize_plugin_run_cli_json(tmp_path):
     assert metrics["mode"] == "replay"
     assert metrics["artifact_files"]["summary"] is True
     assert metrics["artifact_files"]["fills"] is False
+    assert metrics["artifact_files"]["account"] is False

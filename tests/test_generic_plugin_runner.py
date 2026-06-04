@@ -78,8 +78,14 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
 
     assert result.decisions == 3
     assert result.orders == 0
+    assert result.account_snapshot_count == 3
+    assert result.initial_equity == pytest.approx(10000.0)
+    assert result.total_return_pct == pytest.approx(0.0)
+    assert result.max_drawdown_pct == pytest.approx(0.0)
     records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
     assert records[-1]["diagnostics"]["symbols_seen"] == ["SPY"]
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[-1]["equity"] == pytest.approx(10000.0)
 
 
 def test_validate_config_file_does_not_create_output_dir(tmp_path):
@@ -121,8 +127,16 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     assert result.rejections == 0
     assert result.final_positions["SPY"] == pytest.approx(10.0)
     assert result.final_cash == pytest.approx(9000.0)
+    assert result.final_equity == pytest.approx(10020.0)
+    assert result.account_snapshot_count == 3
+    assert result.total_return_pct == pytest.approx(0.2)
+    assert result.max_drawdown_pct == pytest.approx(0.0)
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["tag"] == "fixture_buy_once"
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[0]["cash"] == pytest.approx(9000.0)
+    assert account[0]["equity"] == pytest.approx(10000.0)
+    assert account[-1]["position_values"]["SPY"] == pytest.approx(1020.0)
 
 
 def test_paper_mode_requires_explicit_confirmation(tmp_path):
@@ -270,7 +284,10 @@ def test_runner_honors_pause_marker_before_strategy_evaluation(tmp_path):
     assert result.orders == 0
     assert result.fills == 0
     assert result.final_cash == pytest.approx(10000.0)
+    assert result.account_snapshot_count == 3
     records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
     assert records[-1]["signal"] == {"paused": True}
     assert records[-1]["diagnostics"]["pause_marker"] == str(pause_marker)
     assert not (output_dir / "orders.jsonl").exists()
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[-1]["positions"] == {}

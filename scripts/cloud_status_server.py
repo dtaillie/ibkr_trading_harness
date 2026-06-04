@@ -1017,6 +1017,47 @@ def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "timestamp": row.get("timestamp"),
+        "step": row.get("step"),
+        "mode": row.get("mode"),
+        "cash": row.get("cash"),
+        "equity": row.get("equity"),
+        "gross_exposure": row.get("gross_exposure"),
+        "net_exposure": row.get("net_exposure"),
+        "positions": row.get("positions") if isinstance(row.get("positions"), dict) else {},
+    }
+
+
+def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
+    summary = summary or {}
+    equity_values = [finite_float(row.get("equity")) for row in rows]
+    equity_values = [value for value in equity_values if value is not None]
+    if equity_values:
+        initial_equity = equity_values[0]
+        final_equity = equity_values[-1]
+        total_return_pct = ((final_equity / initial_equity) - 1.0) * 100.0 if initial_equity else None
+        peak = initial_equity
+        max_drawdown = 0.0
+        for value in equity_values:
+            peak = max(peak, value)
+            if peak > 0:
+                max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+    else:
+        initial_equity = summary.get("initial_equity")
+        final_equity = summary.get("final_equity")
+        total_return_pct = summary.get("total_return_pct")
+        max_drawdown = summary.get("max_drawdown_pct")
+    return {
+        "account_snapshot_count": summary.get("account_snapshot_count", len(rows)),
+        "initial_equity": summary.get("initial_equity", initial_equity),
+        "final_equity": summary.get("final_equity", final_equity),
+        "total_return_pct": summary.get("total_return_pct", finite_float(total_return_pct)),
+        "max_drawdown_pct": summary.get("max_drawdown_pct", finite_float(max_drawdown)),
+    }
+
+
 def load_config_draft_artifacts(
     state_dir: Path,
     draft_id: str,
@@ -1039,18 +1080,22 @@ def load_config_draft_artifacts(
     decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
+    account_raw = read_jsonl_tail(output_dir / "account.jsonl", limit=limit)
     return {
         "draft_id": path.stem,
         "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
         "summary": summary,
+        "performance": performance_from_account(account_raw, summary),
         "counts": {
             "decisions": len(decisions_raw),
             "orders": len(orders_raw),
             "fills": len(fills_raw),
+            "account": len(account_raw),
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
+        "account": [summarize_account_artifact(row) for row in account_raw],
         "limit": limit,
     }
 

@@ -70,6 +70,41 @@ def fill_notional(row: dict[str, Any]) -> float:
     return abs(quantity * price)
 
 
+def finite_float(raw: Any) -> float | None:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value == value and value not in {float("inf"), float("-inf")} else None
+
+
+def account_performance(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    equity_values = [finite_float(row.get("equity")) for row in rows]
+    equity_values = [value for value in equity_values if value is not None]
+    if not equity_values:
+        return {
+            "account_snapshot_count": len(rows),
+            "initial_equity": None,
+            "total_return_pct": None,
+            "max_drawdown_pct": None,
+        }
+    initial = equity_values[0]
+    final = equity_values[-1]
+    total_return_pct = ((final / initial) - 1.0) * 100.0 if initial else None
+    peak = initial
+    max_drawdown = 0.0
+    for value in equity_values:
+        peak = max(peak, value)
+        if peak > 0:
+            max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+    return {
+        "account_snapshot_count": len(rows),
+        "initial_equity": initial,
+        "total_return_pct": total_return_pct,
+        "max_drawdown_pct": max_drawdown,
+    }
+
+
 def first_last_timestamp(rows: list[dict[str, Any]]) -> tuple[str | None, str | None]:
     timestamps = [str(row["timestamp"]) for row in rows if row.get("timestamp")]
     if not timestamps:
@@ -149,11 +184,13 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     decisions = load_jsonl(run_dir / "decisions.jsonl")
     orders = load_jsonl(run_dir / "orders.jsonl")
     fills = load_jsonl(run_dir / "fills.jsonl")
+    account = load_jsonl(run_dir / "account.jsonl")
     first_ts, last_ts = first_last_timestamp(decisions)
 
     rejected_orders = [row for row in orders if row.get("status") == "rejected"]
     filled_notional = sum(fill_notional(row) for row in fills)
     fill_commission = sum_float(fills, "commission")
+    performance = account_performance(account)
 
     metrics = {
         "run_dir": str(run_dir),
@@ -175,11 +212,16 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "final_cash": summary.get("final_cash"),
         "final_equity": summary.get("final_equity"),
         "final_positions": summary.get("final_positions") or {},
+        "account_snapshot_count": summary.get("account_snapshot_count", performance["account_snapshot_count"]),
+        "initial_equity": summary.get("initial_equity", performance["initial_equity"]),
+        "total_return_pct": summary.get("total_return_pct", performance["total_return_pct"]),
+        "max_drawdown_pct": summary.get("max_drawdown_pct", performance["max_drawdown_pct"]),
         "artifact_files": {
             "summary": (run_dir / "summary.json").exists(),
             "decisions": (run_dir / "decisions.jsonl").exists(),
             "orders": (run_dir / "orders.jsonl").exists(),
             "fills": (run_dir / "fills.jsonl").exists(),
+            "account": (run_dir / "account.jsonl").exists(),
         },
     }
     if metrics["final_cash"] is not None and metrics["final_equity"] is not None:
@@ -195,6 +237,12 @@ def format_money(value: Any) -> str:
     return f"${float(value):,.2f}"
 
 
+def format_percent(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):.4g}%"
+
+
 def format_text(metrics: dict[str, Any]) -> str:
     lines = [
         f"Run: {metrics['run_dir']}",
@@ -206,6 +254,8 @@ def format_text(metrics: dict[str, Any]) -> str:
         f"Rejections: {metrics['rejections']} reasons={metrics['rejection_reasons']}",
         f"Final cash: {format_money(metrics.get('final_cash'))}",
         f"Final equity: {format_money(metrics.get('final_equity'))}",
+        f"Return: {format_percent(metrics.get('total_return_pct'))}",
+        f"Max drawdown: {format_percent(metrics.get('max_drawdown_pct'))}",
         f"Final positions: {metrics['final_positions']}",
     ]
     return "\n".join(lines)

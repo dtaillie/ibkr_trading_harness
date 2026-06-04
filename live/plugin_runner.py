@@ -49,6 +49,10 @@ class RunnerResult:
     final_equity: float | None
     final_positions: dict[str, float]
     output_dir: Path
+    account_snapshot_count: int = 0
+    initial_equity: float | None = None
+    total_return_pct: float | None = None
+    max_drawdown_pct: float | None = None
 
 
 class ConfigValidationError(ValueError):
@@ -302,6 +306,14 @@ def write_json(path: Path, record: dict[str, Any]) -> None:
         f.write("\n")
 
 
+def finite_float(raw: Any) -> float | None:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
 def normalize_frame(
     df: pd.DataFrame,
     *,
@@ -449,6 +461,62 @@ def latest_prices(snapshot: dict[str, pd.DataFrame]) -> dict[str, float]:
         symbol: float(df["close"].iloc[-1])
         for symbol, df in snapshot.items()
         if not df.empty
+    }
+
+
+def account_snapshot_record(
+    *,
+    now: pd.Timestamp,
+    step: int,
+    mode: str,
+    cash: float | None,
+    equity: float | None,
+    positions: dict[str, float],
+    prices: dict[str, float],
+) -> dict[str, Any]:
+    position_values = {
+        symbol: float(qty) * float(prices.get(symbol, 0.0))
+        for symbol, qty in positions.items()
+    }
+    gross_exposure = sum(abs(value) for value in position_values.values())
+    net_exposure = sum(position_values.values())
+    return {
+        "timestamp": now,
+        "step": step,
+        "mode": mode,
+        "cash": finite_float(cash),
+        "equity": finite_float(equity),
+        "positions": {symbol: finite_float(qty) for symbol, qty in positions.items()},
+        "position_values": {symbol: finite_float(value) for symbol, value in position_values.items()},
+        "gross_exposure": finite_float(gross_exposure),
+        "net_exposure": finite_float(net_exposure),
+    }
+
+
+def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    equity_values = [finite_float(row.get("equity")) for row in records]
+    equity_values = [value for value in equity_values if value is not None]
+    if not equity_values:
+        return {
+            "account_snapshot_count": len(records),
+            "initial_equity": None,
+            "total_return_pct": None,
+            "max_drawdown_pct": None,
+        }
+    initial = equity_values[0]
+    final = equity_values[-1]
+    total_return_pct = ((final / initial) - 1.0) * 100.0 if initial else None
+    peak = equity_values[0]
+    max_drawdown = 0.0
+    for value in equity_values:
+        peak = max(peak, value)
+        if peak > 0:
+            max_drawdown = min(max_drawdown, (value / peak - 1.0) * 100.0)
+    return {
+        "account_snapshot_count": len(records),
+        "initial_equity": initial,
+        "total_return_pct": finite_float(total_return_pct),
+        "max_drawdown_pct": finite_float(max_drawdown),
     }
 
 
@@ -743,6 +811,7 @@ def run_from_config(
     if bool(runner_cfg.get("clean_output_dir", False)) and output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    runner_starting_cash = finite_float(runner_cfg.get("starting_cash", execution_cfg.get("starting_cash", 10000.0)))
 
     spec = plugin_spec(config)
     strategy_cfg = config.get("strategy") or {}
@@ -777,6 +846,7 @@ def run_from_config(
     final_prices: dict[str, float] = {}
     paper_final_cash: float | None = None
     paper_final_positions: dict[str, float] = {}
+    account_records: list[dict[str, Any]] = []
     pause_marker = None
     if control_cfg.get("pause_marker") is not None:
         pause_marker = Path(str(control_cfg["pause_marker"]))
@@ -801,6 +871,25 @@ def run_from_config(
                     },
                     "intents": [],
                 })
+                if simulated is not None:
+                    account_cash = simulated.cash
+                    account_positions = dict(simulated.positions)
+                    account_equity = simulated.equity(final_prices)
+                else:
+                    account_cash = runner_starting_cash
+                    account_positions = {}
+                    account_equity = runner_starting_cash
+                account_record = account_snapshot_record(
+                    now=now,
+                    step=step,
+                    mode=mode,
+                    cash=account_cash,
+                    equity=account_equity,
+                    positions=account_positions,
+                    prices=final_prices,
+                )
+                account_records.append(account_record)
+                append_jsonl(output_dir / "account.jsonl", account_record)
                 log.info("Decision step=%d time=%s paused by %s", step, now.isoformat(), pause_marker)
                 continue
             if simulated is not None:
@@ -812,9 +901,9 @@ def run_from_config(
                 positions = paper.positions()
                 equity = None
             else:
-                cash = runner_cfg.get("starting_cash")
+                cash = runner_starting_cash
                 positions = {}
-                equity = None
+                equity = runner_starting_cash
 
             context = StrategyContext(
                 now=now,
@@ -914,6 +1003,17 @@ def run_from_config(
                 fills += 1
                 append_jsonl(output_dir / "fills.jsonl", fill)
                 plugin.on_fill(fill, context)
+                if simulated is not None:
+                    cash = simulated.cash
+                    positions = dict(simulated.positions)
+                    equity = simulated.equity(final_prices)
+                elif paper is not None:
+                    try:
+                        cash = paper.cash()
+                        positions = paper.positions()
+                    except Exception as exc:
+                        log.warning("Could not refresh paper account snapshot after fill: %s", exc)
+                    equity = None
                 log.info(
                     "Filled %s %s qty=%.8f price=%.4f tag=%s",
                     fill["side"],
@@ -922,6 +1022,17 @@ def run_from_config(
                     float(fill["price"]),
                     fill.get("tag", ""),
                 )
+            account_record = account_snapshot_record(
+                now=now,
+                step=step,
+                mode=mode,
+                cash=float(cash) if cash is not None else None,
+                equity=float(equity) if equity is not None else None,
+                positions=positions,
+                prices=final_prices,
+            )
+            account_records.append(account_record)
+            append_jsonl(output_dir / "account.jsonl", account_record)
     finally:
         if paper is not None:
             if paper.connected:
@@ -941,10 +1052,11 @@ def run_from_config(
         final_positions = paper_final_positions
         final_equity = None
     else:
-        final_cash = float(runner_cfg["starting_cash"]) if runner_cfg.get("starting_cash") is not None else None
+        final_cash = runner_starting_cash
         final_positions = {}
-        final_equity = None
+        final_equity = runner_starting_cash
 
+    perf = account_metrics(account_records)
     result = RunnerResult(
         mode=mode,
         decisions=decisions,
@@ -955,6 +1067,10 @@ def run_from_config(
         final_equity=final_equity,
         final_positions=final_positions,
         output_dir=output_dir,
+        account_snapshot_count=int(perf["account_snapshot_count"]),
+        initial_equity=perf["initial_equity"],
+        total_return_pct=perf["total_return_pct"],
+        max_drawdown_pct=perf["max_drawdown_pct"],
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(

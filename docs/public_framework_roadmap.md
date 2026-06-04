@@ -124,8 +124,9 @@ strategies private.
   and non-live modes until stronger schema, authorization, and execution
   controls are in place.
 - Keep saved-run artifact inspection summarized by default. Public dashboard
-  views should show execution context, orders, fills, and high-level decision
-  counts without exposing raw private signal payloads.
+  views should show execution context, orders, fills, account snapshots, equity,
+  drawdown, and high-level decision counts without exposing raw private signal
+  payloads.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,
