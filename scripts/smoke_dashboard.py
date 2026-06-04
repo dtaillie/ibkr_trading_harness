@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Smoke-test the local workbench dashboard and core public endpoints."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import tempfile
+import threading
+from pathlib import Path
+from urllib import request
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from scripts.cloud_status_server import DEFAULT_DASHBOARD_DIR, create_server
+
+
+def fetch_text(base_url: str, path: str) -> str:
+    with request.urlopen(f"{base_url}{path}", timeout=5) as resp:
+        return resp.read().decode("utf-8")
+
+
+def fetch_json(base_url: str, path: str) -> dict:
+    return json.loads(fetch_text(base_url, path))
+
+
+def post_json(base_url: str, path: str, payload: dict) -> dict:
+    req = request.Request(
+        f"{base_url}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def run_smoke(
+    *,
+    host: str,
+    port: int,
+    state_dir: Path,
+    dashboard_dir: Path,
+    data_roots: list[Path] | None,
+) -> dict:
+    server = create_server(
+        host,
+        port,
+        state_dir,
+        dashboard_dir=dashboard_dir,
+        data_roots=data_roots,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://{host}:{server.server_address[1]}"
+        html = fetch_text(base_url, "/")
+        required_controls = [
+            "data-filter-quality",
+            "config-preview-alignment",
+            "export-runs-csv",
+            "diagnostics-note",
+            "cleanup-apply",
+        ]
+        missing_controls = [control for control in required_controls if control not in html]
+        if missing_controls:
+            raise RuntimeError(f"dashboard controls missing: {', '.join(missing_controls)}")
+
+        catalog = fetch_json(base_url, "/data_catalog?limit=5&preview_points=3")
+        diagnostics = fetch_json(base_url, "/workbench_diagnostics")
+        cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
+        options = fetch_json(base_url, "/config_options")
+
+        if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
+            raise RuntimeError("data catalog aggregate fields are missing")
+        if not options.get("risk_presets"):
+            raise RuntimeError("config options risk presets are missing")
+        if diagnostics.get("status") not in {"ok", "warn", "bad"}:
+            raise RuntimeError("diagnostics status is invalid")
+        if "reclaimable_bytes" not in cleanup_plan:
+            raise RuntimeError("cleanup plan reclaimable_bytes is missing")
+
+        alignment_count = 0
+        datasets = catalog.get("datasets") or []
+        if datasets:
+            alignment = post_json(
+                base_url,
+                "/data_alignment",
+                {"datasets": [{"symbol": datasets[0]["symbol"], "path": datasets[0]["path"]}]},
+            )
+            alignment_count = int((alignment.get("alignment") or {}).get("dataset_count") or 0)
+
+        return {
+            "base_url": base_url,
+            "catalog_count": catalog.get("count", 0),
+            "diagnostics_status": diagnostics.get("status"),
+            "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
+            "risk_preset_count": len(options.get("risk_presets") or []),
+            "alignment_dataset_count": alignment_count,
+        }
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Smoke-test the local dashboard endpoints")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=0)
+    parser.add_argument("--state-dir", type=Path, default=None)
+    parser.add_argument("--dashboard-dir", type=Path, default=DEFAULT_DASHBOARD_DIR)
+    parser.add_argument("--data-root", action="append", type=Path, default=None)
+    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    args = parser.parse_args()
+
+    if args.state_dir is None:
+        with tempfile.TemporaryDirectory(prefix="algo_trade_dashboard_smoke_") as tmp:
+            result = run_smoke(
+                host=args.host,
+                port=args.port,
+                state_dir=Path(tmp),
+                dashboard_dir=args.dashboard_dir,
+                data_roots=args.data_root,
+            )
+    else:
+        result = run_smoke(
+            host=args.host,
+            port=args.port,
+            state_dir=args.state_dir,
+            dashboard_dir=args.dashboard_dir,
+            data_roots=args.data_root,
+        )
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(
+            "Dashboard smoke OK: "
+            f"{result['base_url']} "
+            f"datasets={result['catalog_count']} "
+            f"diagnostics={result['diagnostics_status']} "
+            f"risk_presets={result['risk_preset_count']}"
+        )
+
+
+if __name__ == "__main__":
+    main()

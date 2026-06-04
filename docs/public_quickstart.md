@@ -178,6 +178,9 @@ guide, saved-data coverage, node health, Gateway reachability, runs,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
+Run `python3 scripts/smoke_dashboard.py` to start a temporary dashboard server
+and verify dashboard assets plus the core public endpoints without posting
+broker data.
 For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.

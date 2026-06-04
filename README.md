@@ -120,6 +120,12 @@ python3 scripts/publish_status.py \
 
 Open `http://127.0.0.1:8765/` for the operational dashboard.
 
+Smoke-test dashboard assets and core endpoints:
+
+```bash
+python3 scripts/smoke_dashboard.py
+```
+
 Poll safe remote commands from the local machine:
 
 ```bash

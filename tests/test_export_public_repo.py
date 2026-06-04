@@ -32,6 +32,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert not stale.exists()
     assert (dest / "README.md").exists()
     assert (dest / "scripts" / "export_public_repo.py").exists()
+    assert (dest / "scripts" / "smoke_dashboard.py").exists()
 
 
 def test_export_public_repo_requires_force_for_existing_destination(tmp_path: Path):
