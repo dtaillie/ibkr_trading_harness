@@ -67,6 +67,16 @@ def run_smoke(
         missing_controls = [control for control in required_controls if control not in html]
         if missing_controls:
             raise RuntimeError(f"dashboard controls missing: {', '.join(missing_controls)}")
+        js = fetch_text(base_url, "/dashboard/app.js")
+        required_js_tokens = [
+            "config_draft_yaml",
+            "download-draft-yaml",
+            "config_draft_runs_export",
+            "risk_presets",
+        ]
+        missing_js_tokens = [token for token in required_js_tokens if token not in js]
+        if missing_js_tokens:
+            raise RuntimeError(f"dashboard JS tokens missing: {', '.join(missing_js_tokens)}")
 
         catalog = fetch_json(base_url, "/data_catalog?limit=5&preview_points=3")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")

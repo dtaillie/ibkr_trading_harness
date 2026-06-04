@@ -623,7 +623,7 @@ function renderWorkbenchRuns() {
         escapeHtml((draft.symbols || []).join(", ")),
         escapeHtml(draft.modified_at),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
-        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 
@@ -1137,6 +1137,21 @@ async function loadConfigDraftDetail(draftId) {
   $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDraftYaml(draftId) {
+  if (!draftId) return;
+  const body = await fetchText(`/config_draft_yaml?draft_id=${encodeURIComponent(draftId)}`);
+  const blob = new Blob([body], { type: "application/x-yaml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${draftId}.yaml`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Draft YAML downloaded: ${new Date().toLocaleString()}`;
+}
+
 async function deleteConfigDraft(draftId) {
   if (!draftId) return;
   if (!window.confirm(`Delete saved draft ${draftId}?`)) {
@@ -1376,6 +1391,11 @@ function init() {
       if (target.classList.contains("inspect-draft-detail")) {
         loadConfigDraftDetail(target.dataset.draftId || "").catch((err) => {
           $("last-refresh").textContent = `Draft detail failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("download-draft-yaml")) {
+        downloadDraftYaml(target.dataset.draftId || "").catch((err) => {
+          $("last-refresh").textContent = `Draft download failed: ${err.message}`;
         });
       }
       if (target.classList.contains("delete-draft")) {

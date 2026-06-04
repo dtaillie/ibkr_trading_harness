@@ -1239,6 +1239,20 @@ def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list
     }
 
 
+def load_config_draft_yaml(state_dir: Path, draft_id: str, *, data_roots: list[Path]) -> tuple[str, str]:
+    path = config_draft_path(state_dir, draft_id)
+    config = read_yaml_mapping(path)
+    errors = validate_workbench_draft_config(
+        config,
+        config_path=path,
+        data_roots=data_roots,
+        action="replay",
+    )
+    if errors:
+        raise ValueError("; ".join(errors))
+    return path.name, path.read_text(encoding="utf-8")
+
+
 def tail_text(value: str | bytes | None, *, max_bytes: int = OUTPUT_TAIL_BYTES) -> str:
     if value is None:
         return ""
@@ -2655,6 +2669,26 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/config_draft_yaml":
+            if not self.require_auth():
+                return
+            draft_id = str(params.get("draft_id", [""])[0]).strip()
+            if not draft_id:
+                json_response(self, 400, {"error": "draft_id is required"})
+                return
+            try:
+                filename, yaml_body = load_config_draft_yaml(self.state_dir, draft_id, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                yaml_body,
+                filename=filename,
+                content_type="application/x-yaml; charset=utf-8",
+            )
             return
         if parsed.path == "/config_draft_runs":
             if not self.require_auth():

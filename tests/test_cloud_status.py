@@ -740,6 +740,13 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in detail["yaml"]
         assert "--mode simulated-paper" in detail["commands"]["simulated_paper"]
 
+        with request.urlopen(f"{base}/config_draft_yaml?draft_id=Test_Draft", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("application/x-yaml")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="Test_Draft.yaml"'
+            yaml_body = resp.read().decode("utf-8")
+        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in yaml_body
+        assert "risk_preset: costed_demo" in yaml_body
+
         bad_delete_req = request.Request(
             f"{base}/config_draft/delete",
             data=json.dumps({"draft_id": "Test_Draft"}).encode("utf-8"),
