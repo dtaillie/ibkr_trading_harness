@@ -10,6 +10,7 @@ import math
 import os
 import mimetypes
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -70,7 +71,9 @@ MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
 MAX_ARTIFACT_ROWS = 500
 MAX_DATA_DETAIL_POINTS = 1000
 MAX_DATA_GAP_ROWS = 200
+MAX_CONFIG_DRAFT_DATASETS = 20
 OUTPUT_TAIL_BYTES = 8000
+RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl")
 
 
 def utc_now() -> str:
@@ -641,7 +644,10 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     datasets = payload.get("datasets") or []
     if not isinstance(datasets, list) or not datasets:
         raise ValueError("datasets must be a non-empty list")
+    if len(datasets) > MAX_CONFIG_DRAFT_DATASETS:
+        raise ValueError(f"datasets cannot exceed {MAX_CONFIG_DRAFT_DATASETS}")
     data_files: dict[str, str] = {}
+    seen_paths: set[str] = set()
     for item in datasets:
         if not isinstance(item, dict):
             raise ValueError("each dataset must be a mapping")
@@ -652,6 +658,11 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
         if not raw_path:
             raise ValueError("dataset path is required")
         _, rel_path = data_path_allowed(raw_path, data_roots)
+        if symbol in data_files:
+            raise ValueError(f"duplicate dataset symbol: {symbol}")
+        if rel_path in seen_paths:
+            raise ValueError(f"duplicate dataset path: {rel_path}")
+        seen_paths.add(rel_path)
         data_files[symbol] = rel_path
     if not data_files:
         raise ValueError("at least one dataset is required")
@@ -739,11 +750,7 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
             "valid": not errors,
             "errors": errors,
         },
-        "commands": {
-            "validate": f"python3 live/plugin_runner.py --config {command_path} --validate-only",
-            "replay": f"python3 live/plugin_runner.py --config {command_path} --mode replay",
-            "simulated_paper": f"python3 live/plugin_runner.py --config {command_path} --mode simulated-paper",
-        },
+        "commands": plugin_runner_commands(command_path),
     }
 
 
@@ -775,6 +782,21 @@ def config_drafts_dir(state_dir: Path) -> Path:
 
 def config_draft_runs_path(state_dir: Path) -> Path:
     return state_dir / "config_draft_runs.jsonl"
+
+
+def config_draft_run_artifacts_root(state_dir: Path) -> Path:
+    return state_dir / "run_artifacts"
+
+
+def config_draft_run_artifact_dir(state_dir: Path, run_id: str) -> Path:
+    safe_id = slugify(run_id)
+    if not safe_id:
+        raise ValueError("run_id is invalid")
+    root = config_draft_run_artifacts_root(state_dir).resolve()
+    path = (root / safe_id).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("run_id is invalid")
+    return path
 
 
 def config_draft_path(state_dir: Path, draft_id: str) -> Path:
@@ -830,6 +852,14 @@ def list_config_drafts(state_dir: Path) -> dict[str, Any]:
     return {"drafts": drafts, "count": len(drafts), "errors": errors, "error_count": len(errors)}
 
 
+def plugin_runner_commands(config_path: str) -> dict[str, str]:
+    return {
+        "validate": f"python3 live/plugin_runner.py --config {config_path} --validate-only",
+        "replay": f"python3 live/plugin_runner.py --config {config_path} --mode replay",
+        "simulated_paper": f"python3 live/plugin_runner.py --config {config_path} --mode simulated-paper",
+    }
+
+
 def bounded_positive_int(
     payload: dict[str, Any],
     key: str,
@@ -879,6 +909,27 @@ def validate_workbench_draft_config(
             except ValueError as exc:
                 errors.append(str(exc))
     return errors
+
+
+def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list[Path]) -> dict[str, Any]:
+    path = config_draft_path(state_dir, draft_id)
+    config = read_yaml_mapping(path)
+    errors = validate_workbench_draft_config(
+        config,
+        config_path=path,
+        data_roots=data_roots,
+        action="replay",
+    )
+    valid = not errors
+    return {
+        "draft": config_draft_record(path),
+        "validation": {
+            "valid": valid,
+            "errors": errors,
+        },
+        "yaml": path.read_text(encoding="utf-8") if valid else "",
+        "commands": plugin_runner_commands(str(path)) if valid else {},
+    }
 
 
 def tail_text(value: str | bytes | None, *, max_bytes: int = OUTPUT_TAIL_BYTES) -> str:
@@ -935,6 +986,103 @@ def list_config_draft_runs(state_dir: Path, *, limit: int = 20) -> dict[str, Any
     return {"runs": runs, "count": len(runs), "total": total, "limit": limit}
 
 
+def read_config_draft_run_rows(state_dir: Path) -> list[dict[str, Any]]:
+    path = config_draft_runs_path(state_dir)
+    if not path.exists():
+        return []
+    rows = []
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
+def directory_size_bytes(path: Path) -> int:
+    if not path.exists():
+        return 0
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            try:
+                total += item.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def child_dirs(path: Path) -> list[Path]:
+    if not path.exists() or not path.is_dir():
+        return []
+    return sorted(item for item in path.iterdir() if item.is_dir())
+
+
+def build_workbench_status(state_dir: Path) -> dict[str, Any]:
+    drafts_dir = config_drafts_dir(state_dir)
+    artifacts_root = config_draft_run_artifacts_root(state_dir)
+    runs = read_config_draft_run_rows(state_dir)
+    latest_run = None
+    if runs:
+        latest_run = max(runs, key=lambda row: str(row.get("finished_at") or row.get("started_at") or ""))
+    artifact_dirs = child_dirs(artifacts_root)
+    referenced_artifact_dirs = {
+        Path(str(row["artifact_path"])).resolve()
+        for row in runs
+        if row.get("artifact_path")
+    }
+    orphaned_artifact_dirs = [
+        path for path in artifact_dirs
+        if path.resolve() not in referenced_artifact_dirs
+    ]
+    return {
+        "state_dir": str(state_dir),
+        "drafts_dir": str(drafts_dir),
+        "run_log": str(config_draft_runs_path(state_dir)),
+        "run_artifacts_dir": str(artifacts_root),
+        "workbench_output_root": str(WORKBENCH_OUTPUT_ROOT),
+        "draft_count": len(list(drafts_dir.glob("*.yaml"))) if drafts_dir.exists() else 0,
+        "run_count": len(runs),
+        "archived_run_count": len(artifact_dirs),
+        "orphaned_archive_count": len(orphaned_artifact_dirs),
+        "status_counts": count_values(runs, "status"),
+        "action_counts": count_values(runs, "action"),
+        "state_bytes": directory_size_bytes(state_dir),
+        "draft_bytes": directory_size_bytes(drafts_dir),
+        "archived_artifact_bytes": directory_size_bytes(artifacts_root),
+        "workbench_output_bytes": directory_size_bytes(WORKBENCH_OUTPUT_ROOT),
+        "latest_run": summarize_config_draft_run_for_comparison(latest_run) if latest_run else None,
+    }
+
+
+def find_config_draft_run(state_dir: Path, run_id: str) -> dict[str, Any]:
+    safe_id = slugify(run_id)
+    if not safe_id:
+        raise ValueError("run_id is required")
+    path = config_draft_runs_path(state_dir)
+    if not path.exists():
+        raise ValueError(f"run not found: {safe_id}")
+    found = None
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict) and row.get("run_id") == safe_id:
+                found = row
+    if found is None:
+        raise ValueError(f"run not found: {safe_id}")
+    return found
+
+
 def count_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -961,6 +1109,7 @@ def summarize_config_draft_run_for_comparison(row: dict[str, Any]) -> dict[str, 
         "started_at": row.get("started_at"),
         "finished_at": row.get("finished_at"),
         "duration_seconds": row.get("duration_seconds"),
+        "artifact_available": bool(row.get("artifact_path")),
         "summary_available": bool(summary),
         "mode": summary.get("mode"),
         "decisions": summary.get("decisions"),
@@ -1214,6 +1363,65 @@ def load_config_draft_artifacts(
     }
 
 
+def archive_config_draft_run_artifacts(state_dir: Path, run_id: str, output_dir: Path) -> str | None:
+    if not output_dir.exists() or not output_dir.is_dir():
+        return None
+    dest = config_draft_run_artifact_dir(state_dir, run_id)
+    dest.mkdir(parents=True, exist_ok=True)
+    copied = False
+    for name in RUN_ARTIFACT_FILES:
+        src = output_dir / name
+        if src.exists() and src.is_file():
+            shutil.copy2(src, dest / name)
+            copied = True
+    return str(dest) if copied else None
+
+
+def load_config_draft_run_artifacts(
+    state_dir: Path,
+    run_id: str,
+    *,
+    limit: int = 100,
+) -> dict[str, Any]:
+    record = find_config_draft_run(state_dir, run_id)
+    artifact_path = record.get("artifact_path")
+    if artifact_path:
+        path = Path(str(artifact_path)).resolve()
+    else:
+        path = config_draft_run_artifact_dir(state_dir, run_id)
+    root = config_draft_run_artifacts_root(state_dir).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("run artifact path is invalid")
+    if not path.exists() or not path.is_dir():
+        raise ValueError(f"run artifacts not found: {record.get('run_id')}")
+    summary = read_json_file(path / "summary.json")
+    decisions_raw = read_jsonl_tail(path / "decisions.jsonl", limit=limit)
+    orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
+    fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
+    account_raw = read_jsonl_tail(path / "account.jsonl", limit=limit)
+    return {
+        "run_id": record.get("run_id"),
+        "draft_id": record.get("draft_id"),
+        "action": record.get("action"),
+        "status": record.get("status"),
+        "output_dir": record.get("summary", {}).get("output_dir") if isinstance(record.get("summary"), dict) else None,
+        "artifact_path": str(path),
+        "summary": summary,
+        "performance": performance_from_account(account_raw, summary),
+        "counts": {
+            "decisions": len(decisions_raw),
+            "orders": len(orders_raw),
+            "fills": len(fills_raw),
+            "account": len(account_raw),
+        },
+        "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
+        "orders": [summarize_order_artifact(row) for row in orders_raw],
+        "fills": [summarize_fill_artifact(row) for row in fills_raw],
+        "account": [summarize_account_artifact(row) for row in account_raw],
+        "limit": limit,
+    }
+
+
 def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
     draft_id = str(payload.get("draft_id") or "").strip()
     if not draft_id:
@@ -1277,6 +1485,13 @@ def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: li
         if action != "validate" and status == "completed" and returncode == 0
         else None
     )
+    artifact_path = None
+    if summary is not None:
+        artifact_path = archive_config_draft_run_artifacts(
+            state_dir,
+            run_id,
+            safe_workbench_output_dir(config),
+        )
     record = {
         "run_id": run_id,
         "draft_id": path.stem,
@@ -1289,6 +1504,7 @@ def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: li
         "command": command,
         "stdout_tail": tail_text(stdout),
         "stderr_tail": tail_text(stderr),
+        "artifact_path": artifact_path,
         "summary": summary,
     }
     append_config_draft_run(state_dir, record)
@@ -1725,10 +1941,29 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, config_builder_options())
             return
+        if parsed.path == "/workbench_status":
+            if not self.require_auth():
+                return
+            json_response(self, 200, build_workbench_status(self.state_dir))
+            return
         if parsed.path == "/config_drafts":
             if not self.require_auth():
                 return
             json_response(self, 200, list_config_drafts(self.state_dir))
+            return
+        if parsed.path == "/config_draft_detail":
+            if not self.require_auth():
+                return
+            draft_id = str(params.get("draft_id", [""])[0]).strip()
+            if not draft_id:
+                json_response(self, 400, {"error": "draft_id is required"})
+                return
+            try:
+                payload = load_config_draft_detail(self.state_dir, draft_id, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/config_draft_runs":
             if not self.require_auth():
@@ -1765,6 +2000,21 @@ class StatusHandler(BaseHTTPRequestHandler):
                     data_roots=self.data_roots,
                     limit=limit,
                 )
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/config_draft_run_artifacts":
+            if not self.require_auth():
+                return
+            run_id = str(params.get("run_id", [""])[0]).strip()
+            if not run_id:
+                json_response(self, 400, {"error": "run_id is required"})
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=MAX_ARTIFACT_ROWS)
+                payload = load_config_draft_run_artifacts(self.state_dir, run_id, limit=limit)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

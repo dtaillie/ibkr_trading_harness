@@ -88,6 +88,14 @@
 
     <section>
       <div class="section-head">
+        <h2>Workbench State</h2>
+        <span id="workbench-status-note" class="section-note">Not loaded</span>
+      </div>
+      <dl id="workbench-status-list" class="kv wide-kv"></dl>
+    </section>
+
+    <section>
+      <div class="section-head">
         <h2>Saved Data</h2>
         <span id="data-catalog-errors" class="section-note"></span>
       </div>
@@ -180,8 +188,8 @@
           <select id="config-mode"></select>
         </label>
         <label class="wide-field">
-          <span>Dataset</span>
-          <select id="config-dataset"></select>
+          <span>Datasets</span>
+          <select id="config-dataset" multiple size="5"></select>
         </label>
         <label>
           <span>Starting Cash</span>

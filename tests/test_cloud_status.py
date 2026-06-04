@@ -655,6 +655,13 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert Path(draft["saved_path"]).exists()
         assert Path(draft["saved_path"]).is_relative_to(state_dir)
         assert "--validate-only" in draft["commands"]["validate"]
+
+        with request.urlopen(f"{base}/config_draft_detail?draft_id=Test_Draft", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["draft"]["draft_id"] == "Test_Draft"
+        assert detail["validation"] == {"valid": True, "errors": []}
+        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in detail["yaml"]
+        assert "--mode simulated-paper" in detail["commands"]["simulated_paper"]
     finally:
         server.shutdown()
         server.server_close()
@@ -677,6 +684,19 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         + "\n",
         encoding="utf-8",
     )
+    qqq_file = data_root / "QQQ_5min_sample.csv"
+    qqq_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,405,406,404,405.5,1000",
+                "2026-01-02T14:35:00Z,405.5,406,405,405.75,1100",
+                "2026-01-02T14:40:00Z,405.75,407,405.5,406.25,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -688,7 +708,10 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
                 "name": "Run Draft",
                 "plugin_id": "no_edge_template",
                 "mode": "simulated_paper",
-                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "datasets": [
+                    {"symbol": "SPY", "path": str(data_file)},
+                    {"symbol": "QQQ", "path": str(qqq_file)},
+                ],
                 "starting_cash": 25000,
                 "history_bars": 20,
                 "max_steps": 3,
@@ -710,7 +733,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             drafts = json.loads(resp.read().decode("utf-8"))
         assert drafts["count"] == 1
         assert drafts["drafts"][0]["draft_id"] == "Run_Draft"
-        assert drafts["drafts"][0]["symbols"] == ["SPY"]
+        assert drafts["drafts"][0]["symbols"] == ["QQQ", "SPY"]
 
         validate_req = request.Request(
             f"{base}/config_draft/run",
@@ -743,9 +766,23 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             replay_payload = json.loads(resp.read().decode("utf-8"))
         replay = replay_payload["run"]
         assert replay["status"] == "completed"
+        assert replay["artifact_path"]
+        assert Path(replay["artifact_path"]).exists()
         assert replay["summary"]["mode"] == "replay"
         assert replay["summary"]["decisions"] == 2
         assert replay["summary"]["fills"] == 0
+
+        with request.urlopen(
+            f"{base}/config_draft_run_artifacts?run_id={replay['run_id']}&limit=5",
+            timeout=5,
+        ) as resp:
+            run_artifacts = json.loads(resp.read().decode("utf-8"))
+        assert run_artifacts["run_id"] == replay["run_id"]
+        assert run_artifacts["draft_id"] == "Run_Draft"
+        assert run_artifacts["summary"]["mode"] == "replay"
+        assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
+        assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
+        assert "signal" not in run_artifacts["decisions"][0]
 
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
@@ -762,11 +799,22 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["performance"]["return_per_year_pct"] == 0.0
         assert artifacts["performance"]["short_horizon_projection"] is True
         assert artifacts["decisions"][0]["intent_count"] == 0
-        assert artifacts["decisions"][0]["symbols"] == ["SPY"]
+        assert artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in artifacts["decisions"][0]
         assert artifacts["orders"] == []
         assert artifacts["fills"] == []
         assert artifacts["account"][0]["equity"] == 25000.0
+
+        with request.urlopen(f"{base}/workbench_status", timeout=5) as resp:
+            workbench = json.loads(resp.read().decode("utf-8"))
+        assert workbench["draft_count"] == 1
+        assert workbench["run_count"] == 2
+        assert workbench["archived_run_count"] == 1
+        assert workbench["orphaned_archive_count"] == 0
+        assert workbench["status_counts"] == {"completed": 2}
+        assert workbench["action_counts"] == {"replay": 1, "validate": 1}
+        assert workbench["archived_artifact_bytes"] > 0
+        assert workbench["latest_run"]["action"] == "replay"
 
         with request.urlopen(f"{base}/config_draft_runs?limit=5", timeout=5) as resp:
             runs = json.loads(resp.read().decode("utf-8"))
@@ -782,12 +830,70 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert comparison["action_counts"] == {"replay": 1, "validate": 1}
         assert [run["action"] for run in comparison["runs"]] == ["replay", "validate"]
         assert comparison["runs"][0]["summary_available"] is True
+        assert comparison["runs"][0]["artifact_available"] is True
         assert comparison["runs"][0]["total_return_pct"] == 0.0
         assert comparison["runs"][0]["return_per_day_pct"] == 0.0
         assert comparison["runs"][0]["short_horizon_projection"] is True
         assert comparison["runs"][1]["summary_available"] is False
+        assert comparison["runs"][1]["artifact_available"] is False
         assert comparison["runs"][1]["total_return_pct"] is None
         assert comparison["leaders"]["best_total_return"]["draft_id"] == "Run_Draft"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_config_draft_rejects_duplicate_datasets(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY.csv"
+    other_file = data_root / "SPY_COPY.csv"
+    data_file.write_text("timestamp,open,high,low,close,volume\n2026-01-02T14:30:00Z,1,1,1,1,1\n", encoding="utf-8")
+    other_file.write_text("timestamp,open,high,low,close,volume\n2026-01-02T14:30:00Z,1,1,1,1,1\n", encoding="utf-8")
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        duplicate_symbol_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "plugin_id": "no_edge_template",
+                "datasets": [
+                    {"symbol": "SPY", "path": str(data_file)},
+                    {"symbol": "SPY", "path": str(other_file)},
+                ],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(duplicate_symbol_req, timeout=5)
+            raise AssertionError("expected duplicate symbol response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "duplicate dataset symbol: SPY"
+
+        duplicate_path_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "plugin_id": "no_edge_template",
+                "datasets": [
+                    {"symbol": "SPY", "path": str(data_file)},
+                    {"symbol": "QQQ", "path": str(data_file)},
+                ],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(duplicate_path_req, timeout=5)
+            raise AssertionError("expected duplicate path response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"].startswith("duplicate dataset path:")
     finally:
         server.shutdown()
         server.server_close()
@@ -971,6 +1077,13 @@ def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_pat
             assert exc.code == 400
             payload = json.loads(exc.read().decode("utf-8"))
         assert "workbench drafts can only run public generic no-edge plugins" in payload["error"]
+
+        with request.urlopen(f"{base}/config_draft_detail?draft_id=Bad", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["validation"]["valid"] is False
+        assert "workbench drafts can only run public generic no-edge plugins" in detail["validation"]["errors"]
+        assert detail["yaml"] == ""
+        assert detail["commands"] == {}
     finally:
         server.shutdown()
         server.server_close()

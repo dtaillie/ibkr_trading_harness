@@ -3,6 +3,7 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataDetail: null,
+  workbenchStatus: {},
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
   configDrafts: { drafts: [], errors: [] },
@@ -251,6 +252,34 @@ function renderDataCatalog() {
     : "";
 }
 
+function renderWorkbenchStatus() {
+  const status = state.workbenchStatus || {};
+  const latest = status.latest_run || {};
+  $("workbench-status-note").textContent = status.run_count === undefined
+    ? "Not loaded"
+    : `${numberText(status.run_count, 0)} runs / ${numberText(status.archived_run_count, 0)} archives`;
+  const latestLabel = latest.run_id
+    ? `${text(latest.draft_id)} ${text(latest.action)} ${text(latest.status)} ${text(latest.finished_at)}`
+    : "none";
+  const pairs = [
+    ["Drafts", numberText(status.draft_count, 0)],
+    ["Runs", numberText(status.run_count, 0)],
+    ["Archived Runs", numberText(status.archived_run_count, 0)],
+    ["Orphan Archives", numberText(status.orphaned_archive_count, 0)],
+    ["State Size", bytes(status.state_bytes)],
+    ["Draft Size", bytes(status.draft_bytes)],
+    ["Archive Size", bytes(status.archived_artifact_bytes)],
+    ["Output Size", bytes(status.workbench_output_bytes)],
+    ["Run Statuses", JSON.stringify(status.status_counts || {})],
+    ["Run Actions", JSON.stringify(status.action_counts || {})],
+    ["Latest Run", latestLabel],
+    ["State Dir", status.state_dir],
+  ];
+  $("workbench-status-list").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+}
+
 function renderDataDetail() {
   const detail = state.dataDetail || {};
   const coverage = detail.coverage || {};
@@ -300,12 +329,24 @@ function renderDataDetail() {
 }
 
 function replaceOptions(select, options) {
-  const current = select.value;
+  const currentValues = select.multiple
+    ? new Set(Array.from(select.selectedOptions).map((option) => option.value))
+    : new Set([select.value]);
   select.innerHTML = options.map((option) => (
     `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
   )).join("");
-  if (options.some((option) => option.value === current)) {
-    select.value = current;
+  let restored = false;
+  for (const option of select.options) {
+    if (currentValues.has(option.value)) {
+      option.selected = true;
+      restored = true;
+    }
+  }
+  if (!select.multiple && !restored && options.length) {
+    select.value = options[0].value;
+  }
+  if (select.multiple && !restored && select.options.length) {
+    select.options[0].selected = true;
   }
 }
 
@@ -381,7 +422,7 @@ function renderWorkbenchRuns() {
         escapeHtml((draft.symbols || []).join(", ")),
         escapeHtml(draft.modified_at),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
-        `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Inspect</button>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button></span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 
@@ -402,7 +443,9 @@ function renderWorkbenchRuns() {
           escapeHtml(summary.fills),
           escapeHtml(summary.rejections),
           `<span class="mono">${escapeHtml(detail)}</span>`,
-          `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Inspect</button>`,
+          run.artifact_path
+            ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(run.run_id)}">Inspect</button>`
+            : `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Latest</button>`,
         ]);
       }).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
@@ -450,8 +493,8 @@ function renderRunComparison() {
           escapeHtml(runItem.fills),
           escapeHtml(runItem.rejections),
           escapeHtml(projection),
-          runItem.summary_available
-            ? `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(runItem.draft_id)}">Latest</button>`
+          runItem.artifact_available
+            ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(runItem.run_id)}">Artifacts</button>`
             : "",
         ]);
       }).join("")
@@ -462,8 +505,10 @@ function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
   const performance = artifacts.performance || {};
-  $("artifact-title").textContent = artifacts.draft_id
-    ? `${artifacts.draft_id} - ${text(artifacts.output_dir)}`
+  $("artifact-title").textContent = artifacts.run_id
+    ? `${artifacts.draft_id} / ${artifacts.run_id} - ${text(artifacts.output_dir)}`
+    : artifacts.draft_id
+      ? `${artifacts.draft_id} - ${text(artifacts.output_dir)}`
     : "No run selected";
   const pairs = [
     ["Mode", text(summary.mode)],
@@ -713,6 +758,7 @@ function renderResults() {
 
 function renderAll() {
   renderMetrics();
+  renderWorkbenchStatus();
   renderDataCatalog();
   renderDataDetail();
   renderConfigBuilder();
@@ -738,6 +784,7 @@ async function refresh() {
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
+  const workbenchStatus = await fetchJson("/workbench_status");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
@@ -746,6 +793,7 @@ async function refresh() {
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+  state.workbenchStatus = workbenchStatus || {};
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
   state.configRuns = configRuns || { runs: [] };
@@ -757,17 +805,17 @@ async function refresh() {
 
 async function generateConfigDraft(event) {
   event.preventDefault();
-  const path = $("config-dataset").value;
-  const dataset = (state.dataCatalog.datasets || []).find((item) => item.path === path);
-  if (!dataset) {
-    $("config-validation").innerHTML = `<span class="status-bad">Select a saved dataset first</span>`;
+  const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
+  const selected = (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+  if (!selected.length) {
+    $("config-validation").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
     return;
   }
   const payload = {
     name: $("config-name").value,
     plugin_id: $("config-plugin").value,
     mode: $("config-mode").value,
-    datasets: [{ symbol: dataset.symbol, path: dataset.path }],
+    datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
     starting_cash: $("config-starting-cash").value,
     history_bars: $("config-history-bars").value,
     max_steps: $("config-max-steps").value,
@@ -787,6 +835,7 @@ async function generateConfigDraft(event) {
   state.configDraft = response.draft;
   if (response.draft && response.draft.saved_path) {
     state.configDrafts = await fetchJson("/config_drafts");
+    state.workbenchStatus = await fetchJson("/workbench_status");
   }
   renderConfigBuilder();
   renderWorkbenchRuns();
@@ -806,6 +855,27 @@ async function loadConfigArtifacts(draftId) {
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
   $("last-refresh").textContent = `Artifacts loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadConfigDraftDetail(draftId) {
+  const response = await fetchJson(`/config_draft_detail?draft_id=${encodeURIComponent(draftId)}`);
+  const draft = response.draft || {};
+  state.configDraft = {
+    name: draft.name,
+    saved_path: draft.path,
+    validation: response.validation || { valid: false, errors: [] },
+    yaml: response.yaml || "",
+    commands: response.commands || {},
+  };
+  renderConfigBuilder();
+  $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadRunArtifacts(runId) {
+  const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
+  state.configArtifacts = response;
+  renderWorkbenchArtifacts();
+  $("last-refresh").textContent = `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
 async function runConfigDraft(event) {
@@ -829,6 +899,7 @@ async function runConfigDraft(event) {
   $("config-run-status").innerHTML = statusText(run.status);
   state.configRuns = await fetchJson("/config_draft_runs?limit=20");
   state.runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
+  state.workbenchStatus = await fetchJson("/workbench_status");
   if (($("config-run-action").value || "") !== "validate") {
     await loadConfigArtifacts(draftId);
   }
@@ -922,10 +993,22 @@ function init() {
   for (const id of ["config-drafts-body", "config-runs-body", "comparison-body"]) {
     $(id).addEventListener("click", (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-draft")) return;
-      loadConfigArtifacts(target.dataset.draftId || "").catch((err) => {
-        $("last-refresh").textContent = `Artifact load failed: ${err.message}`;
-      });
+      if (!(target instanceof HTMLElement)) return;
+      if (target.classList.contains("inspect-draft")) {
+        loadConfigArtifacts(target.dataset.draftId || "").catch((err) => {
+          $("last-refresh").textContent = `Artifact load failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("inspect-draft-detail")) {
+        loadConfigDraftDetail(target.dataset.draftId || "").catch((err) => {
+          $("last-refresh").textContent = `Draft detail failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("inspect-run-artifacts")) {
+        loadRunArtifacts(target.dataset.runId || "").catch((err) => {
+          $("last-refresh").textContent = `Run artifact load failed: ${err.message}`;
+        });
+      }
     });
   }
   $("data-catalog-body").addEventListener("click", (event) => {

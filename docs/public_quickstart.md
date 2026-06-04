@@ -176,7 +176,8 @@ python3 scripts/publish_status.py \
 Open `http://127.0.0.1:8765/` to view the dashboard. It shows a basic workflow
 guide, saved-data coverage, node health, Gateway reachability, runs,
 supervisors, remote-control audit health, alerts, queued commands, and command
-results.
+results. It also shows read-only workbench state for saved draft count, run
+count, archived artifact count, local disk usage, and the latest saved run.
 For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.
@@ -187,19 +188,24 @@ Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, and volume stats.
 The Config Builder section can generate and validate example plugin-runner YAML
-from a selected saved dataset. It only offers public generic no-edge plugins
-and replay/shadow/simulated-paper modes; it does not submit broker orders. If
-you enable "Save draft locally", the YAML is written under the dashboard state
-directory. Saved drafts can then be validated, replayed, or simulated-paper-run
-from the dashboard with bounded `max_steps` and timeout controls, and recent
-workbench run results are shown below the draft list. Use Inspect on a saved
-draft or run row to review summarized `summary.json`, decisions, orders, fills,
-account snapshots, return, drawdown, elapsed time, time-normalized return
-projections, and an equity curve. The artifact view intentionally omits raw
-strategy signal payloads. The Run Comparison section ranks recent saved draft
-runs by return, return/day, and drawdown using only successful run summaries;
-failed or timed-out runs stay visible for diagnosis but do not carry stale
-metrics from a previous artifact.
+from one or more selected saved datasets. It only offers public generic no-edge
+plugins and replay/shadow/simulated-paper modes; it does not submit broker
+orders. Duplicate symbols and duplicate paths are rejected before YAML is saved.
+If you enable "Save draft locally", the YAML is written under the dashboard
+state directory. Saved drafts can be reopened for YAML, validation status, and
+local command snippets when they still validate as public workbench examples.
+Saved drafts can then be validated, replayed, or simulated-paper-run from the
+dashboard with bounded `max_steps` and timeout controls, and recent workbench
+run results are shown below the draft list. Use Inspect on a saved draft or run
+row to review summarized `summary.json`, decisions, orders, fills, account
+snapshots, return, drawdown, elapsed time, time-normalized return projections,
+and an equity curve. The artifact view intentionally omits raw strategy signal
+payloads. Successful non-validate runs also archive a local per-run artifact
+snapshot, so a comparison row can inspect that exact run even after a later run
+overwrites the draft's output directory.
+The Run Comparison section ranks recent saved draft runs by return, return/day,
+and drawdown using only successful run summaries; failed or timed-out runs stay
+visible for diagnosis but do not carry stale metrics from a previous artifact.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

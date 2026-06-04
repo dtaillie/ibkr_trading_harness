@@ -185,18 +185,26 @@ publish runner summaries, supervisor status, remote-control audit summaries,
 and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
 stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
-dashboard can also inspect configured local CSV/parquet data roots, showing
-coverage summaries, timestamp/gap metadata, and small downsampled price
-previews. Individual datasets can be inspected for larger sampled price paths,
-null counts, gap rows, price/return stats, and volume stats before they are used
-in a replay config. The dashboard can generate, save, validate, replay, and
+dashboard shows read-only workbench state for saved drafts, recorded runs,
+archived run artifacts, and local disk usage. It can also inspect configured
+local CSV/parquet data roots, showing coverage summaries, timestamp/gap
+metadata, and small downsampled price previews. Individual datasets can be
+inspected for larger sampled price paths, null counts, gap rows, price/return
+stats, and volume stats before they are used in a replay config. The dashboard
+can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
-file-based data under configured data roots, and non-live modes. Saved draft
-runs can be inspected through summarized artifacts for decisions, orders, fills,
-account snapshots, return, drawdown, time-normalized return projections, and an
-equity curve; raw strategy signal payloads are not returned by the public
-artifact view. Recent saved draft runs can also be compared side by side by
+file-based data under configured data roots, and non-live modes. Drafts can use
+one or more selected datasets, with duplicate symbols and duplicate paths
+rejected before YAML is written. Saved drafts can be reopened for YAML,
+validation status, and local command snippets when they still validate as public
+workbench examples. Saved draft runs can be inspected through summarized
+artifacts for decisions, orders, fills, account snapshots, return, drawdown,
+time-normalized return projections, and an equity curve; raw strategy signal
+payloads are not returned by the public artifact view. Successful
+non-validate draft runs also archive a local per-run artifact snapshot so a
+comparison row can inspect the exact run even after the draft output directory
+is overwritten. Recent saved draft runs can also be compared side by side by
 return, drawdown, elapsed time, fills, rejections, and short-horizon projection
 status; failed or timed-out runs are not allowed to reuse stale performance
 summaries from earlier successful runs.

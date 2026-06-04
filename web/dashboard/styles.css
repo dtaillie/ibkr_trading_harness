@@ -106,6 +106,12 @@ button.secondary {
   border-color: var(--line);
 }
 
+.button-pair {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .builder-form {
   align-items: end;
   padding: 14px;
@@ -125,6 +131,15 @@ button.secondary {
 
 .wide-field select {
   width: 100%;
+}
+
+select[multiple] {
+  min-height: 124px;
+  padding: 4px;
+}
+
+select[multiple] option {
+  padding: 5px 6px;
 }
 
 .checkbox-field {
@@ -352,12 +367,17 @@ tr:last-child td {
   padding: 8px 0;
 }
 
+.wide-kv {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
 .kv dt,
 .kv dd {
   margin: 0;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .kv dt {
