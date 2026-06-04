@@ -178,6 +178,9 @@ guide, saved-data coverage, node health, Gateway reachability, runs,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
+Use Export Snapshot from Workbench State to download a public-safe JSON bundle
+of setup diagnostics, saved-data metadata, config options, and recent run
+summaries.
 Run `python3 scripts/smoke_dashboard.py` to start a temporary dashboard server
 and verify dashboard assets plus the core public endpoints without posting
 broker data.

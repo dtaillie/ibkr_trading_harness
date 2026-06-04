@@ -1314,6 +1314,20 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadWorkbenchSnapshot() {
+  const body = await fetchText("/workbench_snapshot_export");
+  const blob = new Blob([body], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "workbench_snapshot.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Workbench snapshot exported: ${new Date().toLocaleString()}`;
+}
+
 async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
@@ -1412,6 +1426,11 @@ function init() {
   $("export-data-catalog-csv").addEventListener("click", () => {
     downloadDataCatalogCsv().catch((err) => {
       $("last-refresh").textContent = `Data catalog CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-workbench-snapshot").addEventListener("click", () => {
+    downloadWorkbenchSnapshot().catch((err) => {
+      $("last-refresh").textContent = `Workbench snapshot export failed: ${err.message}`;
     });
   });
   $("comparison-filter-status").addEventListener("change", renderRunComparison);

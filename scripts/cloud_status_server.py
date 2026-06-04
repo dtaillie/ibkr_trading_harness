@@ -1626,6 +1626,42 @@ def build_workbench_diagnostics(
     }
 
 
+def build_workbench_snapshot(
+    state_dir: Path,
+    *,
+    data_roots: list[Path],
+    dashboard_dir: Path,
+) -> dict[str, Any]:
+    catalog = build_data_catalog(data_roots, limit=200, preview_points=2)
+    dataset_rows = [
+        {field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS}
+        for row in catalog["datasets"]
+    ]
+    return {
+        "schema_version": 1,
+        "generated_at": utc_now(),
+        "workbench_status": build_workbench_status(state_dir),
+        "diagnostics": build_workbench_diagnostics(
+            state_dir,
+            data_roots=data_roots,
+            dashboard_dir=dashboard_dir,
+        ),
+        "data_catalog": {
+            "roots": catalog["roots"],
+            "count": catalog["count"],
+            "error_count": catalog["error_count"],
+            "quality_counts": catalog["quality_counts"],
+            "bar_size_counts": catalog["bar_size_counts"],
+            "row_count_total": catalog["row_count_total"],
+            "size_bytes_total": catalog["size_bytes_total"],
+            "latest_modified_at": catalog["latest_modified_at"],
+            "datasets": dataset_rows,
+        },
+        "config_options": config_builder_options(),
+        "run_comparison": build_config_draft_run_comparison(state_dir, limit=50),
+    }
+
+
 def build_workbench_status(state_dir: Path) -> dict[str, Any]:
     drafts_dir = config_drafts_dir(state_dir)
     artifacts_root = config_draft_run_artifacts_root(state_dir)
@@ -2701,6 +2737,22 @@ class StatusHandler(BaseHTTPRequestHandler):
                 dashboard_dir=self.dashboard_dir,
             )
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/workbench_snapshot_export":
+            if not self.require_auth():
+                return
+            payload = build_workbench_snapshot(
+                self.state_dir,
+                data_roots=self.data_roots,
+                dashboard_dir=self.dashboard_dir,
+            )
+            download_text_response(
+                self,
+                200,
+                json.dumps(payload, indent=2, sort_keys=True),
+                filename="workbench_snapshot.json",
+                content_type="application/json; charset=utf-8",
+            )
             return
         if parsed.path == "/config_drafts":
             if not self.require_auth():

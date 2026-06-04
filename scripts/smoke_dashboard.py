@@ -60,6 +60,7 @@ def run_smoke(
         required_controls = [
             "data-filter-quality",
             "export-data-catalog-csv",
+            "export-workbench-snapshot",
             "config-preview-alignment",
             "export-runs-csv",
             "comparison-filter-summary",
@@ -84,6 +85,7 @@ def run_smoke(
         data_catalog_csv = fetch_text(base_url, "/data_catalog_export?limit=5")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
+        snapshot = json.loads(fetch_text(base_url, "/workbench_snapshot_export"))
         options = fetch_json(base_url, "/config_options")
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
@@ -96,6 +98,8 @@ def run_smoke(
             raise RuntimeError("diagnostics status is invalid")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
+        if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot:
+            raise RuntimeError("workbench snapshot export is invalid")
 
         alignment_count = 0
         datasets = catalog.get("datasets") or []

@@ -1147,6 +1147,17 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert diagnostics["state_dir"]["exists"] is False
         assert diagnostics["data_roots"][0]["data_file_count"] == 1
         assert all(asset["exists"] for asset in diagnostics["dashboard_assets"])
+
+        with request.urlopen(f"{base}/workbench_snapshot_export", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("application/json")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="workbench_snapshot.json"'
+            snapshot = json.loads(resp.read().decode("utf-8"))
+        assert snapshot["schema_version"] == 1
+        assert snapshot["diagnostics"]["status"] == "ok"
+        assert snapshot["data_catalog"]["count"] == 1
+        assert snapshot["data_catalog"]["datasets"][0]["symbol"] == "SPY"
+        assert snapshot["config_options"]["risk_presets"]
+        assert snapshot["run_comparison"]["count"] == 0
     finally:
         server.shutdown()
         server.server_close()
