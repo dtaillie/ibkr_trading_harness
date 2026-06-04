@@ -1051,6 +1051,44 @@ def test_cloud_status_server_workbench_cleanup_plan_and_apply(tmp_path, monkeypa
         server.server_close()
 
 
+def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
+    data_root = tmp_path / "data"
+    dashboard_dir = tmp_path / "dashboard"
+    state_dir = tmp_path / "state"
+    data_root.mkdir()
+    dashboard_dir.mkdir()
+    (data_root / "SPY_5min_sample.csv").write_text(
+        "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+        encoding="utf-8",
+    )
+    for name in ("index.html", "app.js", "styles.css"):
+        (dashboard_dir / name).write_text("ok\n", encoding="utf-8")
+
+    server = create_server(
+        "127.0.0.1",
+        0,
+        state_dir,
+        dashboard_dir=dashboard_dir,
+        data_roots=[data_root],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/workbench_diagnostics", timeout=5) as resp:
+            diagnostics = json.loads(resp.read().decode("utf-8"))
+
+        assert diagnostics["status"] == "ok"
+        assert diagnostics["warning_count"] == 0
+        assert diagnostics["state_dir"]["writable"] is True
+        assert diagnostics["state_dir"]["exists"] is False
+        assert diagnostics["data_roots"][0]["data_file_count"] == 1
+        assert all(asset["exists"] for asset in diagnostics["dashboard_assets"])
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_config_draft_rejects_duplicate_datasets(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()

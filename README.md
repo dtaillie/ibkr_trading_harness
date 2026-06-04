@@ -218,6 +218,9 @@ The Workbench Maintenance panel previews orphaned run archives and workbench
 output directories, reports reclaimable disk usage, and can prune only those
 orphaned directories after an explicit confirmation request. Cleanup is local
 and bounded to the workbench archive/output roots.
+The Setup Diagnostics panel checks local state-directory writability, configured
+data roots, CSV/parquet file counts, and dashboard asset availability so setup
+problems are visible before a user starts generating configs.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

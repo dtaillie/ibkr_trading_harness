@@ -5,6 +5,7 @@ const state = {
   dataDetail: null,
   workbenchStatus: {},
   cleanupPlan: {},
+  diagnostics: {},
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
   alignmentPreview: null,
@@ -368,6 +369,34 @@ function renderCleanupPlan() {
     ["Output Paths", pathList(plan.orphaned_outputs)],
   ];
   $("cleanup-plan").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
+  )).join("");
+}
+
+function renderDiagnostics() {
+  const diagnostics = state.diagnostics || {};
+  const stateDir = diagnostics.state_dir || {};
+  const dataRoots = diagnostics.data_roots || [];
+  const assets = diagnostics.dashboard_assets || [];
+  $("diagnostics-note").innerHTML = diagnostics.status
+    ? qualityBadge(diagnostics.status, diagnostics.warnings || [])
+    : "Not loaded";
+  const rootSummary = dataRoots.length
+    ? dataRoots.map((root) => (
+        `${root.path}: exists=${text(root.exists)} writable=${text(root.writable)} files=${numberText(root.data_file_count, 0)}`
+      )).join("\n")
+    : "none";
+  const assetSummary = assets.length
+    ? assets.map((asset) => `${asset.name}: ${asset.exists ? "ok" : "missing"} (${bytes(asset.size_bytes)})`).join("\n")
+    : "none";
+  const pairs = [
+    ["Generated", text(diagnostics.generated_at)],
+    ["Warnings", (diagnostics.warnings || []).join("; ") || "none"],
+    ["State Dir", `${text(stateDir.path)} writable=${text(stateDir.writable)} exists=${text(stateDir.exists)}`],
+    ["Data Roots", rootSummary],
+    ["Dashboard Assets", assetSummary],
+  ];
+  $("diagnostics-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
   )).join("");
 }
@@ -916,6 +945,7 @@ function renderAll() {
   renderMetrics();
   renderWorkbenchStatus();
   renderCleanupPlan();
+  renderDiagnostics();
   renderDataCatalog();
   renderDataDetail();
   renderConfigBuilder();
@@ -944,6 +974,7 @@ async function refresh() {
   const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
+  const diagnostics = await fetchJson("/workbench_diagnostics");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
@@ -954,6 +985,7 @@ async function refresh() {
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
+  state.diagnostics = diagnostics || {};
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
   state.configRuns = configRuns || { runs: [] };

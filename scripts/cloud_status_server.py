@@ -1405,6 +1405,87 @@ def run_workbench_cleanup(state_dir: Path, payload: dict[str, Any]) -> dict[str,
     }
 
 
+def writable_probe(path: Path, *, expect_dir: bool) -> dict[str, Any]:
+    resolved = path.resolve()
+    exists = resolved.exists()
+    parent = resolved if exists and resolved.is_dir() else resolved.parent
+    while not parent.exists() and parent != parent.parent:
+        parent = parent.parent
+    writable = os.access(parent, os.W_OK) if parent.exists() else False
+    return {
+        "path": str(resolved),
+        "exists": exists,
+        "is_dir": resolved.is_dir() if exists else False,
+        "is_file": resolved.is_file() if exists else False,
+        "writable": bool(writable),
+        "expected": "directory" if expect_dir else "file",
+    }
+
+
+def data_file_count(root: Path, *, limit: int = 10_000) -> int:
+    if not root.exists() or not root.is_dir():
+        return 0
+    count = 0
+    for path in root.rglob("*"):
+        if path.is_file() and path.suffix.lower() in {".csv", ".parquet"}:
+            count += 1
+            if count >= limit:
+                break
+    return count
+
+
+def build_workbench_diagnostics(
+    state_dir: Path,
+    *,
+    data_roots: list[Path],
+    dashboard_dir: Path,
+) -> dict[str, Any]:
+    warnings = []
+    blockers = []
+    state_probe = writable_probe(state_dir, expect_dir=True)
+    if not state_probe["writable"]:
+        blockers.append("state directory parent is not writable")
+
+    dashboard_assets = []
+    for name in ("index.html", "app.js", "styles.css"):
+        path = dashboard_dir / name
+        item = {
+            "name": name,
+            "path": str(path.resolve()),
+            "exists": path.exists() and path.is_file(),
+            "size_bytes": path.stat().st_size if path.exists() and path.is_file() else 0,
+        }
+        if not item["exists"]:
+            blockers.append(f"dashboard asset missing: {name}")
+        dashboard_assets.append(item)
+
+    data_root_rows = []
+    for root in data_roots:
+        row = writable_probe(root, expect_dir=True)
+        row["data_file_count"] = data_file_count(root)
+        if not row["exists"]:
+            warnings.append(f"data root does not exist: {root}")
+        elif not row["is_dir"]:
+            warnings.append(f"data root is not a directory: {root}")
+        elif row["data_file_count"] == 0:
+            warnings.append(f"data root has no CSV/parquet files: {root}")
+        data_root_rows.append(row)
+    if not data_root_rows:
+        warnings.append("no data roots configured")
+
+    status = "bad" if blockers else "warn" if warnings else "ok"
+    return {
+        "generated_at": utc_now(),
+        "status": status,
+        "warnings": blockers + warnings,
+        "warning_count": len(blockers) + len(warnings),
+        "state_dir": state_probe,
+        "dashboard_dir": str(dashboard_dir.resolve()),
+        "dashboard_assets": dashboard_assets,
+        "data_roots": data_root_rows,
+    }
+
+
 def build_workbench_status(state_dir: Path) -> dict[str, Any]:
     drafts_dir = config_drafts_dir(state_dir)
     artifacts_root = config_draft_run_artifacts_root(state_dir)
@@ -2399,6 +2480,16 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, build_workbench_cleanup_plan(self.state_dir))
+            return
+        if parsed.path == "/workbench_diagnostics":
+            if not self.require_auth():
+                return
+            payload = build_workbench_diagnostics(
+                self.state_dir,
+                data_roots=self.data_roots,
+                dashboard_dir=self.dashboard_dir,
+            )
+            json_response(self, 200, payload)
             return
         if parsed.path == "/config_drafts":
             if not self.require_auth():
