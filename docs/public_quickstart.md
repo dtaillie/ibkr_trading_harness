@@ -186,7 +186,7 @@ private cache directory. Data roots are scanned locally; the dashboard receives
 coverage summaries and small downsampled previews, not full bar files.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
-price/return stats, and volume stats.
+price/return stats, volume stats, and a compact ok/warn/bad quality summary.
 The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker
@@ -212,6 +212,10 @@ The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
 artifact.
+The Workbench Maintenance section previews orphaned run archives and workbench
+output directories, reports reclaimable bytes, supports a dry run, and only
+prunes after the server receives the explicit `prune-workbench` confirmation.
+It is limited to local workbench archive/output roots.
 The receiver appends each posted status to `status_history.jsonl` and exposes a
 summarized recent-history endpoint:
 

@@ -264,6 +264,13 @@ def source_timezone_label(raw: pd.Series | pd.Index) -> str:
     return "naive/unknown"
 
 
+def parse_datetime_utc(raw: Any) -> Any:
+    try:
+        return pd.to_datetime(raw, utc=True, errors="coerce", format="mixed")
+    except TypeError:
+        return pd.to_datetime(raw, utc=True, errors="coerce")
+
+
 def close_column(df: pd.DataFrame) -> str | None:
     lower_map = {str(col).lower(): str(col) for col in df.columns}
     return lower_map.get("close") or lower_map.get("last")
@@ -272,6 +279,60 @@ def close_column(df: pd.DataFrame) -> str | None:
 def volume_column(df: pd.DataFrame) -> str | None:
     lower_map = {str(col).lower(): str(col) for col in df.columns}
     return lower_map.get("volume")
+
+
+def data_quality_summary(
+    *,
+    rows: int,
+    timestamp_available: bool,
+    valid_timestamp_count: int,
+    timestamp_parse_failures: int | None,
+    duplicate_timestamps: int,
+    median_interval_seconds: float | None,
+    largest_gap_seconds: float | None,
+    estimated_missing_intervals: int | None,
+    close_column_name: str | None,
+    close_missing: int | None,
+    volume_column_name: str | None,
+    volume_missing: int | None,
+) -> dict[str, Any]:
+    blockers = []
+    warnings = []
+    if rows <= 0:
+        blockers.append("file contains no rows")
+    if not timestamp_available:
+        blockers.append("no timestamp column or DatetimeIndex found")
+    elif valid_timestamp_count <= 0:
+        blockers.append("no parseable timestamps")
+    elif timestamp_parse_failures:
+        warnings.append(f"{timestamp_parse_failures} timestamp parse failures")
+    if close_column_name is None:
+        blockers.append("no close/last column found")
+    elif close_missing:
+        warnings.append(f"{close_missing} missing close values")
+    if duplicate_timestamps:
+        warnings.append(f"{duplicate_timestamps} duplicate timestamps")
+    if estimated_missing_intervals:
+        warnings.append(f"{estimated_missing_intervals} estimated missing intervals")
+    elif (
+        median_interval_seconds is not None
+        and largest_gap_seconds is not None
+        and median_interval_seconds > 0
+        and largest_gap_seconds > median_interval_seconds * 3
+    ):
+        warnings.append("largest timestamp gap is more than 3x the median interval")
+    if volume_column_name is None:
+        warnings.append("no volume column found")
+    elif volume_missing:
+        warnings.append(f"{volume_missing} missing volume values")
+
+    status = "bad" if blockers else "warn" if warnings else "ok"
+    all_warnings = blockers + warnings
+    return {
+        "quality_status": status,
+        "quality_warnings": all_warnings,
+        "quality_warning_count": len(all_warnings),
+    }
 
 
 def evenly_sample_indices(length: int, points: int) -> list[int]:
@@ -296,15 +357,17 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
 
     ts_col = timestamp_column(df)
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    parsed_all = pd.Series([], dtype="datetime64[ns, UTC]")
     parsed_ts = pd.Series([], dtype="datetime64[ns, UTC]")
     source_tz = None
     if raw_ts is not None:
         source_tz = source_timezone_label(raw_ts)
-        parsed_ts = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce")).dropna()
+        parsed_all = pd.Series(parse_datetime_utc(raw_ts))
+        parsed_ts = parsed_all.dropna()
 
     first_ts = last_ts = None
     median_interval = largest_gap = None
-    estimated_missing = None
+    estimated_missing: int | None = None
     if not parsed_ts.empty:
         ordered = parsed_ts.sort_values()
         first_ts = ordered.iloc[0].isoformat()
@@ -320,10 +383,32 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
 
     close_col = close_column(df)
     volume_col = volume_column(df)
+    close_missing = None
+    if close_col:
+        close_missing = int(pd.to_numeric(df[close_col], errors="coerce").isna().sum())
+    volume_missing = None
+    if volume_col:
+        volume_missing = int(pd.to_numeric(df[volume_col], errors="coerce").isna().sum())
+    duplicate_timestamps = int(parsed_ts.duplicated().sum()) if not parsed_ts.empty else 0
+    timestamp_parse_failures = int(parsed_all.isna().sum()) if raw_ts is not None else None
+    quality = data_quality_summary(
+        rows=int(len(df)),
+        timestamp_available=raw_ts is not None,
+        valid_timestamp_count=int(len(parsed_ts)),
+        timestamp_parse_failures=timestamp_parse_failures,
+        duplicate_timestamps=duplicate_timestamps,
+        median_interval_seconds=median_interval,
+        largest_gap_seconds=largest_gap,
+        estimated_missing_intervals=estimated_missing,
+        close_column_name=close_col,
+        close_missing=close_missing,
+        volume_column_name=volume_col,
+        volume_missing=volume_missing,
+    )
     preview = []
     if close_col and not parsed_ts.empty:
         scoped = pd.DataFrame({
-            "timestamp": pd.to_datetime(raw_ts, utc=True, errors="coerce"),
+            "timestamp": parse_datetime_utc(raw_ts),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
         })
         if volume_col:
@@ -358,8 +443,11 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         "median_interval_seconds": median_interval,
         "largest_gap_seconds": largest_gap,
         "estimated_missing_intervals": estimated_missing,
+        "timestamp_parse_failures": timestamp_parse_failures,
+        "duplicate_timestamps": duplicate_timestamps,
         "close_column": close_col,
         "volume_column": volume_col,
+        **quality,
         "preview": preview,
     }
 
@@ -494,7 +582,7 @@ def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
     parsed = pd.Series([], dtype="datetime64[ns, UTC]")
     if raw_ts is not None:
-        parsed = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce"))
+        parsed = pd.Series(parse_datetime_utc(raw_ts))
     valid = parsed.dropna().drop_duplicates().sort_values()
     diffs = valid.diff().dropna().dt.total_seconds() if len(valid) > 1 else pd.Series([], dtype="float64")
     return {
@@ -597,7 +685,7 @@ def build_data_detail(
     source_tz = None
     if raw_ts is not None:
         source_tz = source_timezone_label(raw_ts)
-        parsed_ts = pd.Series(pd.to_datetime(raw_ts, utc=True, errors="coerce"))
+        parsed_ts = pd.Series(parse_datetime_utc(raw_ts))
 
     parsed_valid = parsed_ts.dropna()
     ordered = parsed_valid.sort_values()
@@ -640,13 +728,31 @@ def build_data_detail(
 
     close_col = columns["close"]
     volume_col = columns["volume"]
+    close_missing = int(pd.to_numeric(df[close_col], errors="coerce").isna().sum()) if close_col else None
+    volume_missing = int(pd.to_numeric(df[volume_col], errors="coerce").isna().sum()) if volume_col else None
+    timestamp_parse_failures = int(parsed_ts.isna().sum()) if raw_ts is not None else None
+    duplicate_timestamps = int(parsed_valid.duplicated().sum()) if not parsed_valid.empty else 0
+    quality_summary = data_quality_summary(
+        rows=int(len(df)),
+        timestamp_available=raw_ts is not None,
+        valid_timestamp_count=int(len(parsed_valid)),
+        timestamp_parse_failures=timestamp_parse_failures,
+        duplicate_timestamps=duplicate_timestamps,
+        median_interval_seconds=median_interval,
+        largest_gap_seconds=largest_gap,
+        estimated_missing_intervals=int(estimated_missing),
+        close_column_name=close_col,
+        close_missing=close_missing,
+        volume_column_name=volume_col,
+        volume_missing=volume_missing,
+    )
     price_stats: dict[str, Any] = {}
     return_stats: dict[str, Any] = {}
     volume_stats: dict[str, Any] = {}
     preview = []
     if close_col and raw_ts is not None:
         scoped = pd.DataFrame({
-            "timestamp": pd.to_datetime(raw_ts, utc=True, errors="coerce"),
+            "timestamp": parse_datetime_utc(raw_ts),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
         })
         for name in ("open", "high", "low"):
@@ -723,10 +829,11 @@ def build_data_detail(
             "median_interval_seconds": median_interval,
             "largest_gap_seconds": largest_gap,
             "estimated_missing_intervals": int(estimated_missing),
-            "duplicate_timestamps": int(parsed_valid.duplicated().sum()) if not parsed_valid.empty else 0,
-            "timestamp_parse_failures": int(parsed_ts.isna().sum()) if raw_ts is not None else None,
+            "duplicate_timestamps": duplicate_timestamps,
+            "timestamp_parse_failures": timestamp_parse_failures,
         },
         "quality": {
+            **quality_summary,
             "null_counts": null_counts,
             "gap_count_returned": len(gap_rows),
         },
@@ -1131,6 +1238,173 @@ def child_dirs(path: Path) -> list[Path]:
     return sorted(item for item in path.iterdir() if item.is_dir())
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    return resolved.relative_to(ROOT).as_posix() if resolved.is_relative_to(ROOT) else str(resolved)
+
+
+def directory_plan_item(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "path": display_path(path),
+        "absolute_path": str(path.resolve()),
+        "size_bytes": directory_size_bytes(path),
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+    }
+
+
+def resolve_workbench_output_dir(raw_output_dir: str) -> Path:
+    raw = raw_output_dir.strip()
+    if not raw:
+        raise ValueError("runner.output_dir is required")
+    candidate = Path(raw)
+    output_dir = candidate if candidate.is_absolute() else ROOT / candidate
+    output_dir = output_dir.resolve()
+    root = WORKBENCH_OUTPUT_ROOT.resolve()
+    if not output_dir.is_relative_to(root):
+        raise ValueError("runner.output_dir must be inside paper_logs/workbench")
+    return output_dir
+
+
+def collect_referenced_artifact_dirs(state_dir: Path, runs: list[dict[str, Any]]) -> set[Path]:
+    root = config_draft_run_artifacts_root(state_dir).resolve()
+    referenced: set[Path] = set()
+    for row in runs:
+        if row.get("artifact_path"):
+            path = Path(str(row["artifact_path"])).resolve()
+            if path.is_relative_to(root):
+                referenced.add(path)
+        if row.get("run_id"):
+            try:
+                referenced.add(config_draft_run_artifact_dir(state_dir, str(row["run_id"])).resolve())
+            except ValueError:
+                continue
+    return referenced
+
+
+def referenced_workbench_output_dirs(state_dir: Path, runs: list[dict[str, Any]]) -> set[Path]:
+    referenced: set[Path] = set()
+
+    def add_raw(raw: Any) -> None:
+        if raw is None:
+            return
+        try:
+            referenced.add(resolve_workbench_output_dir(str(raw)))
+        except ValueError:
+            return
+
+    drafts_dir = config_drafts_dir(state_dir)
+    if drafts_dir.exists():
+        for path in sorted(drafts_dir.glob("*.yaml")):
+            try:
+                config = read_yaml_mapping(path)
+            except Exception:
+                continue
+            runner = config.get("runner") if isinstance(config.get("runner"), dict) else {}
+            add_raw(runner.get("output_dir"))
+
+    for row in runs:
+        add_raw(row.get("output_dir"))
+        summary = row.get("summary") if isinstance(row.get("summary"), dict) else {}
+        add_raw(summary.get("output_dir"))
+    return referenced
+
+
+def path_contains_any(path: Path, candidates: Iterable[Path]) -> bool:
+    resolved = path.resolve()
+    return any(candidate.resolve().is_relative_to(resolved) for candidate in candidates)
+
+
+def build_workbench_cleanup_plan(state_dir: Path) -> dict[str, Any]:
+    artifacts_root = config_draft_run_artifacts_root(state_dir).resolve()
+    output_root = WORKBENCH_OUTPUT_ROOT.resolve()
+    runs = read_config_draft_run_rows(state_dir)
+
+    artifact_dirs = child_dirs(artifacts_root)
+    referenced_artifacts = collect_referenced_artifact_dirs(state_dir, runs)
+    orphaned_archives = [
+        path for path in artifact_dirs
+        if path.resolve() not in referenced_artifacts
+    ]
+
+    referenced_outputs = referenced_workbench_output_dirs(state_dir, runs)
+    orphaned_outputs = [
+        path for path in child_dirs(output_root)
+        if not path_contains_any(path, referenced_outputs)
+    ]
+    archive_items = [directory_plan_item(path) for path in orphaned_archives]
+    output_items = [directory_plan_item(path) for path in orphaned_outputs]
+    reclaimable_bytes = sum(int(item["size_bytes"]) for item in archive_items + output_items)
+    return {
+        "generated_at": utc_now(),
+        "state_dir": str(state_dir),
+        "run_artifacts_dir": str(artifacts_root),
+        "workbench_output_root": str(output_root),
+        "referenced_archive_count": len(referenced_artifacts),
+        "referenced_output_count": len(referenced_outputs),
+        "orphaned_archive_count": len(archive_items),
+        "orphaned_output_count": len(output_items),
+        "reclaimable_dir_count": len(archive_items) + len(output_items),
+        "reclaimable_bytes": reclaimable_bytes,
+        "orphaned_archives": archive_items,
+        "orphaned_outputs": output_items,
+    }
+
+
+def parse_bool_payload(payload: dict[str, Any], key: str, *, default: bool) -> bool:
+    raw = payload.get(key, default)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        lowered = raw.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    raise ValueError(f"{key} must be true or false")
+
+
+def remove_cleanup_dir(path: Path, *, root: Path) -> None:
+    resolved = path.resolve()
+    root = root.resolve()
+    if resolved == root or not resolved.is_relative_to(root):
+        raise ValueError(f"cleanup path is outside allowed root: {resolved}")
+    if resolved.exists():
+        shutil.rmtree(resolved)
+
+
+def run_workbench_cleanup(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    dry_run = parse_bool_payload(payload, "dry_run", default=True)
+    if not dry_run and str(payload.get("confirm") or "") != "prune-workbench":
+        raise ValueError("confirm must be 'prune-workbench' when dry_run is false")
+    plan = build_workbench_cleanup_plan(state_dir)
+    deleted = []
+    errors = []
+    if not dry_run:
+        groups = [
+            ("archive", config_draft_run_artifacts_root(state_dir).resolve(), plan["orphaned_archives"]),
+            ("output", WORKBENCH_OUTPUT_ROOT.resolve(), plan["orphaned_outputs"]),
+        ]
+        for kind, root, items in groups:
+            for item in items:
+                path = Path(str(item["absolute_path"]))
+                try:
+                    remove_cleanup_dir(path, root=root)
+                    deleted.append({"kind": kind, "path": item["path"], "size_bytes": item["size_bytes"]})
+                except Exception as exc:
+                    errors.append({"kind": kind, "path": item["path"], "error": str(exc)})
+    return {
+        "ok": not errors,
+        "dry_run": dry_run,
+        "confirm_required": "prune-workbench",
+        "plan": plan,
+        "deleted": deleted,
+        "delete_count": len(deleted),
+        "errors": errors,
+        "error_count": len(errors),
+    }
+
+
 def build_workbench_status(state_dir: Path) -> dict[str, Any]:
     drafts_dir = config_drafts_dir(state_dir)
     artifacts_root = config_draft_run_artifacts_root(state_dir)
@@ -1139,15 +1413,12 @@ def build_workbench_status(state_dir: Path) -> dict[str, Any]:
     if runs:
         latest_run = max(runs, key=lambda row: str(row.get("finished_at") or row.get("started_at") or ""))
     artifact_dirs = child_dirs(artifacts_root)
-    referenced_artifact_dirs = {
-        Path(str(row["artifact_path"])).resolve()
-        for row in runs
-        if row.get("artifact_path")
-    }
+    referenced_archives = collect_referenced_artifact_dirs(state_dir, runs)
     orphaned_artifact_dirs = [
         path for path in artifact_dirs
-        if path.resolve() not in referenced_artifact_dirs
+        if path.resolve() not in referenced_archives
     ]
+    cleanup_plan = build_workbench_cleanup_plan(state_dir)
     return {
         "state_dir": str(state_dir),
         "drafts_dir": str(drafts_dir),
@@ -1158,6 +1429,8 @@ def build_workbench_status(state_dir: Path) -> dict[str, Any]:
         "run_count": len(runs),
         "archived_run_count": len(artifact_dirs),
         "orphaned_archive_count": len(orphaned_artifact_dirs),
+        "orphaned_output_count": cleanup_plan["orphaned_output_count"],
+        "reclaimable_bytes": cleanup_plan["reclaimable_bytes"],
         "status_counts": count_values(runs, "status"),
         "action_counts": count_values(runs, "action"),
         "state_bytes": directory_size_bytes(state_dir),
@@ -1297,15 +1570,7 @@ def build_config_draft_run_comparison(state_dir: Path, *, limit: int = 50) -> di
 def safe_workbench_output_dir(config: dict[str, Any]) -> Path:
     runner = config.get("runner") or {}
     raw_output_dir = str(runner.get("output_dir") or "").strip()
-    if not raw_output_dir:
-        raise ValueError("runner.output_dir is required")
-    candidate = Path(raw_output_dir)
-    output_dir = candidate if candidate.is_absolute() else ROOT / candidate
-    output_dir = output_dir.resolve()
-    root = WORKBENCH_OUTPUT_ROOT.resolve()
-    if not output_dir.is_relative_to(root):
-        raise ValueError("runner.output_dir must be inside paper_logs/workbench")
-    return output_dir
+    return resolve_workbench_output_dir(raw_output_dir)
 
 
 def read_json_file(path: Path) -> dict[str, Any] | None:
@@ -2041,6 +2306,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"ok": True, "run": result})
             return
+        if self.path == "/workbench_cleanup":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = run_workbench_cleanup(self.state_dir, payload)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, result)
+            return
         else:
             json_response(self, 404, {"error": "not found"})
             return
@@ -2118,6 +2394,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, build_workbench_status(self.state_dir))
+            return
+        if parsed.path == "/workbench_cleanup_plan":
+            if not self.require_auth():
+                return
+            json_response(self, 200, build_workbench_cleanup_plan(self.state_dir))
             return
         if parsed.path == "/config_drafts":
             if not self.require_auth():

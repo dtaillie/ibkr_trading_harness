@@ -112,6 +112,13 @@ button.secondary {
   flex-wrap: wrap;
 }
 
+.maintenance-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .builder-form {
   align-items: end;
   padding: 14px;

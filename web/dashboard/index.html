@@ -96,6 +96,19 @@
 
     <section>
       <div class="section-head">
+        <h2>Workbench Maintenance</h2>
+        <span id="cleanup-note" class="section-note">Not loaded</span>
+      </div>
+      <dl id="cleanup-plan" class="kv wide-kv"></dl>
+      <div class="maintenance-actions">
+        <button id="cleanup-refresh" class="secondary" type="button">Refresh Plan</button>
+        <button id="cleanup-dry-run" class="secondary" type="button">Dry Run</button>
+        <button id="cleanup-apply" type="button">Prune Orphans</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
         <h2>Saved Data</h2>
         <span id="data-catalog-errors" class="section-note"></span>
       </div>
@@ -110,6 +123,7 @@
               <th>Range</th>
               <th>Median Step</th>
               <th>Missing</th>
+              <th>Quality</th>
               <th>Source TZ</th>
               <th>Preview</th>
               <th>Size</th>

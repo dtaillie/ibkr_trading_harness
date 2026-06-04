@@ -190,8 +190,8 @@ archived run artifacts, and local disk usage. It can also inspect configured
 local CSV/parquet data roots, showing coverage summaries, timestamp/gap
 metadata, and small downsampled price previews. Individual datasets can be
 inspected for larger sampled price paths, null counts, gap rows, price/return
-stats, and volume stats before they are used in a replay config. The dashboard
-can generate, save, validate, replay, and
+stats, volume stats, and a compact ok/warn/bad quality summary before they are
+used in a replay config. The dashboard can generate, save, validate, replay, and
 simulated-paper-run example plugin-runner config drafts from saved data. This
 workbench path is deliberately limited to public generic no-edge plugins,
 file-based data under configured data roots, and non-live modes. Drafts can use
@@ -212,6 +212,10 @@ rejections, and short-horizon projection status; failed or timed-out runs are
 not allowed to reuse stale performance summaries from earlier successful runs.
 Run log detail exposes command argv, return code, duration, and stdout/stderr
 tails for diagnosis.
+The Workbench Maintenance panel previews orphaned run archives and workbench
+output directories, reports reclaimable disk usage, and can prune only those
+orphaned directories after an explicit confirmation request. Cleanup is local
+and bounded to the workbench archive/output roots.
 Real deployments can add `max_age_seconds` to configured runs, supervisors, and
 remote-control audit settings to alert on stale local artifacts. The receiver
 also keeps a bounded read view over `status_history.jsonl` through

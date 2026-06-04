@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib import error, request
 
+from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
 from scripts.command_worker import execute_command, poll_once
 from scripts.publish_status import collect_status, post_status, publish_status
@@ -502,8 +503,60 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert dataset["median_interval_seconds"] == 450.0
         assert dataset["largest_gap_seconds"] == 600.0
         assert dataset["estimated_missing_intervals"] == 0
+        assert dataset["quality_status"] == "ok"
+        assert dataset["quality_warnings"] == []
         assert len(dataset["preview"]) == 3
         assert dataset["preview"][-1]["close"] == 101.25
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "WARN_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume",
+                "2026-01-02T14:30:00Z,100,1000",
+                "not-a-time,,1100",
+                "2026-01-02T14:40:00Z,101,",
+                "2026-01-02T14:40:00Z,101.5,1200",
+                "2026-01-02T15:00:00Z,102,1300",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (data_root / "BAD_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "date,price",
+                "not-a-time,100",
+                "still-not-a-time,101",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=5&preview_points=3", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        datasets = {item["symbol"]: item for item in payload["datasets"]}
+        assert datasets["WARN"]["quality_status"] == "warn"
+        assert any("timestamp parse failures" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("missing close values" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("duplicate timestamps" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("estimated missing intervals" in item for item in datasets["WARN"]["quality_warnings"])
+        assert datasets["BAD"]["quality_status"] == "bad"
+        assert "no parseable timestamps" in datasets["BAD"]["quality_warnings"]
+        assert "no close/last column found" in datasets["BAD"]["quality_warnings"]
     finally:
         server.shutdown()
         server.server_close()
@@ -560,6 +613,8 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["coverage"]["largest_gap_seconds"] == 900.0
         assert detail["coverage"]["estimated_missing_intervals"] == 2
         assert detail["gaps"][0]["estimated_missing_intervals"] == 2
+        assert detail["quality"]["quality_status"] == "warn"
+        assert "2 estimated missing intervals" in detail["quality"]["quality_warnings"]
         assert detail["price_stats"]["start_close"] == 100.0
         assert detail["price_stats"]["end_close"] == 103.0
         assert abs(detail["price_stats"]["total_return_pct"] - 3.0) < 1e-9
@@ -888,6 +943,109 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert comparison["runs"][1]["artifact_available"] is False
         assert comparison["runs"][1]["total_return_pct"] is None
         assert comparison["leaders"]["best_total_return"]["draft_id"] == "Run_Draft"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_workbench_cleanup_plan_and_apply(tmp_path, monkeypatch):
+    state_dir = tmp_path / "state"
+    artifacts_root = state_dir / "run_artifacts"
+    drafts_dir = state_dir / "config_drafts"
+    output_root = tmp_path / "workbench"
+    kept_archive = artifacts_root / "kept-run"
+    orphan_archive = artifacts_root / "orphan-run"
+    kept_output = output_root / "Kept_Output"
+    orphan_output = output_root / "Orphan_Output"
+    for path in (kept_archive, orphan_archive, kept_output, orphan_output, drafts_dir):
+        path.mkdir(parents=True)
+    (kept_archive / "summary.json").write_text("{}", encoding="utf-8")
+    (orphan_archive / "summary.json").write_text('{"orphan": true}', encoding="utf-8")
+    (kept_output / "summary.json").write_text("{}", encoding="utf-8")
+    (orphan_output / "summary.json").write_text('{"orphan": true}', encoding="utf-8")
+    (drafts_dir / "Keep.yaml").write_text(
+        "\n".join(
+            [
+                "runner:",
+                f"  output_dir: {kept_output}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (state_dir / "config_draft_runs.jsonl").write_text(
+        json.dumps({
+            "run_id": "kept-run",
+            "draft_id": "Keep",
+            "action": "replay",
+            "status": "completed",
+            "artifact_path": str(kept_archive),
+            "summary": {"output_dir": str(kept_output)},
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(status_server, "WORKBENCH_OUTPUT_ROOT", output_root)
+    server = status_server.create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/workbench_cleanup_plan", timeout=5) as resp:
+            plan = json.loads(resp.read().decode("utf-8"))
+        assert plan["orphaned_archive_count"] == 1
+        assert plan["orphaned_output_count"] == 1
+        assert plan["reclaimable_dir_count"] == 2
+        assert plan["reclaimable_bytes"] > 0
+        assert plan["orphaned_archives"][0]["path"].endswith("orphan-run")
+        assert plan["orphaned_outputs"][0]["path"].endswith("Orphan_Output")
+
+        dry_run_req = request.Request(
+            f"{base}/workbench_cleanup",
+            data=json.dumps({"dry_run": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(dry_run_req, timeout=5) as resp:
+            dry_run = json.loads(resp.read().decode("utf-8"))
+        assert dry_run["dry_run"] is True
+        assert dry_run["delete_count"] == 0
+        assert orphan_archive.exists()
+        assert orphan_output.exists()
+
+        bad_req = request.Request(
+            f"{base}/workbench_cleanup",
+            data=json.dumps({"dry_run": False}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(bad_req, timeout=5)
+            raise AssertionError("expected cleanup confirmation response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "confirm must be 'prune-workbench' when dry_run is false"
+
+        apply_req = request.Request(
+            f"{base}/workbench_cleanup",
+            data=json.dumps({"dry_run": False, "confirm": "prune-workbench"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(apply_req, timeout=5) as resp:
+            applied = json.loads(resp.read().decode("utf-8"))
+        assert applied["dry_run"] is False
+        assert applied["delete_count"] == 2
+        assert kept_archive.exists()
+        assert kept_output.exists()
+        assert not orphan_archive.exists()
+        assert not orphan_output.exists()
+
+        with request.urlopen(f"{base}/workbench_cleanup_plan", timeout=5) as resp:
+            after = json.loads(resp.read().decode("utf-8"))
+        assert after["orphaned_archive_count"] == 0
+        assert after["orphaned_output_count"] == 0
     finally:
         server.shutdown()
         server.server_close()

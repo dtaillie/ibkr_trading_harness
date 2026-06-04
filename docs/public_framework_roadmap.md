@@ -52,6 +52,9 @@ strategies private.
   and simulated feeds.
 - Standardize historical-bar storage paths, symbol naming, timestamp timezones,
   and adjustment metadata.
+- Keep data-catalog quality scoring visible before simulation: timestamp
+  parseability, missing close data, duplicate timestamps, gaps, and volume
+  availability should be summarized before a dataset is selected.
 - Add fetch-job manifests with status, ETA, failure counts, retry counts, and
   resumability.
 - Add consistent paper/live mode gates so a strategy cannot accidentally submit
@@ -147,6 +150,9 @@ strategies private.
 - Keep exact-run log detail available for diagnosis: command argv, return code,
   duration, stdout tail, and stderr tail should be inspectable without exposing
   raw strategy diagnostics.
+- Keep workbench maintenance local and explicit: orphaned run archives and
+  workbench output directories should be previewed first, then pruned only after
+  confirmation and only inside the known workbench roots.
 - First views should show current mode, gateway status, API status, strategy
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,

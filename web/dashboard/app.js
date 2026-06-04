@@ -4,6 +4,7 @@ const state = {
   dataCatalog: { datasets: [], errors: [] },
   dataDetail: null,
   workbenchStatus: {},
+  cleanupPlan: {},
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
   configDrafts: { drafts: [], errors: [] },
@@ -120,7 +121,7 @@ function interval(value) {
 function statusClass(value) {
   if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
   if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
-  if (value === "failed" || value === "rejected" || value === "timeout" || value === "unknown" || value === false) return "status-bad";
+  if (value === "bad" || value === "failed" || value === "rejected" || value === "timeout" || value === "unknown" || value === false) return "status-bad";
   return "";
 }
 
@@ -131,6 +132,13 @@ function row(cells) {
 function statusText(value) {
   const label = text(value);
   return `<span class="${statusClass(value)}">${escapeHtml(label)}</span>`;
+}
+
+function qualityBadge(status, warnings = []) {
+  const warningList = Array.isArray(warnings) ? warnings : [];
+  const suffix = warningList.length ? ` (${warningList.length})` : "";
+  const title = warningList.length ? ` title="${escapeHtml(warningList.join("; "))}"` : "";
+  return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
 function renderMetrics() {
@@ -240,13 +248,14 @@ function renderDataCatalog() {
         escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp)),
         escapeHtml(interval(dataset.median_interval_seconds)),
         escapeHtml(dataset.estimated_missing_intervals),
+        qualityBadge(dataset.quality_status, dataset.quality_warnings),
         escapeHtml(dataset.source_timezone),
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
         `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   $("data-catalog-errors").innerHTML = errors.length
     ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
@@ -267,6 +276,8 @@ function renderWorkbenchStatus() {
     ["Runs", numberText(status.run_count, 0)],
     ["Archived Runs", numberText(status.archived_run_count, 0)],
     ["Orphan Archives", numberText(status.orphaned_archive_count, 0)],
+    ["Orphan Outputs", numberText(status.orphaned_output_count, 0)],
+    ["Reclaimable", bytes(status.reclaimable_bytes)],
     ["State Size", bytes(status.state_bytes)],
     ["Draft Size", bytes(status.draft_bytes)],
     ["Archive Size", bytes(status.archived_artifact_bytes)],
@@ -278,6 +289,34 @@ function renderWorkbenchStatus() {
   ];
   $("workbench-status-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+}
+
+function pathList(items) {
+  const rows = (items || []).slice(0, 8).map((item) => (
+    `${item.path} (${bytes(item.size_bytes)})`
+  ));
+  if ((items || []).length > rows.length) {
+    rows.push(`+${(items || []).length - rows.length} more`);
+  }
+  return rows.length ? rows.join("\n") : "none";
+}
+
+function renderCleanupPlan() {
+  const plan = state.cleanupPlan || {};
+  $("cleanup-note").textContent = plan.generated_at
+    ? `${numberText(plan.reclaimable_dir_count, 0)} directories / ${bytes(plan.reclaimable_bytes)}`
+    : "Not loaded";
+  const pairs = [
+    ["Generated", text(plan.generated_at)],
+    ["Orphan Archives", numberText(plan.orphaned_archive_count, 0)],
+    ["Orphan Outputs", numberText(plan.orphaned_output_count, 0)],
+    ["Reclaimable", bytes(plan.reclaimable_bytes)],
+    ["Archive Paths", pathList(plan.orphaned_archives)],
+    ["Output Paths", pathList(plan.orphaned_outputs)],
+  ];
+  $("cleanup-plan").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
   )).join("");
 }
 
@@ -298,6 +337,8 @@ function renderDataDetail() {
     ["Largest Gap", interval(coverage.largest_gap_seconds)],
     ["Missing Est.", numberText(coverage.estimated_missing_intervals, 0)],
     ["Duplicates", numberText(coverage.duplicate_timestamps, 0)],
+    ["Quality", `${text(quality.quality_status)}${(quality.quality_warnings || []).length ? ` (${(quality.quality_warnings || []).length})` : ""}`],
+    ["Warnings", (quality.quality_warnings || []).join("; ") || "none"],
     ["TZ", text(detail.source_timezone)],
     ["Close Range", `${numberText(price.min_close)} -> ${numberText(price.max_close)}`],
     ["Total Return", pctText(price.total_return_pct)],
@@ -823,6 +864,7 @@ function renderResults() {
 function renderAll() {
   renderMetrics();
   renderWorkbenchStatus();
+  renderCleanupPlan();
   renderDataCatalog();
   renderDataDetail();
   renderConfigBuilder();
@@ -850,6 +892,7 @@ async function refresh() {
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
   const workbenchStatus = await fetchJson("/workbench_status");
+  const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
@@ -859,6 +902,7 @@ async function refresh() {
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
+  state.cleanupPlan = cleanupPlan || {};
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
   state.configRuns = configRuns || { runs: [] };
@@ -901,10 +945,13 @@ async function generateConfigDraft(event) {
   if (response.draft && response.draft.saved_path) {
     state.configDrafts = await fetchJson("/config_drafts");
     state.workbenchStatus = await fetchJson("/workbench_status");
+    state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   }
   renderConfigBuilder();
   renderWorkbenchRuns();
   renderRunComparison();
+  renderWorkbenchStatus();
+  renderCleanupPlan();
   $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
 }
 
@@ -973,12 +1020,41 @@ async function runConfigDraft(event) {
   state.configRuns = await fetchJson("/config_draft_runs?limit=20");
   state.runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
   state.workbenchStatus = await fetchJson("/workbench_status");
+  state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   if (($("config-run-action").value || "") !== "validate") {
     await loadConfigArtifacts(draftId);
   }
   renderWorkbenchRuns();
   renderRunComparison();
+  renderWorkbenchStatus();
+  renderCleanupPlan();
   $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
+}
+
+async function refreshCleanupPlan() {
+  state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
+  state.workbenchStatus = await fetchJson("/workbench_status");
+  renderWorkbenchStatus();
+  renderCleanupPlan();
+  $("last-refresh").textContent = `Cleanup plan refreshed: ${new Date().toLocaleString()}`;
+}
+
+async function runWorkbenchCleanup(dryRun) {
+  if (!dryRun && !window.confirm("Delete orphaned workbench archive/output directories?")) {
+    return;
+  }
+  const payload = { dry_run: dryRun };
+  if (!dryRun) payload.confirm = "prune-workbench";
+  const response = await fetchJson("/workbench_cleanup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  state.cleanupPlan = dryRun ? (response.plan || {}) : await fetchJson("/workbench_cleanup_plan");
+  state.workbenchStatus = await fetchJson("/workbench_status");
+  renderWorkbenchStatus();
+  renderCleanupPlan();
+  const action = dryRun ? "Cleanup dry run" : `Cleanup deleted ${numberText(response.delete_count || 0, 0)} directories`;
+  $("last-refresh").textContent = `${action}: ${new Date().toLocaleString()}`;
 }
 
 async function queueCommand(event) {
@@ -1046,6 +1122,21 @@ function init() {
   $("refresh").addEventListener("click", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Refresh failed: ${err.message}`;
+    });
+  });
+  $("cleanup-refresh").addEventListener("click", () => {
+    refreshCleanupPlan().catch((err) => {
+      $("last-refresh").textContent = `Cleanup plan failed: ${err.message}`;
+    });
+  });
+  $("cleanup-dry-run").addEventListener("click", () => {
+    runWorkbenchCleanup(true).catch((err) => {
+      $("last-refresh").textContent = `Cleanup dry run failed: ${err.message}`;
+    });
+  });
+  $("cleanup-apply").addEventListener("click", () => {
+    runWorkbenchCleanup(false).catch((err) => {
+      $("last-refresh").textContent = `Cleanup failed: ${err.message}`;
     });
   });
   $("command-form").addEventListener("submit", (event) => {
