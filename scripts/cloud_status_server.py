@@ -67,6 +67,50 @@ CONFIG_BUILDER_PLUGINS = (
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
+CONFIG_BUILDER_RISK_PRESETS = (
+    {
+        "id": "demo_minimal",
+        "label": "Demo minimal",
+        "description": "Small one-order example settings for wiring checks.",
+        "values": {
+            "max_orders_per_run": 1,
+            "max_notional_per_order": 100,
+            "max_quantity": 10,
+            "max_cash_quantity": 100,
+            "max_gross_exposure_pct": 0.05,
+            "sim_slippage_bps": 0,
+            "sim_commission_bps": 0,
+        },
+    },
+    {
+        "id": "costed_demo",
+        "label": "Costed demo",
+        "description": "Small example settings with nonzero simulated costs.",
+        "values": {
+            "max_orders_per_run": 2,
+            "max_notional_per_order": 250,
+            "max_quantity": 25,
+            "max_cash_quantity": 250,
+            "max_gross_exposure_pct": 0.10,
+            "sim_slippage_bps": 2,
+            "sim_commission_bps": 0.5,
+        },
+    },
+    {
+        "id": "larger_replay_demo",
+        "label": "Larger replay demo",
+        "description": "Larger non-live example guardrails for replay experiments.",
+        "values": {
+            "max_orders_per_run": 5,
+            "max_notional_per_order": 1000,
+            "max_quantity": 100,
+            "max_cash_quantity": 1000,
+            "max_gross_exposure_pct": 0.25,
+            "sim_slippage_bps": 5,
+            "sim_commission_bps": 1,
+        },
+    },
+)
 WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
@@ -891,6 +935,10 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     mode = str(payload.get("mode") or "replay").replace("-", "_").lower()
     if mode not in CONFIG_BUILDER_MODES:
         raise ValueError(f"mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
+    risk_preset = str(payload.get("risk_preset") or "demo_minimal").strip()
+    risk_preset_ids = {preset["id"] for preset in CONFIG_BUILDER_RISK_PRESETS}
+    if risk_preset not in risk_preset_ids:
+        raise ValueError(f"risk_preset must be one of {', '.join(sorted(risk_preset_ids))}")
 
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
     data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
@@ -913,6 +961,7 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
         "metadata": {
             "strategy_plugin": plugin["spec"],
             "status": plugin["status"],
+            "risk_preset": risk_preset,
         },
         "strategy": {
             "example_parameter": True,
@@ -989,10 +1038,12 @@ def config_builder_options() -> dict[str, Any]:
         "plugins": list(CONFIG_BUILDER_PLUGINS),
         "modes": list(CONFIG_BUILDER_MODES),
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
+        "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
         "defaults": {
             "name": "workbench_example",
             "starting_cash": 10000,
             "history_bars": 100,
+            "risk_preset": "demo_minimal",
             "max_steps": 100,
             "max_orders_per_run": 1,
             "max_notional_per_order": 100,

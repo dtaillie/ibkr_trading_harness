@@ -194,6 +194,8 @@ The Config Builder section can generate and validate example plugin-runner YAML
 from one or more selected saved datasets. It only offers public generic no-edge
 plugins and replay/shadow/simulated-paper modes; it does not submit broker
 orders. Duplicate symbols and duplicate paths are rejected before YAML is saved.
+Risk presets fill example guardrail and simulated-cost fields, but the fields
+remain editable and the presets are not trading recommendations.
 Generated drafts include a Data Alignment section with common timestamp count,
 overlap coverage, common range, per-symbol timestamp counts, and cadence or
 overlap warnings. You can preview that alignment before saving a draft.

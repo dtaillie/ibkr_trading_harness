@@ -685,6 +685,12 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         plugin_ids = {plugin["id"] for plugin in options["plugins"]}
         assert plugin_ids == {"no_edge_template"}
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
+        assert [preset["id"] for preset in options["risk_presets"]] == [
+            "demo_minimal",
+            "costed_demo",
+            "larger_replay_demo",
+        ]
+        assert options["defaults"]["risk_preset"] == "demo_minimal"
 
         draft_req = request.Request(
             f"{base}/config_draft",
@@ -695,6 +701,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
                 "starting_cash": 25000,
                 "history_bars": 20,
+                "risk_preset": "costed_demo",
                 "max_steps": 5,
                 "max_orders_per_run": 1,
                 "max_notional_per_order": 100,
@@ -713,6 +720,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["name"] == "Test_Draft"
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
+        assert draft["config"]["metadata"]["risk_preset"] == "costed_demo"
         assert draft["config"]["data"]["files"] == {"SPY": str(data_file)}
         assert draft["alignment"]["dataset_count"] == 1
         assert draft["alignment"]["symbols"] == ["SPY"]

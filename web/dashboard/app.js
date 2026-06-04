@@ -506,6 +506,10 @@ function renderConfigBuilder() {
   }));
   const modes = (options.modes || []).map((mode) => ({ value: mode, label: mode }));
   const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
+  const riskPresets = (options.risk_presets || []).map((preset) => ({
+    value: preset.id,
+    label: `${preset.label} - ${preset.description}`,
+  }));
   const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
     value: dataset.path,
     label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
@@ -518,6 +522,7 @@ function renderConfigBuilder() {
   if (plugins.length) replaceOptions($("config-plugin"), plugins);
   if (modes.length) replaceOptions($("config-mode"), modes);
   if (runActions.length) replaceOptions($("config-run-action"), runActions);
+  if (riskPresets.length) replaceOptions($("config-risk-preset"), riskPresets);
   replaceOptions($("config-dataset"), datasets);
   replaceOptions($("config-run-draft"), draftOptions);
 
@@ -527,6 +532,7 @@ function renderConfigBuilder() {
     "config-history-bars": defaults.history_bars,
     "config-max-steps": defaults.max_steps,
     "config-run-max-steps": defaults.max_steps,
+    "config-risk-preset": defaults.risk_preset,
     "config-max-orders": defaults.max_orders_per_run,
     "config-max-notional": defaults.max_notional_per_order,
     "config-max-quantity": defaults.max_quantity,
@@ -586,6 +592,26 @@ function renderConfigAlignment(alignment) {
   $("config-alignment").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+}
+
+function applyRiskPreset() {
+  const presetId = $("config-risk-preset").value;
+  const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
+  const values = preset && preset.values ? preset.values : {};
+  const fieldMap = {
+    "config-max-orders": values.max_orders_per_run,
+    "config-max-notional": values.max_notional_per_order,
+    "config-max-quantity": values.max_quantity,
+    "config-max-cash": values.max_cash_quantity,
+    "config-max-exposure": values.max_gross_exposure_pct,
+    "config-slippage": values.sim_slippage_bps,
+    "config-commission": values.sim_commission_bps,
+  };
+  for (const [id, value] of Object.entries(fieldMap)) {
+    if (value !== undefined) {
+      $(`${id}`).value = String(value);
+    }
+  }
 }
 
 function renderWorkbenchRuns() {
@@ -1033,6 +1059,7 @@ async function generateConfigDraft(event) {
     datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
     starting_cash: $("config-starting-cash").value,
     history_bars: $("config-history-bars").value,
+    risk_preset: $("config-risk-preset").value,
     max_steps: $("config-max-steps").value,
     max_orders_per_run: $("config-max-orders").value,
     max_notional_per_order: $("config-max-notional").value,
@@ -1336,6 +1363,7 @@ function init() {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("config-risk-preset").addEventListener("change", applyRiskPreset);
   for (const id of ["config-drafts-body", "config-runs-body", "comparison-body"]) {
     $(id).addEventListener("click", (event) => {
       const target = event.target;
