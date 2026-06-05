@@ -606,6 +606,96 @@ function runtimeStatusItems() {
   ];
 }
 
+function paperMonitorItems() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const latestRun = latestTelemetryRun();
+  const supervisor = latestSupervisor();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const freshness = (latestRun && latestRun.freshness) || {};
+  const supervisorFreshness = (supervisor && supervisor.freshness) || {};
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestOrder = events.find((event) => event.type === "order");
+  const latestFill = events.find((event) => event.type === "fill");
+  const gatewayReachable = gateway.enabled ? gateway.reachable : null;
+  const accountTimestamp = metricTimestamp(metrics, [
+    "account_end_time",
+    "latest_account_time",
+    "latest_account_timestamp",
+    "account_snapshot_time",
+  ]);
+  const marketTimestamp = metricTimestamp(metrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
+  const nextDecision = firstPresent(
+    metrics.next_decision_time,
+    metrics.next_expected_decision_time,
+    metrics.next_check_time,
+    metrics.next_signal_time,
+  );
+  const nextOrderContext = firstPresent(
+    metrics.next_order_condition,
+    metrics.next_order_reason,
+    metrics.latest_signal_reason,
+    metrics.signal_reason,
+    latestDecision && latestDecision.detail,
+  );
+  const mode = String(metrics.mode || "").replace("-", "_").toLowerCase();
+  const observing = Boolean(latestRun && !freshness.stale && (marketTimestamp || decisionTimestamp));
+  const stale = Boolean((freshness && freshness.stale) || (supervisorFreshness && supervisorFreshness.stale));
+  return [
+    {
+      label: "Gateway/API",
+      status: gateway.enabled ? (gatewayReachable ? "ok" : "bad") : "warn",
+      detail: gateway.enabled
+        ? gatewayReachable
+          ? `Gateway reachable at ${text(gateway.host)}:${text(gateway.port)}.`
+          : `Gateway check failed: ${text(gateway.error || "not reachable")}.`
+        : "Gateway checks are disabled; enable them to verify broker connectivity.",
+    },
+    {
+      label: "Account Freshness",
+      status: accountTimestamp ? "ok" : "warn",
+      detail: accountTimestamp
+        ? `Latest account snapshot ${timestampAgeLabel(accountTimestamp)}; ${numberText(metrics.account_snapshot_count, 0)} summarized snapshots.`
+        : "No latest account timestamp published; paper monitor cannot prove account state is fresh.",
+    },
+    {
+      label: "Config And Mode",
+      status: latestRun ? (["paper", "simulated_paper", "shadow"].includes(mode) ? "ok" : mode ? "warn" : "bad") : "bad",
+      detail: latestRun
+        ? `Run ${text(latestRun.id)} status=${text(latestRun.status)} mode=${text(metrics.mode || "unpublished")}.`
+        : "No current telemetry run is publishing config or mode.",
+    },
+    {
+      label: "Observing Market",
+      status: observing ? (stale ? "warn" : "ok") : "bad",
+      detail: observing
+        ? `Market data ${marketTimestamp ? timestampAgeLabel(marketTimestamp) : "n/a"}; latest decision ${decisionTimestamp ? timestampAgeLabel(decisionTimestamp) : "n/a"}.`
+        : "No recent market-data or decision timestamp is available from the runner.",
+    },
+    {
+      label: "Order Context",
+      status: nextOrderContext || nextDecision || latestOrder || latestFill ? "ok" : latestRun ? "warn" : "bad",
+      detail: nextOrderContext
+        ? `Latest/next condition: ${text(nextOrderContext)}.`
+        : nextDecision
+          ? `Next expected decision ${text(nextDecision)}.`
+          : latestOrder
+            ? `Latest order ${text(latestOrder.symbol)} ${text(latestOrder.status)} at ${text(latestOrder.timestamp)}.`
+            : latestFill
+              ? `Latest fill ${text(latestFill.symbol)} at ${text(latestFill.timestamp)}.`
+              : "Runner has not published the next order condition or recent order context.",
+    },
+  ];
+}
+
 function performancePeriodWindow(accountRows, period) {
   const rows = (accountRows || []).filter((item) => timestampMillis(item.timestamp) !== null);
   if (!rows.length || period === "all") {
@@ -2978,6 +3068,22 @@ function renderGateway() {
   $("gateway-list").innerHTML = pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
 }
 
+function renderPaperMonitor() {
+  if (!$("paper-monitor-guide") || !$("paper-monitor-note")) return;
+  const items = paperMonitorItems();
+  const okCount = items.filter((item) => item.status === "ok").length;
+  const badCount = items.filter((item) => item.status === "bad").length;
+  const warnCount = items.filter((item) => item.status === "warn").length;
+  $("paper-monitor-note").textContent = badCount
+    ? `${badCount} blocker${badCount === 1 ? "" : "s"} before trusting paper monitoring`
+    : warnCount
+      ? `${warnCount} paper-monitor warning${warnCount === 1 ? "" : "s"}`
+      : `${okCount} paper-monitor checks ready`;
+  $("paper-monitor-guide").innerHTML = items.map((item) => (
+    `<div class="check-item status-${escapeHtml(item.status)}"><span>${escapeHtml(item.status)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`
+  )).join("");
+}
+
 function renderHistory() {
   $("history-body").innerHTML = state.history.length
     ? state.history.map((snapshot) => {
@@ -3057,6 +3163,7 @@ function renderAll() {
   renderRemoteControl();
   renderAlerts();
   renderGateway();
+  renderPaperMonitor();
   renderHistory();
   renderCommands();
   renderResults();

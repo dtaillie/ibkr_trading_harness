@@ -505,6 +505,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - verify current config and mode
   - show whether the runner is actively streaming/evaluating
   - show what condition would trigger the next order
+  - partial; Operations now has a Paper Monitor checklist that checks
+    Gateway/API reachability, account freshness, current run config/mode,
+    market-data/decision observation, and next-order or latest-order context
+    from generic telemetry. Private/specialized runners still need to publish
+    richer next-decision fields for this to become fully green in all modes.
 
 ## P1: Operations and cloud monitoring
 

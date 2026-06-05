@@ -496,6 +496,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "comparison-filter-text" in html
         assert "runtime-status-grid" in html
         assert "runtime-status-note" in html
+        assert "paper-monitor-note" in html
+        assert "paper-monitor-guide" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html

@@ -142,6 +142,8 @@ def run_smoke(
             "doc-link-grid",
             "runtime-status-grid",
             "runtime-status-note",
+            "paper-monitor-note",
+            "paper-monitor-guide",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -209,6 +211,9 @@ def run_smoke(
             "open-run-performance",
             "open-draft-performance",
             "Run results opened",
+            "paperMonitorItems",
+            "renderPaperMonitor",
+            "Order Context",
             "status_label",
             "draft.folder",
             "draft.tags",
