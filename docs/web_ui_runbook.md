@@ -48,6 +48,17 @@ period rollups, and open/closed trade rows when artifacts include fills.
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
 
+## Review a Completed Fetch
+
+Open Fetch Jobs, choose a manifest, then inspect Fetch Detail. Use Copy Resume
+Command when a run has failed or missing work. Use Show Outputs in Data Library
+when produced files are visible under configured data roots; this filters Data
+Library to the selected fetch job's output set so you can inspect or compare
+those files without manually searching paths.
+
+If the output files are not visible, add the output directory or a parent cache
+directory to `dashboard.data_roots`, refresh, and inspect the fetch again.
+
 ## Inspect Saved Historical Data
 
 Open Data Library, search/filter to a dataset, then click Inspect. Data Detail
@@ -62,6 +73,18 @@ works offline from saved CSV/parquet files and shows:
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range.
+
+## Replay From Saved Data
+
+1. Inspect the saved dataset and review quality, gaps, nulls, timezone, and
+   date range.
+2. Open Workbench and select one or more saved datasets.
+3. Choose a public example plugin or a private local plugin from an ignored
+   registry.
+4. Preview alignment before generating a draft.
+5. Generate and validate the draft.
+6. Run replay or simulated paper.
+7. Open the result from the Runs or Workbench table and inspect Performance.
 
 ## Distinguish Result Modes
 

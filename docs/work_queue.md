@@ -257,6 +257,9 @@ strategy-private.
     - done; Help links to allowlisted local Markdown docs served by the
       dashboard, including the Web UI runbook, quickstart, privacy, publication,
       and work queue docs
+  - common workflows that connect Overview, Performance, Fetch Jobs, Data
+    Library, Workbench, and Runs
+    - done on the Help page and mirrored in the Web UI runbook
   - empty states that explain what to do next instead of showing blank tables
 - Add a short web UI README/runbook:
   - how to start the local dashboard
@@ -267,6 +270,8 @@ strategy-private.
   - how to distinguish live, paper, simulated paper, shadow, and replay results
   - what should stay private before publishing
   - done in `docs/web_ui_runbook.md` and linked from Help
+  - done; the runbook now includes completed-fetch review and replay-from-saved
+    data workflows that match the Help page
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography
