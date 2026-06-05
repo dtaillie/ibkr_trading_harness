@@ -5523,12 +5523,15 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "net_exposure": row.get("net_exposure"),
         "positions": row.get("positions") if isinstance(row.get("positions"), dict) else {},
         "position_values": row.get("position_values") if isinstance(row.get("position_values"), dict) else {},
+        "average_costs": row.get("average_costs") if isinstance(row.get("average_costs"), dict) else {},
+        "unrealized_pnl_by_symbol": row.get("unrealized_pnl_by_symbol") if isinstance(row.get("unrealized_pnl_by_symbol"), dict) else {},
         "realized_pnl": row.get("realized_pnl"),
         "unrealized_pnl": row.get("unrealized_pnl"),
         "total_pnl": row.get("total_pnl"),
         "total_commission": row.get("total_commission"),
         "total_borrow_fees": row.get("total_borrow_fees"),
         "borrow_fee_accrued": row.get("borrow_fee_accrued"),
+        "borrow_fee_accrued_by_symbol": row.get("borrow_fee_accrued_by_symbol") if isinstance(row.get("borrow_fee_accrued_by_symbol"), dict) else {},
     }
 
 

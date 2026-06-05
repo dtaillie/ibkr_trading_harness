@@ -1264,10 +1264,38 @@ function nonzeroPositionsFromSource(source) {
   const accountRow = latestAccountRow((source && source.account) || []);
   const positions = accountRow.positions || summary.final_positions || {};
   const values = accountRow.position_values || {};
+  const averageCosts = accountRow.average_costs || {};
+  const unrealizedBySymbol = accountRow.unrealized_pnl_by_symbol || {};
+  const borrowFees = accountRow.borrow_fee_accrued_by_symbol || {};
   return Object.entries(positions || {})
-    .map(([symbol, quantity]) => ({ symbol, quantity: Number(quantity), value: Number(values[symbol]) }))
+    .map(([symbol, quantity]) => {
+      const numericQuantity = Number(quantity);
+      const value = Number(values[symbol]);
+      const currentPrice = Number.isFinite(value) && numericQuantity ? value / numericQuantity : null;
+      return {
+        symbol,
+        quantity: numericQuantity,
+        value,
+        average_cost: finiteNumber(averageCosts[symbol]),
+        current_price: currentPrice,
+        unrealized_pnl: finiteNumber(unrealizedBySymbol[symbol]),
+        borrow_fee_accrued: finiteNumber(borrowFees[symbol]),
+      };
+    })
     .filter((item) => Number.isFinite(item.quantity) && item.quantity !== 0)
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+function positionDetailHtml(position, { includeQuantity = true } = {}) {
+  const detailLines = [
+    includeQuantity ? `Quantity ${numberText(position.quantity, 6)}` : "",
+    Number.isFinite(position.value) ? `Value ${money(position.value)}` : "",
+    position.average_cost !== null ? `Avg ${money(position.average_cost)}` : "",
+    position.current_price !== null ? `Price ${money(position.current_price)}` : "",
+    position.unrealized_pnl !== null ? `Unrealized ${money(position.unrealized_pnl)}` : "",
+    position.borrow_fee_accrued !== null ? `Borrow ${money(position.borrow_fee_accrued)}` : "",
+  ].filter(Boolean);
+  return detailLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("");
 }
 
 function overviewHealthChecks() {
@@ -1504,7 +1532,7 @@ function renderOverviewPositions() {
         <div class="position-card">
           <span>Symbol</span>
           <strong>${escapeHtml(item.symbol)}</strong>
-          <small>Quantity ${escapeHtml(numberText(item.quantity, 6))}${Number.isFinite(item.value) ? ` / Value ${escapeHtml(money(item.value))}` : ""}</small>
+          ${positionDetailHtml(item)}
         </div>
       `).join("")
     : `<div class="empty-card"><strong>No open positions</strong><span>The latest selected or published run is flat, or no account snapshot has been loaded.</span></div>`;
@@ -5483,7 +5511,7 @@ function renderCurrentOrdersAndPositions() {
         <div class="position-card">
           <span>${escapeHtml(position.symbol)}</span>
           <strong>${escapeHtml(numberText(position.quantity, 4))}</strong>
-          <small>${Number.isFinite(position.value) ? escapeHtml(money(position.value)) : "No value published"}</small>
+          ${positionDetailHtml(position, { includeQuantity: false })}
         </div>
       `).join("")
     : `<div class="empty-card"><strong>No managed positions</strong><span>The latest selected or published account state is flat, or no account snapshot has been loaded.</span></div>`;

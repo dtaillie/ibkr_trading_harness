@@ -151,6 +151,9 @@ strategy-private.
     - partial; position cards show symbol, quantity, and value when account
       snapshots include position values. Entry/exit-rule fields need strategy
       telemetry.
+    - partial; sanitized account snapshots now preserve public-safe average
+      cost, current value/price, unrealized PnL by symbol, and borrow fees, and
+      Overview/Runs position cards render those fields when present.
   - today's event timeline from market open/current session start through the
     latest decision
     - partial; Overview now shows the latest bounded decision/order/fill

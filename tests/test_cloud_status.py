@@ -3131,6 +3131,25 @@ def test_cloud_status_server_serves_daily_run_rollups(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_preserves_public_safe_position_accounting():
+    row = status_server.summarize_account_artifact({
+        "timestamp": "2026-01-02T14:30:00+00:00",
+        "positions": {"SPY": 2},
+        "position_values": {"SPY": 204.0},
+        "average_costs": {"SPY": 100.0},
+        "unrealized_pnl_by_symbol": {"SPY": 4.0},
+        "borrow_fee_accrued_by_symbol": {"SPY": 0.12},
+        "diagnostics": {"private": "hidden"},
+    })
+
+    assert row["positions"] == {"SPY": 2}
+    assert row["position_values"] == {"SPY": 204.0}
+    assert row["average_costs"] == {"SPY": 100.0}
+    assert row["unrealized_pnl_by_symbol"] == {"SPY": 4.0}
+    assert row["borrow_fee_accrued_by_symbol"] == {"SPY": 0.12}
+    assert "diagnostics" not in row
+
+
 def test_cloud_status_server_artifacts_reject_output_outside_workbench(tmp_path):
     data_root = tmp_path / "data"
     state_dir = tmp_path / "state"
