@@ -644,6 +644,43 @@ def test_paper_broker_safety_allows_live_port_only_with_dual_opt_in():
     assert errors == []
 
 
+def test_paper_mode_can_use_file_broker_adapter(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    broker_state = tmp_path / "file_broker_state.json"
+    broker_orders = tmp_path / "file_broker_orders.jsonl"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 2, "cash_quantity": None},
+        broker={
+            "adapter": "file",
+            "account_mode": "paper",
+            "state_path": str(broker_state),
+            "orders_path": str(broker_orders),
+            "starting_cash": 1000,
+            "prices": {"SPY": 100},
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert result.orders == 1
+    assert result.fills == 1
+    assert result.rejections == 0
+    assert result.final_cash == pytest.approx(800.0)
+    assert result.final_positions == {"SPY": 2.0}
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["simulated"] is False
+    assert fills[0]["price"] == pytest.approx(100.0)
+    broker_rows = [json.loads(line) for line in broker_orders.read_text().splitlines()]
+    assert broker_rows[0]["status"] == "filled"
+
+
 def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
@@ -662,6 +699,25 @@ def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
 
     assert "broker.account_mode must be paper or live" in str(exc.value)
     assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_unknown_broker_adapter(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"adapter": "schwab"},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "broker.adapter" in str(exc.value)
 
 
 def test_validate_config_file_reports_missing_data_file(tmp_path):

@@ -54,11 +54,14 @@ control:
   pause_marker: paper_logs/control/example_plugin_runner.pause
 
 broker:
+  adapter: ibkr
   host: 127.0.0.1
   port: 4002
   client_id: 301
   account_mode: paper
   allow_live_broker_port_for_paper: false
+  # For local adapter plumbing tests without IBKR, copy this config privately
+  # and set adapter: file with state_path/orders_path/prices.
 
 notes:
   - Example only; do not trade this.

@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core import Bar, Order, Side
 from framework.plugin_loader import create_plugin, load_object, validate_plugin_config
 from framework.strategy_plugin import OrderIntent, StrategyContext
-from live.ibkr_broker import IBKRBroker
+from live.broker_adapters import create_broker_adapter
 from live.ibkr_data import BAR_SIZES, fetch_ibkr_bars
 
 
@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 
 VALID_MODES = {"replay", "shadow", "simulated_paper", "paper"}
 SUPPORTED_ORDER_TYPES = {"market"}
+SUPPORTED_BROKER_ADAPTERS = {"ibkr", "file"}
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
 KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
 
@@ -301,11 +302,31 @@ def validate_config(
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
     validate_bool(broker_cfg.get("allow_live_broker_port_for_paper"), "broker.allow_live_broker_port_for_paper", errors)
+    adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
+    if adapter not in SUPPORTED_BROKER_ADAPTERS:
+        errors.append(f"broker.adapter must be one of {sorted(SUPPORTED_BROKER_ADAPTERS)}")
     if broker_cfg.get("host") is not None and not str(broker_cfg["host"]).strip():
         errors.append("broker.host must not be empty")
     account_mode = broker_cfg.get("account_mode")
     if account_mode is not None and str(account_mode).lower().replace("-", "_") not in {"paper", "live"}:
         errors.append("broker.account_mode must be paper or live")
+    if adapter == "file":
+        if broker_cfg.get("state_path") is not None and not str(broker_cfg["state_path"]).strip():
+            errors.append("broker.state_path must not be empty")
+        if broker_cfg.get("orders_path") is not None and not str(broker_cfg["orders_path"]).strip():
+            errors.append("broker.orders_path must not be empty")
+        validate_nonnegative_float(broker_cfg.get("starting_cash"), "broker.starting_cash", errors)
+        validate_nonnegative_float(broker_cfg.get("commission_bps"), "broker.commission_bps", errors)
+        validate_bool(broker_cfg.get("allow_short"), "broker.allow_short", errors)
+        prices = broker_cfg.get("prices")
+        if prices is not None:
+            if not isinstance(prices, dict) or not prices:
+                errors.append("broker.prices must be a non-empty mapping")
+            else:
+                for symbol, price in prices.items():
+                    if not str(symbol).strip():
+                        errors.append("broker.prices contains an empty symbol")
+                    validate_nonnegative_float(price, f"broker.prices[{symbol}]", errors, positive=True)
 
     return errors
 
@@ -933,11 +954,7 @@ class SimulatedExecutor:
 
 class PaperExecutor:
     def __init__(self, broker_cfg: dict[str, Any]):
-        self.broker = IBKRBroker(
-            host=str(broker_cfg.get("host", "127.0.0.1")),
-            port=int(broker_cfg.get("port", 4002)),
-            client_id=int(broker_cfg.get("client_id", 301)),
-        )
+        self.broker = create_broker_adapter(broker_cfg)
         self.connected = False
 
     def connect(self) -> None:

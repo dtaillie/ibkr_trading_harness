@@ -50,7 +50,9 @@ This roadmap is broader context; the queue is the current execution order.
   work.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
-  strategy plugins.
+  strategy plugins. The public runner now has an adapter factory with `ibkr`
+  and a local `file` adapter for plumbing tests; richer broker integrations
+  remain future work.
 
 ## Data and broker harness
 

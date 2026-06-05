@@ -58,6 +58,10 @@ are refused unless both the config sets
 `--allow-live-broker-port`. That override is for unusual local routing only,
 not routine paper trading.
 
+Use `broker.adapter: ibkr` for real IBKR paper execution. Use
+`broker.adapter: file` only for local adapter plumbing tests; it writes a small
+state file and order journal and fills at configured static prices.
+
 Run a continuous shadow monitor when you want the generic runner to keep
 reloading latest bars and evaluating the plugin:
 
@@ -131,6 +135,7 @@ its final summary/artifacts.
 - Gateway is logged in and API port is reachable.
 - Account is paper, not live.
 - Broker config has `account_mode: paper` and a paper API port.
+- Broker config has the intended `adapter` (`ibkr` for real paper execution).
 - Config is ignored locally and points at the intended plugin.
 - `--validate-only` passes.
 - Risk limits are small and explicit.

@@ -699,6 +699,10 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins.
+  - partial; generic paper execution now uses a broker adapter factory with
+    `ibkr` and a local file-backed adapter for public plumbing tests. Strategy
+    plugins still see the same order/fill interface. Schwab/future broker
+    adapters and richer broker capability metadata remain open.
 - Add stronger paper/live gates to prevent accidental live orders.
   - partial; generic paper mode now requires `--confirm-paper-orders`, rejects
     `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,

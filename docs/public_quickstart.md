@@ -109,6 +109,12 @@ Paper mode also checks broker safety before connecting. Use
 TWS `7497`; known live ports are refused unless both the config and CLI use the
 explicit live-port override.
 
+Broker execution is selected with `broker.adapter`. The public runner ships
+with `ibkr` for IBKR paper execution and `file` for local adapter plumbing tests
+that persist cash, positions, and submitted order rows to local files. The
+`file` adapter fills at configured static prices and is not a market simulator
+or a substitute for strategy validation.
+
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
 `paper`, reloads the latest data each interval, skips duplicate latest bars by
