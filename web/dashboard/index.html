@@ -20,6 +20,7 @@
         <button id="nav-overview" class="nav-link active" type="button" data-view-target="overview">Overview</button>
         <button id="nav-performance" class="nav-link" type="button" data-view-target="performance">Performance</button>
         <button id="nav-data" class="nav-link" type="button" data-view-target="data">Data Library</button>
+        <button id="nav-fetch" class="nav-link" type="button" data-view-target="fetch">Fetch Jobs</button>
         <button id="nav-workbench" class="nav-link" type="button" data-view-target="workbench">Workbench</button>
         <button id="nav-runs" class="nav-link" type="button" data-view-target="runs">Runs</button>
         <button id="nav-operations" class="nav-link" type="button" data-view-target="operations">Operations</button>
@@ -390,6 +391,120 @@
           </div>
         </div>
       </section>
+    </section>
+
+    <section class="dashboard-section" data-view="fetch" hidden>
+      <div class="section-head">
+        <h2>Fetch Jobs</h2>
+        <span id="fetch-jobs-note" class="section-note">No fetch manifests loaded</span>
+      </div>
+      <div class="data-library-summary">
+        <div class="data-library-card">
+          <span class="eyebrow">Jobs</span>
+          <strong id="fetch-job-count">0</strong>
+          <span id="fetch-job-status-summary">No manifests found</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Rows Pulled</span>
+          <strong id="fetch-job-rows">0</strong>
+          <span id="fetch-job-kind-summary">No kinds loaded</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Manifest Roots</span>
+          <strong id="fetch-root-count">0</strong>
+          <span id="fetch-root-note">The dashboard only sees configured manifest roots.</span>
+        </div>
+      </div>
+      <div id="fetch-root-cards" class="root-grid"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Started</th>
+              <th>Kind</th>
+              <th>Status</th>
+              <th>Bar</th>
+              <th>Range</th>
+              <th>Symbols</th>
+              <th>Chunks</th>
+              <th>Rows</th>
+              <th>Errors</th>
+              <th>Output</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="fetch-manifests-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="fetch" hidden>
+      <div class="section-head">
+        <h2>Fetch Detail</h2>
+        <span id="fetch-detail-title" class="section-note">No fetch job selected</span>
+      </div>
+      <dl id="fetch-detail-summary" class="kv wide-kv"></dl>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Symbols</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Status</th>
+                  <th>Bars</th>
+                  <th>Chunks</th>
+                  <th>Range</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="fetch-symbols-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Errors</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Symbol</th>
+                  <th>Kind</th>
+                  <th>Day</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="fetch-errors-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <div class="section-head artifact-head">
+        <h2>Outputs</h2>
+        <span id="fetch-output-note" class="section-note">No output rows selected</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Status</th>
+              <th>Day</th>
+              <th>Rows</th>
+              <th>Range</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody id="fetch-outputs-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="dashboard-section" data-view="workbench" hidden>

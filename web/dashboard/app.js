@@ -3,6 +3,8 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataDetail: null,
+  fetchManifests: { manifests: [], roots: [], errors: [] },
+  fetchManifestDetail: null,
   workbenchStatus: {},
   cleanupPlan: {},
   diagnostics: {},
@@ -689,6 +691,148 @@ function renderDataDetail() {
     : row([`<span class="muted">none</span>`, "", "", ""]);
 }
 
+function renderFetchJobs() {
+  const payload = state.fetchManifests || {};
+  const manifests = payload.manifests || [];
+  const roots = payload.roots || [];
+  const rowsTotal = manifests.reduce((sum, item) => sum + Number(item.rows || 0), 0);
+  $("fetch-jobs-note").textContent = payload.generated_at
+    ? `${numberText(manifests.length, 0)} shown / ${numberText(payload.total || manifests.length, 0)} total`
+    : "No fetch manifests loaded";
+  $("fetch-job-count").textContent = numberText(manifests.length, 0);
+  $("fetch-job-status-summary").textContent = countSummary(payload.status_counts);
+  $("fetch-job-rows").textContent = numberText(rowsTotal, 0);
+  $("fetch-job-kind-summary").textContent = countSummary(payload.kind_counts);
+  $("fetch-root-count").textContent = numberText(roots.length, 0);
+  $("fetch-root-note").textContent = roots.length
+    ? `${numberText(roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0), 0)} manifest files under configured roots`
+    : "No fetch manifest roots configured";
+  $("fetch-root-cards").innerHTML = roots.length
+    ? roots.map((root) => {
+        const status = !root.exists ? "bad" : !root.is_dir ? "bad" : Number(root.manifest_count || 0) ? "ok" : "warn";
+        return `
+          <div class="root-card">
+            <span>${statusText(status)}</span>
+            <strong>${escapeHtml(numberText(root.manifest_count, 0))} jobs</strong>
+            <small class="mono">${escapeHtml(root.display_path || root.path)}</small>
+            <small>writable=${escapeHtml(text(root.writable))}</small>
+          </div>
+        `;
+      }).join("")
+    : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
+  const errors = payload.errors || [];
+  const errorRows = errors.map((item) => row([
+    escapeHtml(item.path),
+    "",
+    statusText("bad"),
+    "",
+    "",
+    "",
+    "",
+    "",
+    escapeHtml(item.error),
+    "",
+    "",
+  ]));
+  const manifestRows = manifests.map((item) => {
+    const symbolSummary = [
+      `ok ${numberText(item.success_symbols, 0)}`,
+      `empty ${numberText(item.empty_symbols, 0)}`,
+      `failed ${numberText(item.failed_symbols, 0)}`,
+      `skipped ${numberText(item.skipped_symbols, 0)}`,
+    ].join(" / ");
+    const chunkSummary = [
+      `ok ${numberText(item.success_chunks, 0)}`,
+      `empty ${numberText(item.empty_chunks, 0)}`,
+      `failed ${numberText(item.failed_chunks, 0)}`,
+      item.pending_chunks !== undefined && item.pending_chunks !== null ? `planned ${numberText(item.pending_chunks, 0)}` : "",
+    ].filter(Boolean).join(" / ");
+    const output = item.latest_output_path || item.out_dir || item.first_output_path || "";
+    return row([
+      escapeHtml(item.started_at),
+      escapeHtml(item.kind),
+      statusText(item.status),
+      escapeHtml(item.bar_size),
+      escapeHtml(rangeLabel(item.range_start, item.range_end || item.duration || item.months)),
+      escapeHtml(symbolSummary),
+      escapeHtml(chunkSummary),
+      escapeHtml(numberText(item.rows, 0)),
+      `<span class="${Number(item.errors || 0) ? "status-warn" : "status-ok"}">${escapeHtml(numberText(item.errors, 0))}</span>`,
+      `<span class="mono">${escapeHtml(output)}</span>`,
+      `<button type="button" class="secondary inspect-fetch" data-job-id="${escapeHtml(item.job_id)}">Inspect</button>`,
+    ]);
+  });
+  $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
+    ? manifestRows.concat(errorRows).join("")
+    : row([`<span class="muted">No fetch manifests yet. Run a fetch command to create one.</span>`, "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderFetchManifestDetail() {
+  const detail = state.fetchManifestDetail || {};
+  $("fetch-detail-title").textContent = detail.job_id
+    ? `${text(detail.job_id)} - ${text(detail.status)}`
+    : "No fetch job selected";
+  const counts = detail.counts || {};
+  const plan = detail.plan || {};
+  const parameters = detail.parameters || {};
+  const pairs = [
+    ["Job", text(detail.job_id)],
+    ["Kind", text(detail.kind)],
+    ["Status", text(detail.status)],
+    ["Started", text(detail.started_at)],
+    ["Finished", text(detail.finished_at)],
+    ["Bar / Range", `${text(parameters.bar_size)} ${rangeLabel(plan.range_start || parameters.start, plan.range_end || parameters.end || parameters.duration)}`],
+    ["Symbols", JSON.stringify(counts.status_counts || {})],
+    ["Outputs", `${numberText(detail.output_total, 0)} total / rows ${numberText(counts.rows, 0)}`],
+    ["Output Statuses", JSON.stringify(counts.output_status_counts || {})],
+    ["Errors", `${numberText(detail.error_total, 0)} total ${JSON.stringify(counts.error_kind_counts || {})}`],
+    ["Output Dir", text(parameters.out_dir)],
+    ["Manifest", text(detail.path)],
+  ];
+  $("fetch-detail-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
+  )).join("");
+
+  const symbols = detail.symbols || [];
+  $("fetch-symbols-body").innerHTML = symbols.length
+    ? symbols.map((item) => row([
+        escapeHtml(item.symbol),
+        statusText(item.status),
+        escapeHtml(numberText(item.bars, 0)),
+        escapeHtml(`${numberText(item.chunks_completed, 0)} / fail ${numberText(item.chunks_failed, 0)} / skip ${numberText(item.chunks_skipped, 0)}`),
+        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        escapeHtml(item.message),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+
+  const errors = detail.errors || [];
+  $("fetch-errors-body").innerHTML = errors.length
+    ? errors.slice().reverse().map((item) => row([
+        escapeHtml(item.timestamp),
+        escapeHtml(item.symbol),
+        statusText(item.kind),
+        escapeHtml(item.day),
+        escapeHtml(item.message),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", ""]);
+
+  const outputs = detail.outputs || [];
+  $("fetch-output-note").textContent = detail.job_id
+    ? `${numberText(outputs.length, 0)} shown / ${numberText(detail.output_total, 0)} total`
+    : "No output rows selected";
+  $("fetch-outputs-body").innerHTML = outputs.length
+    ? outputs.slice().reverse().map((item) => row([
+        escapeHtml(item.timestamp),
+        escapeHtml(item.symbol),
+        statusText(item.status),
+        escapeHtml(item.day),
+        escapeHtml(numberText(item.rows, 0)),
+        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
+}
+
 function replaceOptions(select, options) {
   const currentValues = select.multiple
     ? new Set(Array.from(select.selectedOptions).map((option) => option.value))
@@ -1318,6 +1462,8 @@ function renderAll() {
   renderEndpointMap();
   renderDataCatalog();
   renderDataDetail();
+  renderFetchJobs();
+  renderFetchManifestDetail();
   renderConfigBuilder();
   renderWorkbenchRuns();
   renderRunComparison();
@@ -1343,6 +1489,7 @@ async function refresh() {
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
+  const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const diagnostics = await fetchJson("/workbench_diagnostics");
@@ -1356,6 +1503,7 @@ async function refresh() {
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+  state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
   state.diagnostics = diagnostics || {};
@@ -1438,6 +1586,13 @@ async function loadDataDetail(path) {
   state.dataDetail = response;
   renderDataDetail();
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadFetchManifestDetail(jobId) {
+  const response = await fetchJson(`/fetch_manifest_detail?job_id=${encodeURIComponent(jobId)}&limit=500`);
+  state.fetchManifestDetail = response;
+  renderFetchManifestDetail();
+  $("last-refresh").textContent = `Fetch manifest loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadConfigArtifacts(draftId) {
@@ -1839,6 +1994,13 @@ function init() {
     if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
     loadDataDetail(target.dataset.path || "").catch((err) => {
       $("last-refresh").textContent = `Data detail failed: ${err.message}`;
+    });
+  });
+  $("fetch-manifests-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-fetch")) return;
+    loadFetchManifestDetail(target.dataset.jobId || "").catch((err) => {
+      $("last-refresh").textContent = `Fetch manifest detail failed: ${err.message}`;
     });
   });
   $("commands-body").addEventListener("click", (event) => {

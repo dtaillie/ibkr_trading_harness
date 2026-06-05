@@ -4,6 +4,13 @@ This is the current prioritized queue. It is intentionally product-heavy:
 trading research stays at the bottom until the public workbench is easier to
 understand, operate, and trust.
 
+Current product direction: make the web UI feel like a modern brokerage app in
+clarity and pacing, closer to Robinhood's simple portfolio-first mental model
+than a developer status dump. This does not mean copying Robinhood's interface;
+it means clear navigation, clean performance views, obvious empty states, and
+fast answers to "what is running?", "how is it doing?", and "what data do I
+have?".
+
 ## P0: Web UI product overhaul
 
 Goal: make the dashboard feel like a modern trading app, closer to Robinhood's
@@ -11,8 +18,19 @@ clarity and visual rhythm, while keeping this project local-first and
 strategy-private.
 
 - Progress: initial app-shell navigation, Overview, Performance, Data Library,
-  Operations, Workbench, Runs, and Help views are implemented. The next pass
-  should improve chart depth, drilldowns, visual polish, and guided workflows.
+  Fetch Jobs, Operations, Workbench, Runs, and Help views are implemented. The
+  next pass should improve chart depth, drilldowns, visual polish, and guided
+  workflows.
+- Define page-level user outcomes before adding more controls:
+  - Overview should answer whether the current strategy is healthy in under
+    ten seconds.
+  - Performance should show today's result, recent result, all-time paper
+    result, and drawdown without opening logs.
+  - Data Library should explain why a symbol is visible or missing.
+  - Workbench should guide a user from saved data to a validated replay config.
+  - Runs should make every decision, order, fill, rejection, and artifact
+    inspectable.
+  - Help should make a first-time user productive without reading source code.
 - Redesign the app shell so the dashboard is not one long page. Add persistent
   navigation with clear sections:
   - Overview
@@ -23,6 +41,15 @@ strategy-private.
   - Fetch Jobs
   - Operations
   - Help
+- Add a more intuitive first-run experience:
+  - show a setup checklist when no current run is publishing telemetry
+  - distinguish "nothing is running" from "running but no signal today"
+  - distinguish "no saved data configured" from "data exists but root is not
+    scanned"
+  - surface the exact local config/data-root/action that would resolve each
+    empty state
+  - add "what changed since last refresh" cues for new signals, fills, rejects,
+    and fetch completions
 - Build a clean Overview page for the current running strategy state:
   - mode badge: replay, shadow, simulated paper, paper, or live
   - gateway/API status
@@ -32,15 +59,26 @@ strategy-private.
   - next expected decision window
   - stale-data, stale-account, rejected-order, risk-limit, and gateway-login
     alerts
+  - open-position cards with symbol, entry time, entry price, current price,
+    PnL, age, intended hold window, and active exit rule
+  - today's event timeline from market open/current session start through the
+    latest decision
 - Add a Strategy Performance page with charts and summaries:
+  - current active strategy selector
+  - current strategy snapshot independent of historical run comparison tables
   - equity curve
   - drawdown curve
   - daily return bars
   - calendar heatmap
+  - intraday equity/PnL chart for today's run when minute bars or account
+    snapshots are available
   - open/closed trade table
   - win/loss, average win/loss, profit factor, max drawdown, exposure, turnover
   - benchmark overlay where appropriate
   - clear short-horizon projection caveats for per-day/month/year stats
+  - selectable period presets: today, week, month, 3 months, all available
+  - obvious difference between realized historical backtest, simulated paper,
+    IBKR paper, and live account metrics
 - Add a Runs and Orders page:
   - searchable run history
   - session timeline of decisions, orders, fills, rejects, account snapshots
@@ -58,16 +96,33 @@ strategy-private.
 - Add a Help page and contextual help:
   - first-run checklist
   - "What am I looking at?" explanations for each major page
+  - "How do I know today's strategy performance?" walkthrough
+  - "Why do I only see SPY and QQQ?" diagnostic walkthrough
+  - "How do I inspect historical data I already fetched?" walkthrough
+  - "What should be private before publishing this repo?" checklist
   - glossary: runner, draft, replay, shadow, simulated paper, paper, fill,
     reject, artifact, data root, stale bar
   - links to the relevant quickstart sections
   - empty states that explain what to do next instead of showing blank tables
 - Improve visual design:
+  - brokerage-app visual rhythm: portfolio value first, concise stats, light
+    surfaces, clear green/red performance language, and calm typography
   - modern app-shell layout, restrained cards, clean spacing, readable tables
+  - a cleaner top-level hierarchy so users are not forced through dense
+    developer tables before seeing performance
   - green/red performance language, neutral backgrounds, clear status badges
   - responsive mobile/tablet views
   - chart-first summaries instead of dense text-first tables
   - avoid nested cards and oversized marketing layout
+- Add UI quality gates:
+  - screenshot-smoke every top-level page at desktop and mobile widths
+  - empty-state smoke tests for no status, no data roots, no runs, and no saved
+    drafts
+  - seeded demo-state smoke tests with many symbols, multiple runs, fills,
+    rejects, and warnings
+  - accessibility pass for labels, focus states, keyboard navigation, and color
+    contrast
+  - no overlapping text in tables, cards, charts, or mobile navigation
 
 ## P0: Data Library and saved-data visibility
 
@@ -87,6 +142,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - verify whether dashboard data roots are only pointed at example data
   - verify whether parquet files, cache paths, or naming conventions are being
     skipped by the catalog scanner
+  - report exact counts by root, asset class, bar size, file extension, source,
+    and skipped-file reason
+  - show whether a symbol is missing because the file does not exist, the root
+    is not configured, the parser skipped it, the timestamps failed validation,
+    or the source returned no data
 - Expand data-root configuration for the dashboard:
   - support multiple roots in config and CLI
   - include real cache roots in private/local config
@@ -105,29 +165,59 @@ QQQ show up, treat that as a bug until proven otherwise.
   - line/candlestick chart for saved files
   - volume chart
   - selectable date range
+  - symbol picker that can load every scanned symbol, not just public examples
   - gap markers
   - sampled and full-resolution modes
   - compare two or more symbols on the same time range
+  - offline mode for browsing saved files without connecting to IBKR or any
+    live runner
+  - clear timestamp timezone display and conversion to local/UTC/Eastern where
+    relevant
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
   - missing-day and missing-minute summaries
   - "why is this symbol not visible?" diagnostic
   - data-root scan errors in the UI
+  - root-by-root scan duration, file count, skipped count, and parser error
+    count
+  - warning when the catalog result is capped and not all symbols are shown
 - Add saved fetch manifests:
+  - Progress: stock and crypto fetchers write dashboard-readable JSON manifests
+    under `paper_logs/fetch_manifests` by default; the dashboard has Fetch Jobs
+    list/detail endpoints and UI. The crypto fetcher still keeps its chunk CSV
+    for resumability.
   - every fetch run should write a manifest with symbols, bar size, duration,
     start/end, output files, success/failure counts, pacing pauses, and errors
+    - mostly done; remaining gap is richer pacing-pause and retry summaries in
+      the JSON manifest
   - manifests should be visible from the dashboard
+    - done for list/detail views
   - failed/missing symbols should be resumable from a manifest
+    - partial; crypto still resumes from chunk CSV/empty markers, but JSON
+      manifest resume input is not implemented yet
+  - fetch manifests should connect directly to Data Library rows so a user can
+    go from a completed fetch job to the symbols and files it produced
+    - partial; output paths are shown, direct Data Library cross-linking is not
+      implemented yet
 
 ## P1: Fetch jobs and backend data reliability
 
 - Add fetch-job screens:
   - active/completed jobs
+    - completed jobs are visible; active jobs appear when the manifest is being
+      updated during a running fetch
   - progress by symbol and chunk
+    - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time
+    - logged by crypto fetcher, not yet persisted into JSON manifests
   - success/failure/retry counts
+    - partial; success/failure/no-data counts are persisted, retry counts need
+      richer per-attempt recording
   - pacing waits
+    - partial; configured pacing delay is persisted, actual wait events are not
+      summarized yet
   - current output path
+    - done for manifest outputs and latest output path
 - Standardize historical storage:
   - consistent symbol naming
   - consistent bar-size naming
@@ -145,6 +235,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - nested cache paths
   - crypto 24/7 files
   - malformed/skipped files with visible reasons
+- Add data ingestion acceptance tests:
+  - a fixture with hundreds of synthetic symbols must show more than the public
+    SPY/QQQ examples
+  - nested stock cache paths must be discovered
+  - nested crypto cache paths must be discovered
+  - parser skip reasons must be returned to the UI, not only logged
+  - catalog limits must be visible and user-adjustable through config
 
 ## P1: Public workbench usability
 
@@ -163,6 +260,19 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add saved draft folders/tags/status labels.
 - Add safer empty states and validation messages.
 - Add a "copy command" affordance for local CLI commands.
+- Add a guided "simulate from saved data" path:
+  - choose one or more scanned symbols
+  - choose a date range
+  - select an example or private plugin
+  - validate data alignment
+  - run replay or simulated paper
+  - open the resulting performance page
+- Add a guided "paper monitor" path:
+  - verify Gateway/API status
+  - verify account state freshness
+  - verify current config and mode
+  - show whether the runner is actively streaming/evaluating
+  - show what condition would trigger the next order
 
 ## P1: Operations and cloud monitoring
 
@@ -250,7 +360,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 ## P5: Trading research
 
 Trading research is intentionally below UI, data reliability, operations, and
-framework work for now.
+framework work for now. Do not promote new strategy experiments above the
+dashboard/data work unless there is a direct operational need for paper trading
+or data validation.
 
 - Continue crypto candidate robustness checks only after monitoring and data
   visibility are improved.

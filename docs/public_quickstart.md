@@ -25,6 +25,8 @@ python3 live/fetch_history.py \
 ```
 
 This is data-only. It does not submit orders.
+The command writes a JSON fetch manifest under `paper_logs/fetch_manifests`
+unless `--no-manifest` is passed.
 
 ## 3. Fetch Historical Crypto Data
 
@@ -40,6 +42,8 @@ python3 live/fetch_crypto_history.py \
 ```
 
 Crypto data availability depends on IBKR permissions and venue support.
+The command writes both its existing resumability CSV under the crypto cache
+and a dashboard-readable JSON fetch manifest under `paper_logs/fetch_manifests`.
 
 ## 4. Write a Strategy Plugin
 
@@ -172,11 +176,13 @@ python3 scripts/publish_status.py \
 ```
 
 Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
-workbench into Overview, Performance, Data Library, Workbench, Runs,
+workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 Performance summarizes the latest run or selected artifact; Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
-historical previews. Operations shows node health, Gateway reachability,
+historical previews. Fetch Jobs shows historical-data pull manifests, status
+counts, no-data chunks, errors, produced output files, and per-symbol progress.
+Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
@@ -198,6 +204,10 @@ config for one run. If Data Library only shows the public SPY/QQQ examples,
 check the root cards: the dashboard will call out likely local roots that exist
 but are not currently configured. Data roots are scanned locally; the dashboard
 receives coverage summaries and small downsampled previews, not full bar files.
+The `dashboard.fetch_manifest_roots` list controls where Fetch Jobs looks for
+JSON fetch manifests. The default fetch commands write to
+`paper_logs/fetch_manifests`; add that root to local dashboard config when you
+want fetch jobs visible.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, volume stats, and a compact ok/warn/bad quality summary.

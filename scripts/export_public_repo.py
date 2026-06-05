@@ -30,6 +30,7 @@ COPY_FILES = [
     "docs/public_copy_manifest.md",
     "docs/blog_public_ibkr_harness_draft.md",
     "live/__init__.py",
+    "live/fetch_manifest.py",
     "live/fetch_history.py",
     "live/fetch_crypto_history.py",
     "live/ibkr_broker.py",

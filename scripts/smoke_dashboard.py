@@ -61,9 +61,12 @@ def run_smoke(
             "nav-overview",
             "nav-performance",
             "nav-data",
+            "nav-fetch",
             "performance-equity",
             "data-root-cards",
             "data-catalog-limit",
+            "fetch-manifests-body",
+            "fetch-detail-summary",
             "data-filter-quality",
             "data-filter-asset",
             "data-filter-source",
@@ -90,6 +93,8 @@ def run_smoke(
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
             "workbench_endpoints",
+            "fetch_manifests",
+            "fetch_manifest_detail",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
@@ -120,10 +125,15 @@ def run_smoke(
         endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
         if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
+        if ("GET", "/fetch_manifests") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing fetch_manifests")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
-        if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot:
+        if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
             raise RuntimeError("workbench snapshot export is invalid")
+        fetch_manifests = fetch_json(base_url, "/fetch_manifests?limit=5")
+        if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:
+            raise RuntimeError("fetch manifest summary is invalid")
 
         alignment_count = 0
         datasets = catalog.get("datasets") or []
@@ -140,6 +150,7 @@ def run_smoke(
             "catalog_count": catalog.get("count", 0),
             "diagnostics_status": diagnostics.get("status"),
             "endpoint_count": endpoint_map.get("count", 0),
+            "fetch_manifest_count": fetch_manifests.get("count", 0),
             "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
             "risk_preset_count": len(options.get("risk_presets") or []),
             "draft_validation_count": draft_validations.get("count", 0),

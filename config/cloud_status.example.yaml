@@ -44,6 +44,8 @@ dashboard:
   auth_token_env: null  # e.g. TRADING_STATUS_TOKEN
   data_roots:
     - examples/data
+  fetch_manifest_roots:
+    - paper_logs/fetch_manifests
 
 notes:
   - Keep real endpoint tokens in environment variables, not config files.

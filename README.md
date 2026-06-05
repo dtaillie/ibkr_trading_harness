@@ -53,6 +53,11 @@ python3 live/fetch_history.py \
   --rth
 ```
 
+Fetch commands write dashboard-readable JSON job manifests under
+`paper_logs/fetch_manifests` by default. The dashboard's Fetch Jobs page uses
+those manifests to show what was fetched, what failed, and which output files
+were produced.
+
 Fetch crypto bars from IBKR Zero Hash:
 
 ```bash
@@ -193,13 +198,15 @@ publish runner summaries, supervisor status, remote-control audit summaries,
 and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
 stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
-dashboard now uses separate Overview, Performance, Data Library, Workbench,
-Runs, Operations, and Help views instead of one long status page. It shows
+dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
+Workbench, Runs, Operations, and Help views instead of one long status page. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, and local disk usage. It can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small
-downsampled price previews. Individual datasets can be
+downsampled price previews. The Fetch Jobs view reads JSON manifests from
+configured manifest roots, summarizing historical-data pulls by status,
+symbols, chunks, rows, output paths, no-data chunks, and errors. Individual datasets can be
 inspected for larger sampled price paths, null counts, gap rows, price/return
 stats, volume stats, and a compact ok/warn/bad quality summary before they are
 used in a replay config. The saved-data table can be filtered by search text,

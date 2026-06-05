@@ -104,6 +104,83 @@ def write_audit_log(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
+def write_fetch_manifest(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": "stock_history_20260102",
+                "kind": "stock_history",
+                "status": "completed",
+                "started_at": "2026-01-02T14:30:00+00:00",
+                "finished_at": "2026-01-02T14:31:00+00:00",
+                "parameters": {
+                    "bar_size": "5min",
+                    "duration": "1 D",
+                    "out_dir": "cache/ibkr",
+                },
+                "plan": {
+                    "range_start": "2026-01-02",
+                    "range_end": "2026-01-02",
+                },
+                "symbols_requested": ["SPY", "QQQ"],
+                "symbols": {
+                    "SPY": {
+                        "symbol": "SPY",
+                        "status": "ok",
+                        "bars": 3,
+                        "first_timestamp": "2026-01-02T14:30:00+00:00",
+                        "last_timestamp": "2026-01-02T14:40:00+00:00",
+                    },
+                    "QQQ": {
+                        "symbol": "QQQ",
+                        "status": "failed",
+                        "message": "No market data permissions",
+                    },
+                },
+                "outputs": [
+                    {
+                        "timestamp": "2026-01-02T14:31:00+00:00",
+                        "symbol": "SPY",
+                        "status": "ok",
+                        "rows": 3,
+                        "path": "cache/ibkr/SPY_5min.parquet",
+                    }
+                ],
+                "errors": [
+                    {
+                        "timestamp": "2026-01-02T14:31:00+00:00",
+                        "symbol": "QQQ",
+                        "kind": "permission",
+                        "message": "No market data permissions",
+                    }
+                ],
+                "events": [],
+                "counts": {
+                    "requested_symbols": 2,
+                    "tracked_symbols": 2,
+                    "success_symbols": 1,
+                    "failed_symbols": 1,
+                    "partial_symbols": 0,
+                    "empty_symbols": 0,
+                    "skipped_symbols": 0,
+                    "outputs": 1,
+                    "errors": 1,
+                    "rows": 3,
+                    "success_chunks": 1,
+                    "empty_chunks": 0,
+                    "failed_chunks": 1,
+                    "status_counts": {"failed": 1, "ok": 1},
+                    "output_status_counts": {"ok": 1},
+                    "error_kind_counts": {"permission": 1},
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+
 def test_collect_status_from_run_dir(tmp_path):
     run_dir = tmp_path / "run"
     supervisor_state = tmp_path / "supervisor" / "status.json"
@@ -373,6 +450,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
         assert "nav-performance" in html
+        assert "nav-fetch" in html
+        assert "fetch-manifests-body" in html
         assert "performance-equity" in html
         assert "config-form" in html
         assert "endpoint-map-body" in html
@@ -399,6 +478,8 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
+        assert ("GET", "/fetch_manifests") in endpoints
+        assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
         assert ("POST", "/config_draft/run") in endpoints
@@ -512,6 +593,8 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "  auth_token_env: TOKEN_ENV",
                 "  data_roots:",
                 f"    - {data_root}",
+                "  fetch_manifest_roots:",
+                f"    - {tmp_path / 'fetch_manifests'}",
             ]
         )
         + "\n",
@@ -526,18 +609,64 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert settings["dashboard_dir"] == Path("custom_dashboard")
     assert settings["auth_token_env"] == "TOKEN_ENV"
     assert settings["data_roots"] == [data_root]
+    assert settings["fetch_manifest_roots"] == [tmp_path / "fetch_manifests"]
 
     override = status_server.dashboard_server_settings(
         config_path,
         host="127.0.0.1",
         port=0,
         data_roots=[tmp_path / "override"],
+        fetch_manifest_roots=[tmp_path / "manifest_override"],
         auth_token_env="OTHER_TOKEN",
     )
     assert override["host"] == "127.0.0.1"
     assert override["port"] == 0
     assert override["data_roots"] == [tmp_path / "override"]
+    assert override["fetch_manifest_roots"] == [tmp_path / "manifest_override"]
     assert override["auth_token_env"] == "OTHER_TOKEN"
+
+
+def test_cloud_status_server_serves_fetch_manifests(tmp_path):
+    manifest_root = tmp_path / "fetch_manifests"
+    write_fetch_manifest(manifest_root / "stock_history_20260102.json")
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        fetch_manifest_roots=[manifest_root],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/fetch_manifests?limit=5", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["count"] == 1
+        assert payload["total"] == 1
+        assert payload["status_counts"] == {"completed": 1}
+        assert payload["kind_counts"] == {"stock_history": 1}
+        assert payload["roots"][0]["manifest_count"] == 1
+        manifest = payload["manifests"][0]
+        assert manifest["job_id"] == "stock_history_20260102"
+        assert manifest["status"] == "completed"
+        assert manifest["symbols_requested"] == 2
+        assert manifest["success_symbols"] == 1
+        assert manifest["failed_symbols"] == 1
+        assert manifest["rows"] == 3
+        assert manifest["error_kind_counts"] == {"permission": 1}
+
+        with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["job_id"] == "stock_history_20260102"
+        assert detail["output_total"] == 1
+        assert detail["error_total"] == 1
+        assert detail["symbols"][0]["symbol"] in {"QQQ", "SPY"}
+        assert detail["outputs"][0]["path"] == "cache/ibkr/SPY_5min.parquet"
+        assert detail["errors"][0]["kind"] == "permission"
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_cloud_status_server_serves_data_catalog(tmp_path):

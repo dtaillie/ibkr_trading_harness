@@ -56,6 +56,7 @@ COMMAND_PARAM_FIELDS = {
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
+DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
 SUGGESTED_DATA_ROOTS = (
     ROOT / "cache",
     ROOT / "cache" / "ibkr",
@@ -194,6 +195,20 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Inspect one saved data file with coverage, gap, null, and price summaries.",
         "response": "JSON dataset detail",
+    },
+    {
+        "method": "GET",
+        "path": "/fetch_manifests",
+        "category": "data",
+        "description": "List historical-data fetch job manifests.",
+        "response": "JSON fetch-job manifest summaries",
+    },
+    {
+        "method": "GET",
+        "path": "/fetch_manifest_detail",
+        "category": "data",
+        "description": "Inspect one historical-data fetch job manifest.",
+        "response": "JSON fetch-job manifest detail",
     },
     {
         "method": "POST",
@@ -540,6 +555,15 @@ def parse_data_roots(raw_roots: list[Path] | None) -> list[Path]:
     return out
 
 
+def parse_fetch_manifest_roots(raw_roots: list[Path] | None) -> list[Path]:
+    roots = raw_roots if raw_roots else list(DEFAULT_FETCH_MANIFEST_ROOTS)
+    out = []
+    for root in roots:
+        path = root if root.is_absolute() else ROOT / root
+        out.append(path.resolve())
+    return out
+
+
 def read_optional_yaml_mapping(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise ValueError(f"config file does not exist: {path}")
@@ -558,6 +582,7 @@ def dashboard_server_settings(
     state_dir: Path | None = None,
     dashboard_dir: Path | None = None,
     data_roots: list[Path] | None = None,
+    fetch_manifest_roots: list[Path] | None = None,
     auth_token_env: str | None = None,
 ) -> dict[str, Any]:
     settings: dict[str, Any] = {
@@ -566,6 +591,7 @@ def dashboard_server_settings(
         "state_dir": Path("paper_logs/cloud_status_server"),
         "dashboard_dir": DEFAULT_DASHBOARD_DIR,
         "data_roots": None,
+        "fetch_manifest_roots": None,
         "auth_token_env": None,
     }
     if config_path is not None:
@@ -588,6 +614,11 @@ def dashboard_server_settings(
             if not isinstance(raw_roots, list):
                 raise ValueError("dashboard.data_roots must be a list")
             settings["data_roots"] = [Path(str(root)) for root in raw_roots]
+        if dashboard.get("fetch_manifest_roots") is not None:
+            raw_roots = dashboard["fetch_manifest_roots"]
+            if not isinstance(raw_roots, list):
+                raise ValueError("dashboard.fetch_manifest_roots must be a list")
+            settings["fetch_manifest_roots"] = [Path(str(root)) for root in raw_roots]
 
     if host is not None:
         settings["host"] = host
@@ -599,6 +630,8 @@ def dashboard_server_settings(
         settings["dashboard_dir"] = dashboard_dir
     if data_roots is not None:
         settings["data_roots"] = data_roots
+    if fetch_manifest_roots is not None:
+        settings["fetch_manifest_roots"] = fetch_manifest_roots
     if auth_token_env is not None:
         settings["auth_token_env"] = auth_token_env
     return settings
@@ -949,6 +982,178 @@ def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
     for row in catalog["datasets"]:
         writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
     return out.getvalue()
+
+
+def fetch_manifest_root_row(root: Path) -> dict[str, Any]:
+    row = writable_probe(root, expect_dir=True)
+    row["display_path"] = root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root)
+    row["manifest_count"] = fetch_manifest_count(root)
+    return row
+
+
+def fetch_manifest_count(root: Path, *, limit: int = 10_000) -> int:
+    if not root.exists() or not root.is_dir():
+        return 0
+    count = 0
+    for path in root.rglob("*.json"):
+        if path.is_file():
+            count += 1
+            if count >= limit:
+                break
+    return count
+
+
+def fetch_manifest_candidates(fetch_manifest_roots: list[Path]) -> list[tuple[Path, Path]]:
+    files: list[tuple[Path, Path]] = []
+    for root in fetch_manifest_roots:
+        if not root.exists() or not root.is_dir():
+            continue
+        for path in root.rglob("*.json"):
+            if path.is_file():
+                files.append((path, root))
+    return sorted(files, key=lambda item: item[0].stat().st_mtime, reverse=True)
+
+
+def read_fetch_manifest(path: Path) -> dict[str, Any]:
+    with path.open() as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError("fetch manifest must be a JSON object")
+    return payload
+
+
+def summarize_fetch_manifest(path: Path, *, root: Path) -> dict[str, Any]:
+    payload = read_fetch_manifest(path)
+    stat = path.stat()
+    counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    parameters = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), list) else []
+    errors = payload.get("errors") if isinstance(payload.get("errors"), list) else []
+    symbols = payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else []
+    output_paths = [
+        str(row.get("path"))
+        for row in outputs
+        if isinstance(row, dict) and row.get("path")
+    ]
+    first_output = outputs[0] if outputs and isinstance(outputs[0], dict) else {}
+    latest_output = outputs[-1] if outputs and isinstance(outputs[-1], dict) else {}
+    return {
+        "job_id": payload.get("job_id") or path.stem,
+        "path": display_path(path),
+        "root": display_path(root),
+        "kind": payload.get("kind"),
+        "status": payload.get("status"),
+        "started_at": payload.get("started_at"),
+        "finished_at": payload.get("finished_at"),
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "size_bytes": stat.st_size,
+        "symbols_requested": counts.get("requested_symbols", len(symbols)),
+        "tracked_symbols": counts.get("tracked_symbols"),
+        "success_symbols": counts.get("success_symbols"),
+        "failed_symbols": counts.get("failed_symbols"),
+        "partial_symbols": counts.get("partial_symbols"),
+        "empty_symbols": counts.get("empty_symbols"),
+        "skipped_symbols": counts.get("skipped_symbols"),
+        "outputs": counts.get("outputs", len(outputs)),
+        "errors": counts.get("errors", len(errors)),
+        "rows": counts.get("rows"),
+        "success_chunks": counts.get("success_chunks"),
+        "empty_chunks": counts.get("empty_chunks"),
+        "failed_chunks": counts.get("failed_chunks"),
+        "error_kind_counts": counts.get("error_kind_counts") or {},
+        "status_counts": counts.get("status_counts") or {},
+        "output_status_counts": counts.get("output_status_counts") or {},
+        "bar_size": parameters.get("bar_size"),
+        "duration": parameters.get("duration"),
+        "months": parameters.get("months"),
+        "exchange": parameters.get("exchange"),
+        "out_dir": parameters.get("out_dir"),
+        "pending_chunks": plan.get("pending_chunks"),
+        "skipped_existing_chunks": plan.get("skipped_existing_chunks"),
+        "range_start": plan.get("range_start") or parameters.get("start"),
+        "range_end": plan.get("range_end") or parameters.get("end"),
+        "first_output_path": first_output.get("path"),
+        "latest_output_path": latest_output.get("path"),
+        "output_path_sample": output_paths[:5],
+    }
+
+
+def build_fetch_manifests(
+    fetch_manifest_roots: list[Path],
+    *,
+    limit: int = 50,
+) -> dict[str, Any]:
+    manifests = []
+    errors = []
+    candidates = fetch_manifest_candidates(fetch_manifest_roots)
+    for path, root in candidates[:limit]:
+        try:
+            manifests.append(summarize_fetch_manifest(path, root=root))
+        except Exception as exc:
+            errors.append({"path": display_path(path), "error": str(exc)})
+    return {
+        "generated_at": utc_now(),
+        "roots": [fetch_manifest_root_row(root) for root in fetch_manifest_roots],
+        "manifests": manifests,
+        "count": len(manifests),
+        "total": len(candidates),
+        "limit": limit,
+        "errors": errors,
+        "error_count": len(errors),
+        "status_counts": count_values(manifests, "status"),
+        "kind_counts": count_values(manifests, "kind"),
+    }
+
+
+def find_fetch_manifest_path(job_id: str, fetch_manifest_roots: list[Path]) -> Path:
+    raw = job_id.strip()
+    if not raw:
+        raise ValueError("job_id is required")
+    safe = slugify(raw)
+    for path, _root in fetch_manifest_candidates(fetch_manifest_roots):
+        if path.stem == safe or path.stem == raw:
+            return path
+        try:
+            payload = read_fetch_manifest(path)
+        except Exception:
+            continue
+        if str(payload.get("job_id") or "") == raw:
+            return path
+    raise ValueError(f"fetch manifest not found: {raw}")
+
+
+def load_fetch_manifest_detail(
+    job_id: str,
+    *,
+    fetch_manifest_roots: list[Path],
+    limit: int = 250,
+) -> dict[str, Any]:
+    path = find_fetch_manifest_path(job_id, fetch_manifest_roots)
+    root = next((candidate for candidate in fetch_manifest_roots if path.is_relative_to(candidate)), path.parent)
+    payload = read_fetch_manifest(path)
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), list) else []
+    errors = payload.get("errors") if isinstance(payload.get("errors"), list) else []
+    events = payload.get("events") if isinstance(payload.get("events"), list) else []
+    symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
+    symbols = list(symbols_map.values())
+    summary = summarize_fetch_manifest(path, root=root)
+    return {
+        **summary,
+        "schema_version": payload.get("schema_version"),
+        "parameters": payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
+        "plan": payload.get("plan") if isinstance(payload.get("plan"), dict) else {},
+        "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
+        "symbols_requested": payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [],
+        "symbols": symbols,
+        "outputs": outputs[-limit:],
+        "errors": errors[-limit:],
+        "events": events[-limit:],
+        "output_total": len(outputs),
+        "error_total": len(errors),
+        "event_total": len(events),
+        "limit": limit,
+    }
 
 
 def slugify(value: str) -> str:
@@ -2082,6 +2287,7 @@ def build_workbench_snapshot(
     *,
     data_roots: list[Path],
     dashboard_dir: Path,
+    fetch_manifest_roots: list[Path],
 ) -> dict[str, Any]:
     catalog = build_data_catalog(data_roots, limit=200, preview_points=2)
     dataset_rows = [
@@ -2110,6 +2316,7 @@ def build_workbench_snapshot(
             "latest_modified_at": catalog["latest_modified_at"],
             "datasets": dataset_rows,
         },
+        "fetch_manifests": build_fetch_manifests(fetch_manifest_roots, limit=50),
         "config_options": config_builder_options(),
         "run_comparison": build_config_draft_run_comparison(state_dir, limit=50),
     }
@@ -2973,6 +3180,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     auth_token_env: str | None = None
     dashboard_dir = DEFAULT_DASHBOARD_DIR
     data_roots = list(DEFAULT_DATA_ROOTS)
+    fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
 
     def auth_token(self) -> str | None:
         if not self.auth_token_env:
@@ -3175,6 +3383,36 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, payload)
             return
+        if parsed.path == "/fetch_manifests":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=50, maximum=500)
+                payload = build_fetch_manifests(self.fetch_manifest_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/fetch_manifest_detail":
+            if not self.require_auth():
+                return
+            job_id = str(params.get("job_id", [""])[0]).strip()
+            if not job_id:
+                json_response(self, 400, {"error": "job_id is required"})
+                return
+            try:
+                limit = parse_limit(params, default=250, maximum=2000)
+                payload = load_fetch_manifest_detail(
+                    job_id,
+                    fetch_manifest_roots=self.fetch_manifest_roots,
+                    limit=limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
         if parsed.path == "/config_options":
             if not self.require_auth():
                 return
@@ -3207,6 +3445,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self.state_dir,
                 data_roots=self.data_roots,
                 dashboard_dir=self.dashboard_dir,
+                fetch_manifest_roots=self.fetch_manifest_roots,
             )
             download_text_response(
                 self,
@@ -3401,6 +3640,7 @@ def create_server(
     auth_token_env: str | None = None,
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
     data_roots: list[Path] | None = None,
+    fetch_manifest_roots: list[Path] | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
@@ -3409,6 +3649,7 @@ def create_server(
     Handler.auth_token_env = auth_token_env
     Handler.dashboard_dir = dashboard_dir
     Handler.data_roots = parse_data_roots(data_roots)
+    Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -3426,6 +3667,13 @@ def main() -> None:
         default=None,
         help="Local data root to scan for CSV/parquet files. Can be repeated. Defaults to examples/data.",
     )
+    parser.add_argument(
+        "--fetch-manifest-root",
+        action="append",
+        type=Path,
+        default=None,
+        help="Local fetch manifest root to scan for JSON fetch job manifests. Can be repeated.",
+    )
     parser.add_argument("--auth-token-env", default=None, help="Optional env var containing bearer token")
     args = parser.parse_args()
     try:
@@ -3436,6 +3684,7 @@ def main() -> None:
             state_dir=args.state_dir,
             dashboard_dir=args.dashboard_dir,
             data_roots=args.data_root,
+            fetch_manifest_roots=args.fetch_manifest_root,
             auth_token_env=args.auth_token_env,
         )
     except (TypeError, ValueError) as exc:
@@ -3448,6 +3697,7 @@ def main() -> None:
         auth_token_env=settings["auth_token_env"],
         dashboard_dir=settings["dashboard_dir"],
         data_roots=settings["data_roots"],
+        fetch_manifest_roots=settings["fetch_manifest_roots"],
     )
     print(f"Serving status dashboard at http://{settings['host']}:{server.server_address[1]}/")
     server.serve_forever()

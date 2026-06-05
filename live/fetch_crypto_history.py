@@ -24,10 +24,12 @@ from ib_insync import IB, Crypto, util
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from live.fetch_manifest import DEFAULT_FETCH_MANIFEST_DIR, FetchManifest, infer_error_kind
 from live.ibkr_data import BAR_SIZES
 
 
 OUT_DIR = Path("cache/ibkr_crypto")
+ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SYMBOLS_FILE = "config/crypto_universe_zerohash.yaml"
 
 logging.basicConfig(
@@ -85,6 +87,11 @@ def chunk_path(out_dir: Path, exchange: str, bar_size: str, symbol: str, day: da
 
 def empty_marker_path(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".empty")
+
+
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    return resolved.relative_to(ROOT).as_posix() if resolved.is_relative_to(ROOT) else str(resolved)
 
 
 def load_done_paths(manifest: Path) -> set[str]:
@@ -237,6 +244,10 @@ def main() -> None:
     parser.add_argument("--qualified-symbols-out", default=None, help="YAML path for symbols that qualify on IBKR.")
     parser.add_argument("--eta-window", type=int, default=12, help="Number of recent fetched chunks to use for rolling ETA.")
     parser.add_argument("--force", action="store_true", help="Refetch chunks even if parquet exists.")
+    parser.add_argument("--manifest-dir", type=Path, default=DEFAULT_FETCH_MANIFEST_DIR,
+                        help="Directory for dashboard-readable JSON fetch manifests.")
+    parser.add_argument("--no-manifest", action="store_true",
+                        help="Disable JSON fetch manifest writing.")
     args = parser.parse_args()
 
     today_utc = datetime.now(timezone.utc).date()
@@ -254,8 +265,38 @@ def main() -> None:
     if not args.oldest_first:
         days = list(reversed(days))
     out_dir = Path(args.out_dir)
-    manifest = out_dir / "fetch_manifest.csv"
-    done_paths = set() if args.force else load_done_paths(manifest)
+    chunk_manifest = out_dir / "fetch_manifest.csv"
+    done_paths = set() if args.force else load_done_paths(chunk_manifest)
+    job_manifest = FetchManifest(
+        manifest_dir=args.manifest_dir,
+        kind="crypto_history",
+        parameters={
+            "exchange": args.exchange,
+            "bar_size": args.bar_size,
+            "what_to_show": args.what_to_show,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "months": args.months,
+            "out_dir": display_path(out_dir),
+            "chunk_manifest": display_path(chunk_manifest),
+            "pacing_delay": args.pacing_delay,
+            "retry_delay": args.retry_delay,
+            "retries": args.retries,
+            "oldest_first": args.oldest_first,
+            "include_current_day": args.include_current_day,
+            "qualify_only": args.qualify_only,
+            "force": args.force,
+        },
+        symbols=symbols,
+        enabled=not args.no_manifest,
+    )
+    job_manifest.set_plan(
+        requested_days=len(days),
+        requested_symbol_days=len(symbols) * len(days),
+        range_start=start.isoformat(),
+        range_end=end.isoformat(),
+    )
+    manifest_status = "failed"
 
     log.info(
         "Crypto fetch: symbols=%d days=%d range=%s..%s exchange=%s bar_size=%s",
@@ -263,8 +304,14 @@ def main() -> None:
     )
 
     ib = IB()
-    ib.connect(args.host, args.port, clientId=args.client_id)
+    try:
+        ib.connect(args.host, args.port, clientId=args.client_id)
+    except Exception as exc:
+        job_manifest.error("__connection__", str(exc), kind="connection")
+        job_manifest.finish("failed")
+        raise
     log.info("Connected. Accounts=%s", ib.managedAccounts())
+    job_manifest.event("connected", "Connected to IBKR crypto historical data API")
     ib.reqMarketDataType(3)
 
     requests = 0
@@ -274,6 +321,11 @@ def main() -> None:
             contract = qualify_crypto(ib, symbol, args.exchange)
             if contract is not None:
                 qualified_contracts.append((symbol, contract))
+                job_manifest.symbol(symbol, "qualified")
+            else:
+                message = f"no qualified contract on {args.exchange}"
+                job_manifest.error(symbol, message, kind="contract")
+                job_manifest.symbol(symbol, "failed", message=message)
             ib.sleep(args.pacing_delay)
         log.info(
             "Qualified symbols: %d/%d: %s",
@@ -296,6 +348,7 @@ def main() -> None:
                 }, f, sort_keys=False)
             log.info("Wrote qualified symbols to %s", out)
         if args.qualify_only:
+            manifest_status = None
             return
 
         qualified_symbols = [symbol for symbol, _ in qualified_contracts]
@@ -319,8 +372,19 @@ def main() -> None:
             sum(1 for count in pending_by_symbol.values() if count),
             len(qualified_symbols),
         )
+        job_manifest.set_plan(
+            qualified_symbols=qualified_symbols,
+            qualified_symbol_count=len(qualified_symbols),
+            pending_chunks=pending_total,
+            raw_pending_chunks=raw_pending_total,
+            skipped_existing_chunks=skipped_total,
+            symbols_with_work=sum(1 for count in pending_by_symbol.values() if count),
+        )
         if pending_total == 0:
             log.info("Nothing to fetch.")
+            for symbol in qualified_symbols:
+                job_manifest.symbol(symbol, "skipped", chunks_skipped=len(days), message="all chunks already cached or marked empty")
+            manifest_status = None
             return
 
         chunk_times: deque[float] = deque(maxlen=max(1, args.eta_window))
@@ -333,6 +397,7 @@ def main() -> None:
             symbol_pending = pending_by_symbol.get(symbol, 0)
             if symbol_pending == 0:
                 symbols_done += 1
+                job_manifest.symbol(symbol, "skipped", chunks_skipped=len(days), message="no pending chunks")
                 log.info(
                     "Symbol complete [%d/%d] %s: no pending chunks (already cached/skipped)",
                     symbols_done,
@@ -349,6 +414,7 @@ def main() -> None:
             )
             symbol_completed = 0
             symbol_failed = 0
+            symbol_empty = 0
             consecutive_empty = 0
             saw_ok = False
             for day in days:
@@ -358,6 +424,7 @@ def main() -> None:
                     continue
                 if args.max_requests and requests >= args.max_requests:
                     log.info("Reached max_requests=%d", args.max_requests)
+                    manifest_status = "partial"
                     return
                 last_err = None
                 chunk_started = time.monotonic()
@@ -396,7 +463,7 @@ def main() -> None:
                     failed_chunks += 1
                     symbol_failed += 1
                     log.info("%s status=failed elapsed=%.2fs", prefix, elapsed)
-                    write_manifest_row(manifest, {
+                    write_manifest_row(chunk_manifest, {
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "symbol": symbol,
                         "day": day.isoformat(),
@@ -405,13 +472,14 @@ def main() -> None:
                         "path": "",
                         "message": str(last_err),
                     })
+                    job_manifest.error(symbol, str(last_err), kind=infer_error_kind(str(last_err)), day=day.isoformat())
                     continue
                 if df.empty:
                     log.warning("%s %s no bars", symbol, day)
                     marker = empty_marker_path(path)
                     marker.parent.mkdir(parents=True, exist_ok=True)
                     marker.touch()
-                    write_manifest_row(manifest, {
+                    write_manifest_row(chunk_manifest, {
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "symbol": symbol,
                         "day": day.isoformat(),
@@ -420,8 +488,17 @@ def main() -> None:
                         "path": str(path),
                         "message": "",
                     })
+                    job_manifest.output(
+                        symbol,
+                        path=display_path(path),
+                        rows=0,
+                        status="empty",
+                        day=day.isoformat(),
+                        message="HMDS returned no bars for this day",
+                    )
                     log.info("%s status=empty elapsed=%.2fs", prefix, elapsed)
                     consecutive_empty += 1
+                    symbol_empty += 1
                     if (
                         not args.oldest_first
                         and saw_ok
@@ -444,7 +521,7 @@ def main() -> None:
                 consecutive_empty = 0
                 log.info("%s %s bars=%d -> %s", symbol, day, len(df), path)
                 log.info("%s status=ok bars=%d elapsed=%.2fs", prefix, len(df), elapsed)
-                write_manifest_row(manifest, {
+                write_manifest_row(chunk_manifest, {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "symbol": symbol,
                     "day": day.isoformat(),
@@ -453,8 +530,34 @@ def main() -> None:
                     "path": str(path),
                     "message": "",
                 })
+                first_ts = df["date"].iloc[0] if "date" in df.columns and not df.empty else None
+                last_ts = df["date"].iloc[-1] if "date" in df.columns and not df.empty else None
+                job_manifest.output(
+                    symbol,
+                    path=display_path(path),
+                    rows=len(df),
+                    status="ok",
+                    first_timestamp=first_ts,
+                    last_timestamp=last_ts,
+                    day=day.isoformat(),
+                )
                 ib.sleep(args.pacing_delay)
             symbols_done += 1
+            if symbol_failed:
+                symbol_status = "partial" if (saw_ok or symbol_empty) else "failed"
+            elif saw_ok:
+                symbol_status = "ok"
+            elif symbol_empty:
+                symbol_status = "empty"
+            else:
+                symbol_status = "skipped"
+            job_manifest.symbol(
+                symbol,
+                symbol_status,
+                chunks_completed=symbol_completed,
+                chunks_failed=symbol_failed,
+                chunks_skipped=len(days) - symbol_pending,
+            )
             log.info(
                 "Symbol complete [%d/%d] %s: fetched=%d failed=%d skipped_existing=%d total_progress=%d/%d eta=%s",
                 symbols_done,
@@ -474,7 +577,9 @@ def main() -> None:
             failed_chunks,
             skipped_chunks,
         )
+        manifest_status = "partial" if failed_chunks else None
     finally:
+        job_manifest.finish(manifest_status)
         ib.disconnect()
         log.info("Disconnected.")
 
