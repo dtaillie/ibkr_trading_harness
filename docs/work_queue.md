@@ -496,7 +496,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     inspection. Date-range controls are now in the Config Builder, alignment
     previews show the selected filter window, generated configs persist
     `data.start`/`data.end`, and the public plugin runner filters file replay
-    data to that window. Richer schema-driven controls remain future work.
+    data to that window. Run and draft tables now expose Results buttons that
+    load artifacts and navigate directly to Performance. Richer schema-driven
+    controls remain future work.
 - Add a guided "paper monitor" path:
   - verify Gateway/API status
   - verify account state freshness

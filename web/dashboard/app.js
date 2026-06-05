@@ -2374,7 +2374,7 @@ function renderWorkbenchRuns() {
         escapeHtml(draft.modified_at),
         draftValidationBadge(draft.draft_id),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
-        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary open-draft-performance" data-draft-id="${escapeHtml(draft.draft_id)}">Results</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
     : row([`<span class="muted">No saved drafts yet. Select saved data, enable Save draft locally, then Generate.</span>`, "", "", "", "", "", "", "", "", ""]);
 
@@ -2397,8 +2397,8 @@ function renderWorkbenchRuns() {
           `<span class="mono">${escapeHtml(detail)}</span>`,
           `<span class="button-pair">${
             run.artifact_path
-              ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(run.run_id)}">Artifacts</button>`
-              : `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Latest</button>`
+              ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(run.run_id)}">Artifacts</button><button type="button" class="secondary open-run-performance" data-run-id="${escapeHtml(run.run_id)}">Results</button>`
+              : `<button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(run.draft_id)}">Latest</button><button type="button" class="secondary open-draft-performance" data-draft-id="${escapeHtml(run.draft_id)}">Results</button>`
           }<button type="button" class="secondary inspect-run-log" data-run-id="${escapeHtml(run.run_id)}">Log</button></span>`,
         ]);
       }).join("")
@@ -3257,13 +3257,16 @@ async function loadFetchManifestDetail(jobId) {
   $("last-refresh").textContent = `Fetch manifest loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadConfigArtifacts(draftId) {
+async function loadConfigArtifacts(draftId, options = {}) {
   const response = await fetchJson(`/config_draft_artifacts?draft_id=${encodeURIComponent(draftId)}&limit=100`);
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
   renderPerformance();
   renderOverview();
-  $("last-refresh").textContent = `Artifacts loaded: ${new Date().toLocaleString()}`;
+  if (options.openPerformance) navigateToView("performance");
+  $("last-refresh").textContent = options.openPerformance
+    ? `Results opened: ${new Date().toLocaleString()}`
+    : `Artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadConfigDraftDetail(draftId) {
@@ -3335,14 +3338,17 @@ async function validateDrafts() {
   $("last-refresh").textContent = `Draft validations refreshed: ${new Date().toLocaleString()}`;
 }
 
-async function loadRunArtifacts(runId) {
+async function loadRunArtifacts(runId, options = {}) {
   const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
   renderPerformance();
   renderOverview();
   renderWorkbenchGuide();
-  $("last-refresh").textContent = `Run artifacts loaded: ${new Date().toLocaleString()}`;
+  if (options.openPerformance) navigateToView("performance");
+  $("last-refresh").textContent = options.openPerformance
+    ? `Run results opened: ${new Date().toLocaleString()}`
+    : `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadRunDetail(runId) {
@@ -3676,6 +3682,11 @@ function init() {
           $("last-refresh").textContent = `Artifact load failed: ${err.message}`;
         });
       }
+      if (target.classList.contains("open-draft-performance")) {
+        loadConfigArtifacts(target.dataset.draftId || "", { openPerformance: true }).catch((err) => {
+          $("last-refresh").textContent = `Result load failed: ${err.message}`;
+        });
+      }
       if (target.classList.contains("inspect-draft-detail")) {
         loadConfigDraftDetail(target.dataset.draftId || "").catch((err) => {
           $("last-refresh").textContent = `Draft detail failed: ${err.message}`;
@@ -3694,6 +3705,11 @@ function init() {
       if (target.classList.contains("inspect-run-artifacts")) {
         loadRunArtifacts(target.dataset.runId || "").catch((err) => {
           $("last-refresh").textContent = `Run artifact load failed: ${err.message}`;
+        });
+      }
+      if (target.classList.contains("open-run-performance")) {
+        loadRunArtifacts(target.dataset.runId || "", { openPerformance: true }).catch((err) => {
+          $("last-refresh").textContent = `Run result load failed: ${err.message}`;
         });
       }
       if (target.classList.contains("inspect-run-log")) {
