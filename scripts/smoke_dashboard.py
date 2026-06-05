@@ -77,6 +77,7 @@ def run_smoke(
             "performance-trades-body",
             "performance-profit-factor",
             "performance-avg-win-loss",
+            "performance-turnover",
             "performance-rollups-note",
             "performance-rollups-body",
             "performance-period-rollups-note",
@@ -191,6 +192,8 @@ def run_smoke(
             "projectionCaveat",
             "modeMeaning",
             "sourceMeaning",
+            "turnoverStats",
+            "fillNotional",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

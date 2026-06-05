@@ -141,8 +141,9 @@ strategy-private.
   - open/closed trade table
     - done for selected archived artifacts with sanitized fills
   - win/loss, average win/loss, profit factor, max drawdown, exposure, turnover
-    - partial; win/loss, average win/loss inputs, profit factor, max drawdown,
-      and exposure are available from artifacts; turnover remains open
+    - done for selected archived artifacts; win/loss, average win/loss, profit
+      factor, max drawdown, exposure, and selected-window turnover are derived
+      from sanitized fills/account snapshots when available.
   - benchmark overlay where appropriate
   - clear short-horizon projection caveats for per-day/month/year stats
     - done for the Performance page; Metric Context now flags short-horizon

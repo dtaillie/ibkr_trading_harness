@@ -584,6 +584,22 @@ function projectionCaveat(perf, summary, elapsedDays) {
   return "No elapsed account window is available; prefer total return and drawdown over annualized figures.";
 }
 
+function fillNotional(fill) {
+  const quantity = Math.abs(finiteNumber(fill.quantity) || 0);
+  const price = finiteNumber(fill.price);
+  if (!quantity || price === null) return 0;
+  return quantity * price;
+}
+
+function turnoverStats(fills, initialEquity) {
+  const notional = (fills || []).reduce((sum, fill) => sum + fillNotional(fill), 0);
+  const equity = finiteNumber(initialEquity);
+  return {
+    notional,
+    pct: equity && equity > 0 ? (notional / equity) * 100 : null,
+  };
+}
+
 function normalizedFillSide(value) {
   const side = String(value || "").trim().toLowerCase();
   if (side === "buy" || side === "bot" || side === "b") return "buy";
@@ -947,6 +963,8 @@ function renderPerformance() {
   const equity = periodPerf.final_equity ?? summary.final_equity;
   const latestAccount = latestAccountRow(accountRows.length ? accountRows : (source.account || []));
   const mode = perf.mode ?? summary.mode;
+  const initialEquity = periodPerf.initial_equity ?? (period === "all" ? (perf.initial_equity ?? summary.initial_equity) : null);
+  const turnover = turnoverStats(fills, initialEquity);
   const positionCount = nonzeroPositionsFromSource(source).length;
   const decisions = summary.decisions ?? (source.decisions || []).length;
   const orders = summary.orders ?? (source.orders || []).length;
@@ -977,6 +995,7 @@ function renderPerformance() {
   $("performance-avg-win-loss").textContent = ledger.stats.closed_count
     ? `${money(ledger.stats.avg_win)} / ${money(ledger.stats.avg_loss)}`
     : "n/a";
+  $("performance-turnover").textContent = turnover.pct !== null ? pctText(turnover.pct) : "n/a";
   const projectionWarning = Boolean(periodPerf.short_horizon_projection ?? perf.short_horizon_projection ?? summary.short_horizon_projection);
   $("performance-context-note").innerHTML = projectionWarning
     ? `<span class="status-warn">Short-horizon annualized stats</span>`
@@ -986,6 +1005,7 @@ function renderPerformance() {
     ["Mode Meaning", modeMeaning(mode)],
     ["Selected Window", `${window.label}; ${accountRows.length ? `${numberText(accountRows.length, 0)} account snapshots` : "no account snapshots"}`],
     ["Elapsed", elapsedDays !== null && elapsedDays !== undefined ? `${numberText(elapsedDays, 4)} days` : "n/a"],
+    ["Turnover Basis", `${money(turnover.notional)} filled notional${turnover.pct !== null ? ` / ${money(initialEquity)} initial equity` : "; initial equity unavailable"}`],
     ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
     ["Annualized Scale", `Day ${pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null))} / Month ${pctText(periodPerf.return_per_month_pct ?? (period === "all" ? summary.return_per_month_pct : null))} / Year ${pctText(periodPerf.return_per_year_pct ?? (period === "all" ? summary.return_per_year_pct : null))}`],
   ];

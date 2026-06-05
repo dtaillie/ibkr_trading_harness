@@ -491,6 +491,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-trades-body" in html
         assert "performance-profit-factor" in html
         assert "performance-avg-win-loss" in html
+        assert "performance-turnover" in html
         assert "performance-equity" in html
         assert "comparison-filter-text" in html
         assert "runtime-status-grid" in html
