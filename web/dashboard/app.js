@@ -3748,9 +3748,20 @@ function strategyDrilldownRows(decisions) {
     .map((decision) => ({
       timestamp: decision.timestamp,
       symbols: decision.symbols || [],
+      intent_count: Number(decision.intent_count || 0),
       drilldown: decision.drilldown || {},
     }))
     .filter((item) => Object.keys(item.drilldown).length);
+}
+
+function nearThresholdMissRows(drilldowns) {
+  return (drilldowns || [])
+    .filter((item) => item.intent_count === 0 && item.drilldown && item.drilldown.near_threshold === true)
+    .sort((left, right) => {
+      const leftTime = timestampMillis(left.timestamp) || 0;
+      const rightTime = timestampMillis(right.timestamp) || 0;
+      return rightTime - leftTime;
+    });
 }
 
 function drilldownSignalText(drilldown) {
@@ -3898,6 +3909,24 @@ function renderWorkbenchArtifacts() {
         ]);
       }).join("")
     : row([`<span class="muted">Plugins can publish public-safe fields under diagnostics.dashboard to populate this table.</span>`, "", "", "", "", "", "", ""]);
+  const nearMisses = nearThresholdMissRows(drilldowns);
+  $("artifact-near-threshold-note").textContent = nearMisses.length
+    ? `${numberText(nearMisses.length, 0)} close decision${nearMisses.length === 1 ? "" : "s"} without order intents`
+    : "No public-safe near-threshold misses in this artifact";
+  $("artifact-near-threshold-body").innerHTML = nearMisses.length
+    ? nearMisses.slice(0, 50).map((item) => {
+        const drilldown = item.drilldown || {};
+        return row([
+          escapeHtml(item.timestamp),
+          escapeHtml((item.symbols || []).join(", ")),
+          escapeHtml(drilldownSignalText(drilldown)),
+          escapeHtml(drilldown.threshold_distance === undefined ? "n/a" : numberText(drilldown.threshold_distance, 4)),
+          escapeHtml(text(drilldown.near_threshold_reason || drilldown.reason)),
+          escapeHtml(drilldownHoldText(drilldown)),
+          escapeHtml(drilldownExitText(drilldown)),
+        ]);
+      }).join("")
+    : row([`<span class="muted">No missed near-threshold decisions published.</span>`, "", "", "", "", "", ""]);
   $("artifact-decisions-body").innerHTML = decisions.length
     ? decisions.map((decision) => row([
         escapeHtml(decision.timestamp),
