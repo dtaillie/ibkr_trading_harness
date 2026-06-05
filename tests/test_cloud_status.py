@@ -577,6 +577,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
+        assert "data-home-title" in html
+        assert "data-home-filtered-count" in html
+        assert "data-home-breakdown" in html
+        assert "data-home-inspect-top" in html
         assert "data-symbol-count" in html
         assert "data-file-count" in html
         assert "data-date-range" in html

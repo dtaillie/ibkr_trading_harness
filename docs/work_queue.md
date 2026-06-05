@@ -344,9 +344,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   available for one-off overrides. Catalog rows now include inferred asset class
   and source filters. Data Library now includes a coverage heatmap-style view
   and a symbol diagnostic that explains visible, scan-limited, parse-error,
-  unconfigured-root, fetch-error, and not-found states. Data Detail now has an
-  offline saved-file viewer with date range controls, sampled/full-in-range
-  modes, price series, volume bars, and UTC/source-timezone context.
+  unconfigured-root, fetch-error, and not-found states. Data Library now starts
+  with a Data Home summary that explains how many symbols/files are loaded,
+  what the current filters hide, the best inspectable match, asset/source/bar
+  breakdowns, and the next action before sending users into dense tables. Data
+  Detail now has an offline saved-file viewer with date range controls,
+  sampled/full-in-range modes, price series, volume bars, and
+  UTC/source-timezone context.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

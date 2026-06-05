@@ -551,6 +551,88 @@ section {
   margin-bottom: 12px;
 }
 
+.data-home-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.data-home-main,
+.data-home-side,
+.data-home-breakdown {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
+.data-home-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.data-home-main > span:last-of-type,
+.data-home-side small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-home-side {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.data-home-breakdown {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.breakdown-group {
+  min-width: 0;
+}
+
+.breakdown-group > span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.breakdown-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.breakdown-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  background: var(--soft-panel);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .health-card span,
 .position-card span,
 .change-card span,
@@ -1426,6 +1508,7 @@ footer {
   .data-detail-grid,
   .viewer-controls,
   .symbol-browser,
+  .data-home-panel,
   .builder-output,
   .overview-hero,
   .performance-layout,

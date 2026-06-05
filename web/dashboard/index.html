@@ -642,6 +642,37 @@
           <span id="data-visibility-note">The catalog only shows files under configured roots.</span>
         </div>
       </div>
+      <section class="data-home-panel">
+        <div class="data-home-main">
+          <span class="eyebrow">Data Home</span>
+          <strong id="data-home-title">No saved data loaded</strong>
+          <span id="data-home-note">Configure data roots or refresh the catalog to inspect historical files.</span>
+          <div class="hero-actions">
+            <button id="data-home-clear-filters" class="secondary" type="button">Clear Filters</button>
+            <button id="data-home-inspect-top" type="button">Inspect First Match</button>
+            <button id="data-home-open-workbench" class="secondary" type="button">Open Workbench</button>
+            <button id="data-home-open-fetch" class="secondary" type="button">Open Fetch Jobs</button>
+          </div>
+        </div>
+        <div class="data-home-side">
+          <div class="status-tile">
+            <span>Filtered</span>
+            <strong id="data-home-filtered-count">0</strong>
+            <small id="data-home-filter-note">No filter applied</small>
+          </div>
+          <div class="status-tile">
+            <span>Best Match</span>
+            <strong id="data-home-best-symbol">n/a</strong>
+            <small id="data-home-best-note">No inspectable dataset</small>
+          </div>
+          <div class="status-tile">
+            <span>Next Step</span>
+            <strong id="data-home-next-step">Configure</strong>
+            <small id="data-home-next-note">Add a saved-data root or fetch history.</small>
+          </div>
+        </div>
+        <div id="data-home-breakdown" class="data-home-breakdown"></div>
+      </section>
       <div id="data-root-cards" class="root-grid"></div>
       <section class="nested-section">
         <div class="section-head">

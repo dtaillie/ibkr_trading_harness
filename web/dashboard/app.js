@@ -2317,6 +2317,24 @@ function countSummary(counts) {
     : "none";
 }
 
+function topCountEntries(counts, limit = 4) {
+  return Object.entries(counts || {})
+    .filter(([key, value]) => key && key !== "n/a" && Number(value || 0) > 0)
+    .sort((left, right) => {
+      const countDelta = Number(right[1] || 0) - Number(left[1] || 0);
+      return countDelta || String(left[0]).localeCompare(String(right[0]));
+    })
+    .slice(0, limit);
+}
+
+function breakdownChips(label, counts) {
+  const entries = topCountEntries(counts);
+  const chips = entries.length
+    ? entries.map(([key, value]) => `<span class="breakdown-chip">${escapeHtml(key)} ${escapeHtml(numberText(value, 0))}</span>`).join("")
+    : `<span class="breakdown-chip">none</span>`;
+  return `<div class="breakdown-group"><span>${escapeHtml(label)}</span><div class="breakdown-chips">${chips}</div></div>`;
+}
+
 function countBy(rows, key) {
   const counts = {};
   for (const rowItem of rows || []) {
@@ -2367,6 +2385,7 @@ function renderDataCatalog() {
   const filtered = filteredDataCatalog(datasets);
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
+  renderDataHome(filtered);
   renderSymbolBrowser();
   $("data-catalog-body").innerHTML = filtered.length
     ? filtered.map((dataset) => row([
@@ -2407,6 +2426,84 @@ function renderDataCatalog() {
   $("data-catalog-errors").innerHTML = errorText
     ? `${escapeHtml(filterLabel)}<br>${errorText}`
     : escapeHtml(filterLabel);
+}
+
+function dataFilterSummary() {
+  const filters = dataCatalogFilters();
+  const labels = [];
+  if (filters.text) labels.push(`search "${filters.text}"`);
+  if (filters.quality) labels.push(`quality ${filters.quality}`);
+  if (filters.bar) labels.push(`bar ${filters.bar}`);
+  if (filters.asset) labels.push(`asset ${filters.asset}`);
+  if (filters.source) labels.push(`source ${filters.source}`);
+  if (filters.sort && filters.sort !== "modified_desc") labels.push(`sort ${filters.sort.replace("_", " ")}`);
+  return labels;
+}
+
+function renderDataHome(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
+  const diagnostics = state.diagnostics || {};
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const catalogCount = Number(catalog.count || datasets.length || 0);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const totalRows = Number(catalog.row_count_total || 0);
+  const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const filterLabels = dataFilterSummary();
+  const best = filteredRows.find((dataset) => dataset.path) || datasets.find((dataset) => dataset.path) || null;
+  const rootSummaries = catalog.root_summaries || [];
+  const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const capped = rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached");
+  const qualityCounts = catalog.quality_counts || {};
+  const badCount = Number(qualityCounts.bad || 0);
+  const warnCount = Number(qualityCounts.warn || 0);
+
+  let nextStep = "Inspect";
+  let nextNote = "Pick a saved file, inspect its chart, then use Workbench for replay setup.";
+  if (!roots.length || !totalRootFiles) {
+    nextStep = suggestedRoots.length ? "Add Root" : "Fetch Data";
+    nextNote = suggestedRoots.length
+      ? `Add suggested root ${text(suggestedRoots[0].display_path || suggestedRoots[0].path)} to dashboard.data_roots.`
+      : "Configure a saved-data root or run a fetch job before replaying.";
+  } else if (!catalogCount) {
+    nextStep = "Scan";
+    nextNote = "Roots exist, but no parseable CSV/parquet catalog rows were found.";
+  } else if (!filteredRows.length) {
+    nextStep = "Clear Filters";
+    nextNote = "Catalog data exists, but the current filter hides every row.";
+  } else if (parserErrors || badCount) {
+    nextStep = "Review Quality";
+    nextNote = `${numberText(parserErrors, 0)} parser errors and ${numberText(badCount, 0)} bad files need review before simulation.`;
+  } else if (capped) {
+    nextStep = "Raise Limit";
+    nextNote = `The catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows; increase the scan limit to see more files.`;
+  } else if (warnCount) {
+    nextStep = "Inspect Warnings";
+    nextNote = `${numberText(warnCount, 0)} warn-quality files are usable only after reviewing gaps/nulls.`;
+  }
+
+  $("data-home-title").textContent = catalogCount
+    ? `${numberText(symbols.size, 0)} symbols across ${numberText(catalogCount, 0)} files`
+    : "No saved data loaded";
+  $("data-home-note").textContent = catalogCount
+    ? `${numberText(totalRows, 0)} rows under configured roots. Use filters, Symbol Browser, or Inspect First Match to browse offline history.`
+    : "Configure data roots or refresh the catalog to inspect historical files.";
+  $("data-home-filtered-count").textContent = `${numberText(filteredRows.length, 0)} / ${numberText(catalogCount, 0)}`;
+  $("data-home-filter-note").textContent = filterLabels.length ? filterLabels.join(" / ") : "No filter applied";
+  $("data-home-best-symbol").textContent = best ? text(best.symbol) : "n/a";
+  $("data-home-best-note").textContent = best
+    ? `${text(best.bar_size)} ${text(best.source)} ${text(best.quality_status)} / ${numberText(best.rows, 0)} rows`
+    : "No inspectable dataset";
+  $("data-home-next-step").textContent = nextStep;
+  $("data-home-next-note").textContent = nextNote;
+  $("data-home-inspect-top").disabled = !best;
+  $("data-home-breakdown").innerHTML = [
+    breakdownChips("Assets", catalog.asset_class_counts || countBy(datasets, "asset_class")),
+    breakdownChips("Sources", catalog.source_counts || countBy(datasets, "source")),
+    breakdownChips("Bars", catalog.bar_size_counts || countBy(datasets, "bar_size")),
+    breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
+  ].join("");
 }
 
 function selectedSymbolBrowserPath() {
@@ -5623,6 +5720,28 @@ function init() {
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
+  $("data-home-clear-filters").addEventListener("click", () => {
+    $("data-filter-text").value = "";
+    $("data-filter-quality").value = "";
+    $("data-filter-bar").value = "";
+    $("data-filter-asset").value = "";
+    $("data-filter-source").value = "";
+    $("data-filter-sort").value = "modified_desc";
+    renderDataCatalog();
+    $("last-refresh").textContent = "Data Library filters cleared";
+  });
+  $("data-home-inspect-top").addEventListener("click", () => {
+    const match = filteredDataCatalog(state.dataCatalog.datasets || []).find((dataset) => dataset.path);
+    if (!match) {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">No matching dataset to inspect</span>`;
+      return;
+    }
+    loadDataDetail(match.path, { resetControls: true }).catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-home-open-workbench").addEventListener("click", () => navigateToView("workbench"));
+  $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
