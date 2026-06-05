@@ -1115,10 +1115,15 @@
         <span id="data-compare-note" class="section-note">Select two or more datasets to compare normalized close paths.</span>
       </div>
       <form id="data-compare-form" class="builder-form">
+        <label class="wide-field">
+          <span>Find Dataset</span>
+          <input id="data-compare-filter" type="search" list="data-symbol-browser-options" placeholder="Symbol, source, bar size, or path">
+        </label>
         <label>
           <span>Datasets</span>
           <select id="data-compare-datasets" multiple size="5"></select>
         </label>
+        <span id="data-compare-filter-note" class="section-note">No catalog filter applied</span>
         <label>
           <span>Start</span>
           <input id="data-compare-start" type="date">

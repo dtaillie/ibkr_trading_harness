@@ -486,6 +486,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       users can tell whether the selected files share enough timestamps.
     - partial; Compare Saved Data can now export the current normalized
       close-return paths as CSV by symbol and timestamp for offline review.
+    - partial; Compare Saved Data now has a Find Dataset filter for large
+      catalogs, preserving already selected files while narrowing by symbol,
+      source, bar size, quality, or path.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred

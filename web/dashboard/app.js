@@ -9,6 +9,7 @@ const state = {
   dataMinuteHeatmap: { rows: [], errors: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
   dataCompare: null,
+  dataCompareSelectedPaths: [],
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
@@ -595,8 +596,14 @@ function renderConfigBrokerBoundary() {
 }
 
 function selectedCompareDatasets() {
-  const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
+  const selectedPaths = state.dataCompareSelectedPaths.length
+    ? state.dataCompareSelectedPaths
+    : Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+}
+
+function updateCompareSelectionFromSelect() {
+  state.dataCompareSelectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
 }
 
 function latestAccountRow(accountRows) {
@@ -3355,17 +3362,43 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
 
 function renderDataCompareControls() {
   const select = $("data-compare-datasets");
-  const previousSelection = Array.from(select.selectedOptions).map((option) => option.value);
-  const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
+  const previousSelection = new Set(
+    state.dataCompareSelectedPaths.length
+      ? state.dataCompareSelectedPaths
+      : Array.from(select.selectedOptions).map((option) => option.value)
+  );
+  const filter = ($("data-compare-filter").value || "").trim().toLowerCase();
+  const allDatasets = state.dataCatalog.datasets || [];
+  const visibleDatasets = allDatasets.filter((dataset) => {
+    if (previousSelection.has(dataset.path)) return true;
+    if (!filter) return true;
+    const haystack = [
+      dataset.symbol,
+      dataset.asset_class,
+      dataset.source,
+      dataset.bar_size,
+      dataset.quality_status,
+      dataset.path,
+    ].map(text).join(" ").toLowerCase();
+    return haystack.includes(filter);
+  });
+  const datasets = visibleDatasets.map((dataset) => ({
     value: dataset.path,
     label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
   }));
   replaceOptions(select, datasets);
-  if (!previousSelection.length && datasets.length >= 2) {
+  for (const option of select.options) {
+    option.selected = previousSelection.has(option.value);
+  }
+  if (!previousSelection.size && datasets.length >= 2) {
     for (const option of select.options) option.selected = false;
     select.options[0].selected = true;
     select.options[1].selected = true;
   }
+  updateCompareSelectionFromSelect();
+  $("data-compare-filter-note").textContent = filter
+    ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total; selected files stay visible`
+    : `${numberText(allDatasets.length, 0)} catalog datasets; choose at least two`;
 }
 
 function renderDataCompare() {
@@ -6179,6 +6212,8 @@ function init() {
     });
   });
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
+  $("data-compare-filter").addEventListener("input", renderDataCompareControls);
+  $("data-compare-datasets").addEventListener("change", updateCompareSelectionFromSelect);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
