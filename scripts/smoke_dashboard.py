@@ -320,6 +320,8 @@ def run_smoke(
             "data-detail-viewer-note",
             "data-detail-chart-style",
             "data-detail-timezone",
+            "data-missing-intervals-note",
+            "data-missing-intervals-body",
             "copy-data-path",
             "copy-data-root-flag",
             "copy-data-replay-command",
@@ -420,6 +422,8 @@ def run_smoke(
             "data_detail",
             "data_detail_available",
             "dataDetailHealthCards",
+            "missing_intervals",
+            "missing_interval_limit",
             "Replay Readiness",
             "storage_session",
             "adjustment_status",
@@ -645,6 +649,8 @@ def run_smoke(
             )
             if "viewer" not in detail or "preview" not in detail:
                 raise RuntimeError("data detail viewer payload is invalid")
+            if "missing_intervals" not in detail or "missing_interval_limit" not in detail:
+                raise RuntimeError("data detail missing-interval drilldown payload is invalid")
             diagnostic = fetch_json(base_url, f"/data_symbol_diagnostic?symbol={datasets[0]['symbol']}&limit=5")
             if diagnostic.get("status") != "visible":
                 raise RuntimeError("symbol diagnostic did not find the sample dataset")

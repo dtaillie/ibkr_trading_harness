@@ -3058,6 +3058,18 @@ function renderDataDetail() {
         escapeHtml(gap.estimated_missing_intervals),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", ""]);
+  const missingIntervals = detail.missing_intervals || [];
+  const omitted = Number(detail.missing_interval_omitted_count || 0);
+  $("data-missing-intervals-note").textContent = detail.path
+    ? `${numberText(missingIntervals.length, 0)} shown / ${numberText(coverage.estimated_missing_intervals, 0)} estimated${omitted ? ` / ${numberText(omitted, 0)} omitted by limit` : ""}`
+    : "No missing intervals loaded";
+  $("data-missing-intervals-body").innerHTML = missingIntervals.length
+    ? missingIntervals.map((item) => row([
+        escapeHtml(formatTimestampForMode(item.expected_timestamp, timezoneMode)),
+        `${escapeHtml(formatTimestampForMode(item.from_timestamp, timezoneMode))}<br><span class="muted">${escapeHtml(formatTimestampForMode(item.to_timestamp, timezoneMode))}</span>`,
+        escapeHtml(interval(item.gap_seconds)),
+      ])).join("")
+    : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
 }
 
 function dataDetailHealthCards(detail, timezoneMode = "utc") {
@@ -5167,6 +5179,7 @@ function dataDetailQuery(path) {
   params.set("path", path);
   params.set("preview_points", $("data-detail-points").value || "600");
   params.set("gap_limit", "30");
+  params.set("missing_interval_limit", "120");
   params.set("sample_mode", $("data-detail-mode").value || "sampled");
   const start = $("data-detail-start").value;
   const end = $("data-detail-end").value;

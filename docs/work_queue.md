@@ -485,8 +485,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       `/data_minute_heatmap`, summarizing expected vs actual intraday intervals
       by UTC hour for bounded catalog rows and listing worst incomplete files.
       Data Library now also lists bounded worst date/hour missing-interval
-      drilldowns from the same endpoint. Full per-minute drilldown remains
-      future work.
+      drilldowns from the same endpoint. Data Detail now lists bounded exact
+      inferred missing timestamps for the selected saved file; unbounded
+      full-file exports remain future work.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues

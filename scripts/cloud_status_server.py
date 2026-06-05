@@ -213,6 +213,7 @@ MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
 MAX_ARTIFACT_ROWS = 500
 MAX_DATA_DETAIL_POINTS = 1000
 MAX_DATA_GAP_ROWS = 200
+MAX_DATA_MISSING_INTERVAL_ROWS = 1000
 MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
@@ -3036,6 +3037,7 @@ def build_data_detail(
     data_roots: list[Path],
     preview_points: int = 300,
     gap_limit: int = 20,
+    missing_interval_limit: int = 100,
     start: str | None = None,
     end: str | None = None,
     sample_mode: str = "sampled",
@@ -3044,6 +3046,8 @@ def build_data_detail(
         raise ValueError(f"preview_points must be between 2 and {MAX_DATA_DETAIL_POINTS}")
     if gap_limit < 1 or gap_limit > MAX_DATA_GAP_ROWS:
         raise ValueError(f"gap_limit must be between 1 and {MAX_DATA_GAP_ROWS}")
+    if missing_interval_limit < 1 or missing_interval_limit > MAX_DATA_MISSING_INTERVAL_ROWS:
+        raise ValueError(f"missing_interval_limit must be between 1 and {MAX_DATA_MISSING_INTERVAL_ROWS}")
     sample_mode = str(sample_mode or "sampled").strip().lower()
     if sample_mode not in {"sampled", "full"}:
         raise ValueError("sample_mode must be sampled or full")
@@ -3069,14 +3073,17 @@ def build_data_detail(
     median_interval = finite_float(diffs.median()) if not diffs.empty else None
     largest_gap = finite_float(diffs.max()) if not diffs.empty else None
     gap_rows = []
+    missing_interval_rows = []
     estimated_missing = 0
     if median_interval and median_interval > 0 and len(ordered) > 1:
         previous = ordered.iloc[0]
+        expected_step = pd.Timedelta(seconds=float(median_interval))
         for current in ordered.iloc[1:]:
             gap_seconds = float((current - previous).total_seconds())
             if gap_seconds > median_interval * 1.5:
                 missing = max(0, round(gap_seconds / median_interval) - 1)
                 estimated_missing += missing
+                gap_index = len(gap_rows)
                 if len(gap_rows) < gap_limit:
                     gap_rows.append({
                         "from_timestamp": previous.isoformat(),
@@ -3084,7 +3091,21 @@ def build_data_detail(
                         "gap_seconds": finite_float(gap_seconds),
                         "estimated_missing_intervals": int(missing),
                     })
+                expected_ts = previous + expected_step
+                emitted_for_gap = 0
+                while expected_ts < current and emitted_for_gap < missing:
+                    if len(missing_interval_rows) < missing_interval_limit:
+                        missing_interval_rows.append({
+                            "expected_timestamp": expected_ts.isoformat(),
+                            "from_timestamp": previous.isoformat(),
+                            "to_timestamp": current.isoformat(),
+                            "gap_seconds": finite_float(gap_seconds),
+                            "gap_index": gap_index,
+                        })
+                    expected_ts += expected_step
+                    emitted_for_gap += 1
             previous = current
+    missing_interval_omitted = max(0, int(estimated_missing) - len(missing_interval_rows))
 
     columns = {
         "timestamp": ts_col,
@@ -3252,12 +3273,17 @@ def build_data_detail(
             **quality_summary,
             "null_counts": null_counts,
             "gap_count_returned": len(gap_rows),
+            "missing_interval_count_returned": len(missing_interval_rows),
+            "missing_interval_omitted_count": missing_interval_omitted,
         },
         "price_stats": price_stats,
         "return_stats": return_stats,
         "volume_stats": volume_stats,
         "viewer": viewer,
         "gaps": gap_rows,
+        "missing_intervals": missing_interval_rows,
+        "missing_interval_limit": missing_interval_limit,
+        "missing_interval_omitted_count": missing_interval_omitted,
         "preview": preview,
         "preview_points": preview_points,
     }
@@ -5963,6 +5989,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 preview_points = int(params.get("preview_points", ["300"])[0])
                 gap_limit = int(params.get("gap_limit", ["20"])[0])
+                missing_interval_limit = int(params.get("missing_interval_limit", ["100"])[0])
                 start = str(params.get("start", [""])[0]).strip()
                 end = str(params.get("end", [""])[0]).strip()
                 sample_mode = str(params.get("sample_mode", ["sampled"])[0]).strip()
@@ -5971,6 +5998,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     data_roots=self.data_roots,
                     preview_points=preview_points,
                     gap_limit=gap_limit,
+                    missing_interval_limit=missing_interval_limit,
                     start=start,
                     end=end,
                     sample_mode=sample_mode,

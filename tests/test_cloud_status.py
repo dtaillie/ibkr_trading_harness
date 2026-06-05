@@ -605,6 +605,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-detail-viewer-note" in html
         assert "data-detail-chart-style" in html
         assert "data-detail-timezone" in html
+        assert "data-missing-intervals-note" in html
+        assert "data-missing-intervals-body" in html
         assert "data-compare-timezone" in html
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
@@ -1753,6 +1755,16 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["coverage"]["largest_gap_seconds"] == 900.0
         assert detail["coverage"]["estimated_missing_intervals"] == 2
         assert detail["gaps"][0]["estimated_missing_intervals"] == 2
+        assert detail["quality"]["missing_interval_count_returned"] == 2
+        assert detail["quality"]["missing_interval_omitted_count"] == 0
+        assert detail["missing_interval_limit"] == 100
+        assert detail["missing_interval_omitted_count"] == 0
+        assert [item["expected_timestamp"] for item in detail["missing_intervals"]] == [
+            "2026-01-02T14:40:00+00:00",
+            "2026-01-02T14:45:00+00:00",
+        ]
+        assert detail["missing_intervals"][0]["from_timestamp"] == "2026-01-02T14:35:00+00:00"
+        assert detail["missing_intervals"][0]["to_timestamp"] == "2026-01-02T14:50:00+00:00"
         assert detail["quality"]["quality_status"] == "warn"
         assert "2 estimated missing intervals" in detail["quality"]["quality_warnings"]
         assert detail["price_stats"]["start_close"] == 100.0
@@ -1780,6 +1792,17 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert filtered["price_stats"]["start_close"] == 101.0
         assert filtered["price_stats"]["end_close"] == 102.0
         assert len(filtered["preview"]) == 2
+
+        with request.urlopen(
+            f"{base}/data_detail?"
+            f"path={data_file}&preview_points=4&gap_limit=5&missing_interval_limit=1",
+            timeout=5,
+        ) as resp:
+            capped = json.loads(resp.read().decode("utf-8"))
+
+        assert len(capped["missing_intervals"]) == 1
+        assert capped["missing_interval_omitted_count"] == 1
+        assert capped["quality"]["missing_interval_omitted_count"] == 1
     finally:
         server.shutdown()
         server.server_close()
