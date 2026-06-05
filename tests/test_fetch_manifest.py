@@ -1,5 +1,6 @@
 import json
 
+from live.fetch_crypto_history import load_json_resume_manifest, option_present
 from live.fetch_manifest import FetchManifest
 
 
@@ -51,3 +52,49 @@ def test_fetch_manifest_records_retry_pacing_and_progress(tmp_path):
     assert counts["latest_eta_seconds"] == 0.8
     assert payload["outputs"][0]["attempt_count"] == 2
     assert payload["events"][0]["type"] == "retry"
+
+
+def test_crypto_resume_manifest_extracts_symbols_range_and_done_paths(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        json.dumps({
+            "parameters": {
+                "exchange": "ZEROHASH",
+                "bar_size": "1min",
+                "what_to_show": "AGGTRADES",
+                "out_dir": "cache/ibkr_crypto",
+            },
+            "plan": {
+                "range_start": "2026-01-01",
+                "range_end": "2026-01-03",
+            },
+            "symbols_requested": ["btc-usd", "ETH-USD"],
+            "outputs": [
+                {"symbol": "BTC-USD", "status": "ok", "day": "2026-01-01", "path": "cache/btc.parquet"},
+                {"symbol": "ETH-USD", "status": "empty", "day": "2026-01-01", "path": "cache/eth.parquet"},
+                {"symbol": "ETH-USD", "status": "failed", "day": "2026-01-02", "path": "cache/failed.parquet"},
+            ],
+            "errors": [
+                {"symbol": "ETH-USD", "day": "2026-01-02", "message": "temporary"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    resume = load_json_resume_manifest(path)
+
+    assert resume["symbols"] == ["BTC-USD", "ETH-USD"]
+    assert resume["start"] == "2026-01-01"
+    assert resume["end"] == "2026-01-03"
+    assert resume["exchange"] == "ZEROHASH"
+    assert resume["bar_size"] == "1min"
+    assert resume["what_to_show"] == "AGGTRADES"
+    assert resume["out_dir"] == "cache/ibkr_crypto"
+    assert resume["done_paths"] == {"cache/btc.parquet", "cache/eth.parquet"}
+    assert resume["failed_days_by_symbol"] == {"ETH-USD": ["2026-01-02"]}
+
+
+def test_option_present_detects_equals_and_split_forms():
+    assert option_present(["--bar-size", "1min"], "--bar-size")
+    assert option_present(["--bar-size=1min"], "--bar-size")
+    assert not option_present(["--bar", "1min"], "--bar-size")

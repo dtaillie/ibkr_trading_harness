@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import logging
 import sys
 import time
@@ -104,6 +105,42 @@ def load_done_paths(manifest: Path) -> set[str]:
             if row.get("status") in {"ok", "empty"} and row.get("path"):
                 done.add(row["path"])
     return done
+
+
+def load_json_resume_manifest(path: Path) -> dict:
+    with path.open() as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError("resume manifest must be a JSON object")
+    parameters = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), list) else []
+    symbols = payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else []
+    done_paths = {
+        str(row.get("path"))
+        for row in outputs
+        if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
+    }
+    failed_days_by_symbol: dict[str, set[str]] = {}
+    for row in payload.get("errors") or []:
+        if not isinstance(row, dict) or not row.get("symbol") or not row.get("day"):
+            continue
+        failed_days_by_symbol.setdefault(str(row["symbol"]).upper(), set()).add(str(row["day"]))
+    return {
+        "symbols": [str(symbol).upper() for symbol in symbols],
+        "start": plan.get("range_start") or parameters.get("start"),
+        "end": plan.get("range_end") or parameters.get("end"),
+        "exchange": parameters.get("exchange"),
+        "bar_size": parameters.get("bar_size"),
+        "what_to_show": parameters.get("what_to_show"),
+        "out_dir": parameters.get("out_dir"),
+        "done_paths": done_paths,
+        "failed_days_by_symbol": {symbol: sorted(days) for symbol, days in failed_days_by_symbol.items()},
+    }
+
+
+def option_present(argv: list[str], *names: str) -> bool:
+    return any(arg == name or arg.startswith(f"{name}=") for arg in argv for name in names)
 
 
 def qualify_crypto(ib: IB, symbol: str, exchange: str) -> Crypto | None:
@@ -244,11 +281,33 @@ def main() -> None:
     parser.add_argument("--qualified-symbols-out", default=None, help="YAML path for symbols that qualify on IBKR.")
     parser.add_argument("--eta-window", type=int, default=12, help="Number of recent fetched chunks to use for rolling ETA.")
     parser.add_argument("--force", action="store_true", help="Refetch chunks even if parquet exists.")
+    parser.add_argument("--resume-manifest", type=Path, default=None,
+                        help="JSON fetch manifest to resume: uses its symbols/range and skips ok/empty output paths unless overridden.")
     parser.add_argument("--manifest-dir", type=Path, default=DEFAULT_FETCH_MANIFEST_DIR,
                         help="Directory for dashboard-readable JSON fetch manifests.")
     parser.add_argument("--no-manifest", action="store_true",
                         help="Disable JSON fetch manifest writing.")
     args = parser.parse_args()
+    argv = sys.argv[1:]
+
+    resume: dict | None = None
+    if args.resume_manifest:
+        resume = load_json_resume_manifest(args.resume_manifest)
+        if not option_present(argv, "--symbols", "--symbols-file"):
+            args.symbols = ",".join(resume["symbols"])
+            args.symbols_file = None
+        if resume.get("start") and not option_present(argv, "--start"):
+            args.start = str(resume["start"])
+        if resume.get("end") and not option_present(argv, "--end"):
+            args.end = str(resume["end"])
+        if resume.get("exchange") and not option_present(argv, "--exchange"):
+            args.exchange = str(resume["exchange"])
+        if resume.get("bar_size") and not option_present(argv, "--bar-size"):
+            args.bar_size = str(resume["bar_size"])
+        if resume.get("what_to_show") and not option_present(argv, "--what-to-show"):
+            args.what_to_show = str(resume["what_to_show"])
+        if resume.get("out_dir") and not option_present(argv, "--out-dir"):
+            args.out_dir = str(resume["out_dir"])
 
     today_utc = datetime.now(timezone.utc).date()
     if args.end:
@@ -267,6 +326,8 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     chunk_manifest = out_dir / "fetch_manifest.csv"
     done_paths = set() if args.force else load_done_paths(chunk_manifest)
+    if resume and not args.force:
+        done_paths.update(resume.get("done_paths") or set())
     job_manifest = FetchManifest(
         manifest_dir=args.manifest_dir,
         kind="crypto_history",
@@ -286,6 +347,7 @@ def main() -> None:
             "include_current_day": args.include_current_day,
             "qualify_only": args.qualify_only,
             "force": args.force,
+            "resume_manifest": display_path(args.resume_manifest) if args.resume_manifest else None,
         },
         symbols=symbols,
         enabled=not args.no_manifest,
@@ -295,6 +357,9 @@ def main() -> None:
         requested_symbol_days=len(symbols) * len(days),
         range_start=start.isoformat(),
         range_end=end.isoformat(),
+        resume_manifest=display_path(args.resume_manifest) if args.resume_manifest else None,
+        resume_done_paths=len(resume.get("done_paths") or []) if resume else 0,
+        resume_failed_day_count=sum(len(days) for days in (resume.get("failed_days_by_symbol") or {}).values()) if resume else 0,
     )
     manifest_status = "failed"
 
