@@ -70,6 +70,10 @@ strategy-private.
   - active strategy name, mode, and status
   - portfolio/equity headline first, not log tables
   - today's PnL/return, recent PnL/return, open exposure, and current risk
+    - partial; Overview now has a Performance Snapshot section that derives
+      latest day, month, year, all-available return, max drawdown, current
+      equity path, and order/fill/reject/alert activity from sanitized
+      status-history rollups without opening logs.
   - clear "no trade today" state with the latest checked signal
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
@@ -223,6 +227,9 @@ strategy-private.
   - partial; Strategy Performance now also has a Performance Home band with
     selected result, source/window/execution/trade/freshness/benchmark tiles,
     and direct navigation to Runs, Workbench, and Data Library.
+  - partial; Overview now surfaces a smaller current Performance Snapshot from
+    status-history rollups so the common "how is it doing today/recently?"
+    question is visible before entering the full Performance page.
 - Add strategy/session comparison only after the current-strategy page is easy
   to read.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for

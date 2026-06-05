@@ -735,6 +735,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-week-return" in html
         assert "overview-exposure" in html
         assert "overview-next-check" in html
+        assert "overview-performance-note" in html
+        assert "overview-performance-result" in html
+        assert "overview-performance-summary" in html
+        assert "overview-performance-tiles" in html
+        assert "overview-performance-chart" in html
         assert "performance-drawdown-chart" in html
         assert "performance-intraday-chart" in html
         assert "performance-intraday-pnl" in html

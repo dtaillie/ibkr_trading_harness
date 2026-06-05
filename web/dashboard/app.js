@@ -131,6 +131,7 @@ function numberText(value, digits = 4) {
 }
 
 function pctText(value) {
+  if (value === null || value === undefined || value === "") return "n/a";
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return `${number.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
@@ -1660,6 +1661,165 @@ function overviewHealthChecks() {
   ];
 }
 
+function sortedStatusRollups() {
+  const rollups = ((state.statusEquityRollups && state.statusEquityRollups.rollups) || []).slice();
+  return rollups.sort((left, right) => {
+    const leftKey = String(left.account_end_time || left.day || "");
+    const rightKey = String(right.account_end_time || right.day || "");
+    return leftKey.localeCompare(rightKey);
+  });
+}
+
+function statusRollupSeriesStats(rollups) {
+  const rows = (rollups || []).filter((item) => finiteNumber(item.end_equity) !== null);
+  if (!rows.length) {
+    return {
+      start_equity: null,
+      end_equity: null,
+      total_return_pct: null,
+      max_drawdown_pct: null,
+      first_day: null,
+      last_day: null,
+    };
+  }
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const startEquity = finiteNumber(first.start_equity) ?? finiteNumber(first.end_equity);
+  const endEquity = finiteNumber(last.end_equity);
+  let peak = null;
+  let maxDrawdown = 0;
+  for (const rowItem of rows) {
+    const equity = finiteNumber(rowItem.end_equity);
+    if (equity === null) continue;
+    peak = peak === null ? equity : Math.max(peak, equity);
+    if (peak > 0) {
+      maxDrawdown = Math.min(maxDrawdown, ((equity / peak) - 1) * 100);
+    }
+  }
+  return {
+    start_equity: startEquity,
+    end_equity: endEquity,
+    total_return_pct: startEquity && endEquity !== null ? ((endEquity / startEquity) - 1) * 100 : null,
+    max_drawdown_pct: maxDrawdown,
+    first_day: first.day || null,
+    last_day: last.day || null,
+  };
+}
+
+function rollupReturnClass(value) {
+  const number = finiteNumber(value);
+  if (number === null) return statusClass("warn");
+  return statusClass(number >= 0 ? "ok" : "bad");
+}
+
+function drawdownClass(value) {
+  const number = finiteNumber(value);
+  if (number === null) return statusClass("warn");
+  if (number <= -10) return statusClass("bad");
+  if (number < 0) return statusClass("warn");
+  return statusClass("ok");
+}
+
+function renderOverviewPerformanceSnapshot() {
+  if (
+    !$("overview-performance-result")
+    || !$("overview-performance-summary")
+    || !$("overview-performance-note")
+    || !$("overview-performance-tiles")
+    || !$("overview-performance-chart")
+  ) return;
+  const payload = state.statusEquityRollups || {};
+  const rollups = sortedStatusRollups();
+  const latestDay = rollups.length ? rollups[rollups.length - 1] : null;
+  const periodRollups = payload.period_rollups || {};
+  const latestMonth = ((periodRollups.month || [])[0]) || null;
+  const latestYear = ((periodRollups.year || [])[0]) || null;
+  const seriesStats = statusRollupSeriesStats(rollups);
+  const totalOrders = rollups.reduce((sum, item) => sum + Number(item.order_count || 0), 0);
+  const totalFills = rollups.reduce((sum, item) => sum + Number(item.fill_count || 0), 0);
+  const totalRejects = rollups.reduce((sum, item) => sum + Number(item.rejection_count || 0), 0);
+  const totalAlerts = rollups.reduce((sum, item) => sum + Number(item.alert_count || 0), 0);
+  if (!rollups.length) {
+    $("overview-performance-note").textContent = "No status-history equity rollups loaded";
+    $("overview-performance-result").textContent = "n/a";
+    $("overview-performance-result").className = "";
+    $("overview-performance-summary").textContent = "Run the status publisher during paper/live sessions to populate today, recent, and all-available performance.";
+    $("overview-performance-tiles").innerHTML = [
+      { label: "Today", value: "n/a", detail: "No status-history day rows yet.", status: "warn" },
+      { label: "Recent", value: "n/a", detail: "Monthly/yearly rollups need status snapshots.", status: "warn" },
+      { label: "Activity", value: "n/a", detail: "No orders, fills, rejects, or alerts observed.", status: "warn" },
+    ].map((tile) => `
+      <div class="status-tile">
+        <span>${escapeHtml(tile.label)}</span>
+        <strong class="${statusClass(tile.status)}">${escapeHtml(tile.value)}</strong>
+        <small>${escapeHtml(tile.detail)}</small>
+      </div>
+    `).join("");
+    $("overview-performance-chart").innerHTML = `<span class="muted">No status-history return chart available</span>`;
+    return;
+  }
+  const resultValue = latestDay ? pctText(latestDay.daily_return_pct) : pctText(seriesStats.total_return_pct);
+  const resultClass = rollupReturnClass(latestDay ? latestDay.daily_return_pct : seriesStats.total_return_pct);
+  const nodeCount = new Set(rollups.map((item) => text(item.node_id))).size;
+  $("overview-performance-result").textContent = resultValue;
+  $("overview-performance-result").className = resultClass;
+  $("overview-performance-note").textContent = `${numberText(rollups.length, 0)} day row${rollups.length === 1 ? "" : "s"} from ${numberText(nodeCount, 0)} node${nodeCount === 1 ? "" : "s"}`;
+  $("overview-performance-summary").textContent = latestDay
+    ? `Latest day ${text(latestDay.day)} on ${text(latestDay.node_id)}; ${numberText(latestDay.snapshot_count, 0)} status snapshots.`
+    : "Status rollups loaded; open Performance for full tables and exports.";
+  const activityStatus = totalRejects || totalAlerts
+    ? "bad"
+    : totalFills
+      ? "ok"
+      : totalOrders ? "warn" : "warn";
+  const tiles = [
+    {
+      label: "Today",
+      value: pctText(latestDay && latestDay.daily_return_pct),
+      detail: latestDay ? `${money(latestDay.start_equity)} to ${money(latestDay.end_equity)} on ${text(latestDay.day)}.` : "No latest day row.",
+      className: rollupReturnClass(latestDay && latestDay.daily_return_pct),
+    },
+    {
+      label: "Month",
+      value: pctText(latestMonth && latestMonth.total_return_pct),
+      detail: latestMonth ? `${text(latestMonth.label)} / ${numberText(latestMonth.day_count, 0)} day${latestMonth.day_count === 1 ? "" : "s"}.` : "No monthly rollup yet.",
+      className: rollupReturnClass(latestMonth && latestMonth.total_return_pct),
+    },
+    {
+      label: "Year",
+      value: pctText(latestYear && latestYear.total_return_pct),
+      detail: latestYear ? `${text(latestYear.label)} / ${numberText(latestYear.day_count, 0)} day${latestYear.day_count === 1 ? "" : "s"}.` : "No yearly rollup yet.",
+      className: rollupReturnClass(latestYear && latestYear.total_return_pct),
+    },
+    {
+      label: "All Available",
+      value: pctText(seriesStats.total_return_pct),
+      detail: `${text(seriesStats.first_day)} to ${text(seriesStats.last_day)}.`,
+      className: rollupReturnClass(seriesStats.total_return_pct),
+    },
+    {
+      label: "Max Drawdown",
+      value: pctText(seriesStats.max_drawdown_pct),
+      detail: "Derived from status-history end-of-day equity.",
+      className: drawdownClass(seriesStats.max_drawdown_pct),
+    },
+    {
+      label: "Activity",
+      value: `${numberText(totalFills, 0)} fills`,
+      detail: `${numberText(totalOrders, 0)} orders / ${numberText(totalRejects, 0)} rejects / ${numberText(totalAlerts, 0)} alerts.`,
+      className: statusClass(activityStatus),
+    },
+  ];
+  $("overview-performance-tiles").innerHTML = tiles.map((tile) => `
+    <div class="status-tile">
+      <span>${escapeHtml(tile.label)}</span>
+      <strong class="${tile.className}">${escapeHtml(tile.value)}</strong>
+      <small>${escapeHtml(tile.detail)}</small>
+    </div>
+  `).join("");
+  $("overview-performance-chart").innerHTML = statusRollupReturnChart(rollups);
+}
+
 function renderOverview() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
@@ -1758,6 +1918,7 @@ function renderOverview() {
     className: statusClass(nextCheck ? "ok" : "warn"),
     meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
   });
+  renderOverviewPerformanceSnapshot();
   renderRuntimeStatus();
   renderOverviewHealth();
   renderOverviewAlerts();

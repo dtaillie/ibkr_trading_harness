@@ -135,6 +135,28 @@
 
     <section class="dashboard-section" data-view="overview">
       <div class="section-head">
+        <h2>Performance Snapshot</h2>
+        <span id="overview-performance-note" class="section-note">Waiting for status-history rollups</span>
+      </div>
+      <section class="overview-performance-panel">
+        <div class="overview-performance-main">
+          <span class="eyebrow">Status Rollups</span>
+          <strong id="overview-performance-result">n/a</strong>
+          <span id="overview-performance-summary">Run the status publisher during paper/live sessions to populate this view.</span>
+          <div class="hero-actions">
+            <button class="secondary nav-jump" type="button" data-view-target="performance">Open Performance</button>
+            <button class="secondary nav-jump" type="button" data-view-target="runs">Inspect Runs</button>
+          </div>
+        </div>
+        <div class="overview-performance-side">
+          <div id="overview-performance-tiles" class="overview-performance-tiles"></div>
+          <div id="overview-performance-chart" class="detail-chart-wrap compact-chart"></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
         <h2>Runtime Status</h2>
         <span id="runtime-status-note" class="section-note">Waiting for runtime telemetry</span>
       </div>

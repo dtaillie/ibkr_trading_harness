@@ -786,8 +786,16 @@ section {
   margin: 14px 0;
 }
 
+.overview-performance-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(340px, 1.2fr);
+  gap: 12px;
+}
+
 .performance-home-main,
-.performance-home-tiles {
+.performance-home-tiles,
+.overview-performance-main,
+.overview-performance-side {
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
@@ -796,14 +804,16 @@ section {
   box-shadow: var(--surface-shadow);
 }
 
-.performance-home-main strong {
+.performance-home-main strong,
+.overview-performance-main strong {
   display: block;
   margin-top: 8px;
   font-size: 30px;
   line-height: 1.1;
 }
 
-.performance-home-main > span:last-of-type {
+.performance-home-main > span:last-of-type,
+.overview-performance-main > span:last-of-type {
   display: block;
   margin-top: 8px;
   color: var(--muted);
@@ -812,10 +822,16 @@ section {
   overflow-wrap: anywhere;
 }
 
-.performance-home-tiles {
+.performance-home-tiles,
+.overview-performance-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+}
+
+.overview-performance-side {
+  display: grid;
+  gap: 12px;
 }
 
 .data-home-main > span:last-of-type,
@@ -1918,6 +1934,7 @@ footer {
   .data-home-panel,
   .help-start-panel,
   .performance-home-panel,
+  .overview-performance-panel,
   .builder-output,
   .overview-hero,
   .performance-layout,
