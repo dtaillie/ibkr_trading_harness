@@ -665,6 +665,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "export-fetch-manifests-csv" in html
         assert "fetch-jobs-guide-note" in html
         assert "fetch-jobs-guide" in html
+        assert "fetch-triage-note" in html
+        assert "fetch-triage-cards" in html
         assert "fetch-events-body" in html
         assert "copy-fetch-roots-yaml" in html
         assert "copy-fetch-resume-command" in html

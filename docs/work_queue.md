@@ -682,6 +682,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now has a checklist-style guide for configuring
       roots, finding jobs, reviewing failures, inspecting outputs, opening
       saved data, and recovering/exporting selected jobs.
+    - partial; Fetch Jobs now adds first-screen triage cards for manifest-root
+      coverage, active/non-terminal jobs, jobs needing review, output
+      visibility, and retry/pacing pressure before the dense manifest table.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

@@ -4293,6 +4293,7 @@ function renderFetchJobs() {
         `;
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
+  renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
   const errors = payload.errors || [];
   const errorRows = errors.map((item) => row([
@@ -4349,6 +4350,102 @@ function renderFetchJobs() {
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
     : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function fetchJobTerminal(status) {
+  return ["completed", "failed", "partial", "cancelled", "canceled"].includes(text(status).toLowerCase());
+}
+
+function fetchManifestIssueCount(manifest) {
+  return [
+    manifest.errors,
+    manifest.failed_symbols,
+    manifest.failed_chunks,
+    manifest.output_missing_file_count,
+    manifest.output_outside_data_roots_count,
+    manifest.output_unsupported_file_count,
+  ].reduce((sum, value) => sum + Number(value || 0), 0);
+}
+
+function renderFetchTriageCards(context = {}) {
+  if (!$("fetch-triage-cards") || !$("fetch-triage-note")) return;
+  const manifests = context.manifests || [];
+  const filteredManifests = context.filteredManifests || manifests;
+  const roots = context.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || [];
+  const activeJobs = manifests.filter((item) => !fetchJobTerminal(item.status));
+  const failedJobs = manifests.filter((item) => fetchManifestIssueCount(item) > 0);
+  const retryEvents = manifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const pacingSeconds = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_seconds || 0), 0);
+  const outputVisible = manifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = manifests.reduce((sum, item) => (
+    sum +
+    Number(item.output_missing_file_count || 0) +
+    Number(item.output_outside_data_roots_count || 0) +
+    Number(item.output_unsupported_file_count || 0)
+  ), 0);
+  const rootManifestCount = roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0);
+  const cards = [
+    {
+      status: roots.length && rootManifestCount ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      title: roots.length ? `${numberText(rootManifestCount, 0)} files` : "No Roots",
+      label: "Manifest Roots",
+      note: roots.length
+        ? `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"} are scanned.`
+        : "Add dashboard.fetch_manifest_roots or run a fetcher that writes JSON manifests.",
+    },
+    {
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      title: numberText(activeJobs.length, 0),
+      label: "Active Jobs",
+      note: activeJobs.length
+        ? "One or more manifests look non-terminal; inspect progress before starting another pull."
+        : manifests.length
+          ? "No active/non-terminal fetch jobs in the loaded manifest list."
+          : "No fetch manifests are loaded.",
+    },
+    {
+      status: failedJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      title: numberText(failedJobs.length, 0),
+      label: "Jobs Needing Review",
+      note: failedJobs.length
+        ? "Filter by errors or inspect a job to copy a resume command and review blockers."
+        : manifests.length
+          ? "Loaded jobs have no summarized errors, failed symbols, failed chunks, or output visibility issues."
+          : "Load manifests before reviewing failures.",
+    },
+    {
+      status: outputIssues ? "warn" : outputVisible ? "ok" : manifests.length ? "warn" : "bad",
+      title: `${numberText(outputVisible, 0)} visible`,
+      label: "Output Visibility",
+      note: outputIssues
+        ? `${numberText(outputIssues, 0)} output path issue${outputIssues === 1 ? "" : "s"} need root/path review.`
+        : outputVisible
+          ? "Visible outputs can be opened from Fetch Detail or filtered in Data Library."
+          : "Select a manifest to annotate output paths against configured data roots.",
+    },
+    {
+      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "bad",
+      title: `${numberText(retryEvents, 0)}R / ${numberText(pacingWaits, 0)}W`,
+      label: "Retries / Waits",
+      note: pacingWaits
+        ? `${interval(pacingSeconds)} of pacing waits recorded across loaded jobs.`
+        : retryEvents
+          ? "Retry events are present; inspect detail for symbols and attempts."
+          : "No retry or pacing events summarized in loaded manifests.",
+    },
+  ];
+  $("fetch-triage-note").textContent = manifests.length
+    ? `${numberText(filteredManifests.length, 0)} shown / ${numberText(manifests.length, 0)} loaded; ${numberText(context.rowsTotal || 0, 0)} rows`
+    : "No fetch manifests loaded";
+  $("fetch-triage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderFetchJobsGuide(context = {}) {
