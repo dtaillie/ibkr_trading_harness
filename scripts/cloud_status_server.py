@@ -56,6 +56,13 @@ COMMAND_PARAM_FIELDS = {
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
+SUGGESTED_DATA_ROOTS = (
+    ROOT / "cache",
+    ROOT / "cache" / "ibkr",
+    ROOT / "data",
+    ROOT / "paper_logs" / "history",
+    ROOT / "paper_logs" / "crypto_history",
+)
 BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
 CONFIG_BUILDER_PLUGINS = (
     {
@@ -1874,6 +1881,13 @@ def data_file_count(root: Path, *, limit: int = 10_000) -> int:
     return count
 
 
+def data_root_row(root: Path) -> dict[str, Any]:
+    row = writable_probe(root, expect_dir=True)
+    row["display_path"] = root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root)
+    row["data_file_count"] = data_file_count(root)
+    return row
+
+
 def build_workbench_diagnostics(
     state_dir: Path,
     *,
@@ -1901,8 +1915,7 @@ def build_workbench_diagnostics(
 
     data_root_rows = []
     for root in data_roots:
-        row = writable_probe(root, expect_dir=True)
-        row["data_file_count"] = data_file_count(root)
+        row = data_root_row(root)
         if not row["exists"]:
             warnings.append(f"data root does not exist: {root}")
         elif not row["is_dir"]:
@@ -1912,6 +1925,15 @@ def build_workbench_diagnostics(
         data_root_rows.append(row)
     if not data_root_rows:
         warnings.append("no data roots configured")
+    configured = {root.resolve() for root in data_roots}
+    suggested_rows = []
+    for root in SUGGESTED_DATA_ROOTS:
+        resolved = root.resolve()
+        if resolved in configured:
+            continue
+        row = data_root_row(resolved)
+        if row["exists"] and row["is_dir"] and row["data_file_count"]:
+            suggested_rows.append(row)
 
     status = "bad" if blockers else "warn" if warnings else "ok"
     return {
@@ -1923,6 +1945,7 @@ def build_workbench_diagnostics(
         "dashboard_dir": str(dashboard_dir.resolve()),
         "dashboard_assets": dashboard_assets,
         "data_roots": data_root_rows,
+        "suggested_data_roots": suggested_rows,
     }
 
 
@@ -2976,7 +2999,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=50, maximum=200)
+                limit = parse_limit(params, default=200, maximum=500)
                 preview_points = int(params.get("preview_points", ["80"])[0])
                 payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
             except (TypeError, ValueError) as exc:

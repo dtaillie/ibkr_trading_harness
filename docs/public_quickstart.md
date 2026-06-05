@@ -173,8 +173,12 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
-Open `http://127.0.0.1:8765/` to view the dashboard. It shows a basic workflow
-guide, saved-data coverage, node health, Gateway reachability, runs,
+Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
+workbench into Overview, Performance, Data Library, Workbench, Runs,
+Operations, and Help views. Overview shows the current high-level state;
+Performance summarizes the latest run or selected artifact; Data Library shows
+configured data roots, saved-data coverage, root-scan diagnostics, and
+historical previews. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
@@ -188,8 +192,10 @@ For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.
 Repeat `--data-root` to include additional local CSV/parquet roots such as a
-private cache directory. Data roots are scanned locally; the dashboard receives
-coverage summaries and small downsampled previews, not full bar files.
+private cache directory. If Data Library only shows the public SPY/QQQ examples,
+check the root cards: the dashboard will call out likely local roots that exist
+but are not currently configured. Data roots are scanned locally; the dashboard
+receives coverage summaries and small downsampled previews, not full bar files.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 larger sampled price path, timestamp coverage, gap rows, null counts,
 price/return stats, volume stats, and a compact ok/warn/bad quality summary.

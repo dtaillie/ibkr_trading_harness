@@ -156,9 +156,97 @@ function qualityBadge(status, warnings = []) {
   return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
+function setActiveView(view) {
+  const targetView = view || "overview";
+  for (const section of document.querySelectorAll(".dashboard-section")) {
+    section.hidden = section.dataset.view !== targetView;
+  }
+  for (const button of document.querySelectorAll("[data-view-target]")) {
+    button.classList.toggle("active", button.dataset.viewTarget === targetView);
+  }
+  sessionStorage.setItem("dashboardView", targetView);
+}
+
+function latestTelemetryRun() {
+  const runs = (state.status && state.status.runs) || [];
+  if (!runs.length) return null;
+  return runs.slice().sort((a, b) => {
+    const aTime = String((a.metrics || {}).last_decision_time || a.generated_at || "");
+    const bTime = String((b.metrics || {}).last_decision_time || b.generated_at || "");
+    return bTime.localeCompare(aTime);
+  })[0];
+}
+
+function latestSummarizedComparisonRun() {
+  const runs = (state.runComparison && state.runComparison.runs) || [];
+  return runs.find((runItem) => runItem.summary_available) || null;
+}
+
+function latestArtifactPerformance() {
+  const artifacts = state.configArtifacts || {};
+  if (artifacts.run_id || artifacts.draft_id) {
+    return {
+      label: artifacts.run_id
+        ? `${text(artifacts.draft_id)} / ${text(artifacts.run_id)}`
+        : `${text(artifacts.draft_id)} latest output`,
+      summary: artifacts.summary || {},
+      performance: artifacts.performance || {},
+      account: artifacts.account || [],
+    };
+  }
+  const comparison = latestSummarizedComparisonRun();
+  if (comparison) {
+    return {
+      label: `${text(comparison.draft_id)} / ${text(comparison.action)} ${text(comparison.finished_at)}`,
+      summary: comparison,
+      performance: comparison,
+      account: [],
+    };
+  }
+  const telemetryRun = latestTelemetryRun();
+  if (telemetryRun) {
+    const metrics = telemetryRun.metrics || {};
+    return {
+      label: `${text(telemetryRun.id)} telemetry`,
+      summary: metrics,
+      performance: metrics,
+      account: [],
+    };
+  }
+  return { label: "No run data", summary: {}, performance: {}, account: [] };
+}
+
 function selectedConfigDatasets() {
   const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+}
+
+function renderOverview() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const latestRun = latestTelemetryRun();
+  const runMetrics = (latestRun && latestRun.metrics) || {};
+  const performance = latestArtifactPerformance();
+  const perf = performance.performance || {};
+  const summary = performance.summary || {};
+  const equity = perf.final_equity ?? summary.final_equity ?? runMetrics.final_equity;
+  const mode = perf.mode ?? summary.mode ?? runMetrics.mode;
+  const events = runEventRows();
+  const latestSignal = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+
+  $("overview-equity").textContent = money(equity);
+  $("overview-subtitle").textContent = performance.label;
+  $("overview-mode").textContent = text(mode);
+  $("overview-mode").className = statusClass(mode ? "ok" : "unknown");
+  $("overview-gateway").textContent = gateway.enabled ? text(gateway.reachable) : "disabled";
+  $("overview-gateway").className = statusClass(gateway.enabled ? gateway.reachable : "warn");
+  $("overview-latest-signal").textContent = latestSignal
+    ? `${text(latestSignal.symbol)} ${text(latestSignal.timestamp)}`
+    : "n/a";
+  $("overview-latest-fill").textContent = latestFill
+    ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
+    : "n/a";
 }
 
 function renderMetrics() {
@@ -191,6 +279,38 @@ function renderMetrics() {
   if (supervisors.length && !$("command-supervisor").value) {
     $("command-supervisor").value = supervisors[0].id || "";
   }
+}
+
+function renderPerformance() {
+  const source = latestArtifactPerformance();
+  const perf = source.performance || {};
+  const summary = source.summary || {};
+  const equity = perf.final_equity ?? summary.final_equity;
+  $("performance-note").textContent = source.label;
+  $("performance-equity").textContent = money(equity);
+  $("performance-context").textContent = source.account.length
+    ? "Showing selected archived run artifacts."
+    : "Showing latest summarized run; select Artifacts for an equity curve.";
+  $("performance-return").textContent = pctText(perf.total_return_pct ?? summary.total_return_pct);
+  $("performance-drawdown").textContent = pctText(perf.max_drawdown_pct ?? summary.max_drawdown_pct);
+  $("performance-return-day").textContent = pctText(perf.return_per_day_pct ?? summary.return_per_day_pct);
+  $("performance-exposure").textContent = pctText(perf.max_gross_exposure_pct ?? summary.max_gross_exposure_pct);
+  $("performance-equity-chart").innerHTML = equityChart(source.account || []);
+
+  const runs = ((state.runComparison && state.runComparison.runs) || []).slice(0, 12);
+  $("performance-runs-body").innerHTML = runs.length
+    ? runs.map((runItem) => row([
+        escapeHtml(runItem.finished_at),
+        escapeHtml(runItem.draft_id),
+        escapeHtml(runItem.action),
+        statusText(runItem.status),
+        pctText(runItem.total_return_pct),
+        pctText(runItem.max_drawdown_pct),
+        pctText(runItem.return_per_day_pct),
+        escapeHtml(runItem.fills),
+        escapeHtml(runItem.rejections),
+      ])).join("")
+    : row([`<span class="muted">No saved runs yet</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function rangeLabel(start, end) {
@@ -308,6 +428,7 @@ function renderDataCatalog() {
   const datasets = catalog.datasets || [];
   const filtered = filteredDataCatalog(datasets);
   renderDataFilterOptions(datasets);
+  renderDataLibrarySummary();
   $("data-catalog-body").innerHTML = filtered.length
     ? filtered.map((dataset) => row([
         escapeHtml(dataset.symbol),
@@ -339,6 +460,56 @@ function renderDataCatalog() {
   $("data-catalog-errors").innerHTML = errorText
     ? `${escapeHtml(filterLabel)}<br>${errorText}`
     : escapeHtml(filterLabel);
+}
+
+function renderDataLibrarySummary() {
+  const diagnostics = state.diagnostics || {};
+  const catalog = state.dataCatalog || {};
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const existingRoots = roots.filter((root) => root.exists && root.is_dir);
+  const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const catalogCount = Number(catalog.count || 0);
+  const catalogLimit = Number(catalog.limit || $("data-catalog-limit").value || 0);
+  $("data-root-count").textContent = numberText(roots.length, 0);
+  $("data-root-note").textContent = `${numberText(existingRoots.length, 0)} active / ${numberText(totalRootFiles, 0)} files visible to root scanner`;
+  let visibilityStatus = "ok";
+  let visibilityNote = `${numberText(catalogCount, 0)} catalog rows loaded from configured roots.`;
+  if (!roots.length || !totalRootFiles) {
+    visibilityStatus = "bad";
+    visibilityNote = "No CSV/parquet files are visible under the configured roots.";
+  } else if (catalogCount <= 2 && roots.some((root) => String(root.path || "").includes("examples/data"))) {
+    visibilityStatus = "warn";
+    visibilityNote = suggestedRoots.length
+      ? `Only example data is loaded. Suggested root ${text(suggestedRoots[0].display_path || suggestedRoots[0].path)} has ${numberText(suggestedRoots[0].data_file_count, 0)} files.`
+      : "Only example data is visible. Add cache/history directories with --data-root or local config.";
+  } else if (catalogLimit && catalogCount >= catalogLimit && totalRootFiles > catalogCount) {
+    visibilityStatus = "warn";
+    visibilityNote = `Catalog hit the ${numberText(catalogLimit, 0)} row limit while ${numberText(totalRootFiles, 0)} files exist under roots.`;
+  }
+  $("data-visibility-status").textContent = visibilityStatus;
+  $("data-visibility-status").className = statusClass(visibilityStatus);
+  $("data-visibility-note").textContent = visibilityNote;
+  $("data-root-cards").innerHTML = roots.length
+    ? roots.map((root) => {
+        const status = !root.exists ? "bad" : !root.is_dir ? "bad" : Number(root.data_file_count || 0) ? "ok" : "warn";
+        return `
+          <div class="root-card">
+            <span>${statusText(status)}</span>
+            <strong>${escapeHtml(numberText(root.data_file_count, 0))} files</strong>
+            <small class="mono">${escapeHtml(root.display_path || root.path)}</small>
+            <small>writable=${escapeHtml(text(root.writable))}</small>
+          </div>
+        `;
+      }).join("") + suggestedRoots.map((root) => `
+        <div class="root-card suggested-root">
+          <span class="status-warn">suggested</span>
+          <strong>${escapeHtml(numberText(root.data_file_count, 0))} files</strong>
+          <small class="mono">${escapeHtml(root.display_path || root.path)}</small>
+          <small>Not currently scanned. Start the dashboard with this data root.</small>
+        </div>
+      `).join("")
+    : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
 }
 
 function renderWorkbenchStatus() {
@@ -403,13 +574,19 @@ function renderDiagnostics() {
   const diagnostics = state.diagnostics || {};
   const stateDir = diagnostics.state_dir || {};
   const dataRoots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
   const assets = diagnostics.dashboard_assets || [];
   $("diagnostics-note").innerHTML = diagnostics.status
     ? qualityBadge(diagnostics.status, diagnostics.warnings || [])
     : "Not loaded";
   const rootSummary = dataRoots.length
     ? dataRoots.map((root) => (
-        `${root.path}: exists=${text(root.exists)} writable=${text(root.writable)} files=${numberText(root.data_file_count, 0)}`
+        `${root.display_path || root.path}: exists=${text(root.exists)} writable=${text(root.writable)} files=${numberText(root.data_file_count, 0)}`
+      )).join("\n")
+    : "none";
+  const suggestedRootSummary = suggestedRoots.length
+    ? suggestedRoots.map((root) => (
+        `${root.display_path || root.path}: files=${numberText(root.data_file_count, 0)}`
       )).join("\n")
     : "none";
   const assetSummary = assets.length
@@ -420,6 +597,7 @@ function renderDiagnostics() {
     ["Warnings", (diagnostics.warnings || []).join("; ") || "none"],
     ["State Dir", `${text(stateDir.path)} writable=${text(stateDir.writable)} exists=${text(stateDir.exists)}`],
     ["Data Roots", rootSummary],
+    ["Suggested Roots", suggestedRootSummary],
     ["Dashboard Assets", assetSummary],
   ];
   $("diagnostics-list").innerHTML = pairs.map(([key, value]) => (
@@ -1114,7 +1292,9 @@ function renderResults() {
 }
 
 function renderAll() {
+  renderOverview();
   renderMetrics();
+  renderPerformance();
   renderWorkbenchStatus();
   renderCleanupPlan();
   renderDiagnostics();
@@ -1144,7 +1324,8 @@ async function refresh() {
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
-  const dataCatalog = await fetchJson("/data_catalog?limit=50&preview_points=80");
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const diagnostics = await fetchJson("/workbench_diagnostics");
@@ -1246,6 +1427,8 @@ async function loadConfigArtifacts(draftId) {
   const response = await fetchJson(`/config_draft_artifacts?draft_id=${encodeURIComponent(draftId)}&limit=100`);
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
+  renderPerformance();
+  renderOverview();
   $("last-refresh").textContent = `Artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -1321,6 +1504,8 @@ async function loadRunArtifacts(runId) {
   const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
   state.configArtifacts = response;
   renderWorkbenchArtifacts();
+  renderPerformance();
+  renderOverview();
   $("last-refresh").textContent = `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -1536,6 +1721,14 @@ function init() {
   $("data-filter-text").addEventListener("input", renderDataCatalog);
   $("data-filter-quality").addEventListener("change", renderDataCatalog);
   $("data-filter-bar").addEventListener("change", renderDataCatalog);
+  $("data-catalog-limit").addEventListener("change", () => {
+    refresh().catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+  });
+  for (const button of document.querySelectorAll("[data-view-target]")) {
+    button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+  }
   $("config-preview-alignment").addEventListener("click", () => {
     previewConfigAlignment().catch((err) => {
       $("config-alignment-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -1636,6 +1829,7 @@ function init() {
       $("last-refresh").textContent = `Cancel failed: ${err.message}`;
     });
   });
+  setActiveView(sessionStorage.getItem("dashboardView") || "overview");
   refresh().catch((err) => {
     $("last-refresh").textContent = `Refresh failed: ${err.message}`;
   });

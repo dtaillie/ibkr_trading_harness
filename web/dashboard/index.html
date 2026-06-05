@@ -7,23 +7,80 @@
   <link rel="stylesheet" href="/dashboard/styles.css">
 </head>
 <body>
-  <header class="topbar">
-      <div>
-      <h1>Trading Harness Workbench</h1>
-      <p id="subtitle">Waiting for telemetry</p>
-    </div>
-    <div class="toolbar">
-      <label class="token-field">
-        <span>Token</span>
-        <input id="auth-token" type="password" autocomplete="off">
-      </label>
-      <button id="save-token" type="button">Save</button>
-      <button id="refresh" type="button">Refresh</button>
-    </div>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <span class="brand-mark">AT</span>
+        <div>
+          <strong>Algo Trade</strong>
+          <span>Local workbench</span>
+        </div>
+      </div>
+      <nav class="side-nav" aria-label="Dashboard views">
+        <button id="nav-overview" class="nav-link active" type="button" data-view-target="overview">Overview</button>
+        <button id="nav-performance" class="nav-link" type="button" data-view-target="performance">Performance</button>
+        <button id="nav-data" class="nav-link" type="button" data-view-target="data">Data Library</button>
+        <button id="nav-workbench" class="nav-link" type="button" data-view-target="workbench">Workbench</button>
+        <button id="nav-runs" class="nav-link" type="button" data-view-target="runs">Runs</button>
+        <button id="nav-operations" class="nav-link" type="button" data-view-target="operations">Operations</button>
+        <button id="nav-help" class="nav-link" type="button" data-view-target="help">Help</button>
+      </nav>
+      <div class="sidebar-note">
+        <strong>Public-safe</strong>
+        <span>Raw private signal payloads stay local and hidden.</span>
+      </div>
+    </aside>
 
-  <main>
-    <section class="metrics">
+    <div class="app-main">
+      <header class="topbar">
+          <div>
+          <h1>Trading Harness Workbench</h1>
+          <p id="subtitle">Waiting for telemetry</p>
+        </div>
+        <div class="toolbar">
+          <label class="token-field">
+            <span>Token</span>
+            <input id="auth-token" type="password" autocomplete="off">
+          </label>
+          <button id="save-token" type="button">Save</button>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <main>
+    <section class="dashboard-section hero-section" data-view="overview">
+      <div class="overview-hero">
+        <div class="overview-main-card">
+          <span class="eyebrow">Current Strategy</span>
+          <strong id="overview-equity">n/a</strong>
+          <span id="overview-subtitle">Waiting for a published run or workbench artifact</span>
+          <div class="hero-actions">
+            <button class="secondary nav-jump" type="button" data-view-target="performance">Performance</button>
+            <button class="secondary nav-jump" type="button" data-view-target="data">Data Library</button>
+          </div>
+        </div>
+        <div class="overview-status-grid">
+          <div class="status-tile">
+            <span>Mode</span>
+            <strong id="overview-mode">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Gateway</span>
+            <strong id="overview-gateway">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Latest Signal</span>
+            <strong id="overview-latest-signal">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Latest Fill</span>
+            <strong id="overview-latest-fill">n/a</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="metrics dashboard-section" data-view="overview">
       <div class="metric">
         <span>Status</span>
         <strong id="metric-status">n/a</strong>
@@ -58,7 +115,64 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="performance" hidden>
+      <div class="section-head">
+        <h2>Strategy Performance</h2>
+        <span id="performance-note" class="section-note">No performance data loaded</span>
+      </div>
+      <div class="performance-layout">
+        <div class="performance-card">
+          <span class="eyebrow">Latest Equity</span>
+          <strong id="performance-equity">n/a</strong>
+          <span id="performance-context">Select a run artifact or publish status with metrics.</span>
+        </div>
+        <div class="performance-kpis">
+          <div class="status-tile">
+            <span>Total Return</span>
+            <strong id="performance-return">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Max Drawdown</span>
+            <strong id="performance-drawdown">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Return / Day</span>
+            <strong id="performance-return-day">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Exposure</span>
+            <strong id="performance-exposure">n/a</strong>
+          </div>
+        </div>
+      </div>
+      <div class="chart-panel">
+        <div class="section-head">
+          <h2>Equity Curve</h2>
+          <span id="performance-chart-note" class="section-note">Archived run artifacts show the cleanest curve.</span>
+        </div>
+        <div id="performance-equity-chart" class="detail-chart-wrap"></div>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Finished</th>
+              <th>Draft</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Return</th>
+              <th>Max DD</th>
+              <th>Return/day</th>
+              <th>Fills</th>
+              <th>Rejects</th>
+            </tr>
+          </thead>
+          <tbody id="performance-runs-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="overview">
       <div class="section-head">
         <h2>Workflow</h2>
       </div>
@@ -86,7 +200,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Workbench State</h2>
         <span class="button-pair">
@@ -97,7 +211,7 @@
       <dl id="workbench-status-list" class="kv wide-kv"></dl>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Workbench Maintenance</h2>
         <span id="cleanup-note" class="section-note">Not loaded</span>
@@ -110,7 +224,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Setup Diagnostics</h2>
         <span id="diagnostics-note" class="section-note">Not loaded</span>
@@ -118,7 +232,7 @@
       <dl id="diagnostics-list" class="kv wide-kv"></dl>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Endpoint Map</h2>
         <span id="endpoint-map-note" class="section-note">Not loaded</span>
@@ -139,7 +253,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="data" hidden>
       <div class="section-head">
         <h2>Saved Data</h2>
         <span class="button-pair">
@@ -147,6 +261,31 @@
           <span id="data-catalog-errors" class="section-note"></span>
         </span>
       </div>
+      <div class="data-library-summary">
+        <div class="data-library-card">
+          <span class="eyebrow">Configured Roots</span>
+          <strong id="data-root-count">0</strong>
+          <span id="data-root-note">No root scan loaded</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Catalog Limit</span>
+          <label>
+            <span>Rows to scan</span>
+            <select id="data-catalog-limit">
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+            </select>
+          </label>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Visibility Check</span>
+          <strong id="data-visibility-status">n/a</strong>
+          <span id="data-visibility-note">The catalog only shows files under configured roots.</span>
+        </div>
+      </div>
+      <div id="data-root-cards" class="root-grid"></div>
       <div class="filter-row">
         <label>
           <span>Search</span>
@@ -192,7 +331,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="data" hidden>
       <div class="section-head">
         <h2>Data Detail</h2>
         <span id="data-detail-title" class="section-note">No dataset selected</span>
@@ -239,7 +378,7 @@
       </section>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="workbench" hidden>
       <div class="section-head">
         <h2>Config Builder</h2>
         <span id="config-validation" class="section-note">No draft generated</span>
@@ -539,7 +678,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="runs" hidden>
       <div class="section-head">
         <h2>Recent Status</h2>
       </div>
@@ -562,7 +701,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="runs" hidden>
       <div class="section-head">
         <h2>Runs</h2>
       </div>
@@ -587,7 +726,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="runs" hidden>
       <div class="section-head">
         <h2>Recent Run Events</h2>
       </div>
@@ -608,7 +747,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Supervisors</h2>
       </div>
@@ -629,7 +768,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Remote Control</h2>
       </div>
@@ -650,7 +789,7 @@
       </div>
     </section>
 
-    <section class="split">
+    <section class="split dashboard-section" data-view="operations" hidden>
       <div>
         <div class="section-head">
           <h2>Alerts</h2>
@@ -677,7 +816,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Commands</h2>
       </div>
@@ -732,7 +871,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
         <h2>Command Results</h2>
       </div>
@@ -751,11 +890,50 @@
         </table>
       </div>
     </section>
-  </main>
+    <section class="dashboard-section" data-view="help" hidden>
+      <div class="section-head">
+        <h2>Help</h2>
+        <span class="section-note">Local-first framework, not a strategy recommendation</span>
+      </div>
+      <div class="help-grid">
+        <div class="help-card">
+          <strong>Start Here</strong>
+          <ol>
+            <li>Confirm Gateway/API status in Overview.</li>
+            <li>Open Data Library and verify your real data roots are visible.</li>
+            <li>Inspect a saved dataset before using it in a replay.</li>
+            <li>Build or load a draft in Workbench.</li>
+            <li>Run replay or simulated paper, then inspect Performance and Runs.</li>
+          </ol>
+        </div>
+        <div class="help-card">
+          <strong>Why only a few symbols?</strong>
+          <p>The catalog only scans configured data roots and returns the selected limit. If you see only SPY and QQQ, the server is likely pointed at example data. Add your cache/history directories with <span class="mono">--data-root</span> or private local config.</p>
+        </div>
+        <div class="help-card">
+          <strong>Glossary</strong>
+          <dl class="mini-glossary">
+            <dt>Replay</dt><dd>Run a plugin against saved bars.</dd>
+            <dt>Shadow</dt><dd>Observe decisions without submitting orders.</dd>
+            <dt>Simulated paper</dt><dd>Use local simulated fills and account state.</dd>
+            <dt>Paper</dt><dd>Submit to a broker paper account.</dd>
+            <dt>Artifact</dt><dd>Saved summary, decisions, orders, fills, and account snapshots.</dd>
+            <dt>Stale bar</dt><dd>Latest market data is older than expected.</dd>
+          </dl>
+        </div>
+        <div class="help-card">
+          <strong>Safe Boundaries</strong>
+          <p>Public examples are intentionally no-edge. Private strategies should live in ignored config/plugin files. The dashboard summarizes decisions and artifacts without returning raw private signal payloads.</p>
+        </div>
+      </div>
+    </section>
+      </main>
 
-  <footer>
-    <span id="last-refresh">Not refreshed</span>
-  </footer>
+      <footer>
+        <span id="last-refresh">Not refreshed</span>
+      </footer>
+    </div>
+  </div>
 
   <script src="/dashboard/app.js"></script>
 </body>

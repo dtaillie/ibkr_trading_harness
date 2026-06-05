@@ -191,10 +191,13 @@ publish runner summaries, supervisor status, remote-control audit summaries,
 and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
 stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
-dashboard shows read-only workbench state for saved drafts, recorded runs,
-archived run artifacts, and local disk usage. It can also inspect configured
-local CSV/parquet data roots, showing coverage summaries, timestamp/gap
-metadata, and small downsampled price previews. Individual datasets can be
+dashboard now uses separate Overview, Performance, Data Library, Workbench,
+Runs, Operations, and Help views instead of one long status page. It shows
+read-only workbench state for saved drafts, recorded runs, archived run
+artifacts, and local disk usage. It can also inspect configured local
+CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
+root-scan diagnostics, suggested unconfigured local roots, and small
+downsampled price previews. Individual datasets can be
 inspected for larger sampled price paths, null counts, gap rows, price/return
 stats, volume stats, and a compact ok/warn/bad quality summary before they are
 used in a replay config. The saved-data table can be filtered by search text,

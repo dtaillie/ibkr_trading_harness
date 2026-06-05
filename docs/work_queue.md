@@ -10,6 +10,9 @@ Goal: make the dashboard feel like a modern trading app, closer to Robinhood's
 clarity and visual rhythm, while keeping this project local-first and
 strategy-private.
 
+- Progress: initial app-shell navigation, Overview, Performance, Data Library,
+  Operations, Workbench, Runs, and Help views are implemented. The next pass
+  should improve chart depth, drilldowns, visual polish, and guided workflows.
 - Redesign the app shell so the dashboard is not one long page. Add persistent
   navigation with clear sections:
   - Overview
@@ -71,6 +74,9 @@ strategy-private.
 Goal: make all fetched historical data visible and inspectable. If only SPY and
 QQQ show up, treat that as a bug until proven otherwise.
 
+- Progress: Data Library now shows configured roots, catalog limits, visibility
+  warnings, and suggested local roots such as an existing cache directory that
+  contains data but is not currently configured.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

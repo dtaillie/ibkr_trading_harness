@@ -371,6 +371,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "supervisors-body" in html
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
+        assert "data-root-cards" in html
+        assert "nav-performance" in html
+        assert "performance-equity" in html
         assert "config-form" in html
         assert "endpoint-map-body" in html
 
@@ -547,6 +550,37 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["symbol"] == "SPY"
         assert exported[0]["quality_status"] == "ok"
         assert exported[0]["bar_size"] == "5min"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_suggests_unconfigured_data_roots(tmp_path, monkeypatch):
+    configured_root = tmp_path / "configured"
+    configured_root.mkdir()
+    (configured_root / "SPY_5min_sample.csv").write_text(
+        "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+        encoding="utf-8",
+    )
+    suggested_root = tmp_path / "cache"
+    suggested_root.mkdir()
+    (suggested_root / "QQQ_5min_sample.csv").write_text(
+        "timestamp,close\n2026-01-02T14:30:00Z,200\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", (suggested_root,))
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[configured_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/workbench_diagnostics", timeout=5) as resp:
+            diagnostics = json.loads(resp.read().decode("utf-8"))
+
+        assert diagnostics["data_roots"][0]["data_file_count"] == 1
+        assert diagnostics["suggested_data_roots"][0]["data_file_count"] == 1
+        assert diagnostics["suggested_data_roots"][0]["path"] == str(suggested_root.resolve())
     finally:
         server.shutdown()
         server.server_close()

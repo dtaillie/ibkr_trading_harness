@@ -58,6 +58,12 @@ def run_smoke(
         base_url = f"http://{host}:{server.server_address[1]}"
         html = fetch_text(base_url, "/")
         required_controls = [
+            "nav-overview",
+            "nav-performance",
+            "nav-data",
+            "performance-equity",
+            "data-root-cards",
+            "data-catalog-limit",
             "data-filter-quality",
             "export-data-catalog-csv",
             "export-workbench-snapshot",
