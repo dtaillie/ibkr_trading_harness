@@ -669,6 +669,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-fetch-output-paths" in html
         assert "export-fetch-detail-csv" in html
         assert "overview-health-grid" in html
+        assert "overview-alerts-note" in html
+        assert "overview-alerts-body" in html
         assert "overview-orders-note" in html
         assert "overview-orders-body" in html
         assert "overview-positions-grid" in html

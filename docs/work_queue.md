@@ -146,6 +146,9 @@ strategy-private.
     alerts
     - partial; published alerts and Gateway state are visible, specialized alert
       categories depend on runner telemetry
+    - partial; Overview now has a Current Alerts table so stale-data,
+      stale-account, rejected-order, risk-limit, gateway, and other published
+      alerts are visible on the starting page before drilling into Operations.
   - open-position cards with symbol, entry time, entry price, current price,
     PnL, age, intended hold window, and active exit rule
     - partial; position cards show symbol, quantity, and value when account

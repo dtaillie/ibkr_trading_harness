@@ -277,6 +277,8 @@ def run_smoke(
             "current-orders-body",
             "current-positions-grid",
             "overview-health-grid",
+            "overview-alerts-note",
+            "overview-alerts-body",
             "overview-orders-note",
             "overview-orders-body",
             "overview-positions-grid",

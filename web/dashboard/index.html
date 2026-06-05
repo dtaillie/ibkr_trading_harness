@@ -193,6 +193,25 @@
 
     <section class="dashboard-section" data-view="overview">
       <div class="section-head">
+        <h2>Current Alerts</h2>
+        <span id="overview-alerts-note" class="section-note">Waiting for alerts</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Kind</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="overview-alerts-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
         <h2>Current Orders</h2>
         <span id="overview-orders-note" class="section-note">Waiting for order telemetry</span>
       </div>

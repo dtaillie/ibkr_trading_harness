@@ -1469,6 +1469,7 @@ function renderOverview() {
   });
   renderRuntimeStatus();
   renderOverviewHealth();
+  renderOverviewAlerts();
   renderOverviewOrders();
   renderOverviewPositions();
   renderOverviewTimeline();
@@ -1554,6 +1555,20 @@ function renderOverviewOrders() {
         escapeHtml([orderItem.reason, orderItem.tag].filter(Boolean).join(" / ")),
       ])).join("")
     : row([`<span class="muted">No current open-order telemetry. Broker-native open orders require runners to publish open-order state.</span>`, "", "", "", "", "", ""]);
+}
+
+function renderOverviewAlerts() {
+  const alerts = ((state.status && state.status.alerts) || []).slice(0, 6);
+  $("overview-alerts-note").textContent = alerts.length
+    ? `${numberText(alerts.length, 0)} current alert${alerts.length === 1 ? "" : "s"}`
+    : "No current alerts";
+  $("overview-alerts-body").innerHTML = alerts.length
+    ? alerts.map((alert) => row([
+        statusText(alert.level === "warn" ? "warn" : alert.level),
+        escapeHtml(alert.kind),
+        escapeHtml(alert.message),
+      ])).join("")
+    : row([`<span class="muted">No stale-data, stale-account, gateway, rejection, or risk alerts are currently published.</span>`, "", ""]);
 }
 
 function renderOverviewTimeline() {
