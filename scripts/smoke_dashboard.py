@@ -119,6 +119,8 @@ def run_smoke(
             "Page Guide",
             "Inspect Saved Historical Data",
             "Public Publishing Boundary",
+            "runtime-status-grid",
+            "runtime-status-note",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -153,6 +155,8 @@ def run_smoke(
             "config_draft_daily_rollups",
             "activityChanges",
             "renderOverviewChanges",
+            "runtimeStatusItems",
+            "renderRuntimeStatus",
             "renderCurrentOrdersAndPositions",
             "currentOpenOrderRows",
             "viewFromHash",

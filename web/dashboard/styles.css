@@ -358,6 +358,7 @@ section {
 }
 
 .overview-status-grid,
+.runtime-status-grid,
 .performance-kpis,
 .data-library-summary,
 .root-grid,
@@ -371,6 +372,7 @@ section {
 }
 
 .status-tile,
+.runtime-status-card,
 .data-library-card,
 .root-card,
 .help-card,
@@ -385,6 +387,7 @@ section {
 }
 
 .status-tile span,
+.runtime-status-card span,
 .data-library-card span,
 .root-card span {
   display: block;
@@ -394,11 +397,21 @@ section {
 }
 
 .status-tile strong,
+.runtime-status-card strong,
 .data-library-card strong,
 .root-card strong {
   display: block;
   margin-top: 8px;
   font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-status-card small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -1060,6 +1073,7 @@ footer {
   }
 
   .overview-status-grid,
+  .runtime-status-grid,
   .performance-kpis,
   .data-library-summary,
   .root-grid,

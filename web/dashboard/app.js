@@ -216,6 +216,16 @@ function latestTelemetryRun() {
   })[0];
 }
 
+function latestSupervisor() {
+  const supervisors = (state.status && state.status.supervisors) || [];
+  if (!supervisors.length) return null;
+  return supervisors.slice().sort((a, b) => {
+    const aTime = String(a.generated_at || "");
+    const bTime = String(b.generated_at || "");
+    return bTime.localeCompare(aTime);
+  })[0];
+}
+
 function latestSummarizedComparisonRun() {
   const runs = (state.runComparison && state.runComparison.runs) || [];
   return runs.find((runItem) => runItem.summary_available) || null;
@@ -293,6 +303,144 @@ function finiteNumber(value) {
 function timestampMillis(value) {
   const parsed = Date.parse(value || "");
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function timestampAgeLabel(value) {
+  const millis = timestampMillis(value);
+  if (millis === null) return "not published";
+  const ageSeconds = Math.max(0, (Date.now() - millis) / 1000);
+  return `${text(value)} (${age(ageSeconds)} ago)`;
+}
+
+function firstPresent(...values) {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== "") return value;
+  }
+  return null;
+}
+
+function metricTimestamp(metrics, keys) {
+  for (const key of keys) {
+    const value = metrics ? metrics[key] : null;
+    if (value !== null && value !== undefined && value !== "") return value;
+  }
+  return null;
+}
+
+function eventStatusIsBad(event) {
+  const status = String((event && event.status) || "").toLowerCase();
+  return status.includes("reject") || status.includes("cancel") || status.includes("fail") || status.includes("error");
+}
+
+function runtimeStatusItems() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const latestRun = latestTelemetryRun();
+  const supervisor = latestSupervisor();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const freshness = (latestRun && latestRun.freshness) || {};
+  const supervisorFreshness = (supervisor && supervisor.freshness) || {};
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestOrder = events.find((event) => event.type === "order");
+  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const openOrders = currentOpenOrderRows();
+  const heartbeatTimestamp = firstPresent(
+    freshness.timestamp,
+    metricTimestamp(metrics, ["last_decision_time", "account_end_time"]),
+    supervisor && supervisor.generated_at,
+    payload.generated_at,
+  );
+  const marketTimestamp = metricTimestamp(metrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const accountTimestamp = metricTimestamp(metrics, [
+    "account_end_time",
+    "latest_account_time",
+    "latest_account_timestamp",
+    "account_snapshot_time",
+  ]);
+  const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
+  const mode = metrics.mode || null;
+  const heartbeatStale = Boolean(freshness.stale || supervisorFreshness.stale);
+  const gatewayReachable = gateway.enabled ? gateway.reachable : null;
+  const gatewayStatus = !gateway.enabled
+    ? "warn"
+    : gatewayReachable === true ? "ok" : gatewayReachable === false ? "bad" : "warn";
+  return [
+    {
+      label: "Process Heartbeat",
+      value: timestampAgeLabel(heartbeatTimestamp),
+      status: heartbeatTimestamp ? (heartbeatStale ? "warn" : "ok") : "bad",
+      detail: latestRun
+        ? `Run ${text(latestRun.id)} freshness ${age(freshness.age_seconds)}`
+        : supervisor
+          ? `Supervisor ${text(supervisor.id)} freshness ${age(supervisorFreshness.age_seconds)}`
+          : "No run or supervisor heartbeat is configured.",
+    },
+    {
+      label: "Gateway/API",
+      value: gateway.enabled ? (gatewayReachable ? "reachable" : "not reachable") : "disabled",
+      status: gatewayStatus,
+      detail: gateway.enabled
+        ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "" : `${gateway.latency_ms}ms`}`
+        : "Gateway checks are disabled in this dashboard config.",
+    },
+    {
+      label: "Runner Mode",
+      value: text(mode),
+      status: latestRun ? (mode ? "ok" : "warn") : "bad",
+      detail: latestRun
+        ? `Run status ${text(latestRun.status)}`
+        : "No current run is publishing telemetry.",
+    },
+    {
+      label: "Latest Market Data",
+      value: timestampAgeLabel(marketTimestamp),
+      status: marketTimestamp ? "ok" : "warn",
+      detail: marketTimestamp
+        ? "Last bar/snapshot timestamp published by the runner."
+        : "Runner summary does not publish latest bar or market-data time yet.",
+    },
+    {
+      label: "Latest Account",
+      value: timestampAgeLabel(accountTimestamp),
+      status: accountTimestamp ? "ok" : "warn",
+      detail: accountTimestamp
+        ? `${numberText(metrics.account_snapshot_count, 0)} account snapshots summarized`
+        : "Runner summary does not publish latest account snapshot time yet.",
+    },
+    {
+      label: "Latest Decision",
+      value: timestampAgeLabel(decisionTimestamp),
+      status: decisionTimestamp ? "ok" : latestRun ? "warn" : "bad",
+      detail: latestDecision
+        ? `${text(latestDecision.symbol)} ${text(latestDecision.detail)}`
+        : "No recent decision event is available.",
+    },
+    {
+      label: "Open Orders",
+      value: numberText(openOrders.length, 0),
+      status: openOrders.length ? "warn" : "ok",
+      detail: openOrders.length
+        ? `${text(openOrders[0].symbol)} ${text(openOrders[0].status)} ${text(openOrders[0].timestamp)}`
+        : "No recent non-terminal order events.",
+    },
+    {
+      label: "Latest Rejection",
+      value: latestRejection ? timestampAgeLabel(latestRejection.timestamp) : "none",
+      status: latestRejection ? "bad" : "ok",
+      detail: latestRejection
+        ? `${text(latestRejection.symbol)} ${text(latestRejection.status)} ${text(latestRejection.detail)}`
+        : latestOrder
+          ? `Latest order ${text(latestOrder.symbol)} ${text(latestOrder.status)}`
+          : "No recent rejected/canceled order events.",
+    },
+  ];
 }
 
 function performancePeriodWindow(accountRows, period) {
@@ -585,9 +733,28 @@ function renderOverview() {
   $("overview-latest-fill").textContent = latestFill
     ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
     : "n/a";
+  renderRuntimeStatus();
   renderOverviewHealth();
   renderOverviewPositions();
   renderOverviewTimeline();
+}
+
+function renderRuntimeStatus() {
+  const items = runtimeStatusItems();
+  const badCount = items.filter((item) => item.status === "bad").length;
+  const warnCount = items.filter((item) => item.status === "warn").length;
+  $("runtime-status-note").textContent = badCount
+    ? `${badCount} missing or bad runtime signal${badCount === 1 ? "" : "s"}`
+    : warnCount
+      ? `${warnCount} runtime warning${warnCount === 1 ? "" : "s"}`
+      : "Runtime telemetry looks current";
+  $("runtime-status-grid").innerHTML = items.map((item) => `
+    <div class="runtime-status-card">
+      <span>${escapeHtml(item.label)}</span>
+      <strong class="${statusClass(item.status)}">${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("");
 }
 
 function renderOverviewHealth() {
