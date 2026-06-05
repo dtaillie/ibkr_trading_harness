@@ -662,6 +662,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     `X-Forwarded-For` handling, so deployments can restrict direct receiver
     clients to localhost, VPN, proxy, or management networks. Remaining gap:
     provider-specific firewall/IaC examples.
+  - partial; public-safe network-boundary examples now include nginx and Caddy
+    reverse proxies, a dry-run-first UFW host-firewall script, and an AWS
+    security-group Terraform sketch. Remaining gap: deployment recipes for
+    other providers and stronger off-host audit retention.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity

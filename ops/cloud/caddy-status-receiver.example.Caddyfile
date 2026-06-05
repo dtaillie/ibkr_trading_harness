@@ -1,0 +1,20 @@
+# EXAMPLE ONLY. Caddy reverse proxy for the hosted status receiver.
+#
+# Replace status.example.invalid with your domain. Caddy will manage HTTPS
+# certificates automatically when public DNS points at this host.
+
+status.example.invalid {
+	encode zstd gzip
+
+	@large_body {
+		header Content-Length *
+		expression `{http.request.header.Content-Length} > 2097152`
+	}
+	respond @large_body "request body too large" 413
+
+	reverse_proxy 127.0.0.1:8765 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+	}
+}

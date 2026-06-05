@@ -261,7 +261,9 @@ machine with `ops/systemd/algo-trade-status-publisher.timer`. Keep the hosted
 receiver behind HTTPS or a private VPN and keep broker credentials on the local
 machine. Hosted configs can also set `dashboard.network_access` to restrict
 direct receiver clients to localhost, VPN, or known management networks. See
-`docs/cloud_monitoring_deployment.md` for the full deployment shape.
+`docs/cloud_monitoring_deployment.md` for the full deployment shape, including
+example nginx/Caddy reverse proxies, UFW host-firewall rules, and an AWS
+security-group sketch.
 The `dashboard.data_roots` list in `config/cloud_status.example.yaml` controls
 which CSV/parquet roots are scanned. The public example points only at
 `examples/data`. For a real local setup, copy the config to an ignored local

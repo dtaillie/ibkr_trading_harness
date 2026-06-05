@@ -20,6 +20,9 @@ pushing this working tree.
   - `config/cloud_status_hosted.example.yaml`
   - `ops/cloud/status-receiver.compose.example.yaml`
   - `ops/cloud/nginx-status-receiver.example.conf`
+  - `ops/cloud/caddy-status-receiver.example.Caddyfile`
+  - `ops/cloud/ufw-status-receiver.example.sh`
+  - `ops/cloud/aws-security-group-status-receiver.example.tf`
 - Safe remote command prototype:
   - `scripts/command_worker.py`
   - `config/remote_control.example.yaml`

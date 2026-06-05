@@ -105,9 +105,25 @@ template. Replace the example domain and certificate paths, then add your
 normal firewall or source-IP controls. The nginx file is intentionally only a
 template; certificate issuance and host hardening are provider-specific.
 
+`ops/cloud/caddy-status-receiver.example.Caddyfile` is the same reverse-proxy
+shape for Caddy. It is useful on a small VPS when you want Caddy to manage
+certificates automatically.
+
+`ops/cloud/ufw-status-receiver.example.sh` is a host-firewall sketch for
+Ubuntu/Debian-style VPS hosts. It defaults to a dry run and requires explicit
+`SSH_CIDR`, `PUBLISHER_CIDR`, and `APPLY=1` before changing firewall rules.
+It keeps the Python receiver port closed to the network and allows only HTTPS
+from configured publisher/dashboard CIDRs.
+
+`ops/cloud/aws-security-group-status-receiver.example.tf` is an AWS-style
+network boundary example. It allows SSH from management CIDRs, HTTPS from the
+publisher/dashboard CIDRs, and no public access to the receiver's app port.
+
 Good low-cost provider shapes:
 
 - VPS: install Docker, run the compose file, put nginx or Caddy in front.
+- AWS EC2: attach a security group equivalent to the Terraform example, bind
+  the receiver to localhost, and expose only the HTTPS reverse proxy.
 - Fly.io/Render/Railway-style app: run the same Python command, set
   `TRADING_STATUS_TOKEN`, and attach persistent storage for
   `paper_logs/cloud_status_server`.
@@ -261,6 +277,8 @@ Keep service files local and environment-specific. Commit only examples.
   mismatch, or action is not allowlisted.
 - Missing artifacts: dashboard data roots or run-output paths are not
   configured for the receiver.
+- Receiver reachable directly on port 8765: firewall/proxy boundary is wrong;
+  close the app port and expose only HTTPS through the reverse proxy or VPN.
 
 ## Public/Private Boundary
 
