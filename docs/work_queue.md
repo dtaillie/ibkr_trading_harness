@@ -423,6 +423,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - done; `scripts/audit_data_storage.py`, the storage-audit endpoint, and the
     Data Library panel compare configured/suggested root files with
     catalog-visible rows
+  - partial; the dashboard now exposes `/data_storage_audit_export` and an
+    Export Audit CSV button so root-by-root file counts, hidden-file counts,
+    extension/source breakdowns, and suggested roots can be reviewed offline.
   - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
   - compare files on disk to dashboard-visible catalog rows
   - summarize missing symbols, malformed files, unsupported extensions, and

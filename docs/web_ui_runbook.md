@@ -36,7 +36,9 @@ If Data Library only shows SPY/QQQ examples:
 4. Use Copy data_roots YAML to copy configured plus suggested roots.
 5. Paste the `dashboard.data_roots` block into your ignored local dashboard
    config, removing any roots you do not want scanned.
-6. Refresh the dashboard.
+6. Use Export Audit CSV if you want the root-by-root storage comparison for
+   offline review.
+7. Refresh the dashboard.
 
 ## Find Current Strategy Performance
 

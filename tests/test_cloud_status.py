@@ -591,6 +591,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-scan-note" in html
         assert "data-catalog-scan-body" in html
         assert "data-storage-scan-limit" in html
+        assert "export-data-storage-audit-csv" in html
         assert "data-storage-audit-body" in html
         assert "data-symbol-browser-input" in html
         assert "data-symbol-browser-dataset" in html
@@ -729,6 +730,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
+        assert ("GET", "/data_storage_audit_export") in endpoints
         assert ("POST", "/data_compare") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
@@ -1499,6 +1501,13 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert suggested["configured"] is False
         assert suggested["root_scope"] == "local_cache"
         assert suggested["hidden_file_count"] == 1
+        with request.urlopen(f"{base}/data_storage_audit_export?catalog_limit=1&scan_limit=10", timeout=5) as resp:
+            csv_body = resp.read().decode("utf-8")
+            assert resp.headers["Content-Type"].startswith("text/csv")
+        assert "scope,path,display_path" in csv_body
+        assert "configured" in csv_body
+        assert "suggested" in csv_body
+        assert str(suggested_root.resolve()) in csv_body
     finally:
         server.shutdown()
         server.server_close()

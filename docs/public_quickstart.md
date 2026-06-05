@@ -255,8 +255,9 @@ month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
-currently configured. Use the coverage grid to see recent date-bin coverage by
-symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
+currently configured. Use Export Audit CSV to download that root-by-root
+comparison for offline review. Use the coverage grid to see recent date-bin
+coverage by symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored

@@ -376,6 +376,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_storage_audit_export",
+        "category": "data",
+        "description": "Download root-by-root saved-data storage audit metadata.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/fetch_manifests",
         "category": "data",
         "description": "List historical-data fetch job manifests.",
@@ -1897,6 +1904,60 @@ DATA_CATALOG_EXPORT_FIELDS = (
     "size_bytes",
     "modified_at",
 )
+
+
+DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
+    "scope",
+    "path",
+    "display_path",
+    "root_scope",
+    "root_scope_note",
+    "exists",
+    "is_dir",
+    "writable",
+    "file_count",
+    "catalog_visible_count",
+    "hidden_file_count",
+    "scan_limit",
+    "scan_capped",
+    "size_bytes",
+    "error_count",
+    "extension_counts",
+    "asset_class_guess_counts",
+    "source_guess_counts",
+    "bar_size_guess_counts",
+    "sample_hidden_paths",
+    "errors",
+)
+
+
+def compact_csv_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True)
+    if isinstance(value, list):
+        if all(not isinstance(item, (dict, list)) for item in value):
+            return ";".join(str(item) for item in value)
+        return json.dumps(value, sort_keys=True)
+    return value
+
+
+def build_data_storage_audit_csv(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    scan_limit: int = 5000,
+) -> str:
+    audit = build_data_storage_audit(data_roots, catalog_limit=catalog_limit, scan_limit=scan_limit)
+    rows = [
+        *({**row, "scope": "configured"} for row in audit.get("configured_roots", [])),
+        *({**row, "scope": "suggested"} for row in audit.get("suggested_roots", [])),
+    ]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_STORAGE_AUDIT_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_STORAGE_AUDIT_EXPORT_FIELDS})
+    return out.getvalue()
 
 
 def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
@@ -6573,6 +6634,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_storage_audit_export":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                scan_limit = parse_int_param(params, "scan_limit", default=5000, maximum=50000)
+                csv_body = build_data_storage_audit_csv(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    scan_limit=scan_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_storage_audit.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/fetch_manifests":
             if not self.require_auth():

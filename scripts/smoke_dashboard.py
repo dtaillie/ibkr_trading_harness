@@ -574,6 +574,9 @@ def run_smoke(
         storage_audit = fetch_json(base_url, f"/data_storage_audit?catalog_limit={catalog_limit}&scan_limit=100")
         if "configured_roots" not in storage_audit or "catalog_visible_count" not in storage_audit:
             raise RuntimeError("data storage audit summary is invalid")
+        storage_audit_csv = fetch_text(base_url, f"/data_storage_audit_export?catalog_limit={catalog_limit}&scan_limit=100")
+        if "scope,path,display_path" not in storage_audit_csv:
+            raise RuntimeError("data storage audit CSV header is missing")
         csv_header = data_catalog_csv.splitlines()[0]
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
@@ -610,6 +613,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_missing_intervals_export")
         if ("GET", "/data_storage_audit") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_storage_audit")
+        if ("GET", "/data_storage_audit_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_storage_audit_export")
         if ("POST", "/data_compare") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_compare")
         if ("GET", "/config_draft_daily_rollups") not in endpoint_paths:
