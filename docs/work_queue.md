@@ -159,8 +159,8 @@ strategy-private.
       Overview/Runs position cards render those fields when present.
     - partial; sanitized account snapshots now also preserve allowlisted
       per-symbol position details such as entry time/price, hold window, active
-      exit rule, stop/target, and MAE/MFE, and position cards render them when
-      runners publish those fields.
+      exit rule, stop/target, and MAE/MFE, and position cards render them with
+      derived age when runners publish those fields.
   - today's event timeline from market open/current session start through the
     latest decision
     - partial; Overview now shows the latest bounded decision/order/fill

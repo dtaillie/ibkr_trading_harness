@@ -3182,6 +3182,27 @@ def test_cloud_status_server_preserves_public_safe_position_accounting():
     assert "diagnostics" not in row
 
 
+def test_cloud_status_server_accepts_position_metadata_alias():
+    row = status_server.summarize_account_artifact({
+        "timestamp": "2026-01-02T14:30:00+00:00",
+        "positions": {"QQQ": 1},
+        "position_metadata": {
+            "QQQ": {
+                "entry_time": "2026-01-02T14:31:00+00:00",
+                "active_exit_rule": "trailing_stop",
+                "raw_state": {"private": True},
+            },
+        },
+    })
+
+    assert row["position_details"] == {
+        "QQQ": {
+            "entry_time": "2026-01-02T14:31:00+00:00",
+            "active_exit_rule": "trailing_stop",
+        },
+    }
+
+
 def test_cloud_status_server_artifacts_reject_output_outside_workbench(tmp_path):
     data_root = tmp_path / "data"
     state_dir = tmp_path / "state"

@@ -1304,10 +1304,13 @@ function nonzeroPositionsFromSource(source) {
 
 function positionDetailHtml(position, { includeQuantity = true } = {}) {
   const exitState = position.exit_state || position.stop_state;
+  const entryMillis = timestampMillis(position.entry_time);
+  const ageText = entryMillis === null ? "" : `Age ${age(Math.max(0, (Date.now() - entryMillis) / 1000))}`;
   const detailLines = [
     includeQuantity ? `Quantity ${numberText(position.quantity, 6)}` : "",
     Number.isFinite(position.value) ? `Value ${money(position.value)}` : "",
     position.entry_time ? `Entry ${text(position.entry_time)}` : "",
+    ageText,
     position.entry_price !== null ? `Entry Px ${money(position.entry_price)}` : "",
     position.average_cost !== null ? `Avg ${money(position.average_cost)}` : "",
     position.current_price !== null ? `Price ${money(position.current_price)}` : "",
