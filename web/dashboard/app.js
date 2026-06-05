@@ -5682,20 +5682,29 @@ async function loadDataDetailForSymbol() {
   $("data-detail-viewer-note").textContent = `Opened ${text(dataset.symbol)} ${text(dataset.bar_size)} from ${text(dataset.source)}.`;
 }
 
-async function loadDataCompare(event) {
-  event.preventDefault();
+function dataComparePayload() {
   const selected = selectedCompareDatasets();
   if (selected.length < 2) {
-    $("data-compare-note").innerHTML = `<span class="status-bad">Select at least two saved datasets first</span>`;
-    return;
+    throw new Error("Select at least two saved datasets first");
   }
-  const payload = {
+  return {
     datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
     preview_points: $("data-compare-points").value || "400",
     sample_mode: $("data-compare-mode").value || "sampled",
     start: $("data-compare-start").value,
     end: $("data-compare-end").value,
   };
+}
+
+async function loadDataCompare(event) {
+  event.preventDefault();
+  let payload;
+  try {
+    payload = dataComparePayload();
+  } catch (err) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    return;
+  }
   const response = await fetchJson("/data_compare", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -5703,6 +5712,21 @@ async function loadDataCompare(event) {
   state.dataCompare = response.comparison || {};
   renderDataCompare();
   $("last-refresh").textContent = `Data comparison loaded: ${new Date().toLocaleString()}`;
+}
+
+function copyDataCompareJson() {
+  let payload;
+  try {
+    payload = dataComparePayload();
+  } catch (err) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    return;
+  }
+  copyText(JSON.stringify(payload, null, 2)).then(() => {
+    $("last-refresh").textContent = `Copied comparison JSON for ${numberText(payload.datasets.length, 0)} datasets`;
+  }).catch((err) => {
+    $("last-refresh").textContent = `Copy failed: ${err.message}`;
+  });
 }
 
 async function diagnoseDataSymbol(event) {
@@ -6345,6 +6369,7 @@ function init() {
       $("last-refresh").textContent = `Minute heatmap CSV export failed: ${err.message}`;
     });
   });
+  $("copy-data-compare-json").addEventListener("click", copyDataCompareJson);
   $("export-data-compare-csv").addEventListener("click", downloadDataCompareCsv);
   $("export-workbench-snapshot").addEventListener("click", () => {
     downloadWorkbenchSnapshot().catch((err) => {

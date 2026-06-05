@@ -495,6 +495,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data now also has Select Symbol, which chooses
       exact catalog symbol matches from the typed Find Dataset value for quick
       same-symbol file/bar/source comparisons.
+    - partial; Compare Saved Data can now copy the exact `/data_compare`
+      request JSON for the current selected datasets, date range, point count,
+      and sampling mode.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred

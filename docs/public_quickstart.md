@@ -334,7 +334,9 @@ selected datasets stay visible while filtering. Select Symbol chooses exact
 catalog matches for the typed symbol, Select Shown chooses the visible
 comparison set up to the dashboard's 8-dataset comparison cap, and Clear
 removes the current selection. This is offline and only reads CSV/parquet files
-under configured data roots.
+under configured data roots. Use Copy Compare JSON to copy the exact
+`/data_compare` request body for scripts, notes, or reproducible offline
+reviews.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
