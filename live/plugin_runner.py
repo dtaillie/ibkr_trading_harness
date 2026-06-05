@@ -27,7 +27,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import Bar, Order, Side
-from framework.plugin_loader import create_plugin, load_object
+from framework.plugin_loader import create_plugin, load_object, validate_plugin_config
 from framework.strategy_plugin import OrderIntent, StrategyContext
 from live.ibkr_broker import IBKRBroker
 from live.ibkr_data import BAR_SIZES, fetch_ibkr_bars
@@ -180,7 +180,7 @@ def validate_config(
     execution_cfg = section(config, "execution", errors)
     broker_cfg = section(config, "broker", errors)
     control_cfg = section(config, "control", errors)
-    section(config, "strategy", errors)
+    strategy_cfg = section(config, "strategy", errors)
 
     try:
         spec = plugin_spec(config)
@@ -192,6 +192,9 @@ def validate_config(
             load_object(spec)
         except Exception as exc:
             errors.append(f"metadata.strategy_plugin could not be imported: {exc}")
+        else:
+            for err in validate_plugin_config(spec, strategy_cfg, full_config=config):
+                errors.append(f"metadata.strategy_plugin config: {err}")
     if metadata.get("status") == "example_only" and runner_cfg.get("mode") == "paper":
         errors.append("example_only configs must not default to paper mode")
 

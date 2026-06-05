@@ -113,6 +113,11 @@ reject intents before execution based on allowed symbols, sides, order types,
 current price availability, max orders per run, max quantity, max cash quantity,
 max notional per order, short-sale permission, and gross-exposure limits.
 `--validate-only` checks the static parts of this config before a run starts.
+Private strategy modules or factory functions can also expose
+`validate_config(config, *, full_config=None)` or
+`validate_strategy_config(config, *, full_config=None)` to reject missing or
+mistyped strategy-specific settings before the runner loads data or connects to
+a broker.
 After a run, `scripts/summarize_plugin_run.py <run-dir>` prints decisions,
 orders, fills, rejection reasons, final cash/equity, positions, return, and max
 drawdown from the generic JSONL artifacts. When account timestamps are

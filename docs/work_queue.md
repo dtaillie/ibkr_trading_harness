@@ -666,7 +666,10 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version
-    fields. Richer per-plugin validation remains open.
+    fields. Generic plugin modules/factories can now expose optional
+    `validate_config` or `validate_strategy_config` hooks that run during
+    plugin-runner config validation. Schema-driven UI controls and deeper
+    plugin-specific validation remain open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

@@ -56,3 +56,12 @@ class StrategyPlugin(Protocol):
     def on_fill(self, fill: dict[str, Any], context: StrategyContext) -> None:
         """Update strategy-local state after an execution fill."""
 
+
+def validate_strategy_config(config: dict[str, Any], *, full_config: dict[str, Any] | None = None) -> list[str]:
+    """Optional plugin-module hook for static strategy config checks.
+
+    Strategy modules or factory functions may expose ``validate_config`` or
+    ``validate_strategy_config``. The generic runner calls those hooks during
+    config validation before loading data or connecting to a broker.
+    """
+    return []

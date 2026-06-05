@@ -383,6 +383,47 @@ def test_validate_config_file_rejects_non_bool_manual_approval(tmp_path):
     assert "execution.require_order_approval must be true or false" in str(exc.value)
 
 
+def test_validate_config_file_runs_plugin_config_validator(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.validated_plugin:create_strategy",
+        strategy={"symbol": ""},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    message = str(exc.value)
+    assert "metadata.strategy_plugin config: strategy.symbol must be a non-empty string" in message
+    assert "metadata.strategy_plugin config: strategy.threshold is required" in message
+    assert not output_dir.exists()
+
+
+def test_validate_config_file_accepts_valid_plugin_config(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.validated_plugin:create_strategy",
+        strategy={"symbol": "SPY", "threshold": 1.5},
+    )
+
+    config = validate_config_file(config_path)
+
+    assert config["strategy"]["threshold"] == pytest.approx(1.5)
+    assert not output_dir.exists()
+
+
 def test_paper_mode_requires_explicit_confirmation(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
