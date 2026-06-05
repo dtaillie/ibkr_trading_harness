@@ -1041,6 +1041,7 @@ tr:last-child td {
   width: 10px;
   height: 10px;
   border-radius: 999px;
+  background: currentColor;
 }
 
 .volume-bar {
@@ -1159,6 +1160,18 @@ tr:last-child td {
 
 .spark-bad {
   color: var(--bad);
+}
+
+.benchmark-overlay .benchmark-strategy-line,
+.legend-item.benchmark-strategy-line {
+  color: var(--good);
+  stroke: var(--good);
+}
+
+.benchmark-overlay .benchmark-market-line,
+.legend-item.benchmark-market-line {
+  color: #2563eb;
+  stroke: #2563eb;
 }
 
 footer {

@@ -221,6 +221,13 @@
               <option value="3m">3 months</option>
             </select>
           </label>
+          <label class="inline-control benchmark-control">
+            <span>Benchmark</span>
+            <select id="performance-benchmark">
+              <option value="">No benchmark</option>
+            </select>
+          </label>
+          <button id="performance-load-benchmark" class="secondary" type="button">Load Benchmark</button>
           <span id="performance-note" class="section-note">No performance data loaded</span>
         </span>
       </div>
@@ -325,6 +332,13 @@
           <span id="performance-chart-note" class="section-note">Archived run artifacts show the cleanest curve.</span>
         </div>
         <div id="performance-equity-chart" class="detail-chart-wrap"></div>
+      </div>
+      <div class="chart-panel">
+        <div class="section-head">
+          <h2>Benchmark Overlay</h2>
+          <span id="performance-benchmark-note" class="section-note">Choose a saved dataset to compare normalized returns.</span>
+        </div>
+        <div id="performance-benchmark-chart" class="detail-chart-wrap compact-chart"></div>
       </div>
       <div class="chart-grid">
         <div class="chart-panel">

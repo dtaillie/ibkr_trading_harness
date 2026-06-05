@@ -26,6 +26,8 @@ const state = {
   runDetail: null,
   configArtifacts: null,
   performanceSourceMode: "current",
+  performanceBenchmarkPath: "",
+  performanceBenchmarkDetail: null,
   commands: [],
   results: [],
   remoteNodes: { nodes: [] },
@@ -325,6 +327,36 @@ function latestArtifactPerformance() {
   if (state.performanceSourceMode === "artifact") return artifactPerformanceSource();
   if (state.performanceSourceMode === "latest_run") return summaryPerformanceSource();
   return currentPerformanceSource();
+}
+
+function benchmarkDatasets() {
+  return (state.dataCatalog.datasets || [])
+    .filter((dataset) => dataset.path)
+    .sort((a, b) => {
+      const left = `${text(a.symbol)} ${text(a.bar_size)} ${text(a.path)}`.toLowerCase();
+      const right = `${text(b.symbol)} ${text(b.bar_size)} ${text(b.path)}`.toLowerCase();
+      return left.localeCompare(right);
+    });
+}
+
+function renderPerformanceBenchmarkOptions() {
+  const select = $("performance-benchmark");
+  if (!select) return;
+  const options = [
+    { value: "", label: "No benchmark" },
+    ...benchmarkDatasets().map((dataset) => ({
+      value: dataset.path,
+      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} ${text(dataset.source)} [${text(dataset.quality_status)}]`,
+    })),
+  ];
+  replaceOptions(select, options);
+  if (state.performanceBenchmarkPath && options.some((option) => option.value === state.performanceBenchmarkPath)) {
+    select.value = state.performanceBenchmarkPath;
+  } else if (state.performanceBenchmarkPath) {
+    state.performanceBenchmarkPath = "";
+    state.performanceBenchmarkDetail = null;
+    select.value = "";
+  }
 }
 
 function selectedConfigDatasets() {
@@ -1230,6 +1262,7 @@ function renderMetrics() {
 
 function renderPerformance() {
   $("performance-source-mode").value = state.performanceSourceMode || "current";
+  renderPerformanceBenchmarkOptions();
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
   const summary = source.summary || {};
@@ -1310,6 +1343,10 @@ function renderPerformance() {
   $("performance-intraday-snapshots").textContent = sessionStats ? numberText(sessionStats.count, 0) : "n/a";
   $("performance-intraday-chart").innerHTML = intradayPnlChart(sessionRows);
   $("performance-equity-chart").innerHTML = equityChart(accountRows);
+  $("performance-benchmark-chart").innerHTML = benchmarkOverlayChart(accountRows, state.performanceBenchmarkDetail);
+  $("performance-benchmark-note").textContent = state.performanceBenchmarkDetail && state.performanceBenchmarkDetail.path
+    ? `${text(state.performanceBenchmarkDetail.symbol)} ${text(state.performanceBenchmarkDetail.bar_size)} from ${text(state.performanceBenchmarkDetail.path)}`
+    : "Choose a saved dataset to compare normalized returns.";
   $("performance-drawdown-chart").innerHTML = drawdownChart(accountRows);
   $("performance-daily-return-chart").innerHTML = dailyReturnChart(accountRows);
   $("performance-calendar-chart").innerHTML = calendarReturnHeatmap(accountRows);
@@ -1648,6 +1685,66 @@ function equityChart(points) {
   }).join(" ");
   const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline></svg>`;
+}
+
+function normalizedReturnPoints(rows, valueKey) {
+  const ordered = (rows || []).map((point) => ({
+    timestamp: point.timestamp,
+    millis: timestampMillis(point.timestamp),
+    value: Number(point[valueKey]),
+  })).filter((point) => point.millis !== null && Number.isFinite(point.value))
+    .sort((a, b) => a.millis - b.millis);
+  const base = ordered.find((point) => point.value !== 0);
+  if (!base) return [];
+  return ordered.map((point) => ({
+    timestamp: point.timestamp,
+    millis: point.millis,
+    value: ((point.value / base.value) - 1) * 100,
+  })).filter((point) => Number.isFinite(point.value));
+}
+
+function benchmarkOverlayChart(accountRows, benchmarkDetail) {
+  const accountPoints = normalizedReturnPoints(accountRows, "equity");
+  const benchmarkPoints = normalizedReturnPoints((benchmarkDetail && benchmarkDetail.preview) || [], "close");
+  if (accountPoints.length < 2) {
+    return `<span class="muted">Load account snapshots to compare against a benchmark.</span>`;
+  }
+  if (!benchmarkDetail || !benchmarkDetail.path) {
+    return `<span class="muted">Choose a saved dataset, then load the benchmark overlay.</span>`;
+  }
+  if (benchmarkPoints.length < 2) {
+    return `<span class="muted">Selected benchmark has no plottable close path.</span>`;
+  }
+  const series = [
+    { label: "Strategy", points: accountPoints, className: "benchmark-strategy-line" },
+    { label: benchmarkDetail.symbol || "Benchmark", points: benchmarkPoints, className: "benchmark-market-line" },
+  ];
+  const allPoints = series.flatMap((item) => item.points);
+  const minTime = Math.min(...allPoints.map((point) => point.millis));
+  const maxTime = Math.max(...allPoints.map((point) => point.millis));
+  const minValue = Math.min(0, ...allPoints.map((point) => point.value));
+  const maxValue = Math.max(0, ...allPoints.map((point) => point.value));
+  const width = 720;
+  const height = 180;
+  const timeSpan = maxTime - minTime || 1;
+  const valueSpan = maxValue - minValue || 1;
+  const yFor = (value) => height - ((value - minValue) / valueSpan) * height;
+  const lineFor = (item) => {
+    const coords = item.points.map((point) => {
+      const x = ((point.millis - minTime) / timeSpan) * width;
+      const y = yFor(point.value);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    return `<polyline class="${escapeHtml(item.className)}" points="${coords}"><title>${escapeHtml(item.label)}</title></polyline>`;
+  };
+  const zeroY = yFor(0).toFixed(1);
+  const legend = series.map((item) => (
+    `<span class="legend-item ${escapeHtml(item.className)}"><span></span>${escapeHtml(item.label)}</span>`
+  )).join("");
+  const accountLatest = accountPoints[accountPoints.length - 1].value;
+  const benchmarkLatest = benchmarkPoints[benchmarkPoints.length - 1].value;
+  const caption = `Strategy ${pctText(accountLatest)} / ${text(benchmarkDetail.symbol || "benchmark")} ${pctText(benchmarkLatest)} normalized return`;
+  return `<svg class="detail-chart benchmark-overlay" viewBox="0 0 ${width} ${height}" role="img" aria-label="strategy and benchmark normalized return overlay"><line class="axis-line" x1="0" y1="${zeroY}" x2="${width}" y2="${zeroY}"></line>${series.map(lineFor).join("")}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function numericAccountRows(points) {
@@ -3893,6 +3990,26 @@ async function loadDataDetail(path, { resetControls = false } = {}) {
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
 }
 
+async function loadPerformanceBenchmark() {
+  const path = $("performance-benchmark").value || "";
+  state.performanceBenchmarkPath = path;
+  if (!path) {
+    state.performanceBenchmarkDetail = null;
+    renderPerformance();
+    $("last-refresh").textContent = `Benchmark overlay cleared: ${new Date().toLocaleString()}`;
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set("path", path);
+  params.set("preview_points", "600");
+  params.set("gap_limit", "20");
+  params.set("sample_mode", "sampled");
+  const response = await fetchJson(`/data_detail?${params.toString()}`);
+  state.performanceBenchmarkDetail = response;
+  renderPerformance();
+  $("last-refresh").textContent = `Benchmark loaded: ${new Date().toLocaleString()}`;
+}
+
 async function reloadDataDetail(event) {
   event.preventDefault();
   const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
@@ -4363,6 +4480,19 @@ function init() {
     renderOverview();
   });
   $("performance-period").addEventListener("change", renderPerformance);
+  $("performance-benchmark").addEventListener("change", () => {
+    state.performanceBenchmarkPath = $("performance-benchmark").value || "";
+    if (!state.performanceBenchmarkPath) {
+      state.performanceBenchmarkDetail = null;
+      renderPerformance();
+    }
+  });
+  $("performance-load-benchmark").addEventListener("click", () => {
+    loadPerformanceBenchmark().catch((err) => {
+      $("performance-benchmark-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+      $("last-refresh").textContent = `Benchmark load failed: ${err.message}`;
+    });
+  });
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {
       $("last-refresh").textContent = `Command failed: ${err.message}`;

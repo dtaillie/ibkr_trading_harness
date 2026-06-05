@@ -157,6 +157,9 @@ strategy-private.
       factor, max drawdown, exposure, and selected-window turnover are derived
       from sanitized fills/account snapshots when available.
   - benchmark overlay where appropriate
+    - partial; Performance can now load any saved Data Library dataset as an
+      explicit benchmark and overlay normalized strategy equity return against
+      normalized benchmark close return.
   - clear short-horizon projection caveats for per-day/month/year stats
     - done for the Performance page; Metric Context now flags short-horizon
       annualized stats and explains that per-day/month/year figures are scale
