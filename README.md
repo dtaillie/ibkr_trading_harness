@@ -199,7 +199,11 @@ and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
 stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
 dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
-Workbench, Runs, Operations, and Help views instead of one long status page. It shows
+Workbench, Runs, Operations, and Help views instead of one long status page.
+Overview surfaces current health checks, setup checklist state, open positions,
+and a latest decision/order/fill timeline. Performance shows latest equity,
+return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
+bars when account artifacts are available. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, and local disk usage. It can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,

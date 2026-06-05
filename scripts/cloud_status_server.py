@@ -2620,6 +2620,7 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "gross_exposure": row.get("gross_exposure"),
         "net_exposure": row.get("net_exposure"),
         "positions": row.get("positions") if isinstance(row.get("positions"), dict) else {},
+        "position_values": row.get("position_values") if isinstance(row.get("position_values"), dict) else {},
     }
 
 

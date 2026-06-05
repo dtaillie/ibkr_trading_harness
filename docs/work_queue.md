@@ -19,7 +19,10 @@ strategy-private.
 
 - Progress: initial app-shell navigation, Overview, Performance, Data Library,
   Fetch Jobs, Operations, Workbench, Runs, and Help views are implemented. The
-  next pass should improve chart depth, drilldowns, visual polish, and guided
+  Overview now includes health checks, a concrete checklist, open-position
+  cards, and a latest event timeline. Performance now includes equity,
+  drawdown, and daily-return visuals when account artifacts are available. The
+  next pass should improve deeper drilldowns, visual polish, and guided
   workflows.
 - Define page-level user outcomes before adding more controls:
   - Overview should answer whether the current strategy is healthy in under
@@ -43,33 +46,61 @@ strategy-private.
   - Help
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
+    - partial; Overview now shows a current checklist with telemetry, Gateway,
+      runs, events, saved data, fetch jobs, and alert state
   - distinguish "nothing is running" from "running but no signal today"
+    - partial; Overview separates no published runs from runs with no recent
+      signal/order/fill events
   - distinguish "no saved data configured" from "data exists but root is not
     scanned"
+    - done in Data Library visibility cards and suggested-root diagnostics
   - surface the exact local config/data-root/action that would resolve each
     empty state
+    - partial; Data Library and Fetch Jobs show configured/suggested roots,
+      broader action-level guidance still belongs in contextual help
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
+    - not started
 - Build a clean Overview page for the current running strategy state:
   - mode badge: replay, shadow, simulated paper, paper, or live
+    - partial; mode is shown from latest artifact or telemetry summary
   - gateway/API status
+    - done for configured Gateway reachability
   - current equity, cash, open positions, unrealized PnL, realized PnL
+    - partial; current equity and open positions are shown, cash/PnL need richer
+      account telemetry
   - today's return, week/month return, cumulative paper return
+    - partial; cumulative/latest artifact return is available in Performance,
+      period-specific live paper summaries are not implemented
   - latest bar time, latest signal time, latest order/fill/rejection
+    - partial; latest signal and fill are shown from recent events, latest bar
+      and rejection need dedicated telemetry fields
   - next expected decision window
+    - not started
   - stale-data, stale-account, rejected-order, risk-limit, and gateway-login
     alerts
+    - partial; published alerts and Gateway state are visible, specialized alert
+      categories depend on runner telemetry
   - open-position cards with symbol, entry time, entry price, current price,
     PnL, age, intended hold window, and active exit rule
+    - partial; position cards show symbol, quantity, and value when account
+      snapshots include position values. Entry/exit-rule fields need strategy
+      telemetry.
   - today's event timeline from market open/current session start through the
     latest decision
+    - partial; Overview now shows the latest bounded decision/order/fill
+      timeline from telemetry
 - Add a Strategy Performance page with charts and summaries:
   - current active strategy selector
   - current strategy snapshot independent of historical run comparison tables
   - equity curve
+    - done for archived run account artifacts
   - drawdown curve
+    - done for archived run account artifacts
   - daily return bars
+    - done for archived run account artifacts
   - calendar heatmap
+    - not started
   - intraday equity/PnL chart for today's run when minute bars or account
     snapshots are available
   - open/closed trade table

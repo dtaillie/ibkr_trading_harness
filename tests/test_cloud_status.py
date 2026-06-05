@@ -452,6 +452,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "nav-performance" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
+        assert "overview-health-grid" in html
+        assert "overview-positions-grid" in html
+        assert "overview-timeline-body" in html
+        assert "performance-drawdown-chart" in html
+        assert "performance-daily-return-chart" in html
         assert "performance-equity" in html
         assert "config-form" in html
         assert "endpoint-map-body" in html

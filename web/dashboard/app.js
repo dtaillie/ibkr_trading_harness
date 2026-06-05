@@ -223,6 +223,99 @@ function selectedConfigDatasets() {
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
+function latestAccountRow(accountRows) {
+  const rows = accountRows || [];
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const rowItem = rows[index] || {};
+    if (rowItem.positions || rowItem.equity !== undefined || rowItem.cash !== undefined) {
+      return rowItem;
+    }
+  }
+  return {};
+}
+
+function nonzeroPositionsFromSource(source) {
+  const summary = (source && source.summary) || {};
+  const accountRow = latestAccountRow((source && source.account) || []);
+  const positions = accountRow.positions || summary.final_positions || {};
+  const values = accountRow.position_values || {};
+  return Object.entries(positions || {})
+    .map(([symbol, quantity]) => ({ symbol, quantity: Number(quantity), value: Number(values[symbol]) }))
+    .filter((item) => Number.isFinite(item.quantity) && item.quantity !== 0)
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+function overviewHealthChecks() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const runs = payload.runs || [];
+  const alerts = payload.alerts || [];
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const fetchRoots = (state.fetchManifests && state.fetchManifests.roots) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const events = runEventRows();
+  const gatewayStatus = gateway.enabled
+    ? gateway.reachable ? "ok" : "bad"
+    : "warn";
+  const dataStatus = datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad";
+  const fetchRootStatus = fetchRoots.some((root) => root.exists && root.is_dir) ? "ok" : "warn";
+  const runStatus = runs.length ? "ok" : workbenchRuns.length ? "warn" : "bad";
+  const eventStatus = events.length ? "ok" : runs.length ? "warn" : "bad";
+  return [
+    {
+      label: "Telemetry",
+      status: payload.generated_at ? "ok" : "bad",
+      detail: payload.generated_at ? `latest ${payload.generated_at}` : "No status has been published yet.",
+    },
+    {
+      label: "Gateway/API",
+      status: gatewayStatus,
+      detail: gateway.enabled
+        ? `reachable=${text(gateway.reachable)} ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "" : `${gateway.latency_ms}ms`}`
+        : "Gateway checks are disabled in this dashboard config.",
+    },
+    {
+      label: "Strategy Runs",
+      status: runStatus,
+      detail: runs.length
+        ? `${runs.length} published run${runs.length === 1 ? "" : "s"}`
+        : workbenchRuns.length
+          ? `${workbenchRuns.length} saved workbench run${workbenchRuns.length === 1 ? "" : "s"}, no live telemetry run`
+          : "No published or saved runs yet.",
+    },
+    {
+      label: "Signals/Fills",
+      status: eventStatus,
+      detail: events.length
+        ? `${events.length} recent decision/order/fill events`
+        : runs.length
+          ? "Run telemetry exists, but no recent signal/order/fill events were published."
+          : "No current run events yet.",
+    },
+    {
+      label: "Saved Data",
+      status: dataStatus,
+      detail: datasets.length
+        ? `${datasets.length} scanned dataset${datasets.length === 1 ? "" : "s"}`
+        : "No saved CSV/parquet data is visible under configured roots.",
+    },
+    {
+      label: "Fetch Jobs",
+      status: fetchRootStatus,
+      detail: fetchRoots.length
+        ? `${fetchRoots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0)} manifests across ${fetchRoots.length} root${fetchRoots.length === 1 ? "" : "s"}`
+        : "No fetch manifest root is configured.",
+    },
+    {
+      label: "Alerts",
+      status: alerts.length ? "warn" : "ok",
+      detail: alerts.length
+        ? `${alerts.length} alert${alerts.length === 1 ? "" : "s"} need review`
+        : "No published alerts.",
+    },
+  ];
+}
+
 function renderOverview() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
@@ -249,6 +342,72 @@ function renderOverview() {
   $("overview-latest-fill").textContent = latestFill
     ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
     : "n/a";
+  renderOverviewHealth();
+  renderOverviewPositions();
+  renderOverviewTimeline();
+}
+
+function renderOverviewHealth() {
+  const checks = overviewHealthChecks();
+  const badCount = checks.filter((item) => item.status === "bad").length;
+  const warnCount = checks.filter((item) => item.status === "warn").length;
+  $("overview-health-note").textContent = badCount
+    ? `${badCount} blocker${badCount === 1 ? "" : "s"} / ${warnCount} warning${warnCount === 1 ? "" : "s"}`
+    : warnCount
+      ? `${warnCount} warning${warnCount === 1 ? "" : "s"}`
+      : "All visible checks are ok";
+  $("overview-health-grid").innerHTML = checks.map((item) => `
+    <div class="health-card">
+      <span>${statusText(item.status)}</span>
+      <strong>${escapeHtml(item.label)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("");
+  $("overview-checklist-note").textContent = "Concrete next checks";
+  $("overview-checklist").innerHTML = checks.map((item) => `
+    <div class="check-item ${statusClass(item.status)}">
+      <span>${escapeHtml(item.status)}</span>
+      <div>
+        <strong>${escapeHtml(item.label)}</strong>
+        <small>${escapeHtml(item.detail)}</small>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderOverviewPositions() {
+  const source = latestArtifactPerformance();
+  const accountRow = latestAccountRow(source.account || []);
+  const positions = nonzeroPositionsFromSource(source);
+  $("overview-positions-note").textContent = source.account && source.account.length
+    ? `Snapshot ${text(accountRow.timestamp)}`
+    : "Using latest available summary";
+  $("overview-positions-grid").innerHTML = positions.length
+    ? positions.map((item) => `
+        <div class="position-card">
+          <span>Symbol</span>
+          <strong>${escapeHtml(item.symbol)}</strong>
+          <small>Quantity ${escapeHtml(numberText(item.quantity, 6))}${Number.isFinite(item.value) ? ` / Value ${escapeHtml(money(item.value))}` : ""}</small>
+        </div>
+      `).join("")
+    : `<div class="empty-card"><strong>No open positions</strong><span>The latest selected or published run is flat, or no account snapshot has been loaded.</span></div>`;
+}
+
+function renderOverviewTimeline() {
+  const events = runEventRows().slice(0, 10);
+  $("overview-timeline-note").textContent = events.length
+    ? `${events.length} recent event${events.length === 1 ? "" : "s"}`
+    : "No recent telemetry events";
+  $("overview-timeline-body").innerHTML = events.length
+    ? events.map((event) => row([
+        escapeHtml(event.timestamp),
+        escapeHtml(event.run_id),
+        escapeHtml(event.type),
+        statusText(event.status),
+        escapeHtml(event.symbol),
+        escapeHtml(event.detail),
+      ])).join("")
+    : row([`<span class="muted">No signals, orders, or fills have been published yet.</span>`, "", "", "", "", ""]);
 }
 
 function renderMetrics() {
@@ -298,6 +457,14 @@ function renderPerformance() {
   $("performance-return-day").textContent = pctText(perf.return_per_day_pct ?? summary.return_per_day_pct);
   $("performance-exposure").textContent = pctText(perf.max_gross_exposure_pct ?? summary.max_gross_exposure_pct);
   $("performance-equity-chart").innerHTML = equityChart(source.account || []);
+  $("performance-drawdown-chart").innerHTML = drawdownChart(source.account || []);
+  $("performance-daily-return-chart").innerHTML = dailyReturnChart(source.account || []);
+  $("performance-drawdown-note").textContent = source.account.length
+    ? "Computed from account equity snapshots"
+    : "Load archived artifacts for drawdown curve";
+  $("performance-daily-note").textContent = source.account.length
+    ? "Computed from first/last equity by date"
+    : "Load archived artifacts for daily bars";
 
   const runs = ((state.runComparison && state.runComparison.runs) || []).slice(0, 12);
   $("performance-runs-body").innerHTML = runs.length
@@ -376,6 +543,87 @@ function equityChart(points) {
   }).join(" ");
   const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline></svg>`;
+}
+
+function numericAccountRows(points) {
+  return (points || []).map((point) => ({
+    timestamp: point.timestamp,
+    equity: Number(point.equity),
+  })).filter((point) => point.timestamp && Number.isFinite(point.equity));
+}
+
+function drawdownChart(points) {
+  const rows = numericAccountRows(points);
+  if (rows.length < 2) return `<span class="muted">No drawdown curve available</span>`;
+  let peak = rows[0].equity;
+  const values = rows.map((point) => {
+    peak = Math.max(peak, point.equity);
+    const drawdown = peak > 0 ? ((point.equity / peak) - 1) * 100 : 0;
+    return { timestamp: point.timestamp, value: drawdown };
+  });
+  return scalarLineChart(values, {
+    label: "drawdown curve",
+    empty: "No drawdown curve available",
+    className: "spark-bad",
+    valueFormatter: pctText,
+  });
+}
+
+function dailyReturns(points) {
+  const rows = numericAccountRows(points);
+  const byDay = new Map();
+  for (const point of rows) {
+    const day = String(point.timestamp).slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(point);
+  }
+  return Array.from(byDay.entries()).map(([day, items]) => {
+    const ordered = items.slice().sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+    const first = ordered[0].equity;
+    const last = ordered[ordered.length - 1].equity;
+    const value = first > 0 ? ((last / first) - 1) * 100 : 0;
+    return { day, value };
+  }).filter((item) => Number.isFinite(item.value));
+}
+
+function dailyReturnChart(points) {
+  const rows = dailyReturns(points);
+  if (!rows.length) return `<span class="muted">No daily return bars available</span>`;
+  const width = 720;
+  const height = 180;
+  const padding = 12;
+  const maxAbs = Math.max(0.01, ...rows.map((item) => Math.abs(item.value)));
+  const barGap = 4;
+  const barWidth = Math.max(3, (width - padding * 2 - barGap * Math.max(0, rows.length - 1)) / rows.length);
+  const axisY = height / 2;
+  const bars = rows.map((item, index) => {
+    const magnitude = (Math.abs(item.value) / maxAbs) * (height / 2 - padding);
+    const x = padding + index * (barWidth + barGap);
+    const y = item.value >= 0 ? axisY - magnitude : axisY;
+    const cls = item.value >= 0 ? "return-bar-good" : "return-bar-bad";
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, magnitude).toFixed(1)}"><title>${escapeHtml(item.day)} ${escapeHtml(pctText(item.value))}</title></rect>`;
+  }).join("");
+  const labels = rows.slice(-3).map((item) => `${item.day} ${pctText(item.value)}`).join(" | ");
+  return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="daily return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(labels)}</span>`;
+}
+
+function scalarLineChart(points, { label, empty, className, valueFormatter }) {
+  if (!points || points.length < 2) return `<span class="muted">${escapeHtml(empty)}</span>`;
+  const values = points.map((point) => Number(point.value)).filter((value) => Number.isFinite(value));
+  if (values.length < 2) return `<span class="muted">${escapeHtml(empty)}</span>`;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const width = 720;
+  const height = 180;
+  const span = max - min || 1;
+  const coords = values.map((value, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const latest = values[values.length - 1];
+  const caption = `${valueFormatter ? valueFormatter(latest) : numberText(latest)} latest`;
+  return `<svg class="detail-chart ${className || ""}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)}"><polyline points="${coords}"></polyline></svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function dataCatalogFilters() {

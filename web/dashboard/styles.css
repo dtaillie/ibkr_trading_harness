@@ -352,7 +352,9 @@ section {
 .performance-kpis,
 .data-library-summary,
 .root-grid,
-.help-grid {
+.help-grid,
+.health-grid,
+.position-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
@@ -361,7 +363,10 @@ section {
 .status-tile,
 .data-library-card,
 .root-card,
-.help-card {
+.help-card,
+.health-card,
+.position-card,
+.empty-card {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -391,6 +396,82 @@ section {
   margin-bottom: 12px;
 }
 
+.health-card span,
+.position-card span,
+.empty-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.health-card strong,
+.position-card strong,
+.empty-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.health-card small,
+.position-card small,
+.empty-card span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.check-item {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.check-item > span {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.check-item strong,
+.check-item small {
+  display: block;
+}
+
+.check-item small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.check-item.status-ok {
+  border-left-color: var(--good);
+}
+
+.check-item.status-warn {
+  border-left-color: var(--warn);
+}
+
+.check-item.status-bad {
+  border-left-color: var(--bad);
+}
+
 .root-card small {
   display: block;
   margin-top: 6px;
@@ -412,6 +493,23 @@ section {
 
 .chart-panel {
   margin-bottom: 12px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compact-chart {
+  min-height: 220px;
+}
+
+.chart-caption {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .help-card strong {
@@ -704,6 +802,20 @@ tr:last-child td {
   vector-effect: non-scaling-stroke;
 }
 
+.axis-line {
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.return-bar-good {
+  fill: var(--good);
+}
+
+.return-bar-bad {
+  fill: var(--bad);
+}
+
 .spark-good {
   color: var(--good);
 }
@@ -740,7 +852,8 @@ footer {
   .data-detail-grid,
   .builder-output,
   .overview-hero,
-  .performance-layout {
+  .performance-layout,
+  .chart-grid {
     display: block;
   }
 
@@ -748,7 +861,9 @@ footer {
   .performance-kpis,
   .data-library-summary,
   .root-grid,
-  .help-grid {
+  .help-grid,
+  .health-grid,
+  .position-grid {
     margin-top: 12px;
   }
 

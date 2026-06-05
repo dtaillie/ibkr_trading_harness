@@ -116,6 +116,53 @@
       </div>
     </section>
 
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
+        <h2>Strategy Health</h2>
+        <span id="overview-health-note" class="section-note">Waiting for checks</span>
+      </div>
+      <div id="overview-health-grid" class="health-grid"></div>
+    </section>
+
+    <section class="split dashboard-section" data-view="overview">
+      <div>
+        <div class="section-head">
+          <h2>Open Positions</h2>
+          <span id="overview-positions-note" class="section-note">No position snapshot loaded</span>
+        </div>
+        <div id="overview-positions-grid" class="position-grid"></div>
+      </div>
+      <div>
+        <div class="section-head">
+          <h2>Current Checklist</h2>
+          <span id="overview-checklist-note" class="section-note">Not loaded</span>
+        </div>
+        <div id="overview-checklist" class="checklist"></div>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
+        <h2>Latest Timeline</h2>
+        <span id="overview-timeline-note" class="section-note">Signals, orders, and fills from recent telemetry</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Run</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Symbol</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="overview-timeline-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="dashboard-section" data-view="performance" hidden>
       <div class="section-head">
         <h2>Strategy Performance</h2>
@@ -152,6 +199,22 @@
           <span id="performance-chart-note" class="section-note">Archived run artifacts show the cleanest curve.</span>
         </div>
         <div id="performance-equity-chart" class="detail-chart-wrap"></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-panel">
+          <div class="section-head">
+            <h2>Drawdown</h2>
+            <span id="performance-drawdown-note" class="section-note">Peak-to-current equity loss</span>
+          </div>
+          <div id="performance-drawdown-chart" class="detail-chart-wrap compact-chart"></div>
+        </div>
+        <div class="chart-panel">
+          <div class="section-head">
+            <h2>Daily Returns</h2>
+            <span id="performance-daily-note" class="section-note">Grouped from account snapshots</span>
+          </div>
+          <div id="performance-daily-return-chart" class="detail-chart-wrap compact-chart"></div>
+        </div>
       </div>
       <div class="table-wrap compact-table">
         <table>

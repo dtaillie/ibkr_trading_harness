@@ -63,6 +63,11 @@ def run_smoke(
             "nav-data",
             "nav-fetch",
             "performance-equity",
+            "performance-drawdown-chart",
+            "performance-daily-return-chart",
+            "overview-health-grid",
+            "overview-positions-grid",
+            "overview-timeline-body",
             "data-root-cards",
             "data-catalog-limit",
             "fetch-manifests-body",
@@ -95,6 +100,8 @@ def run_smoke(
             "workbench_endpoints",
             "fetch_manifests",
             "fetch_manifest_detail",
+            "drawdownChart",
+            "dailyReturnChart",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]

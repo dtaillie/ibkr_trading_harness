@@ -178,7 +178,10 @@ python3 scripts/publish_status.py \
 Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
 workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
-Performance summarizes the latest run or selected artifact; Data Library shows
+health checks, setup checklist items, open positions, and recent
+decision/order/fill events. Performance summarizes the latest run or selected
+artifact with equity, return, drawdown, exposure, an equity curve, drawdown
+curve, and daily return bars when account snapshots are available. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Fetch Jobs shows historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
