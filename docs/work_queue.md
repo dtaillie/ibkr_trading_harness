@@ -244,6 +244,9 @@ strategy-private.
       that interleaves decisions, orders, rejected orders, fills, and account
       snapshots, plus a dedicated account-snapshot table for equity, cash,
       exposure, and position counts.
+    - partial; artifact account snapshots now include an expandable public-safe
+      position-detail view so entry/hold/exit context is readable without raw
+      JSON when runners publish that metadata.
   - current open orders and current managed positions
     - partial; current managed positions and recent non-terminal order events
       are visible, broker-native open-order state still depends on runner
