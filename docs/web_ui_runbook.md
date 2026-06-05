@@ -33,8 +33,10 @@ If Data Library only shows SPY/QQQ examples:
 1. Open Data Library.
 2. Check Configured Roots and Storage Audit.
 3. Use Find Missing Symbol for a ticker you expected to see.
-4. Add the missing root to `dashboard.data_roots` in your ignored local config.
-5. Refresh the dashboard.
+4. Use Copy data_roots YAML to copy configured plus suggested roots.
+5. Paste the `dashboard.data_roots` block into your ignored local dashboard
+   config, removing any roots you do not want scanned.
+6. Refresh the dashboard.
 
 ## Find Current Strategy Performance
 

@@ -98,6 +98,9 @@ strategy-private.
     - partial; Data Library now includes a contextual guide that turns current
       root, catalog-cap, parser-skip, symbol, Data Detail, and Workbench
       selection state into concrete next actions.
+    - partial; Data Library can now copy a `dashboard.data_roots` YAML block
+      built from configured and scanner-suggested roots, giving users a direct
+      local-config fix when real history exists outside scanned roots.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes
@@ -375,6 +378,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - include real cache roots in private/local config
   - keep public examples pointed at small example data only
   - show active roots and skipped roots in the UI
+  - partial; Data Library now exposes a Copy data_roots YAML action that
+    includes configured and suggested roots for ignored local dashboard config
+    updates.
 - Add a real Data Library page:
   - symbol search
   - asset class filter: stock, ETF, crypto, unknown

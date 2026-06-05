@@ -258,7 +258,10 @@ against the catalog-visible rows, including suggested roots that are not
 currently configured. Use the coverage grid to see recent date-bin coverage by
 symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
-fetch errors, or absent. Fetch Jobs shows historical-data pull manifests, status
+fetch errors, or absent. Use Copy data_roots YAML when Data Library finds
+suggested roots; paste the copied `dashboard.data_roots` block into an ignored
+local config and remove any paths you do not want scanned. Fetch Jobs shows
+historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
 When a produced output file is under a configured data root, use Inspect Data in
 the output row to open its saved-file detail view without leaving the dashboard.

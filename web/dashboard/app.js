@@ -2417,6 +2417,30 @@ function fetchVisibleOutputPaths(detail = state.fetchManifestDetail || {}) {
   return Array.from(paths).sort();
 }
 
+function yamlScalar(value) {
+  return JSON.stringify(String(value || ""));
+}
+
+function dataRootConfigPaths() {
+  const diagnostics = state.diagnostics || {};
+  const paths = new Set();
+  for (const root of [...(diagnostics.data_roots || []), ...(diagnostics.suggested_data_roots || [])]) {
+    const value = text(root.display_path || root.path);
+    if (value && value !== "n/a") paths.add(value);
+  }
+  return Array.from(paths).sort();
+}
+
+function dataRootsYamlSnippet() {
+  const paths = dataRootConfigPaths();
+  if (!paths.length) return "";
+  return [
+    "dashboard:",
+    "  data_roots:",
+    ...paths.map((path) => `    - ${yamlScalar(path)}`),
+  ].join("\n");
+}
+
 function replayStarterCommand(detail) {
   const path = detail && detail.path;
   const symbol = detail && detail.symbol;
@@ -2589,6 +2613,7 @@ function renderDataLibrarySummary() {
   const suggestedRoots = diagnostics.suggested_data_roots || [];
   const existingRoots = roots.filter((root) => root.exists && root.is_dir);
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const rootConfigPaths = dataRootConfigPaths();
   const catalogCount = Number(catalog.count || 0);
   const catalogLimit = Number(catalog.limit || $("data-catalog-limit").value || 0);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
@@ -2599,6 +2624,10 @@ function renderDataLibrarySummary() {
   const parseErrorCount = Number(catalog.error_count || 0);
   $("data-root-count").textContent = numberText(roots.length, 0);
   $("data-root-note").textContent = `${numberText(existingRoots.length, 0)} active / ${numberText(totalRootFiles, 0)} files visible to root scanner`;
+  $("copy-data-roots-yaml").disabled = !rootConfigPaths.length;
+  $("data-root-config-note").textContent = rootConfigPaths.length
+    ? `${numberText(rootConfigPaths.length, 0)} configured/suggested root${rootConfigPaths.length === 1 ? "" : "s"} ready to copy`
+    : "No configured or suggested roots to copy";
   $("data-symbol-count").textContent = numberText(symbols.size, 0);
   $("data-symbol-note").textContent = symbols.size
     ? `${countSummary(catalog.asset_class_counts)} assets`
@@ -3592,6 +3621,20 @@ function copyFetchVisibleOutputPaths() {
   }
   copyText(paths.join("\n")).then(() => {
     $("last-refresh").textContent = `Copied ${numberText(paths.length, 0)} visible fetch output path${paths.length === 1 ? "" : "s"}`;
+  }).catch((err) => {
+    $("last-refresh").textContent = `Copy failed: ${err.message}`;
+  });
+}
+
+function copyDataRootsYaml() {
+  const snippet = dataRootsYamlSnippet();
+  const count = dataRootConfigPaths().length;
+  if (!snippet) {
+    $("last-refresh").textContent = "No configured or suggested data roots to copy";
+    return;
+  }
+  copyText(snippet).then(() => {
+    $("last-refresh").textContent = `Copied dashboard.data_roots YAML for ${numberText(count, 0)} root${count === 1 ? "" : "s"}`;
   }).catch((err) => {
     $("last-refresh").textContent = `Copy failed: ${err.message}`;
   });
@@ -5908,6 +5951,7 @@ function init() {
   });
   $("data-home-open-workbench").addEventListener("click", () => navigateToView("workbench"));
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
+  $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
