@@ -96,7 +96,7 @@ For CI, run `python3 scripts/public_readiness_audit.py --fail-on-review` so
 sensitive review findings block the build instead of relying on manual review.
 
 The next public milestone is richer operations around the generic runner:
-continuous market-hours loops, stronger config schemas, broker-agnostic
+session-aware market-hours loops, stronger config schemas, broker-agnostic
 adapters, and read-only monitoring. The public release should still not be
 treated as a turnkey trading bot.
 

@@ -30,6 +30,7 @@ def write_config(
     output_dir: Path,
     plugin: str,
     strategy: dict | None = None,
+    runner: dict | None = None,
     data: dict | None = None,
     execution: dict | None = None,
     control: dict | None = None,
@@ -44,6 +45,7 @@ def write_config(
                     "starting_cash": 10000,
                     "history_bars": 10,
                     "output_dir": str(output_dir),
+                    **(runner or {}),
                 },
                 "data": {
                     "source": "files",
@@ -422,6 +424,83 @@ def test_validate_config_file_accepts_valid_plugin_config(tmp_path):
 
     assert config["strategy"]["threshold"] == pytest.approx(1.5)
     assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_loop_for_replay(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={"loop": True, "max_loop_iterations": 2, "loop_interval_seconds": 0},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "runner.loop is only supported for shadow or paper mode" in str(exc.value)
+    assert not output_dir.exists()
+
+
+def test_shadow_loop_records_bounded_iterations(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 0,
+            "max_loop_iterations": 2,
+            "skip_duplicate_latest": False,
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_enabled is True
+    assert result.loop_iterations == 2
+    assert result.decisions == 2
+    assert result.account_snapshot_count == 2
+    assert result.latest_data_time == "2026-01-02T14:40:00+00:00"
+    decisions = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert [row["step"] for row in decisions] == [1, 2]
+    assert [row["timestamp"] for row in decisions] == [
+        "2026-01-02T14:40:00+00:00",
+        "2026-01-02T14:40:00+00:00",
+    ]
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["loop_enabled"] is True
+    assert summary["loop_iterations"] == 2
+
+
+def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={"loop": True, "loop_interval_seconds": 0, "max_loop_iterations": 2},
+    )
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_iterations == 2
+    assert result.decisions == 1
+    decisions = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert len(decisions) == 1
 
 
 def test_paper_mode_requires_explicit_confirmation(tmp_path):

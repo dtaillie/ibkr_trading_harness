@@ -104,6 +104,19 @@ python3 live/plugin_runner.py \
   --confirm-paper-orders
 ```
 
+For long-running observation or paper sessions, enable the generic loop in an
+ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
+`paper`, reloads the latest data each interval, skips duplicate latest bars by
+default, and can be bounded with `--max-loop-iterations` for smoke tests:
+
+```bash
+python3 live/plugin_runner.py \
+  --config config/plugin_runner.yaml \
+  --mode shadow \
+  --loop \
+  --loop-interval-seconds 60
+```
+
 The current private stock and crypto runners are still excluded from the public
 repo because they encode strategy-specific assumptions. The generic runner is
 the public execution path.

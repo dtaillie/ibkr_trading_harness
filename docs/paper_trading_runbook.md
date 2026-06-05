@@ -50,6 +50,21 @@ python3 live/plugin_runner.py \
   --confirm-paper-orders
 ```
 
+Run a continuous shadow monitor when you want the generic runner to keep
+reloading latest bars and evaluating the plugin:
+
+```bash
+python3 live/plugin_runner.py \
+  --config config/plugin_runner.yaml \
+  --mode shadow \
+  --loop \
+  --loop-interval-seconds 60
+```
+
+Loop mode is available for `shadow` and `paper`. It skips duplicate latest bars
+by default and writes `loop_enabled` / `loop_iterations` into `summary.json`.
+Use `--max-loop-iterations` for dry runs or service smoke tests.
+
 Use an ignored local config such as `config/plugin_runner.yaml` for any real
 strategy plugin or broker settings.
 
@@ -113,4 +128,3 @@ its final summary/artifacts.
 - Allowed symbols, sides, order types, cash/notional, and exposure caps are set.
 - Dashboard shows fresh telemetry.
 - You know how to stop the runner quickly.
-

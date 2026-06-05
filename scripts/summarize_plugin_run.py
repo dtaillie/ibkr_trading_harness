@@ -261,6 +261,8 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     metrics = {
         "run_dir": str(run_dir),
         "mode": summary.get("mode"),
+        "loop_enabled": bool(summary.get("loop_enabled", False)),
+        "loop_iterations": int(summary.get("loop_iterations", 0) or 0),
         "decisions": int(summary.get("decisions", len(decisions)) or 0),
         "decision_records": len(decisions),
         "first_decision_time": first_ts,
@@ -327,6 +329,7 @@ def format_text(metrics: dict[str, Any]) -> str:
     lines = [
         f"Run: {metrics['run_dir']}",
         f"Mode: {metrics.get('mode') or 'unknown'}",
+        f"Loop: {'enabled' if metrics.get('loop_enabled') else 'one-shot'} iterations={metrics.get('loop_iterations', 0)}",
         f"Decisions: {metrics['decisions']} records={metrics['decision_records']}",
         f"Window: {metrics.get('first_decision_time') or 'n/a'} -> {metrics.get('last_decision_time') or 'n/a'}",
         f"Orders: {metrics['orders']} events={metrics['order_events']} statuses={metrics['order_status_counts']}",

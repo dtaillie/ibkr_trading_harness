@@ -27,6 +27,8 @@ def test_summarize_plugin_run_metrics(tmp_path):
                 "final_equity": 10020.0,
                 "final_positions": {"SPY": 10.0},
                 "latest_data_time": "2026-01-02T14:35:00+00:00",
+                "loop_enabled": True,
+                "loop_iterations": 2,
             },
             sort_keys=True,
         )
@@ -104,8 +106,11 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["max_abs_net_exposure_pct"] == 10.2
     assert metrics["max_position_count"] == 1
     assert metrics["latest_data_time"] == "2026-01-02T14:35:00+00:00"
+    assert metrics["loop_enabled"] is True
+    assert metrics["loop_iterations"] == 2
     assert metrics["artifact_files"]["account"] is True
     assert "Fills: 1" in format_text(metrics)
+    assert "Loop: enabled iterations=2" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
     assert "Return/day:" in format_text(metrics)
     assert "Max gross exposure:" in format_text(metrics)

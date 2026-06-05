@@ -15,6 +15,7 @@ import math
 import re
 import shutil
 import sys
+import time
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -73,6 +74,8 @@ class RunnerResult:
     total_pnl: float | None = None
     total_commission: float | None = None
     approval_required_orders: int = 0
+    loop_enabled: bool = False
+    loop_iterations: int = 0
 
 
 class ConfigValidationError(ValueError):
@@ -170,6 +173,8 @@ def validate_config(
     config_path: Path | None = None,
     mode_override: str | None = None,
     max_steps_override: int | None = None,
+    loop_override: bool | None = None,
+    max_loop_iterations_override: int | None = None,
     check_files: bool = True,
     check_plugin: bool = True,
 ) -> list[str]:
@@ -200,14 +205,24 @@ def validate_config(
 
     mode_raw = mode_override or str(runner_cfg.get("mode", "replay"))
     try:
-        normalize_mode(mode_raw)
+        normalized_mode = normalize_mode(mode_raw)
     except ValueError as exc:
         errors.append(str(exc))
+        normalized_mode = "replay"
 
     validate_positive_int(runner_cfg.get("history_bars", 500), "runner.history_bars", errors)
     validate_positive_int(runner_cfg.get("max_steps"), "runner.max_steps", errors)
     if max_steps_override is not None:
         validate_positive_int(max_steps_override, "--max-steps", errors)
+    validate_bool(runner_cfg.get("loop"), "runner.loop", errors)
+    validate_nonnegative_float(runner_cfg.get("loop_interval_seconds"), "runner.loop_interval_seconds", errors)
+    validate_positive_int(runner_cfg.get("max_loop_iterations"), "runner.max_loop_iterations", errors)
+    validate_bool(runner_cfg.get("skip_duplicate_latest"), "runner.skip_duplicate_latest", errors)
+    if max_loop_iterations_override is not None:
+        validate_positive_int(max_loop_iterations_override, "--max-loop-iterations", errors)
+    loop_enabled = bool(loop_override) if loop_override is not None else bool(runner_cfg.get("loop", False))
+    if loop_enabled and normalized_mode not in {"shadow", "paper"}:
+        errors.append("runner.loop is only supported for shadow or paper mode")
     validate_nonnegative_float(runner_cfg.get("starting_cash"), "runner.starting_cash", errors)
     validate_bool(runner_cfg.get("clean_output_dir"), "runner.clean_output_dir", errors)
     if runner_cfg.get("output_dir") is not None and not str(runner_cfg["output_dir"]).strip():
@@ -285,6 +300,8 @@ def validate_config_file(
     *,
     mode_override: str | None = None,
     max_steps_override: int | None = None,
+    loop_override: bool | None = None,
+    max_loop_iterations_override: int | None = None,
 ) -> dict[str, Any]:
     config = read_config(config_path)
     errors = validate_config(
@@ -292,6 +309,8 @@ def validate_config_file(
         config_path=config_path,
         mode_override=mode_override,
         max_steps_override=max_steps_override,
+        loop_override=loop_override,
+        max_loop_iterations_override=max_loop_iterations_override,
     )
     if errors:
         raise ConfigValidationError(errors)
@@ -1085,11 +1104,16 @@ def run_from_config(
     max_steps: int | None = None,
     confirm_paper_orders: bool = False,
     approve_orders: bool = False,
+    loop: bool | None = None,
+    loop_interval_seconds: float | None = None,
+    max_loop_iterations: int | None = None,
 ) -> RunnerResult:
     config = validate_config_file(
         config_path,
         mode_override=mode_override,
         max_steps_override=max_steps,
+        loop_override=loop,
+        max_loop_iterations_override=max_loop_iterations,
     )
     runner_cfg = config.get("runner") or {}
     execution_cfg = config.get("execution") or {}
@@ -1097,6 +1121,19 @@ def run_from_config(
     mode = normalize_mode(mode_override or str(runner_cfg.get("mode", "replay")))
     if mode == "paper" and not confirm_paper_orders:
         raise ValueError("paper mode requires --confirm-paper-orders")
+    loop_enabled = bool(loop) if loop is not None else bool(runner_cfg.get("loop", False))
+    loop_interval = (
+        float(loop_interval_seconds)
+        if loop_interval_seconds is not None
+        else float(runner_cfg.get("loop_interval_seconds", 60.0))
+    )
+    if loop_interval < 0:
+        raise ValueError("loop_interval_seconds must be >= 0")
+    if max_loop_iterations is None and runner_cfg.get("max_loop_iterations") is not None:
+        max_loop_iterations = int(runner_cfg["max_loop_iterations"])
+    if loop_enabled and mode not in {"shadow", "paper"}:
+        raise ValueError("runner.loop is only supported for shadow or paper mode")
+    skip_duplicate_latest = bool(runner_cfg.get("skip_duplicate_latest", True))
 
     output_dir = output_dir_override or Path(str(runner_cfg.get("output_dir", "paper_logs/generic_plugin_runner")))
     if bool(runner_cfg.get("clean_output_dir", False)) and output_dir.exists():
@@ -1107,19 +1144,11 @@ def run_from_config(
     spec = plugin_spec(config)
     strategy_cfg = config.get("strategy") or {}
     plugin = create_plugin(spec, strategy_cfg)
-    panels = load_panels(config.get("data") or {})
     history_bars = int(runner_cfg.get("history_bars", 500))
     if history_bars <= 0:
         raise ValueError("runner.history_bars must be positive")
-
-    if mode in {"replay", "simulated_paper"}:
-        times = replay_times(panels)
-    else:
-        times = [latest_time(panels)]
     if max_steps is None and runner_cfg.get("max_steps") is not None:
         max_steps = int(runner_cfg["max_steps"])
-    if max_steps is not None:
-        times = times[:max_steps]
 
     simulated = None
     paper = None
@@ -1140,223 +1169,271 @@ def run_from_config(
     paper_final_positions: dict[str, float] = {}
     account_records: list[dict[str, Any]] = []
     latest_data_time: str | None = None
+    loop_iterations = 0
+    last_processed_latest: pd.Timestamp | None = None
     pause_marker = None
     if control_cfg.get("pause_marker") is not None:
         pause_marker = Path(str(control_cfg["pause_marker"]))
 
-    try:
-        for step, now in enumerate(times, start=1):
-            snapshot = snapshot_at(panels, now, history_bars=history_bars)
-            if not snapshot:
-                continue
-            snapshot_time = latest_snapshot_time(snapshot)
-            if snapshot_time is not None:
-                latest_data_time = snapshot_time.isoformat()
-            final_prices = latest_prices(snapshot)
-            if pause_marker is not None and pause_marker.exists():
-                decisions += 1
-                append_jsonl(output_dir / "decisions.jsonl", {
-                    "timestamp": now,
-                    "step": step,
-                    "mode": mode,
-                    "signal": {"paused": True},
-                    "diagnostics": {
-                        "paused": True,
-                        "pause_marker": str(pause_marker),
-                        "symbols": sorted(snapshot),
-                    },
-                    "intents": [],
-                })
-                if simulated is not None:
-                    account_cash = simulated.cash
-                    account_positions = dict(simulated.positions)
-                    account_equity = simulated.equity(final_prices)
-                else:
-                    account_cash = runner_starting_cash
-                    account_positions = {}
-                    account_equity = runner_starting_cash
-                account_record = account_snapshot_record(
-                    now=now,
-                    step=step,
-                    mode=mode,
-                    cash=account_cash,
-                    equity=account_equity,
-                    positions=account_positions,
-                    prices=final_prices,
-                    accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
-                )
-                account_records.append(account_record)
-                append_jsonl(output_dir / "account.jsonl", account_record)
-                log.info("Decision step=%d time=%s paused by %s", step, now.isoformat(), pause_marker)
-                continue
-            if simulated is not None:
-                cash = simulated.cash
-                positions = dict(simulated.positions)
-                equity = simulated.equity(final_prices)
-            elif paper is not None:
-                cash = paper.cash()
-                positions = paper.positions()
-                equity = None
-            else:
-                cash = runner_starting_cash
-                positions = {}
-                equity = runner_starting_cash
+    def process_step(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame]) -> None:
+        nonlocal decisions
+        nonlocal orders
+        nonlocal fills
+        nonlocal rejections
+        nonlocal approval_required_orders
+        nonlocal accepted_orders
+        nonlocal final_prices
+        nonlocal latest_data_time
+        nonlocal paper_final_cash
+        nonlocal paper_final_positions
 
-            context = StrategyContext(
-                now=now,
-                mode=mode,
-                cash=float(cash) if cash is not None else None,
-                equity=float(equity) if equity is not None else None,
-                positions=positions,
-                metadata={
-                    "config_path": str(config_path),
-                    "step": step,
-                    "symbols": sorted(snapshot),
-                },
-            )
-            decision = plugin.on_data(snapshot, context)
+        snapshot = snapshot_at(panels, now, history_bars=history_bars)
+        if not snapshot:
+            return
+        snapshot_time = latest_snapshot_time(snapshot)
+        if snapshot_time is not None:
+            latest_data_time = snapshot_time.isoformat()
+        final_prices = latest_prices(snapshot)
+        if pause_marker is not None and pause_marker.exists():
             decisions += 1
             append_jsonl(output_dir / "decisions.jsonl", {
-                "timestamp": decision.timestamp,
+                "timestamp": now,
                 "step": step,
                 "mode": mode,
-                "signal": decision.signal,
-                "diagnostics": decision.diagnostics,
-                "intents": decision.intents,
+                "signal": {"paused": True},
+                "diagnostics": {
+                    "paused": True,
+                    "pause_marker": str(pause_marker),
+                    "symbols": sorted(snapshot),
+                },
+                "intents": [],
             })
-            log.info(
-                "Decision step=%d time=%s intents=%d",
-                step,
-                now.isoformat(),
-                len(decision.intents),
-            )
-
-            for raw_intent in decision.intents:
-                intent = normalize_intent(raw_intent)
-                orders += 1
-                append_jsonl(output_dir / "orders.jsonl", {
-                    "timestamp": now,
-                    **intent_record(intent, status="observed" if mode in {"replay", "shadow"} else "pending"),
-                })
-                max_orders = execution_cfg.get("max_orders_per_run")
-                if max_orders is not None and accepted_orders >= int(max_orders):
-                    rejections += 1
-                    reason = f"max_orders_per_run {int(max_orders)} reached"
-                    append_jsonl(output_dir / "orders.jsonl", {
-                        "timestamp": now,
-                        **intent_record(intent, status="rejected", reason=reason),
-                    })
-                    log.warning("%s rejected: %s", intent.symbol, reason)
-                    continue
-
-                reason = validate_intent(
-                    intent,
-                    mode=mode,
-                    execution_cfg=execution_cfg,
-                    data_symbols=set(snapshot),
-                    prices=final_prices,
-                    positions=positions,
-                    cash=float(cash) if cash is not None else None,
-                    equity=float(equity) if equity is not None else None,
-                )
-                if reason is not None:
-                    rejections += 1
-                    append_jsonl(output_dir / "orders.jsonl", {
-                        "timestamp": now,
-                        **intent_record(intent, status="rejected", reason=reason),
-                    })
-                    log.warning("%s rejected: %s", intent.symbol, reason)
-                    continue
-
-                if mode in {"replay", "shadow"}:
-                    continue
-
-                require_order_approval = bool(execution_cfg.get("require_order_approval", False))
-                if require_order_approval:
-                    price = final_prices.get(intent.symbol)
-                    approval_status = "approved" if approve_orders else "required"
-                    append_jsonl(output_dir / "order_previews.jsonl", order_preview_record(
-                        intent,
-                        now=now,
-                        step=step,
-                        mode=mode,
-                        price=price,
-                        cash=float(cash) if cash is not None else None,
-                        equity=float(equity) if equity is not None else None,
-                        positions=positions,
-                        approval_status=approval_status,
-                    ))
-                    if not approve_orders:
-                        approval_required_orders += 1
-                        reason = "manual approval required"
-                        append_jsonl(output_dir / "orders.jsonl", {
-                            "timestamp": now,
-                            **intent_record(intent, status="approval_required", reason=reason),
-                        })
-                        log.warning("%s held: %s", intent.symbol, reason)
-                        continue
-
-                accepted_orders += 1
-
-                if mode == "simulated_paper" and simulated is not None:
-                    price = final_prices.get(intent.symbol)
-                    if price is None:
-                        rejections += 1
-                        reason = "no current price for symbol"
-                        append_jsonl(output_dir / "orders.jsonl", {
-                            "timestamp": now,
-                            **intent_record(intent, status="rejected", reason=reason),
-                        })
-                        continue
-                    fill, reason = simulated.execute(intent, price, now)
-                elif mode == "paper" and paper is not None:
-                    fill, reason = paper.execute(intent, now)
-                else:
-                    fill, reason = None, "unsupported execution mode"
-
-                if fill is None:
-                    rejections += 1
-                    append_jsonl(output_dir / "orders.jsonl", {
-                        "timestamp": now,
-                        **intent_record(intent, status="rejected", reason=reason),
-                    })
-                    log.warning("%s rejected: %s", intent.symbol, reason)
-                    continue
-
-                fills += 1
-                append_jsonl(output_dir / "fills.jsonl", fill)
-                plugin.on_fill(fill, context)
-                if simulated is not None:
-                    cash = simulated.cash
-                    positions = dict(simulated.positions)
-                    equity = simulated.equity(final_prices)
-                elif paper is not None:
-                    try:
-                        cash = paper.cash()
-                        positions = paper.positions()
-                    except Exception as exc:
-                        log.warning("Could not refresh paper account snapshot after fill: %s", exc)
-                    equity = None
-                log.info(
-                    "Filled %s %s qty=%.8f price=%.4f tag=%s",
-                    fill["side"],
-                    fill["symbol"],
-                    float(fill["quantity"]),
-                    float(fill["price"]),
-                    fill.get("tag", ""),
-                )
+            if simulated is not None:
+                account_cash = simulated.cash
+                account_positions = dict(simulated.positions)
+                account_equity = simulated.equity(final_prices)
+            else:
+                account_cash = runner_starting_cash
+                account_positions = {}
+                account_equity = runner_starting_cash
             account_record = account_snapshot_record(
                 now=now,
                 step=step,
                 mode=mode,
-                cash=float(cash) if cash is not None else None,
-                equity=float(equity) if equity is not None else None,
-                positions=positions,
+                cash=account_cash,
+                equity=account_equity,
+                positions=account_positions,
                 prices=final_prices,
                 accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
             )
             account_records.append(account_record)
             append_jsonl(output_dir / "account.jsonl", account_record)
+            log.info("Decision step=%d time=%s paused by %s", step, now.isoformat(), pause_marker)
+            return
+        if simulated is not None:
+            cash = simulated.cash
+            positions = dict(simulated.positions)
+            equity = simulated.equity(final_prices)
+        elif paper is not None:
+            cash = paper.cash()
+            positions = paper.positions()
+            equity = None
+        else:
+            cash = runner_starting_cash
+            positions = {}
+            equity = runner_starting_cash
+
+        context = StrategyContext(
+            now=now,
+            mode=mode,
+            cash=float(cash) if cash is not None else None,
+            equity=float(equity) if equity is not None else None,
+            positions=positions,
+            metadata={
+                "config_path": str(config_path),
+                "step": step,
+                "symbols": sorted(snapshot),
+                "loop_enabled": loop_enabled,
+                "loop_iteration": loop_iterations if loop_enabled else None,
+            },
+        )
+        decision = plugin.on_data(snapshot, context)
+        decisions += 1
+        append_jsonl(output_dir / "decisions.jsonl", {
+            "timestamp": decision.timestamp,
+            "step": step,
+            "mode": mode,
+            "signal": decision.signal,
+            "diagnostics": decision.diagnostics,
+            "intents": decision.intents,
+        })
+        log.info(
+            "Decision step=%d time=%s intents=%d",
+            step,
+            now.isoformat(),
+            len(decision.intents),
+        )
+
+        for raw_intent in decision.intents:
+            intent = normalize_intent(raw_intent)
+            orders += 1
+            append_jsonl(output_dir / "orders.jsonl", {
+                "timestamp": now,
+                **intent_record(intent, status="observed" if mode in {"replay", "shadow"} else "pending"),
+            })
+            max_orders = execution_cfg.get("max_orders_per_run")
+            if max_orders is not None and accepted_orders >= int(max_orders):
+                rejections += 1
+                reason = f"max_orders_per_run {int(max_orders)} reached"
+                append_jsonl(output_dir / "orders.jsonl", {
+                    "timestamp": now,
+                    **intent_record(intent, status="rejected", reason=reason),
+                })
+                log.warning("%s rejected: %s", intent.symbol, reason)
+                continue
+
+            reason = validate_intent(
+                intent,
+                mode=mode,
+                execution_cfg=execution_cfg,
+                data_symbols=set(snapshot),
+                prices=final_prices,
+                positions=positions,
+                cash=float(cash) if cash is not None else None,
+                equity=float(equity) if equity is not None else None,
+            )
+            if reason is not None:
+                rejections += 1
+                append_jsonl(output_dir / "orders.jsonl", {
+                    "timestamp": now,
+                    **intent_record(intent, status="rejected", reason=reason),
+                })
+                log.warning("%s rejected: %s", intent.symbol, reason)
+                continue
+
+            if mode in {"replay", "shadow"}:
+                continue
+
+            require_order_approval = bool(execution_cfg.get("require_order_approval", False))
+            if require_order_approval:
+                price = final_prices.get(intent.symbol)
+                approval_status = "approved" if approve_orders else "required"
+                append_jsonl(output_dir / "order_previews.jsonl", order_preview_record(
+                    intent,
+                    now=now,
+                    step=step,
+                    mode=mode,
+                    price=price,
+                    cash=float(cash) if cash is not None else None,
+                    equity=float(equity) if equity is not None else None,
+                    positions=positions,
+                    approval_status=approval_status,
+                ))
+                if not approve_orders:
+                    approval_required_orders += 1
+                    reason = "manual approval required"
+                    append_jsonl(output_dir / "orders.jsonl", {
+                        "timestamp": now,
+                        **intent_record(intent, status="approval_required", reason=reason),
+                    })
+                    log.warning("%s held: %s", intent.symbol, reason)
+                    continue
+
+            accepted_orders += 1
+
+            if mode == "simulated_paper" and simulated is not None:
+                price = final_prices.get(intent.symbol)
+                if price is None:
+                    rejections += 1
+                    reason = "no current price for symbol"
+                    append_jsonl(output_dir / "orders.jsonl", {
+                        "timestamp": now,
+                        **intent_record(intent, status="rejected", reason=reason),
+                    })
+                    continue
+                fill, reason = simulated.execute(intent, price, now)
+            elif mode == "paper" and paper is not None:
+                fill, reason = paper.execute(intent, now)
+            else:
+                fill, reason = None, "unsupported execution mode"
+
+            if fill is None:
+                rejections += 1
+                append_jsonl(output_dir / "orders.jsonl", {
+                    "timestamp": now,
+                    **intent_record(intent, status="rejected", reason=reason),
+                })
+                log.warning("%s rejected: %s", intent.symbol, reason)
+                continue
+
+            fills += 1
+            append_jsonl(output_dir / "fills.jsonl", fill)
+            plugin.on_fill(fill, context)
+            if simulated is not None:
+                cash = simulated.cash
+                positions = dict(simulated.positions)
+                equity = simulated.equity(final_prices)
+            elif paper is not None:
+                try:
+                    cash = paper.cash()
+                    positions = paper.positions()
+                    paper_final_cash = cash
+                    paper_final_positions = positions
+                except Exception as exc:
+                    log.warning("Could not refresh paper account snapshot after fill: %s", exc)
+                equity = None
+            log.info(
+                "Filled %s %s qty=%.8f price=%.4f tag=%s",
+                fill["side"],
+                fill["symbol"],
+                float(fill["quantity"]),
+                float(fill["price"]),
+                fill.get("tag", ""),
+            )
+        account_record = account_snapshot_record(
+            now=now,
+            step=step,
+            mode=mode,
+            cash=float(cash) if cash is not None else None,
+            equity=float(equity) if equity is not None else None,
+            positions=positions,
+            prices=final_prices,
+            accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
+        )
+        account_records.append(account_record)
+        append_jsonl(output_dir / "account.jsonl", account_record)
+
+    try:
+        if not loop_enabled:
+            panels = load_panels(config.get("data") or {})
+            if mode in {"replay", "simulated_paper"}:
+                times = replay_times(panels)
+            else:
+                times = [latest_time(panels)]
+            if max_steps is not None:
+                times = times[:max_steps]
+            for step, now in enumerate(times, start=1):
+                process_step(step, now, panels)
+        else:
+            step = 0
+            while max_loop_iterations is None or loop_iterations < max_loop_iterations:
+                loop_iterations += 1
+                panels = load_panels(config.get("data") or {})
+                now = latest_time(panels)
+                if skip_duplicate_latest and last_processed_latest is not None and now <= last_processed_latest:
+                    log.info(
+                        "Loop iteration=%d skipped duplicate latest data time=%s",
+                        loop_iterations,
+                        now.isoformat(),
+                    )
+                else:
+                    step += 1
+                    process_step(step, now, panels)
+                    last_processed_latest = now
+                if max_loop_iterations is not None and loop_iterations >= max_loop_iterations:
+                    break
+                if loop_interval > 0:
+                    time.sleep(loop_interval)
     finally:
         if paper is not None:
             if paper.connected:
@@ -1414,15 +1491,18 @@ def run_from_config(
         total_pnl=perf["total_pnl"],
         total_commission=perf["total_commission"],
         approval_required_orders=approval_required_orders,
+        loop_enabled=loop_enabled,
+        loop_iterations=loop_iterations,
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
-        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d output_dir=%s",
+        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d output_dir=%s",
         decisions,
         orders,
         fills,
         rejections,
         approval_required_orders,
+        loop_iterations,
         output_dir,
     )
     return result
@@ -1449,6 +1529,23 @@ def main() -> None:
         action="store_true",
         help="Approve orders for configs that set execution.require_order_approval=true.",
     )
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Continuously reload latest data and evaluate shadow/paper configs until stopped.",
+    )
+    parser.add_argument(
+        "--loop-interval-seconds",
+        type=float,
+        default=None,
+        help="Sleep interval between loop evaluations; defaults to runner.loop_interval_seconds or 60.",
+    )
+    parser.add_argument(
+        "--max-loop-iterations",
+        type=int,
+        default=None,
+        help="Optional safety bound for --loop, useful for smoke tests.",
+    )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args()
 
@@ -1462,6 +1559,8 @@ def main() -> None:
                 args.config,
                 mode_override=args.mode,
                 max_steps_override=args.max_steps,
+                loop_override=args.loop if args.loop else None,
+                max_loop_iterations_override=args.max_loop_iterations,
             )
             log.info("Config valid: %s", args.config)
             return
@@ -1472,6 +1571,9 @@ def main() -> None:
             max_steps=args.max_steps,
             confirm_paper_orders=args.confirm_paper_orders,
             approve_orders=args.approve_orders,
+            loop=args.loop if args.loop else None,
+            loop_interval_seconds=args.loop_interval_seconds,
+            max_loop_iterations=args.max_loop_iterations,
         )
     except Exception as exc:
         log.error("Runner failed: %s", exc)

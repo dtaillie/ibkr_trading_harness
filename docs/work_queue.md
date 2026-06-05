@@ -663,6 +663,11 @@ QQQ show up, treat that as a bug until proven otherwise.
 
 - Extend `live/plugin_runner.py` from one-shot/replay execution into continuous
   market-hours loops where needed.
+  - partial; the generic plugin runner now supports `runner.loop` / `--loop`
+    for shadow and paper modes, reloads latest data each interval, skips
+    duplicate latest bars by default, preserves plugin state in-process, and
+    writes loop metadata to summaries. Dedicated market-hours/session windows
+    and richer service lifecycle controls remain open.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version

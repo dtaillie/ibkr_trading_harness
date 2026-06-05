@@ -39,8 +39,8 @@ This roadmap is broader context; the queue is the current execution order.
 
 ## Generic runner
 
-- Extend `live/plugin_runner.py` from one-shot/replay execution into continuous
-  market-hours loops where needed.
+- Extend `live/plugin_runner.py` from basic shadow/paper continuous loops into
+  richer market-hours/session-aware loops where needed.
 - Extend config validation into versioned schemas with richer per-plugin checks.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow

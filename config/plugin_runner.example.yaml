@@ -16,6 +16,9 @@ runner:
   history_bars: 20
   output_dir: paper_logs/example_plugin_runner
   clean_output_dir: true
+  loop: false
+  loop_interval_seconds: 60
+  skip_duplicate_latest: true
 
 data:
   source: files
