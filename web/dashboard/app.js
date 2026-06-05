@@ -2566,9 +2566,33 @@ function renderSymbolBrowser() {
 function symbolDirectoryControls() {
   return {
     filter: (($("data-symbol-directory-filter") || {}).value || "").trim().toLowerCase(),
+    asset: (($("data-symbol-directory-asset") || {}).value || ""),
+    source: (($("data-symbol-directory-source") || {}).value || ""),
+    bar: (($("data-symbol-directory-bar") || {}).value || ""),
+    session: (($("data-symbol-directory-session") || {}).value || ""),
+    quality: (($("data-symbol-directory-quality") || {}).value || ""),
     sort: (($("data-symbol-directory-sort") || {}).value || "files_desc"),
     limit: Number((($("data-symbol-directory-limit") || {}).value || "60")),
   };
+}
+
+function renderSymbolDirectoryFilterOptions(datasets) {
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    if (!select) return;
+    const current = select.value;
+    const options = Array.from(new Set((values || []).map(text).filter((item) => item !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) select.value = current;
+  };
+  makeOptions("data-symbol-directory-asset", datasets.map((item) => item.asset_class));
+  makeOptions("data-symbol-directory-source", datasets.map((item) => item.source));
+  makeOptions("data-symbol-directory-bar", datasets.map((item) => item.bar_size));
+  makeOptions("data-symbol-directory-session", datasets.map((item) => item.storage_session));
+  makeOptions("data-symbol-directory-quality", datasets.map((item) => item.quality_status));
 }
 
 function symbolDirectoryQualityScore(qualities) {
@@ -2616,6 +2640,7 @@ function symbolDirectoryRows() {
       assets: Array.from(new Set(datasets.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort(),
       sources: Array.from(new Set(datasets.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
       bars: Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
+      sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
       qualities: countBy(datasets, "quality_status"),
       first_day: ranges.start,
       last_day: ranges.end,
@@ -2628,6 +2653,7 @@ function symbolDirectoryRows() {
           item.assets.join(" "),
           item.sources.join(" "),
           item.bars.join(" "),
+          item.sessions.join(" "),
           countSummary(item.qualities),
           item.first_day,
           item.last_day,
@@ -2635,9 +2661,16 @@ function symbolDirectoryRows() {
         return haystack.includes(controls.filter);
       })
     : rows;
+  const faceted = filtered.filter((item) => (
+    (!controls.asset || item.assets.includes(controls.asset))
+    && (!controls.source || item.sources.includes(controls.source))
+    && (!controls.bar || item.bars.includes(controls.bar))
+    && (!controls.session || item.sessions.includes(controls.session))
+    && (!controls.quality || Object.prototype.hasOwnProperty.call(item.qualities || {}, controls.quality))
+  ));
   return {
-    rows: sortSymbolDirectoryRows(filtered, controls.sort).slice(0, Math.max(1, Math.min(200, controls.limit || 60))),
-    filtered_count: filtered.length,
+    rows: sortSymbolDirectoryRows(faceted, controls.sort).slice(0, Math.max(1, Math.min(200, controls.limit || 60))),
+    filtered_count: faceted.length,
     total_count: rows.length,
     controls,
   };
@@ -2646,10 +2679,19 @@ function symbolDirectoryRows() {
 function renderSymbolDirectory() {
   if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
   const groups = symbolBrowserGroups();
+  renderSymbolDirectoryFilterOptions(state.dataCatalog.datasets || []);
   const directory = symbolDirectoryRows();
   const rows = directory.rows;
   const filteredCount = directory.filtered_count;
-  const filterLabel = directory.controls.filter ? ` matching "${directory.controls.filter}"` : "";
+  const activeFilters = [
+    directory.controls.filter ? `"${directory.controls.filter}"` : "",
+    directory.controls.asset,
+    directory.controls.source,
+    directory.controls.bar,
+    directory.controls.session,
+    directory.controls.quality,
+  ].filter(Boolean);
+  const filterLabel = activeFilters.length ? ` matching ${activeFilters.join(", ")}` : "";
   $("data-symbol-directory-note").textContent = groups.size
     ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}`
     : "No scanned symbols loaded";
@@ -2665,6 +2707,7 @@ function renderSymbolDirectory() {
               <strong>${symbol}</strong>
               <small>${escapeHtml(numberText(item.file_count, 0))} file${item.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(item.row_count, 0))} rows</small>
               <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")}</small>
+              <small>${escapeHtml(item.sessions.join(", ") || "unknown session")}</small>
               <small>${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
               <small>quality ${escapeHtml(countSummary(item.qualities))}</small>
             </div>
@@ -6876,10 +6919,20 @@ function init() {
   });
   $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
   $("data-symbol-directory-filter").addEventListener("input", renderSymbolDirectory);
+  $("data-symbol-directory-asset").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-source").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-bar").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-session").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-quality").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-sort").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-limit").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-clear").addEventListener("click", () => {
     $("data-symbol-directory-filter").value = "";
+    $("data-symbol-directory-asset").value = "";
+    $("data-symbol-directory-source").value = "";
+    $("data-symbol-directory-bar").value = "";
+    $("data-symbol-directory-session").value = "";
+    $("data-symbol-directory-quality").value = "";
     $("data-symbol-directory-sort").value = "files_desc";
     $("data-symbol-directory-limit").value = "60";
     renderSymbolDirectory();

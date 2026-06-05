@@ -601,6 +601,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html
         assert "data-symbol-directory-filter" in html
+        assert "data-symbol-directory-asset" in html
+        assert "data-symbol-directory-source" in html
+        assert "data-symbol-directory-bar" in html
+        assert "data-symbol-directory-session" in html
+        assert "data-symbol-directory-quality" in html
         assert "data-symbol-directory-sort" in html
         assert "data-symbol-directory-limit" in html
         assert "data-filter-symbol-options" in html

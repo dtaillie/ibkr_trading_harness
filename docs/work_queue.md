@@ -515,6 +515,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       scanned symbols by file count/rows, can search and sort the symbol
       directory, and provides direct Filter, Inspect, Compare, and Diagnose
       actions without needing to know a ticker upfront.
+    - partial; Symbol Directory now has exact asset, source, bar-size, storage
+      session, and quality facets so large saved universes can be narrowed
+      without relying on free-text search.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.
