@@ -1778,6 +1778,12 @@ def test_cloud_status_server_serves_data_minute_heatmap(tmp_path):
         assert hour14["estimated_missing_intervals"] == 2
         assert hour14["expected_intervals"] == 6
         assert row0["worst_hours"][0]["hour_utc"] == 14
+        assert row0["worst_date_hours"][0]["date_utc"] == "2026-01-02"
+        assert row0["worst_date_hours"][0]["hour_utc"] == 14
+        assert row0["worst_date_hours"][0]["estimated_missing_intervals"] == 2
+        assert payload["date_hour_rows"][0]["symbol"] == "SPY"
+        assert payload["date_hour_rows"][0]["date_utc"] == "2026-01-02"
+        assert payload["date_hour_rows"][0]["hour_utc"] == 14
     finally:
         server.shutdown()
         server.server_close()

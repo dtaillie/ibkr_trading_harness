@@ -2138,7 +2138,9 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
         raise ValueError("invalid median timestamp interval")
 
     actual_by_hour: Counter[int] = Counter(int(ts.hour) for ts in ordered)
+    actual_by_date_hour: Counter[tuple[str, int]] = Counter((ts.date().isoformat(), int(ts.hour)) for ts in ordered)
     missing_by_hour: Counter[int] = Counter()
+    missing_by_date_hour: Counter[tuple[str, int]] = Counter()
     previous = ordered.iloc[0]
     step = pd.Timedelta(seconds=median_interval)
     for current in ordered.iloc[1:]:
@@ -2150,6 +2152,7 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
                 if estimated_ts >= current:
                     break
                 missing_by_hour[int(estimated_ts.hour)] += 1
+                missing_by_date_hour[(estimated_ts.date().isoformat(), int(estimated_ts.hour))] += 1
         previous = current
 
     hours = []
@@ -2181,6 +2184,32 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
     expected_total = total_actual + total_missing
     completeness_total = (total_actual / expected_total * 100.0) if expected_total else None
     symbol = infer_symbol(path, df)
+    date_hour_rows = []
+    for key in sorted(set(actual_by_date_hour) | set(missing_by_date_hour)):
+        day, hour = key
+        actual = int(actual_by_date_hour.get(key, 0))
+        missing = int(missing_by_date_hour.get(key, 0))
+        expected = actual + missing
+        if expected <= 0:
+            continue
+        completeness = (actual / expected * 100.0) if expected else None
+        date_hour_rows.append({
+            "date_utc": day,
+            "hour_utc": hour,
+            "actual_intervals": actual,
+            "estimated_missing_intervals": missing,
+            "expected_intervals": expected,
+            "completeness_pct": finite_float(completeness),
+        })
+    worst_date_hours = sorted(
+        [row for row in date_hour_rows if int(row.get("estimated_missing_intervals") or 0) > 0],
+        key=lambda row: (
+            float(row["completeness_pct"] if row.get("completeness_pct") is not None else 100.0),
+            -int(row.get("estimated_missing_intervals") or 0),
+            str(row.get("date_utc") or ""),
+            int(row.get("hour_utc") or 0),
+        ),
+    )[:12]
     return {
         "path": display_path(path),
         "root": display_path(root),
@@ -2199,6 +2228,7 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
         "completeness_pct": finite_float(completeness_total),
         "hours": hours,
         "worst_hours": worst_hours,
+        "worst_date_hours": worst_date_hours,
     }
 
 
@@ -2227,6 +2257,24 @@ def build_data_minute_heatmap(
     total_expected = sum(int(row.get("expected_intervals") or 0) for row in rows)
     total_missing = sum(int(row.get("estimated_missing_intervals") or 0) for row in rows)
     completeness = ((total_expected - total_missing) / total_expected * 100.0) if total_expected else None
+    date_hour_rows = []
+    for row in rows:
+        for item in row.get("worst_date_hours") or []:
+            date_hour_rows.append({
+                "symbol": row.get("symbol"),
+                "asset_class": row.get("asset_class"),
+                "source": row.get("source"),
+                "bar_size": row.get("bar_size"),
+                "path": row.get("path"),
+                **item,
+            })
+    date_hour_rows.sort(key=lambda row: (
+        float(row["completeness_pct"] if row.get("completeness_pct") is not None else 100.0),
+        -int(row.get("estimated_missing_intervals") or 0),
+        str(row.get("symbol") or ""),
+        str(row.get("date_utc") or ""),
+        int(row.get("hour_utc") or 0),
+    ))
     warnings = []
     if total_missing:
         warnings.append(f"{total_missing} estimated missing intraday intervals")
@@ -2247,6 +2295,7 @@ def build_data_minute_heatmap(
         "total_estimated_missing_intervals": total_missing,
         "overall_completeness_pct": finite_float(completeness),
         "rows": rows[:top_limit],
+        "date_hour_rows": date_hour_rows[:top_limit],
         "errors": errors[:top_limit],
     }
 

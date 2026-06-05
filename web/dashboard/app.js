@@ -2722,6 +2722,18 @@ function renderDataMinuteHeatmap() {
         ]);
       }).join("")
     : row([`<span class="muted">No intraday interval gaps in the current catalog scan.</span>`, "", "", "", "", "", ""]);
+  const dateHourRows = summary.date_hour_rows || [];
+  $("data-minute-date-hour-body").innerHTML = dateHourRows.length
+    ? dateHourRows.slice(0, 20).map((item) => row([
+        escapeHtml(item.symbol),
+        escapeHtml(item.date_utc),
+        escapeHtml(`${String(item.hour_utc).padStart(2, "0")}:00`),
+        escapeHtml(pctText(item.completeness_pct)),
+        escapeHtml(numberText(item.estimated_missing_intervals, 0)),
+        `${escapeHtml(numberText(item.actual_intervals, 0))} / ${escapeHtml(numberText(item.expected_intervals, 0))}`,
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">No date/hour missing interval drilldowns in the current catalog scan.</span>`, "", "", "", "", "", ""]);
 }
 
 function renderSymbolDiagnostic() {

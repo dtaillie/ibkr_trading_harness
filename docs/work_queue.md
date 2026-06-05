@@ -481,7 +481,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library now has a Minute Coverage Heatmap backed by
       `/data_minute_heatmap`, summarizing expected vs actual intraday intervals
       by UTC hour for bounded catalog rows and listing worst incomplete files.
-      Full date-by-minute drilldowns remain future work.
+      Data Library now also lists bounded worst date/hour missing-interval
+      drilldowns from the same endpoint. Full per-minute drilldown remains
+      future work.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues
