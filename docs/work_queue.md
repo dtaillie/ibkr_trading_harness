@@ -255,8 +255,14 @@ strategy-private.
   - screenshot-smoke every top-level page at desktop and mobile widths
   - empty-state smoke tests for no status, no data roots, no runs, and no saved
     drafts
+    - partial; `scripts/smoke_dashboard.py --scenario empty` now exercises a
+      no-data/no-fetch-manifest state, and pytest runs the empty scenario as a
+      dashboard endpoint/render contract check.
   - seeded demo-state smoke tests with many symbols, multiple runs, fills,
     rejects, and warnings
+    - partial; `scripts/smoke_dashboard.py --scenario seeded` now creates a
+      synthetic many-symbol saved-data root, fetch manifest, and generic paper
+      telemetry snapshot, and pytest runs that seeded scenario.
   - accessibility pass for labels, focus states, keyboard navigation, and color
     contrast
   - no overlapping text in tables, cards, charts, or mobile navigation

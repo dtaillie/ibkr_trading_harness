@@ -17,6 +17,162 @@ sys.path.insert(0, str(ROOT))
 from scripts.cloud_status_server import DEFAULT_DASHBOARD_DIR, create_server
 
 
+def write_seed_data(data_root: Path, *, symbol_count: int = 24) -> list[Path]:
+    data_root.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for index in range(symbol_count):
+        symbol = f"SYM{index:03d}"
+        path = data_root / f"{symbol}_5min_sample.csv"
+        base_price = 100 + index
+        path.write_text(
+            "\n".join(
+                [
+                    "timestamp,open,high,low,close,volume",
+                    f"2026-01-02T14:30:00+00:00,{base_price},{base_price + 1},{base_price - 1},{base_price},1000",
+                    f"2026-01-02T14:35:00+00:00,{base_price},{base_price + 2},{base_price - 1},{base_price + 0.5},1100",
+                    f"2026-01-02T14:40:00+00:00,{base_price + 0.5},{base_price + 2},{base_price},{base_price + 1},1200",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        paths.append(path)
+    return paths
+
+
+def write_seed_fetch_manifest(manifest_root: Path, output_path: Path) -> None:
+    manifest_root.mkdir(parents=True, exist_ok=True)
+    (manifest_root / "seed_stock_history.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": "seed_stock_history",
+                "kind": "stock_history",
+                "status": "completed",
+                "started_at": "2026-01-02T14:30:00+00:00",
+                "finished_at": "2026-01-02T14:31:00+00:00",
+                "parameters": {"bar_size": "5min", "duration": "1 D", "out_dir": str(output_path.parent)},
+                "plan": {"range_start": "2026-01-02", "range_end": "2026-01-02"},
+                "symbols_requested": ["SYM000", "SYM001"],
+                "symbols": {
+                    "SYM000": {
+                        "symbol": "SYM000",
+                        "status": "ok",
+                        "bars": 3,
+                        "first_timestamp": "2026-01-02T14:30:00+00:00",
+                        "last_timestamp": "2026-01-02T14:40:00+00:00",
+                    },
+                    "SYM001": {
+                        "symbol": "SYM001",
+                        "status": "ok",
+                        "bars": 3,
+                        "first_timestamp": "2026-01-02T14:30:00+00:00",
+                        "last_timestamp": "2026-01-02T14:40:00+00:00",
+                    },
+                },
+                "outputs": [
+                    {
+                        "timestamp": "2026-01-02T14:31:00+00:00",
+                        "symbol": "SYM000",
+                        "status": "ok",
+                        "rows": 3,
+                        "path": str(output_path),
+                    }
+                ],
+                "errors": [],
+                "events": [],
+                "counts": {
+                    "requested_symbols": 2,
+                    "tracked_symbols": 2,
+                    "success_symbols": 2,
+                    "failed_symbols": 0,
+                    "partial_symbols": 0,
+                    "empty_symbols": 0,
+                    "skipped_symbols": 0,
+                    "outputs": 1,
+                    "errors": 0,
+                    "rows": 3,
+                    "success_chunks": 1,
+                    "empty_chunks": 0,
+                    "failed_chunks": 0,
+                    "status_counts": {"ok": 2},
+                    "output_status_counts": {"ok": 1},
+                    "error_kind_counts": {},
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def post_seed_status(base_url: str) -> None:
+    post_json(
+        base_url,
+        "/status",
+        {
+            "schema_version": 1,
+            "node_id": "seed-node",
+            "status": "ok",
+            "generated_at": "2026-01-02T14:45:00+00:00",
+            "gateway": {"enabled": True, "reachable": True},
+            "runs": [
+                {
+                    "id": "seed-paper-run",
+                    "status": "ok",
+                    "metrics": {
+                        "mode": "paper",
+                        "final_equity": 10123.45,
+                        "final_cash": 9123.45,
+                        "final_positions": {"SYM000": 2, "SYM001": 0},
+                        "account_end_time": "2026-01-02T14:44:00+00:00",
+                        "latest_data_time": "2026-01-02T14:44:00+00:00",
+                        "last_decision_time": "2026-01-02T14:43:00+00:00",
+                        "next_decision_time": "2026-01-02T14:50:00+00:00",
+                        "decisions": 3,
+                        "orders": 3,
+                        "fills": 1,
+                        "rejections": 1,
+                    },
+                    "recent_events": {
+                        "decisions": [
+                            {"timestamp": "2026-01-02T14:43:00+00:00", "symbol": "SYM000", "status": "selected"}
+                        ],
+                        "orders": [
+                            {"timestamp": "2026-01-02T14:43:01+00:00", "symbol": "SYM000", "status": "Submitted"},
+                            {"timestamp": "2026-01-02T14:43:03+00:00", "symbol": "SYM002", "status": "Rejected"},
+                        ],
+                        "fills": [
+                            {"timestamp": "2026-01-02T14:43:02+00:00", "symbol": "SYM000", "status": "filled"}
+                        ],
+                    },
+                },
+                {
+                    "id": "seed-shadow-run",
+                    "status": "warn",
+                    "metrics": {
+                        "mode": "shadow",
+                        "final_equity": 10000.0,
+                        "final_cash": 10000.0,
+                        "final_positions": {},
+                        "last_decision_time": "2026-01-02T14:20:00+00:00",
+                        "decisions": 2,
+                        "orders": 0,
+                        "fills": 0,
+                        "rejections": 0,
+                    },
+                    "recent_events": {
+                        "decisions": [
+                            {"timestamp": "2026-01-02T14:20:00+00:00", "symbol": "SYM003", "status": "below_threshold"}
+                        ]
+                    },
+                },
+            ],
+            "alerts": [{"level": "warn", "kind": "seed_warning", "message": "Synthetic warning for seeded smoke"}],
+        },
+    )
+
+
 def fetch_text(base_url: str, path: str) -> str:
     with request.urlopen(f"{base_url}{path}", timeout=5) as resp:
         return resp.read().decode("utf-8")
@@ -44,18 +200,41 @@ def run_smoke(
     state_dir: Path,
     dashboard_dir: Path,
     data_roots: list[Path] | None,
+    fetch_manifest_roots: list[Path] | None,
+    scenario: str = "default",
 ) -> dict:
+    if scenario == "empty":
+        empty_data_root = state_dir / "empty_data"
+        empty_manifest_root = state_dir / "empty_fetch_manifests"
+        empty_data_root.mkdir(parents=True, exist_ok=True)
+        empty_manifest_root.mkdir(parents=True, exist_ok=True)
+        data_roots = [empty_data_root]
+        fetch_manifest_roots = [empty_manifest_root]
+    if scenario == "seeded":
+        seed_data_root = state_dir / "seed_data"
+        seed_manifest_root = state_dir / "seed_fetch_manifests"
+        seed_paths = write_seed_data(seed_data_root)
+        write_seed_fetch_manifest(seed_manifest_root, seed_paths[0])
+        data_roots = [seed_data_root] if data_roots is None else [*data_roots, seed_data_root]
+        fetch_manifest_roots = (
+            [seed_manifest_root]
+            if fetch_manifest_roots is None
+            else [*fetch_manifest_roots, seed_manifest_root]
+        )
     server = create_server(
         host,
         port,
         state_dir,
         dashboard_dir=dashboard_dir,
         data_roots=data_roots,
+        fetch_manifest_roots=fetch_manifest_roots,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         base_url = f"http://{host}:{server.server_address[1]}"
+        if scenario == "seeded":
+            post_seed_status(base_url)
         html = fetch_text(base_url, "/")
         required_controls = [
             "nav-overview",
@@ -246,8 +425,10 @@ def run_smoke(
         if missing_js_tokens:
             raise RuntimeError(f"dashboard JS tokens missing: {', '.join(missing_js_tokens)}")
 
-        catalog = fetch_json(base_url, "/data_catalog?limit=5&preview_points=3")
-        data_catalog_csv = fetch_text(base_url, "/data_catalog_export?limit=5")
+        catalog_limit = 50 if scenario == "seeded" else 5
+        coverage_symbol_limit = 50 if scenario == "seeded" else 10
+        catalog = fetch_json(base_url, f"/data_catalog?limit={catalog_limit}&preview_points=3")
+        data_catalog_csv = fetch_text(base_url, f"/data_catalog_export?limit={catalog_limit}")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         endpoint_map = fetch_json(base_url, "/workbench_endpoints")
         web_ui_runbook = fetch_text(base_url, "/docs/web_ui_runbook.md")
@@ -258,10 +439,10 @@ def run_smoke(
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
-        coverage = fetch_json(base_url, "/data_coverage?limit=5&max_symbols=10&max_dates=20")
+        coverage = fetch_json(base_url, f"/data_coverage?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
-        storage_audit = fetch_json(base_url, "/data_storage_audit?catalog_limit=5&scan_limit=100")
+        storage_audit = fetch_json(base_url, f"/data_storage_audit?catalog_limit={catalog_limit}&scan_limit=100")
         if "configured_roots" not in storage_audit or "catalog_visible_count" not in storage_audit:
             raise RuntimeError("data storage audit summary is invalid")
         csv_header = data_catalog_csv.splitlines()[0]
@@ -303,6 +484,41 @@ def run_smoke(
         daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
         if "rollups" not in daily_rollups or "total" not in daily_rollups or "period_rollups" not in daily_rollups:
             raise RuntimeError("daily rollup summary is invalid")
+        scenario_checks = {}
+        if scenario == "empty":
+            if catalog.get("count") != 0:
+                raise RuntimeError("empty scenario unexpectedly returned catalog rows")
+            if coverage.get("count") != 0:
+                raise RuntimeError("empty scenario unexpectedly returned coverage rows")
+            if fetch_manifests.get("count") != 0:
+                raise RuntimeError("empty scenario unexpectedly returned fetch manifests")
+            if storage_audit.get("catalog_visible_count") != 0 or storage_audit.get("configured_file_count") != 0:
+                raise RuntimeError("empty scenario storage audit unexpectedly found files")
+            scenario_checks = {"empty_state": True}
+        elif scenario == "seeded":
+            remote_nodes = fetch_json(base_url, "/remote_nodes?limit=5")
+            status_payload = fetch_json(base_url, "/status")
+            if catalog.get("count", 0) < 20:
+                raise RuntimeError("seeded scenario did not expose the synthetic catalog")
+            if coverage.get("count", 0) < 20:
+                raise RuntimeError("seeded scenario did not expose synthetic coverage")
+            if fetch_manifests.get("count", 0) < 1:
+                raise RuntimeError("seeded scenario did not expose the synthetic fetch manifest")
+            if storage_audit.get("catalog_visible_count", 0) < 20:
+                raise RuntimeError("seeded scenario storage audit missed synthetic files")
+            if status_payload.get("node_id") != "seed-node":
+                raise RuntimeError("seeded scenario status snapshot was not served")
+            if not remote_nodes.get("nodes") or remote_nodes["nodes"][0].get("node_id") != "seed-node":
+                raise RuntimeError("seeded scenario remote node summary was not served")
+            node = remote_nodes["nodes"][0]
+            if node.get("alert_count", 0) < 1 or node.get("rejection_count", 0) < 1:
+                raise RuntimeError("seeded scenario did not expose warning/rejection telemetry")
+            if len(status_payload.get("runs") or []) < 2:
+                raise RuntimeError("seeded scenario did not expose multiple runs")
+            scenario_checks = {
+                "seeded_state": True,
+                "remote_node_count": remote_nodes.get("count", 0),
+            }
 
         alignment_count = 0
         compare_count = 0
@@ -351,6 +567,8 @@ def run_smoke(
             "draft_validation_count": draft_validations.get("count", 0),
             "alignment_dataset_count": alignment_count,
             "compare_dataset_count": compare_count,
+            "scenario": scenario,
+            **scenario_checks,
         }
     finally:
         server.shutdown()
@@ -364,6 +582,13 @@ def main() -> None:
     parser.add_argument("--state-dir", type=Path, default=None)
     parser.add_argument("--dashboard-dir", type=Path, default=DEFAULT_DASHBOARD_DIR)
     parser.add_argument("--data-root", action="append", type=Path, default=None)
+    parser.add_argument("--fetch-manifest-root", action="append", type=Path, default=None)
+    parser.add_argument(
+        "--scenario",
+        choices=("default", "empty", "seeded"),
+        default="default",
+        help="State fixture to exercise: default examples, no data, or seeded many-symbol data.",
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     args = parser.parse_args()
 
@@ -375,6 +600,8 @@ def main() -> None:
                 state_dir=Path(tmp),
                 dashboard_dir=args.dashboard_dir,
                 data_roots=args.data_root,
+                fetch_manifest_roots=args.fetch_manifest_root,
+                scenario=args.scenario,
             )
     else:
         result = run_smoke(
@@ -383,6 +610,8 @@ def main() -> None:
             state_dir=args.state_dir,
             dashboard_dir=args.dashboard_dir,
             data_roots=args.data_root,
+            fetch_manifest_roots=args.fetch_manifest_root,
+            scenario=args.scenario,
         )
 
     if args.json:
@@ -391,10 +620,27 @@ def main() -> None:
         print(
             "Dashboard smoke OK: "
             f"{result['base_url']} "
+            f"scenario={result['scenario']} "
             f"datasets={result['catalog_count']} "
             f"diagnostics={result['diagnostics_status']} "
             f"risk_presets={result['risk_preset_count']}"
         )
+
+
+def test_dashboard_smoke_empty_and_seeded_scenarios() -> None:
+    for scenario in ("empty", "seeded"):
+        with tempfile.TemporaryDirectory(prefix=f"algo_trade_dashboard_{scenario}_smoke_") as tmp:
+            result = run_smoke(
+                host="127.0.0.1",
+                port=0,
+                state_dir=Path(tmp),
+                dashboard_dir=DEFAULT_DASHBOARD_DIR,
+                data_roots=None,
+                fetch_manifest_roots=None,
+                scenario=scenario,
+            )
+        assert result["scenario"] == scenario
+        assert result[f"{scenario}_state"] is True
 
 
 if __name__ == "__main__":
