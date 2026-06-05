@@ -274,6 +274,9 @@ suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
 chunks, errors, produced output files, per-symbol progress, and output paths.
+The Fetch Workflow checklist turns that manifest state into next actions:
+configure roots, load jobs, review failures, inspect outputs, open saved data,
+and recover or export the selected job.
 Use Export Jobs CSV to download recent fetch-job summaries for offline review
 of failed jobs, progress/ETA fields, pacing waits, retries, rows, and latest
 output paths.

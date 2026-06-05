@@ -3569,6 +3569,7 @@ function renderFetchJobs() {
         `;
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
+  renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
   const errors = payload.errors || [];
   const errorRows = errors.map((item) => row([
     escapeHtml(item.path),
@@ -3624,6 +3625,103 @@ function renderFetchJobs() {
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
     : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderFetchJobsGuide(context = {}) {
+  if (!$("fetch-jobs-guide") || !$("fetch-jobs-guide-note")) return;
+  const payload = state.fetchManifests || {};
+  const manifests = context.manifests || payload.manifests || [];
+  const filteredManifests = context.filteredManifests || filteredFetchManifests(manifests);
+  const roots = context.roots || payload.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || fetchManifestRootConfigPaths();
+  const detail = state.fetchManifestDetail || {};
+  const existingRoots = roots.filter((root) => root.exists && root.is_dir);
+  const rootManifestCount = roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0);
+  const failedJobs = manifests.filter((item) => Number(item.errors || 0) || Number(item.failed_symbols || 0) || Number(item.failed_chunks || 0));
+  const terminalJobs = manifests.filter((item) => ["completed", "failed", "partial", "cancelled"].includes(text(item.status).toLowerCase()));
+  const activeJobs = manifests.filter((item) => !["completed", "failed", "partial", "cancelled"].includes(text(item.status).toLowerCase()));
+  const visibleOutputPaths = fetchVisibleOutputPaths(detail);
+  const outputTotal = Number(detail.output_total || 0);
+  const selectedHasFailures = Number((detail.counts || {}).failed_symbols || detail.failed_symbols || 0) > 0
+    || Number((detail.counts || {}).failed_chunks || detail.failed_chunks || 0) > 0
+    || Number((detail.counts || {}).errors || detail.error_total || 0) > 0;
+  const resumeCommand = fetchResumeCommand(detail);
+  const steps = [
+    {
+      status: existingRoots.length ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      label: "Configure Manifest Roots",
+      detail: existingRoots.length
+        ? `${numberText(existingRoots.length, 0)} active root${existingRoots.length === 1 ? "" : "s"} with ${numberText(rootManifestCount, 0)} manifest file${rootManifestCount === 1 ? "" : "s"}.`
+        : rootConfigPaths.length
+          ? "Roots are configured but none are currently readable directories."
+          : "Add dashboard.fetch_manifest_roots or run a fetcher that writes JSON manifests.",
+    },
+    {
+      status: manifests.length ? "ok" : existingRoots.length ? "warn" : "bad",
+      label: "Load Jobs",
+      detail: manifests.length
+        ? `${numberText(manifests.length, 0)} job${manifests.length === 1 ? "" : "s"} loaded; ${numberText(activeJobs.length, 0)} active and ${numberText(terminalJobs.length, 0)} terminal.`
+        : existingRoots.length
+          ? "Roots are readable, but no manifest JSON files were found yet."
+          : "No readable manifest roots are available.",
+    },
+    {
+      status: !manifests.length ? "bad" : failedJobs.length ? "warn" : "ok",
+      label: "Review Failures",
+      detail: !manifests.length
+        ? "No jobs loaded to review."
+        : failedJobs.length
+          ? `${numberText(failedJobs.length, 0)} job${failedJobs.length === 1 ? "" : "s"} have errors, failed symbols, or failed chunks.`
+          : "No loaded job reports errors or failed chunks.",
+    },
+    {
+      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "bad",
+      label: "Find a Job",
+      detail: filteredManifests.length
+        ? `${numberText(filteredManifests.length, 0)} job${filteredManifests.length === 1 ? "" : "s"} match the current search/filter.`
+        : manifests.length
+          ? "Current filters hide every loaded job; clear search/status/kind filters."
+          : "Load manifests before filtering.",
+    },
+    {
+      status: detail.job_id ? (outputTotal ? "ok" : "warn") : manifests.length ? "warn" : "bad",
+      label: "Inspect Outputs",
+      detail: detail.job_id
+        ? outputTotal
+          ? `${text(detail.job_id)} records ${numberText(outputTotal, 0)} output row${outputTotal === 1 ? "" : "s"}.`
+          : `${text(detail.job_id)} is selected but records no output paths.`
+        : manifests.length
+          ? "Click Inspect on a job to see symbol progress, output visibility, errors, and events."
+          : "No job is available to inspect.",
+    },
+    {
+      status: !detail.job_id ? "warn" : visibleOutputPaths.length ? "ok" : outputTotal ? "warn" : "bad",
+      label: "Open Saved Data",
+      detail: !detail.job_id
+        ? "Select a job first; visible output files can jump directly into Data Library."
+        : visibleOutputPaths.length
+          ? `${numberText(visibleOutputPaths.length, 0)} produced file${visibleOutputPaths.length === 1 ? "" : "s"} are visible in configured data roots.`
+          : outputTotal
+            ? "Outputs exist, but they are missing, outside configured data roots, or unsupported."
+            : "The selected job has no output paths to connect to Data Library.",
+    },
+    {
+      status: !detail.job_id ? "warn" : selectedHasFailures ? (resumeCommand ? "ok" : "warn") : "ok",
+      label: "Recover or Export",
+      detail: !detail.job_id
+        ? "Select a job to copy a resume command or export the detailed rows."
+        : selectedHasFailures && resumeCommand
+          ? "Copy Resume Command for failed work, or Export Detail CSV for offline review."
+          : selectedHasFailures
+            ? "Export Detail CSV and manually reconstruct the retry command for this job type."
+            : "Export Detail CSV if you want a portable audit of symbols, outputs, errors, and events.",
+    },
+  ];
+  const ready = steps.filter((step) => step.status === "ok").length;
+  $("fetch-jobs-guide-note").textContent = `${ready} of ${steps.length} steps ready`;
+  $("fetch-jobs-guide").innerHTML = steps.map((step) => (
+    `<div class="check-item status-${escapeHtml(step.status)}"><span>${escapeHtml(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div></div>`
+  )).join("");
 }
 
 function renderFetchManifestDetail() {
@@ -3724,6 +3822,7 @@ function renderFetchManifestDetail() {
           : `<span class="muted">${escapeHtml(fetchOutputVisibilityLabel(item))}</span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+  renderFetchJobsGuide();
 }
 
 function applyFetchOutputDataFilter() {

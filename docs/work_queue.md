@@ -104,6 +104,9 @@ strategy-private.
     - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
       block from visible manifest roots, giving users the matching config fix
       for fetch-history visibility.
+    - partial; Fetch Jobs now includes a contextual Fetch Workflow checklist
+      that turns root readability, loaded jobs, filters, selected outputs, Data
+      Library visibility, and recovery/export state into concrete next actions.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes
@@ -618,6 +621,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; selected Fetch Detail views can be exported as CSV for offline
       review of symbol progress, output visibility, errors, retry attempts, and
       pacing waits.
+    - partial; Fetch Jobs now has a checklist-style guide for configuring
+      roots, finding jobs, reviewing failures, inspecting outputs, opening
+      saved data, and recovering/exporting selected jobs.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

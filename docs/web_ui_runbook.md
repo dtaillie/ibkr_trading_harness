@@ -135,6 +135,10 @@ translations, not stable performance estimates.
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
 to inspect completed and active fetches, failed symbols, no-data chunks, output
 files, and generated data-detail links for files under configured data roots.
+The Fetch Workflow checklist summarizes whether manifest roots are readable,
+whether jobs were found, whether filters are hiding them, whether selected
+outputs are visible in Data Library, and whether the selected job can be
+resumed or exported.
 Use Export Jobs CSV to download recent fetch-job summaries, including status,
 symbols, chunks, rows, retries, pacing waits, ETA/progress fields, errors, and
 output paths.
