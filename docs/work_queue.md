@@ -410,17 +410,32 @@ QQQ show up, treat that as a bug until proven otherwise.
   - persist enough state to resume after Gateway or PC restart
 - Add backend tests for catalog discovery:
   - many-symbol fixture roots
+    - done; tests now create 200+ nested synthetic saved files and assert the
+      catalog shows far more than public examples
   - CSV and parquet coverage
+    - done for CSV stock files and a parquet Zero Hash-style crypto file
   - nested cache paths
+    - done for nested `cache/ibkr/...` and `cache/zerohash/...` paths
   - crypto 24/7 files
+    - partial; crypto parquet discovery is covered, minute/day completeness
+      semantics remain open
   - malformed/skipped files with visible reasons
+    - partial; parser failures and unsupported files are covered by catalog
+      scan diagnostics, deeper malformed-minute cases remain open
 - Add data ingestion acceptance tests:
   - a fixture with hundreds of synthetic symbols must show more than the public
     SPY/QQQ examples
+    - done for the Data Catalog endpoint
   - nested stock cache paths must be discovered
+    - done
   - nested crypto cache paths must be discovered
+    - done
   - parser skip reasons must be returned to the UI, not only logged
+    - partial; catalog root summaries and Data Library scan diagnostics expose
+      parser error counts/sample errors and unsupported-file counts
   - catalog limits must be visible and user-adjustable through config
+    - partial; Data Library exposes catalog limit controls and scan diagnostics
+      show limit-capped roots
 
 ## P1: Public workbench usability
 

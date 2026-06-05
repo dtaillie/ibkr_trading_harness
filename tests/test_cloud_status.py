@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib import error, request
 
+import pytest
+
 from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
 from scripts.command_worker import execute_command, poll_once
@@ -841,6 +843,75 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["status"] == "visible"
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
+    pytest.importorskip("pyarrow")
+    data_root = tmp_path / "history"
+    stock_root = data_root / "cache" / "ibkr" / "stocks" / "1min"
+    crypto_root = data_root / "cache" / "zerohash" / "crypto" / "1min"
+    stock_root.mkdir(parents=True)
+    crypto_root.mkdir(parents=True)
+    for index in range(205):
+        symbol = f"T{index:03d}"
+        (stock_root / f"{symbol}_1min.csv").write_text(
+            "\n".join(
+                [
+                    "timestamp,open,high,low,close,volume",
+                    f"2026-01-02T14:30:00Z,{100 + index},101,99,{100 + index}.5,1000",
+                    f"2026-01-02T14:31:00Z,{100 + index}.5,102,100,{101 + index}.0,1200",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    crypto_frame = status_server.pd.DataFrame(
+        {
+            "timestamp": [
+                "2026-01-02T00:00:00Z",
+                "2026-01-02T00:01:00Z",
+                "2026-01-02T00:02:00Z",
+            ],
+            "open": [50000.0, 50050.0, 50100.0],
+            "high": [50100.0, 50200.0, 50300.0],
+            "low": [49900.0, 50000.0, 50050.0],
+            "close": [50050.0, 50100.0, 50250.0],
+            "volume": [10.0, 12.0, 11.0],
+        }
+    )
+    crypto_frame.to_parquet(crypto_root / "BTC-USD_1min.parquet", index=False)
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=250&preview_points=2", timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["count"] == 206
+        assert payload["count"] > 2
+        assert payload["root_summaries"][0]["candidate_count"] == 206
+        assert payload["root_summaries"][0]["parsed_count"] == 206
+        assert payload["root_summaries"][0]["parse_error_count"] == 0
+        assert payload["source_counts"]["ibkr"] == 205
+        assert payload["source_counts"]["zerohash"] == 1
+        assert payload["asset_class_counts"]["crypto"] == 1
+        assert payload["bar_size_counts"]["1min"] == 206
+        btc = next(item for item in payload["datasets"] if item["symbol"] == "BTC-USD")
+        assert btc["format"] == "parquet"
+        assert btc["asset_class"] == "crypto"
+        assert btc["source"] == "zerohash"
+        assert btc["bar_size"] == "1min"
+
+        with request.urlopen(f"{base}/data_catalog?limit=50&preview_points=2", timeout=10) as resp:
+            capped = json.loads(resp.read().decode("utf-8"))
+        assert capped["count"] == 50
+        assert capped["root_summaries"][0]["scan_capped"] is True
+        assert capped["root_summaries"][0]["not_scanned_reason"] == "global catalog limit reached"
     finally:
         server.shutdown()
         server.server_close()
