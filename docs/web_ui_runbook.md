@@ -71,6 +71,9 @@ strategy is publishing status but no archived artifact is loaded.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+Use Run Comparison filters for status, action, mode, and summary availability
+to compare replay, simulated-paper, paper, or other session groups before
+opening individual artifacts.
 
 Open Operations when reviewing remote-control activity. Use Export Audit CSV
 to download sanitized command queue, cancel, and result events together with

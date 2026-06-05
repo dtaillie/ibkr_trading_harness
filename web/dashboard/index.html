@@ -1761,6 +1761,12 @@
           </select>
         </label>
         <label>
+          <span>Mode</span>
+          <select id="comparison-filter-mode">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
           <span>Summary</span>
           <select id="comparison-filter-summary">
             <option value="">All</option>
@@ -1780,6 +1786,11 @@
           </select>
         </label>
       </div>
+      <div class="section-head artifact-head">
+        <h2>Comparison Summary</h2>
+        <span id="comparison-summary-note" class="section-note">Filtered run set overview</span>
+      </div>
+      <div id="comparison-summary-cards" class="action-card-grid"></div>
       <div id="comparison-leaders" class="compare-grid"></div>
       <div class="table-wrap compact-table">
         <table>

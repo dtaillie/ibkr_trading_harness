@@ -768,6 +768,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-status-period-rollups-body" in html
         assert "export-status-rollups-csv" in html
         assert "comparison-filter-text" in html
+        assert "comparison-filter-mode" in html
+        assert "comparison-summary-note" in html
+        assert "comparison-summary-cards" in html
         assert "runtime-status-grid" in html
         assert "runtime-status-note" in html
         assert "paper-monitor-note" in html
@@ -2967,6 +2970,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert [run["action"] for run in comparison["runs"]] == ["replay", "validate"]
         assert comparison["runs"][0]["summary_available"] is True
         assert comparison["runs"][0]["artifact_available"] is True
+        assert comparison["runs"][0]["mode"] == "replay"
         assert comparison["runs"][0]["total_return_pct"] == 0.0
         assert comparison["runs"][0]["return_per_day_pct"] == 0.0
         assert comparison["runs"][0]["short_horizon_projection"] is True

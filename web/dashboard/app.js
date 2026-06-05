@@ -6331,16 +6331,19 @@ function renderComparisonFilterOptions(runs) {
   };
   makeOptions("comparison-filter-status", runs.map((run) => run.status));
   makeOptions("comparison-filter-action", runs.map((run) => run.action));
+  makeOptions("comparison-filter-mode", runs.map((run) => run.mode));
 }
 
 function filteredComparisonRuns(runs) {
   const query = ($("comparison-filter-text").value || "").trim().toLowerCase();
   const status = $("comparison-filter-status").value || "";
   const action = $("comparison-filter-action").value || "";
+  const mode = $("comparison-filter-mode").value || "";
   const summary = $("comparison-filter-summary").value || "";
   return (runs || []).filter((run) => {
     if (status && text(run.status) !== status) return false;
     if (action && text(run.action) !== action) return false;
+    if (mode && text(run.mode) !== mode) return false;
     if (summary === "yes" && !run.summary_available) return false;
     if (summary === "no" && run.summary_available) return false;
     if (query) {
@@ -6349,6 +6352,7 @@ function filteredComparisonRuns(runs) {
         run.draft_id,
         run.action,
         run.status,
+        run.mode,
         run.finished_at,
         run.total_return_pct,
         run.max_drawdown_pct,
@@ -6392,6 +6396,97 @@ function sortedComparisonRuns(runs) {
   }).map((item) => item.runItem);
 }
 
+function comparisonBestRun(runs, metric, { smallest = false } = {}) {
+  const eligible = (runs || [])
+    .map((runItem) => ({ runItem, value: finiteNumber(runItem[metric]) }))
+    .filter((item) => item.value !== null);
+  if (!eligible.length) return null;
+  return eligible.sort((left, right) => smallest ? left.value - right.value : right.value - left.value)[0].runItem;
+}
+
+function comparisonTotal(runs, key) {
+  return (runs || []).reduce((sum, runItem) => sum + Number(runItem[key] || 0), 0);
+}
+
+function renderComparisonSummaryCards(runs, allRuns) {
+  if (!$("comparison-summary-cards") || !$("comparison-summary-note")) return;
+  const summarized = runs.filter((runItem) => runItem.summary_available);
+  const bestReturn = comparisonBestRun(summarized, "total_return_pct");
+  const lowestDrawdown = comparisonBestRun(summarized, "max_drawdown_pct");
+  const worstDrawdown = comparisonBestRun(summarized, "max_drawdown_pct", { smallest: true });
+  const shortHorizon = summarized.filter((runItem) => runItem.short_horizon_projection).length;
+  const fills = comparisonTotal(runs, "fills");
+  const rejects = comparisonTotal(runs, "rejections");
+  const modes = new Set(runs.map((runItem) => text(runItem.mode)).filter((value) => value !== "n/a")).size;
+  const drafts = new Set(runs.map((runItem) => text(runItem.draft_id)).filter((value) => value !== "n/a")).size;
+  let nextStatus = "bad";
+  let nextTitle = "No Runs";
+  let nextNote = "Run a Workbench replay or simulated-paper draft to create comparable summaries.";
+  if (runs.length && !summarized.length) {
+    nextStatus = "warn";
+    nextTitle = "Need Summaries";
+    nextNote = "The filtered runs exist but do not have public-safe summary artifacts.";
+  } else if (rejects > 0) {
+    nextStatus = "warn";
+    nextTitle = "Review Rejects";
+    nextNote = "Filtered runs include rejected orders; open artifacts or logs before trusting the result.";
+  } else if (shortHorizon > 0) {
+    nextStatus = "warn";
+    nextTitle = "Short Horizon";
+    nextNote = "Some filtered runs are projection-flagged; compare them as exploratory, not stable.";
+  } else if (summarized.length) {
+    nextStatus = "ok";
+    nextTitle = "Comparable";
+    nextNote = "The filtered set has summaries and no visible reject or short-horizon warnings.";
+  }
+  $("comparison-summary-note").textContent = `${numberText(runs.length, 0)} filtered / ${numberText(allRuns.length, 0)} total`;
+  const cards = [
+    {
+      status: summarized.length ? "ok" : runs.length ? "warn" : "bad",
+      label: "Coverage",
+      title: `${numberText(summarized.length, 0)} summarized`,
+      note: `${numberText(drafts, 0)} draft${drafts === 1 ? "" : "s"} / ${numberText(modes, 0)} mode${modes === 1 ? "" : "s"} in the filtered set.`,
+    },
+    {
+      status: bestReturn ? "ok" : "bad",
+      label: "Best Return",
+      title: bestReturn ? pctText(bestReturn.total_return_pct) : "n/a",
+      note: bestReturn ? `${text(bestReturn.draft_id)} / ${text(bestReturn.mode)} / ${text(bestReturn.run_id)}` : "No summarized return metric.",
+    },
+    {
+      status: lowestDrawdown ? "ok" : "bad",
+      label: "Lowest Drawdown",
+      title: lowestDrawdown ? pctText(lowestDrawdown.max_drawdown_pct) : "n/a",
+      note: lowestDrawdown ? `${text(lowestDrawdown.draft_id)} / ${text(lowestDrawdown.mode)} / ${text(lowestDrawdown.run_id)}` : "No summarized drawdown metric.",
+    },
+    {
+      status: worstDrawdown && finiteNumber(worstDrawdown.max_drawdown_pct) < -10 ? "bad" : worstDrawdown ? "warn" : "bad",
+      label: "Worst Drawdown",
+      title: worstDrawdown ? pctText(worstDrawdown.max_drawdown_pct) : "n/a",
+      note: worstDrawdown ? `${text(worstDrawdown.draft_id)} / ${text(worstDrawdown.mode)} / ${text(worstDrawdown.run_id)}` : "No summarized drawdown metric.",
+    },
+    {
+      status: rejects ? "bad" : fills ? "ok" : runs.length ? "warn" : "bad",
+      label: "Execution",
+      title: `${numberText(fills, 0)} fills`,
+      note: `${numberText(rejects, 0)} rejects across filtered runs.`,
+    },
+    {
+      status: nextStatus,
+      label: "Next Action",
+      title: nextTitle,
+      note: nextNote,
+    },
+  ];
+  $("comparison-summary-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function renderRunComparison() {
   const comparison = state.runComparison || {};
   const allRuns = comparison.runs || [];
@@ -6400,6 +6495,7 @@ function renderRunComparison() {
   const leaders = comparison.leaders || {};
   const summaryCount = Number(comparison.summary_count || 0);
   $("comparison-note").textContent = `${numberText(runs.length, 0)} shown / ${numberText(comparison.total || allRuns.length, 0)} recorded / ${summaryCount} summarized`;
+  renderComparisonSummaryCards(runs, allRuns);
   $("comparison-leaders").innerHTML = [
     comparisonCard("Best Return", leaders.best_total_return, pctText((leaders.best_total_return || {}).total_return_pct)),
     comparisonCard("Best Return/day", leaders.best_return_per_day, pctText((leaders.best_return_per_day || {}).return_per_day_pct)),
@@ -8923,6 +9019,7 @@ function init() {
   });
   $("comparison-filter-status").addEventListener("change", renderRunComparison);
   $("comparison-filter-action").addEventListener("change", renderRunComparison);
+  $("comparison-filter-mode").addEventListener("change", renderRunComparison);
   $("comparison-filter-summary").addEventListener("change", renderRunComparison);
   $("comparison-filter-text").addEventListener("input", renderRunComparison);
   $("comparison-sort").addEventListener("change", renderRunComparison);

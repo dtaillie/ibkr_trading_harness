@@ -232,6 +232,11 @@ strategy-private.
     question is visible before entering the full Performance page.
 - Add strategy/session comparison only after the current-strategy page is easy
   to read.
+  - partial; Runs now has a filtered Comparison Summary plus a Mode filter so
+    replay, shadow, simulated-paper, paper, and other summarized run sets can
+    be compared by coverage, best return, lowest/worst drawdown, execution
+    activity, short-horizon warnings, and next action before reading the dense
+    run table.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for
   each day the service was running.
   - partial; Performance now shows archived account-artifact daily rollups by
