@@ -307,6 +307,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add a saved-data browser that can start from all scanned symbols, not just
   SPY/QQQ demo files:
   - show total symbols/files found by root
+    - partial; Data Library now has first-screen summary cards for unique
+      scanned symbols, catalog-visible files, aggregate row/size counts,
+      coverage range, and quality/parser-error state.
   - show which roots are public examples versus private/local caches
   - show why a root was not scanned
   - show why a file was skipped

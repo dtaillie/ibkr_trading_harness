@@ -1710,6 +1710,16 @@ function countSummary(counts) {
     : "none";
 }
 
+function timestampRangeFromDatasets(datasets) {
+  const starts = (datasets || []).map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
+  const ends = (datasets || []).map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
+  if (!starts.length || !ends.length) return { start: null, end: null };
+  return {
+    start: new Date(Math.min(...starts)).toISOString().slice(0, 10),
+    end: new Date(Math.max(...ends)).toISOString().slice(0, 10),
+  };
+}
+
 function shellQuote(value) {
   const raw = text(value);
   return `'${raw.replace(/'/g, "'\\''")}'`;
@@ -1780,14 +1790,40 @@ function renderDataCatalog() {
 function renderDataLibrarySummary() {
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
   const roots = diagnostics.data_roots || [];
   const suggestedRoots = diagnostics.suggested_data_roots || [];
   const existingRoots = roots.filter((root) => root.exists && root.is_dir);
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
   const catalogCount = Number(catalog.count || 0);
   const catalogLimit = Number(catalog.limit || $("data-catalog-limit").value || 0);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const timestampRange = timestampRangeFromDatasets(datasets);
+  const qualityCounts = catalog.quality_counts || {};
+  const warnCount = Number(qualityCounts.warn || 0);
+  const badCount = Number(qualityCounts.bad || 0);
+  const parseErrorCount = Number(catalog.error_count || 0);
   $("data-root-count").textContent = numberText(roots.length, 0);
   $("data-root-note").textContent = `${numberText(existingRoots.length, 0)} active / ${numberText(totalRootFiles, 0)} files visible to root scanner`;
+  $("data-symbol-count").textContent = numberText(symbols.size, 0);
+  $("data-symbol-note").textContent = symbols.size
+    ? `${countSummary(catalog.asset_class_counts)} assets`
+    : "No scanned symbols found under configured roots.";
+  $("data-file-count").textContent = numberText(catalogCount, 0);
+  $("data-file-note").textContent = `${numberText(catalog.row_count_total, 0)} rows / ${bytes(catalog.size_bytes_total)}`;
+  $("data-date-range").textContent = timestampRange.start && timestampRange.end
+    ? `${timestampRange.start} -> ${timestampRange.end}`
+    : "n/a";
+  $("data-date-range-note").textContent = catalog.latest_modified_at
+    ? `Latest file modified ${text(catalog.latest_modified_at)}`
+    : "No file modification timestamp published.";
+  $("data-quality-summary").textContent = badCount || warnCount || parseErrorCount
+    ? `${numberText(badCount, 0)} bad / ${numberText(warnCount, 0)} warn`
+    : "ok";
+  $("data-quality-summary").className = statusClass(badCount || parseErrorCount ? "bad" : warnCount ? "warn" : catalogCount ? "ok" : "unknown");
+  $("data-quality-note").textContent = parseErrorCount
+    ? `${numberText(parseErrorCount, 0)} parser error${parseErrorCount === 1 ? "" : "s"}; check scan diagnostics.`
+    : `${countSummary(qualityCounts)} quality / ${countSummary(catalog.source_counts)} sources`;
   let visibilityStatus = "ok";
   let visibilityNote = `${numberText(catalogCount, 0)} catalog rows loaded from configured roots.`;
   if (!roots.length || !totalRootFiles) {
