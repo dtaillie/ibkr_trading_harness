@@ -546,6 +546,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     alert rows; richer broker-native login/order-state categories still depend
     on runner/broker telemetry.
 - Add historical run pages in the cloud view with bounded artifacts and logs.
+  - partial; `/remote_node_detail` and the Operations Remote Node Detail panel
+    now provide bounded sanitized latest runs, alerts, and status history for
+    a posted node. It intentionally avoids raw local logs or strategy
+    diagnostics; richer cloud-side archived artifact/log browsing remains open.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

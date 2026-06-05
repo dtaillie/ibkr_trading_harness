@@ -1411,9 +1411,75 @@
               <th>Latest Account</th>
               <th>Latest Data</th>
               <th>Alerts</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="remote-nodes-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="operations" hidden>
+      <div class="section-head">
+        <h2>Remote Node Detail</h2>
+        <span id="remote-node-detail-note" class="section-note">Select a remote node to inspect bounded sanitized status detail</span>
+      </div>
+      <dl id="remote-node-detail-summary" class="kv wide-kv"></dl>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Latest Runs</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>Mode</th>
+                  <th>Equity</th>
+                  <th>Activity</th>
+                  <th>Latest Decision</th>
+                </tr>
+              </thead>
+              <tbody id="remote-node-runs-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Latest Alerts</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Level</th>
+                  <th>Kind</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="remote-node-alerts-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <div class="section-head artifact-head">
+        <h2>Status History</h2>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Status</th>
+              <th>Gateway</th>
+              <th>Alerts</th>
+              <th>Runs</th>
+              <th>Remote</th>
+            </tr>
+          </thead>
+          <tbody id="remote-node-history-body"></tbody>
         </table>
       </div>
     </section>

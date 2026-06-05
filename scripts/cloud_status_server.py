@@ -191,6 +191,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON node summaries",
     },
     {
+        "method": "GET",
+        "path": "/remote_node_detail",
+        "category": "telemetry",
+        "description": "Return bounded sanitized latest status detail and history for one node.",
+        "response": "JSON node detail",
+    },
+    {
         "method": "POST",
         "path": "/status",
         "category": "telemetry",
@@ -590,6 +597,17 @@ def nonterminal_order_count(recent_events: dict[str, Any]) -> int:
     return count
 
 
+def nonzero_position_count(positions: Any) -> int:
+    if not isinstance(positions, dict):
+        return 0
+    count = 0
+    for value in positions.values():
+        numeric = finite_float(value)
+        if numeric not in {None, 0.0}:
+            count += 1
+    return count
+
+
 def latest_run_for_status(row: dict[str, Any]) -> dict[str, Any]:
     runs = row.get("runs") or []
     if not isinstance(runs, list) or not runs:
@@ -664,6 +682,93 @@ def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
         reverse=True,
     )[:limit]
     return {"nodes": nodes, "count": len(nodes), "total": total, "limit": limit}
+
+
+def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
+    metrics = run.get("metrics") or {}
+    recent = run.get("recent_events") or {}
+    return {
+        "id": run.get("id"),
+        "status": run.get("status"),
+        "exists": run.get("exists"),
+        "freshness": run.get("freshness"),
+        "data_freshness": run.get("data_freshness"),
+        "account_freshness": run.get("account_freshness"),
+        "mode": metrics.get("mode"),
+        "decisions": metrics.get("decisions"),
+        "orders": metrics.get("orders"),
+        "fills": metrics.get("fills"),
+        "rejections": metrics.get("rejections"),
+        "final_equity": finite_float(metrics.get("final_equity")),
+        "final_cash": finite_float(metrics.get("final_cash")),
+        "position_count": nonzero_position_count(metrics.get("final_positions") or {}),
+        "latest_data_time": metrics.get("latest_data_time"),
+        "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
+        "last_decision_time": metrics.get("last_decision_time"),
+        "recent_decisions": recent.get("decisions", [])[:10] if isinstance(recent, dict) else [],
+        "recent_orders": recent.get("orders", [])[:10] if isinstance(recent, dict) else [],
+        "recent_fills": recent.get("fills", [])[:10] if isinstance(recent, dict) else [],
+    }
+
+
+def sanitize_remote_supervisor(supervisor: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": supervisor.get("id"),
+        "status": supervisor.get("status"),
+        "exists": supervisor.get("exists"),
+        "generated_at": supervisor.get("generated_at"),
+        "freshness": supervisor.get("freshness"),
+        "job_status_counts": supervisor.get("job_status_counts") or {},
+    }
+
+
+def load_remote_node_detail(state_dir: Path, node_id: str, *, limit: int = 20) -> dict[str, Any]:
+    node = str(node_id or "").strip()
+    if not node:
+        raise ValueError("node_id is required")
+    path = status_history_path(state_dir)
+    if not path.exists():
+        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "count": 0, "total": 0, "limit": limit}
+    rows: deque[dict[str, Any]] = deque(maxlen=limit)
+    latest: dict[str, Any] | None = None
+    total = 0
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict) or str(row.get("node_id") or "").strip() != node:
+                continue
+            total += 1
+            latest = row
+            rows.append(summarize_status_snapshot(row))
+    if latest is None:
+        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "count": 0, "total": 0, "limit": limit}
+    alerts = latest.get("alerts") if isinstance(latest.get("alerts"), list) else []
+    runs = latest.get("runs") if isinstance(latest.get("runs"), list) else []
+    supervisors = latest.get("supervisors") if isinstance(latest.get("supervisors"), list) else []
+    return {
+        "node_id": node,
+        "summary": summarize_remote_node(latest),
+        "history": list(reversed(rows)),
+        "alerts": [
+            {
+                "level": alert.get("level"),
+                "kind": alert.get("kind"),
+                "message": alert.get("message"),
+            }
+            for alert in alerts
+            if isinstance(alert, dict)
+        ][:20],
+        "runs": [sanitize_remote_run(run) for run in runs if isinstance(run, dict)][:20],
+        "supervisors": [sanitize_remote_supervisor(item) for item in supervisors if isinstance(item, dict)][:20],
+        "count": len(rows),
+        "total": total,
+        "limit": limit,
+    }
 
 
 def load_status_history(state_dir: Path, *, node_id: str | None = None, limit: int = 50) -> dict[str, Any]:
@@ -4575,6 +4680,18 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, load_remote_nodes(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/remote_node_detail":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=20, maximum=100)
+                detail_node_id = str(params.get("node_id", [""])[0] or "").strip()
+                payload = load_remote_node_detail(self.state_dir, detail_node_id, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/commands":
             if not self.require_auth():

@@ -578,6 +578,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "paper-monitor-guide" in html
         assert "remote-nodes-note" in html
         assert "remote-nodes-body" in html
+        assert "remote-node-detail-note" in html
+        assert "remote-node-history-body" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html
@@ -614,6 +616,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/remote_nodes") in endpoints
+        assert ("GET", "/remote_node_detail") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
@@ -762,6 +765,20 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert by_node["test-node"]["fill_count"] == 1
         assert by_node["test-node"]["rejection_count"] == 1
         assert by_node["test-node"]["latest_account_time"] == "2026-01-02T14:31:00+00:00"
+
+        with request.urlopen(f"{base}/remote_node_detail?node_id=test-node&limit=2", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["node_id"] == "test-node"
+        assert detail["total"] == 2
+        assert detail["count"] == 2
+        assert detail["summary"]["latest_run_id"] == "run-a"
+        assert detail["alerts"] == []
+        assert detail["runs"][0]["id"] == "run-a"
+        assert detail["runs"][0]["mode"] == "paper"
+        assert detail["runs"][0]["position_count"] == 1
+        assert detail["runs"][0]["recent_orders"][0]["status"] == "Submitted"
+        assert detail["supervisors"][0]["id"] == "sup-a"
+        assert [row["status"] for row in detail["history"]] == ["ok", "warn"]
     finally:
         server.shutdown()
         server.server_close()

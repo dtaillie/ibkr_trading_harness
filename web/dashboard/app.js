@@ -27,6 +27,7 @@ const state = {
   commands: [],
   results: [],
   remoteNodes: { nodes: [] },
+  remoteNodeDetail: null,
   refreshLoaded: false,
   activityChanges: { items: [], initial: true },
 };
@@ -3106,8 +3107,70 @@ function renderRemoteNodes() {
         escapeHtml(timestampAgeLabel(node.latest_account_time)),
         escapeHtml(timestampAgeLabel(node.latest_data_time)),
         escapeHtml(numberText(node.alert_count, 0)),
+        `<button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button>`,
       ])).join("")
-    : row([`<span class="muted">No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderRemoteNodeDetail() {
+  if (!$("remote-node-detail-summary") || !$("remote-node-detail-note")) return;
+  const detail = state.remoteNodeDetail || {};
+  const summary = detail.summary || {};
+  const runs = detail.runs || [];
+  const alerts = detail.alerts || [];
+  const history = detail.history || [];
+  $("remote-node-detail-note").textContent = detail.node_id
+    ? `${text(detail.node_id)} / ${numberText(detail.total, 0)} stored status snapshot${detail.total === 1 ? "" : "s"}`
+    : "Select a remote node to inspect bounded sanitized status detail";
+  const pairs = detail.node_id
+    ? [
+        ["Node", text(detail.node_id)],
+        ["Status", text(summary.status)],
+        ["Heartbeat", timestampAgeLabel(summary.received_at || summary.generated_at)],
+        ["Gateway", text(summary.gateway_reachable)],
+        ["Mode", text(summary.mode)],
+        ["Equity", money(summary.final_equity)],
+        ["Positions", numberText(summary.position_count, 0)],
+        ["Open Orders", numberText(summary.open_order_count, 0)],
+        ["Latest Account", timestampAgeLabel(summary.latest_account_time)],
+        ["Latest Data", timestampAgeLabel(summary.latest_data_time)],
+      ]
+    : [["Next", "Click Detail on a Remote Nodes row."]];
+  $("remote-node-detail-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  $("remote-node-runs-body").innerHTML = runs.length
+    ? runs.map((runItem) => row([
+        escapeHtml(runItem.id),
+        statusText(runItem.status),
+        escapeHtml(text(runItem.mode)),
+        escapeHtml(money(runItem.final_equity)),
+        escapeHtml(`${numberText(runItem.decisions, 0)}D / ${numberText(runItem.orders, 0)}O / ${numberText(runItem.fills, 0)}F / ${numberText(runItem.rejections, 0)}R`),
+        escapeHtml(timestampAgeLabel(runItem.last_decision_time)),
+      ])).join("")
+    : row([`<span class="muted">No latest run summaries in this node snapshot.</span>`, "", "", "", "", ""]);
+  $("remote-node-alerts-body").innerHTML = alerts.length
+    ? alerts.map((alert) => row([
+        statusText(alert.level === "warn" ? "warn" : alert.level),
+        escapeHtml(alert.kind),
+        escapeHtml(alert.message),
+      ])).join("")
+    : row([`<span class="muted">No latest alerts in this node snapshot.</span>`, "", ""]);
+  $("remote-node-history-body").innerHTML = history.length
+    ? history.map((item) => {
+        const remoteLabel = item.remote_latest_event
+          ? `${text(item.remote_latest_event)} ${text(item.remote_latest_action)} ${text(item.remote_latest_status)}`
+          : "none";
+        return row([
+          escapeHtml(item.received_at),
+          statusText(item.status),
+          statusText(item.gateway_reachable),
+          escapeHtml(numberText(item.alert_count, 0)),
+          `<span class="mono">${escapeHtml(JSON.stringify(item.run_status_counts || {}, null, 2))}</span>`,
+          escapeHtml(remoteLabel),
+        ]);
+      }).join("")
+    : row([`<span class="muted">No bounded history loaded for this node.</span>`, "", "", "", "", ""]);
 }
 
 function renderHistory() {
@@ -3191,6 +3254,7 @@ function renderAll() {
   renderGateway();
   renderPaperMonitor();
   renderRemoteNodes();
+  renderRemoteNodeDetail();
   renderHistory();
   renderCommands();
   renderResults();
@@ -3391,6 +3455,14 @@ async function loadFetchManifestDetail(jobId) {
   state.fetchManifestDetail = response;
   renderFetchManifestDetail();
   $("last-refresh").textContent = `Fetch manifest loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadRemoteNodeDetail(nodeId) {
+  if (!nodeId) throw new Error("node_id is required");
+  const response = await fetchJson(`/remote_node_detail?node_id=${encodeURIComponent(nodeId)}&limit=20`);
+  state.remoteNodeDetail = response;
+  renderRemoteNodeDetail();
+  $("last-refresh").textContent = `Remote node detail loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadConfigArtifacts(draftId, options = {}) {
@@ -3855,6 +3927,15 @@ function init() {
       }
     });
   }
+  $("remote-nodes-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.classList.contains("inspect-remote-node")) {
+      loadRemoteNodeDetail(target.dataset.nodeId || "").catch((err) => {
+        $("last-refresh").textContent = `Remote node detail failed: ${err.message}`;
+      });
+    }
+  });
   $("data-catalog-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
