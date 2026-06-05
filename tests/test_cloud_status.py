@@ -1314,6 +1314,14 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["pacing_wait_events"] == 1
         assert manifest["pacing_wait_seconds"] == 0.35
         assert manifest["latest_avg_chunk_seconds"] == 0.4
+        assert manifest["output_visibility_counts"] == {
+            "missing_file": 1,
+            "outside_data_roots": 1,
+            "visible": 1,
+        }
+        assert manifest["output_visible_count"] == 1
+        assert manifest["output_missing_file_count"] == 1
+        assert manifest["output_outside_data_roots_count"] == 1
 
         with request.urlopen(f"{base}/fetch_manifests_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1329,7 +1337,11 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert rows[0]["retry_events"] == "1"
         assert rows[0]["pacing_wait_events"] == "1"
         assert rows[0]["latest_avg_chunk_seconds"] == "0.4"
+        assert rows[0]["output_visible_count"] == "1"
+        assert rows[0]["output_missing_file_count"] == "1"
+        assert rows[0]["output_outside_data_roots_count"] == "1"
         assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
+        assert "visible" in rows[0]["output_visibility_counts"]
         assert "permission" in rows[0]["error_kind_counts"]
 
         with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:

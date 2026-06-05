@@ -660,6 +660,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail now exposes `/fetch_manifest_detail_export` and an
       Export Detail CSV button for the selected job's symbol, output, error,
       retry, and pacing rows with Data Library output visibility annotations.
+    - partial; Fetch manifest list/export rows now also include output
+      visibility counts against configured Data Library roots, so Fetch Jobs
+      triage can flag missing/outside/unsupported outputs before opening
+      Fetch Detail.
 
 ## P1: Fetch jobs and backend data reliability
 

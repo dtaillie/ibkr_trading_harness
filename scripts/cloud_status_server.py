@@ -2253,6 +2253,12 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "error_kind_counts",
     "status_counts",
     "output_status_counts",
+    "output_visibility_counts",
+    "output_visible_count",
+    "output_missing_file_count",
+    "output_outside_data_roots_count",
+    "output_no_path_count",
+    "output_unsupported_file_count",
     "bar_size",
     "duration",
     "months",
@@ -3105,7 +3111,7 @@ def read_fetch_manifest(path: Path) -> dict[str, Any]:
     return payload
 
 
-def summarize_fetch_manifest(path: Path, *, root: Path) -> dict[str, Any]:
+def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
     counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
@@ -3121,6 +3127,12 @@ def summarize_fetch_manifest(path: Path, *, root: Path) -> dict[str, Any]:
     ]
     first_output = outputs[0] if outputs and isinstance(outputs[0], dict) else {}
     latest_output = outputs[-1] if outputs and isinstance(outputs[-1], dict) else {}
+    annotated_outputs = [
+        annotate_fetch_output(row, data_roots or [])
+        for row in outputs
+        if isinstance(row, dict)
+    ]
+    output_visibility_counts = count_values(annotated_outputs, "data_detail_status")
     return {
         "job_id": payload.get("job_id") or path.stem,
         "path": display_path(path),
@@ -3159,6 +3171,12 @@ def summarize_fetch_manifest(path: Path, *, root: Path) -> dict[str, Any]:
         "error_kind_counts": counts.get("error_kind_counts") or {},
         "status_counts": counts.get("status_counts") or {},
         "output_status_counts": counts.get("output_status_counts") or {},
+        "output_visibility_counts": output_visibility_counts,
+        "output_visible_count": int(output_visibility_counts.get("visible") or 0),
+        "output_missing_file_count": int(output_visibility_counts.get("missing_file") or 0),
+        "output_outside_data_roots_count": int(output_visibility_counts.get("outside_data_roots") or 0),
+        "output_no_path_count": int(output_visibility_counts.get("no_path") or 0),
+        "output_unsupported_file_count": int(output_visibility_counts.get("unsupported_file") or 0),
         "bar_size": parameters.get("bar_size"),
         "duration": parameters.get("duration"),
         "months": parameters.get("months"),
@@ -3177,6 +3195,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path) -> dict[str, Any]:
 def build_fetch_manifests(
     fetch_manifest_roots: list[Path],
     *,
+    data_roots: list[Path] | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
     manifests = []
@@ -3184,7 +3203,7 @@ def build_fetch_manifests(
     candidates = fetch_manifest_candidates(fetch_manifest_roots)
     for path, root in candidates[:limit]:
         try:
-            manifests.append(summarize_fetch_manifest(path, root=root))
+            manifests.append(summarize_fetch_manifest(path, root=root, data_roots=data_roots))
         except Exception as exc:
             errors.append({"path": display_path(path), "error": str(exc)})
     return {
@@ -3201,8 +3220,13 @@ def build_fetch_manifests(
     }
 
 
-def build_fetch_manifests_csv(fetch_manifest_roots: list[Path], *, limit: int = 200) -> str:
-    payload = build_fetch_manifests(fetch_manifest_roots, limit=limit)
+def build_fetch_manifests_csv(
+    fetch_manifest_roots: list[Path],
+    *,
+    data_roots: list[Path] | None = None,
+    limit: int = 200,
+) -> str:
+    payload = build_fetch_manifests(fetch_manifest_roots, data_roots=data_roots, limit=limit)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=FETCH_MANIFEST_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -5183,7 +5207,7 @@ def build_workbench_snapshot(
             "latest_modified_at": catalog["latest_modified_at"],
             "datasets": dataset_rows,
         },
-        "fetch_manifests": build_fetch_manifests(fetch_manifest_roots, limit=50),
+        "fetch_manifests": build_fetch_manifests(fetch_manifest_roots, data_roots=data_roots, limit=50),
         "config_options": config_builder_options(plugin_registry_paths),
         "run_comparison": build_config_draft_run_comparison(state_dir, limit=50),
     }
@@ -7555,7 +7579,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = parse_limit(params, default=50, maximum=500)
-                payload = build_fetch_manifests(self.fetch_manifest_roots, limit=limit)
+                payload = build_fetch_manifests(self.fetch_manifest_roots, data_roots=self.data_roots, limit=limit)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -7566,7 +7590,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = parse_limit(params, default=200, maximum=500)
-                csv_body = build_fetch_manifests_csv(self.fetch_manifest_roots, limit=limit)
+                csv_body = build_fetch_manifests_csv(self.fetch_manifest_roots, data_roots=self.data_roots, limit=limit)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
