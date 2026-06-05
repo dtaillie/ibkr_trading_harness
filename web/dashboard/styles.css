@@ -1166,6 +1166,16 @@ tr:last-child td {
   fill: var(--muted);
 }
 
+.marker-legend .marker-entry-fill,
+.marker-legend .marker-entry-marker {
+  color: var(--good);
+}
+
+.marker-legend .marker-exit-fill,
+.marker-legend .marker-exit-marker {
+  color: var(--bad);
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: wrap;

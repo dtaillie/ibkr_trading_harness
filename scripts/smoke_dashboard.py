@@ -428,6 +428,7 @@ def run_smoke(
             "nearThresholdMissRows",
             "artifactChartMarkers",
             "chart-marker",
+            "marker-legend",
             "entry-marker",
             "exit-marker",
             "artifact-drilldown-note",

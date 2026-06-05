@@ -1908,17 +1908,33 @@ function equityChart(points, markers = []) {
       return !best || distance < best.distance ? { point, index, distance } : best;
     }, null);
   };
-  const markerElements = (markers || []).slice(0, 40).map((marker) => {
+  const chartMarkers = (markers || []).slice(0, 40).map((marker) => {
     const match = rowForMarker(marker);
-    if (!match) return "";
+    if (!match) return null;
     const type = String(marker.type || "event").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
     const x = xForIndex(match.index);
     const y = yForValue(match.point.equity);
     const label = [marker.type, marker.symbol, marker.label, marker.timestamp].map(text).filter((value) => value !== "n/a").join(" ");
-    return `<circle class="chart-marker marker-${escapeHtml(type)}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"><title>${escapeHtml(label)}</title></circle>`;
-  }).join("");
+    return { type, x, y, label };
+  }).filter(Boolean);
+  const markerElements = chartMarkers.map((marker) => (
+    `<circle class="chart-marker marker-${escapeHtml(marker.type)}" cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="4"><title>${escapeHtml(marker.label)}</title></circle>`
+  )).join("");
+  const markerGroups = [
+    ["entry-fill", "Entry fills"],
+    ["exit-fill", "Exit fills"],
+    ["entry-marker", "Entry markers"],
+    ["exit-marker", "Exit markers"],
+  ].map(([type, label]) => ({
+    type,
+    label,
+    count: chartMarkers.filter((marker) => marker.type === type).length,
+  })).filter((item) => item.count > 0);
+  const markerLegend = markerGroups.length
+    ? `<div class="chart-legend marker-legend">${markerGroups.map((item) => `<span class="legend-item marker-${escapeHtml(item.type)}"><span></span>${escapeHtml(item.label)} ${numberText(item.count, 0)}</span>`).join("")}</div>`
+    : "";
   const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
-  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline>${markerElements}</svg>`;
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline>${markerElements}</svg>${markerLegend}`;
 }
 
 function normalizedReturnPoints(rows, valueKey) {
