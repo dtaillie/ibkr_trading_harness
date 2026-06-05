@@ -692,8 +692,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - nested cache paths
     - done for nested `cache/ibkr/...` and `cache/zerohash/...` paths
   - crypto 24/7 files
-    - partial; crypto parquet discovery is covered, minute/day completeness
-      semantics remain open
+    - partial; crypto parquet discovery is covered, and minute heatmap
+      completeness now carries storage-session metadata with a 24/7 crypto
+      regression test. Calendar-day semantics still need broader fixtures.
   - malformed/skipped files with visible reasons
     - partial; parser failures and unsupported files are covered by catalog
       scan diagnostics, deeper malformed-minute cases remain open

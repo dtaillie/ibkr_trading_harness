@@ -2069,6 +2069,71 @@ def test_cloud_status_server_serves_data_minute_heatmap(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_data_minute_heatmap_marks_crypto_24_7_completeness(tmp_path):
+    data_root = tmp_path / "data"
+    crypto_root = data_root / "cache" / "zerohash"
+    crypto_root.mkdir(parents=True)
+    data_file = crypto_root / "BTC-USD_1min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T00:00:00Z,100,101,99,100.0,1000",
+                "2026-01-02T00:01:00Z,100,102,99,101.0,1100",
+                "2026-01-02T23:58:00Z,101,103,100,102.0,1200",
+                "2026-01-02T23:59:00Z,102,104,101,103.0,1300",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_minute_heatmap?catalog_limit=10&top_limit=30", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["status"] == "warn"
+        assert payload["dataset_count"] == 1
+        assert payload["total_expected_intervals"] == 1440
+        assert payload["total_estimated_missing_intervals"] == 1436
+        row0 = payload["rows"][0]
+        assert row0["symbol"] == "BTC-USD"
+        assert row0["asset_class"] == "crypto"
+        assert row0["source"] == "zerohash"
+        assert row0["bar_size"] == "1min"
+        assert row0["storage_session"] == "24_7"
+        assert row0["median_interval_seconds"] == 60.0
+        assert row0["actual_intervals"] == 4
+        assert row0["expected_intervals"] == 1440
+        hour0 = next(hour for hour in row0["hours"] if hour["hour_utc"] == 0)
+        hour1 = next(hour for hour in row0["hours"] if hour["hour_utc"] == 1)
+        hour23 = next(hour for hour in row0["hours"] if hour["hour_utc"] == 23)
+        assert hour0["actual_intervals"] == 2
+        assert hour0["estimated_missing_intervals"] == 58
+        assert hour0["expected_intervals"] == 60
+        assert hour1["actual_intervals"] == 0
+        assert hour1["estimated_missing_intervals"] == 60
+        assert hour1["expected_intervals"] == 60
+        assert hour23["actual_intervals"] == 2
+        assert hour23["estimated_missing_intervals"] == 58
+        assert hour23["expected_intervals"] == 60
+        assert payload["date_hour_rows"][0]["symbol"] == "BTC-USD"
+        assert payload["date_hour_rows"][0]["storage_session"] == "24_7"
+        assert payload["date_hour_rows"][0]["date_utc"] == "2026-01-02"
+
+        with request.urlopen(f"{base}/data_minute_heatmap_export?catalog_limit=10&top_limit=30", timeout=5) as resp:
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert exported[0]["storage_session"] == "24_7"
+        assert exported[0]["symbol"] == "BTC-USD"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_compares_saved_data(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()

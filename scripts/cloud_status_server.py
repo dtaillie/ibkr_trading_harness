@@ -2159,6 +2159,7 @@ DATA_MINUTE_HEATMAP_EXPORT_FIELDS = (
     "asset_class",
     "source",
     "bar_size",
+    "storage_session",
     "path",
     "first_timestamp",
     "last_timestamp",
@@ -2389,6 +2390,7 @@ def build_data_minute_heatmap_csv(
                 "asset_class": item.get("asset_class"),
                 "source": item.get("source"),
                 "bar_size": item.get("bar_size"),
+                "storage_session": item.get("storage_session"),
                 "path": item.get("path"),
                 "first_timestamp": item.get("first_timestamp"),
                 "last_timestamp": item.get("last_timestamp"),
@@ -2467,13 +2469,15 @@ def coverage_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
     last_day = datetime.fromisoformat(dates[-1]).date()
     calendar_days = (last_day - first_day).days + 1
     symbol = infer_symbol(path, df)
+    asset_class = infer_asset_class(path, symbol)
     return {
         "path": display_path(path),
         "root": display_path(root),
         "symbol": symbol,
-        "asset_class": infer_asset_class(path, symbol),
+        "asset_class": asset_class,
         "source": infer_data_source(path),
         "bar_size": infer_bar_size(path, df),
+        "storage_session": infer_storage_session(path, df, asset_class),
         "format": fmt,
         "rows": int(len(df)),
         "first_timestamp": first,
@@ -2760,13 +2764,15 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
             int(row.get("hour_utc") or 0),
         ),
     )[:12]
+    asset_class = infer_asset_class(path, symbol)
     return {
         "path": display_path(path),
         "root": display_path(root),
         "symbol": symbol,
-        "asset_class": infer_asset_class(path, symbol),
+        "asset_class": asset_class,
         "source": infer_data_source(path),
         "bar_size": infer_bar_size(path, df),
+        "storage_session": infer_storage_session(path, df, asset_class),
         "format": fmt,
         "rows": int(len(df)),
         "first_timestamp": ordered.iloc[0].isoformat(),
@@ -2815,6 +2821,7 @@ def build_data_minute_heatmap(
                 "asset_class": row.get("asset_class"),
                 "source": row.get("source"),
                 "bar_size": row.get("bar_size"),
+                "storage_session": row.get("storage_session"),
                 "path": row.get("path"),
                 **item,
             })

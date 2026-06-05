@@ -3396,7 +3396,7 @@ function renderDataMinuteHeatmap() {
           <div class="coverage-row minute-heatmap-row">
             <div class="coverage-label">
               <strong>${escapeHtml(item.symbol)}</strong>
-              <small>${escapeHtml(text(item.bar_size))} / ${escapeHtml(text(item.source))}</small>
+              <small>${escapeHtml(text(item.bar_size))} / ${escapeHtml(text(item.source))} / ${escapeHtml(text(item.storage_session))}</small>
             </div>
             <div class="coverage-strip minute-heatmap-strip">${cells}</div>
             <small>${escapeHtml(pctText(item.completeness_pct))} complete</small>
