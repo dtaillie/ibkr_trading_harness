@@ -256,6 +256,7 @@ function setActiveView(view) {
     }
   }
   sessionStorage.setItem("dashboardView", targetView);
+  renderPageIntro(targetView);
 }
 
 function navigateToView(view) {
@@ -266,6 +267,117 @@ function navigateToView(view) {
     return;
   }
   setActiveView(targetView);
+}
+
+function activeView() {
+  return normalizeView(sessionStorage.getItem("dashboardView") || window.location.hash || "overview");
+}
+
+function pageIntroAction(id, action) {
+  const button = $(id);
+  if (!button) return;
+  if (!action) {
+    button.hidden = true;
+    button.removeAttribute("data-view-target");
+    return;
+  }
+  button.hidden = false;
+  button.textContent = action.label;
+  button.dataset.viewTarget = action.target;
+}
+
+function pageIntroContent(view) {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const latestRun = latestTelemetryRun();
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const runRows = (state.runComparison && state.runComparison.runs) || [];
+  const alerts = (payload.alerts || []);
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const statusRollups = (state.statusEquityRollups && state.statusEquityRollups.rollups) || [];
+  const visibleRuns = ((payload.runs || []).length || runRows.length);
+  const generatedLabel = payload.generated_at ? `Status ${timestampAgeLabel(payload.generated_at)}` : "No status published yet";
+  const gatewayLabel = gateway.enabled ? `Gateway ${gateway.reachable ? "reachable" : "not reachable"}` : "Gateway check disabled";
+  const viewMap = {
+    overview: {
+      eyebrow: "Overview",
+      title: "Current strategy status",
+      note: "Confirm telemetry, account state, Gateway reachability, current positions, and the latest strategy activity before drilling into detail.",
+      status: `${generatedLabel}; ${visibleRuns} run${visibleRuns === 1 ? "" : "s"} visible; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
+      primary: { label: "Open Performance", target: "performance" },
+      secondary: { label: "Inspect Data", target: "data" },
+    },
+    performance: {
+      eyebrow: "Performance",
+      title: "Strategy results and account curves",
+      note: "Use current status-history rollups first, then load archived artifacts when you need drawdown, fills, trade ledger, and benchmark comparisons.",
+      status: `${statusRollups.length} status day${statusRollups.length === 1 ? "" : "s"}; ${runRows.length} saved run${runRows.length === 1 ? "" : "s"}; ${gatewayLabel}`,
+      primary: { label: "Review Runs", target: "runs" },
+      secondary: { label: "Check Operations", target: "operations" },
+    },
+    data: {
+      eyebrow: "Data Library",
+      title: "Saved historical data",
+      note: "Search scanned symbols, inspect saved files offline, diagnose hidden roots, and compare normalized close paths before using data in a replay.",
+      status: `${datasets.length} visible dataset${datasets.length === 1 ? "" : "s"}; ${numberText((state.dataCatalog && state.dataCatalog.total) || datasets.length, 0)} catalog row${((state.dataCatalog && state.dataCatalog.total) || datasets.length) === 1 ? "" : "s"}`,
+      primary: { label: "Open Workbench", target: "workbench" },
+      secondary: { label: "Review Fetches", target: "fetch" },
+    },
+    fetch: {
+      eyebrow: "Fetch Jobs",
+      title: "Historical-data pulls and recovery",
+      note: "Review completed and failed fetch manifests, copy resume commands, inspect outputs, and connect produced files back to the Data Library.",
+      status: `${manifests.length} manifest${manifests.length === 1 ? "" : "s"} loaded; ${numberText((state.fetchManifests && state.fetchManifests.total) || manifests.length, 0)} total`,
+      primary: { label: "Show Data Library", target: "data" },
+      secondary: { label: "Simulate From Data", target: "workbench" },
+    },
+    workbench: {
+      eyebrow: "Workbench",
+      title: "Build and validate example configs",
+      note: "Generate public-safe replay or paper config drafts from saved data, preview alignment, validate drafts, and run local simulations.",
+      status: `${drafts.length} draft${drafts.length === 1 ? "" : "s"}; ${((state.configRuns && state.configRuns.runs) || []).length} recent draft run${((state.configRuns && state.configRuns.runs) || []).length === 1 ? "" : "s"}`,
+      primary: { label: "Inspect Data", target: "data" },
+      secondary: { label: "Open Runs", target: "runs" },
+    },
+    runs: {
+      eyebrow: "Runs",
+      title: "Decisions, orders, fills, and artifacts",
+      note: "Search saved runs, inspect current managed positions, open non-terminal orders, combined timelines, logs, and archived artifact detail.",
+      status: `${runRows.length} saved comparison row${runRows.length === 1 ? "" : "s"}; ${visibleRuns} current/saved run${visibleRuns === 1 ? "" : "s"}`,
+      primary: { label: "View Performance", target: "performance" },
+      secondary: { label: "Check Operations", target: "operations" },
+    },
+    operations: {
+      eyebrow: "Operations",
+      title: "Runtime, receiver, and remote-control health",
+      note: "Check Gateway, supervisors, remote nodes, command queue, command audit, cleanup, diagnostics, and public endpoint health.",
+      status: `${gatewayLabel}; ${remoteNodes.length} remote node${remoteNodes.length === 1 ? "" : "s"}; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
+      primary: { label: "Open Help", target: "help" },
+      secondary: { label: "Back To Overview", target: "overview" },
+    },
+    help: {
+      eyebrow: "Help",
+      title: "How to operate the workbench",
+      note: "Use the page guide, first-run checklist, data workflows, glossary, and linked runbooks when the next local step is unclear.",
+      status: "Public-safe docs are served locally from the allowlisted docs folder.",
+      primary: { label: "Start Overview", target: "overview" },
+      secondary: { label: "Open Data Library", target: "data" },
+    },
+  };
+  return viewMap[view] || viewMap.overview;
+}
+
+function renderPageIntro(view = activeView()) {
+  if (!$("page-intro-title")) return;
+  const content = pageIntroContent(normalizeView(view));
+  $("page-intro-eyebrow").textContent = content.eyebrow;
+  $("page-intro-title").textContent = content.title;
+  $("page-intro-note").textContent = content.note;
+  $("page-intro-status").textContent = content.status;
+  pageIntroAction("page-intro-primary", content.primary);
+  pageIntroAction("page-intro-secondary", content.secondary);
 }
 
 function latestTelemetryRun() {
@@ -5679,6 +5791,7 @@ function renderAll() {
   renderCommands();
   renderResults();
   renderCommandAudit();
+  renderPageIntro();
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
 }
 

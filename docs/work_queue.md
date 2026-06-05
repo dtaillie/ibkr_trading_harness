@@ -55,6 +55,10 @@ strategy-private.
   - Fetch Jobs
   - Operations
   - Help
+  - partial; each top-level view now has a reusable page-intro strip with the
+    view's primary question, current public telemetry/data counts, and two
+    navigation actions so users can orient themselves before reading dense
+    tables.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation

@@ -45,6 +45,8 @@ If Data Library only shows SPY/QQQ examples:
 Start in Overview. The hero card and Runtime Status strip answer whether a
 runner is publishing telemetry, whether Gateway/API is reachable, what mode is
 active, and when the latest decision/account/data timestamps were published.
+The page intro strip changes with each top-level view and gives the fastest
+next step plus the current public telemetry counts for that view.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.

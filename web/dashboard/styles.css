@@ -132,6 +132,56 @@ body {
   background: var(--panel);
 }
 
+.page-intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 28px 18px;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-intro h2 {
+  margin: 6px 0 0;
+  font-size: clamp(22px, 2.4vw, 34px);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.page-intro p {
+  max-width: 760px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.page-intro-side {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 10px;
+  min-width: min(360px, 40vw);
+}
+
+.page-intro-status {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.page-intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.page-intro-actions button[hidden] {
+  display: none;
+}
+
 h1,
 h2,
 p {
@@ -1525,6 +1575,7 @@ footer {
   }
 
   .topbar,
+  .page-intro,
   .split,
   .artifact-grid,
   .data-detail-grid,
@@ -1553,6 +1604,24 @@ footer {
     margin-top: 14px;
   }
 
+  .page-intro {
+    margin: 0 16px 16px;
+  }
+
+  .page-intro-side {
+    justify-items: start;
+    min-width: 0;
+    margin-top: 12px;
+  }
+
+  .page-intro-status {
+    text-align: left;
+  }
+
+  .page-intro-actions {
+    justify-content: flex-start;
+  }
+
   .coverage-row {
     grid-template-columns: 1fr;
   }
@@ -1565,6 +1634,7 @@ footer {
 @media (max-width: 560px) {
   main,
   .topbar,
+  .page-intro,
   footer,
   .sidebar {
     padding-left: 12px;
