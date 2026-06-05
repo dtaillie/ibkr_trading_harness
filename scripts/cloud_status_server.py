@@ -198,6 +198,20 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_coverage",
+        "category": "data",
+        "description": "Summarize saved-data date coverage by symbol for heatmap-style views.",
+        "response": "JSON coverage bins and rows",
+    },
+    {
+        "method": "GET",
+        "path": "/data_symbol_diagnostic",
+        "category": "data",
+        "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
+        "response": "JSON symbol visibility diagnosis",
+    },
+    {
+        "method": "GET",
         "path": "/fetch_manifests",
         "category": "data",
         "description": "List historical-data fetch job manifests.",
@@ -534,6 +548,24 @@ def parse_limit(params: dict[str, list[str]], *, default: int = 50, maximum: int
         raise ValueError("limit must be an integer") from exc
     if value < 1 or value > maximum:
         raise ValueError(f"limit must be between 1 and {maximum}")
+    return value
+
+
+def parse_int_param(
+    params: dict[str, list[str]],
+    key: str,
+    *,
+    default: int,
+    minimum: int = 1,
+    maximum: int = 500,
+) -> int:
+    raw = params.get(key, [str(default)])[0]
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{key} must be an integer") from exc
+    if value < minimum or value > maximum:
+        raise ValueError(f"{key} must be between {minimum} and {maximum}")
     return value
 
 
@@ -982,6 +1014,335 @@ def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
     for row in catalog["datasets"]:
         writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
     return out.getvalue()
+
+
+def normalize_symbol(value: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", "", value.upper())
+
+
+def path_matches_symbol(path: Path, symbol: str) -> bool:
+    normalized = normalize_symbol(symbol)
+    if not normalized:
+        return False
+    path_parts = [normalize_symbol(part) for part in path.parts]
+    stem = normalize_symbol(path.stem)
+    return any(part == normalized for part in path_parts) or stem.startswith(normalized) or normalized in stem
+
+
+def matching_symbol_files(
+    roots: list[Path],
+    symbol: str,
+    *,
+    limit: int = 100,
+    max_scanned_files: int = 5000,
+) -> list[tuple[Path, Path]]:
+    matches: list[tuple[Path, Path]] = []
+    for root in roots:
+        if not root.exists() or not root.is_dir():
+            continue
+        scanned = 0
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in {".csv", ".parquet"}:
+                continue
+            scanned += 1
+            if path_matches_symbol(path, symbol):
+                matches.append((path, root))
+                if len(matches) >= limit:
+                    return matches
+            if scanned >= max_scanned_files:
+                break
+    return matches
+
+
+def read_timestamp_frame(path: Path) -> tuple[pd.DataFrame, str]:
+    df, fmt = read_data_file(path)
+    ts_col = timestamp_column(df)
+    if ts_col is None and not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("no timestamp column or DatetimeIndex found")
+    return df, fmt
+
+
+def coverage_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
+    df, fmt = read_timestamp_frame(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else df.index
+    parsed = pd.Series(parse_datetime_utc(raw_ts)).dropna()
+    if parsed.empty:
+        raise ValueError("no parseable timestamps")
+    dates = sorted({item.date().isoformat() for item in parsed})
+    first = parsed.min().isoformat()
+    last = parsed.max().isoformat()
+    first_day = datetime.fromisoformat(dates[0]).date()
+    last_day = datetime.fromisoformat(dates[-1]).date()
+    calendar_days = (last_day - first_day).days + 1
+    symbol = infer_symbol(path, df)
+    return {
+        "path": display_path(path),
+        "root": display_path(root),
+        "symbol": symbol,
+        "asset_class": infer_asset_class(path, symbol),
+        "source": infer_data_source(path),
+        "bar_size": infer_bar_size(path, df),
+        "format": fmt,
+        "rows": int(len(df)),
+        "first_timestamp": first,
+        "last_timestamp": last,
+        "first_day": dates[0],
+        "last_day": dates[-1],
+        "date_count": len(dates),
+        "calendar_day_count": calendar_days,
+        "missing_calendar_days": max(0, calendar_days - len(dates)),
+        "dates": dates,
+    }
+
+
+def build_data_coverage(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    max_symbols: int = 60,
+    max_dates: int = 60,
+) -> dict[str, Any]:
+    if max_symbols < 1 or max_symbols > 500:
+        raise ValueError("max_symbols must be between 1 and 500")
+    if max_dates < 1 or max_dates > 366:
+        raise ValueError("max_dates must be between 1 and 366")
+    dataset_rows = []
+    errors = []
+    for path in data_file_candidates(data_roots, limit=limit):
+        root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+        try:
+            dataset_rows.append(coverage_for_data_file(path, root=root))
+        except Exception as exc:
+            errors.append({"path": display_path(path), "error": str(exc)})
+
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for row in dataset_rows:
+        symbol = str(row.get("symbol") or "UNKNOWN")
+        if symbol not in by_symbol:
+            by_symbol[symbol] = {
+                "symbol": symbol,
+                "asset_class": row.get("asset_class"),
+                "sources": set(),
+                "bar_sizes": set(),
+                "dataset_count": 0,
+                "row_count": 0,
+                "dates": set(),
+                "first_timestamp": None,
+                "last_timestamp": None,
+            }
+        item = by_symbol[symbol]
+        item["dataset_count"] += 1
+        item["row_count"] += int(row.get("rows") or 0)
+        if row.get("source"):
+            item["sources"].add(str(row["source"]))
+        if row.get("bar_size"):
+            item["bar_sizes"].add(str(row["bar_size"]))
+        item["dates"].update(row.get("dates") or [])
+        first = row.get("first_timestamp")
+        last = row.get("last_timestamp")
+        if first and (item["first_timestamp"] is None or str(first) < str(item["first_timestamp"])):
+            item["first_timestamp"] = first
+        if last and (item["last_timestamp"] is None or str(last) > str(item["last_timestamp"])):
+            item["last_timestamp"] = last
+
+    all_dates = sorted({date for item in by_symbol.values() for date in item["dates"]})
+    date_bins = all_dates[-max_dates:]
+    symbol_rows = []
+    for item in sorted(by_symbol.values(), key=lambda row: (-len(row["dates"]), str(row["symbol"])))[:max_symbols]:
+        dates = set(item["dates"])
+        symbol_rows.append({
+            "symbol": item["symbol"],
+            "asset_class": item["asset_class"],
+            "sources": sorted(item["sources"]),
+            "bar_sizes": sorted(item["bar_sizes"]),
+            "dataset_count": item["dataset_count"],
+            "row_count": item["row_count"],
+            "date_count": len(dates),
+            "first_timestamp": item["first_timestamp"],
+            "last_timestamp": item["last_timestamp"],
+            "coverage": [date in dates for date in date_bins],
+        })
+    return {
+        "generated_at": utc_now(),
+        "roots": [display_path(root) for root in data_roots],
+        "date_bins": date_bins,
+        "symbols": symbol_rows,
+        "datasets": [
+            {key: value for key, value in row.items() if key != "dates"}
+            for row in dataset_rows
+        ],
+        "count": len(symbol_rows),
+        "dataset_count": len(dataset_rows),
+        "total_symbol_count": len(by_symbol),
+        "error_count": len(errors),
+        "errors": errors,
+        "limit": limit,
+        "max_symbols": max_symbols,
+        "max_dates": max_dates,
+    }
+
+
+def fetch_manifest_symbol_rows(symbol: str, fetch_manifest_roots: list[Path], *, limit: int = 50) -> list[dict[str, Any]]:
+    rows = []
+    wanted = normalize_symbol(symbol)
+    for path, _root in fetch_manifest_candidates(fetch_manifest_roots)[:limit]:
+        try:
+            payload = read_fetch_manifest(path)
+        except Exception:
+            continue
+        job_id = payload.get("job_id") or path.stem
+        for output in payload.get("outputs") or []:
+            if not isinstance(output, dict) or normalize_symbol(str(output.get("symbol") or "")) != wanted:
+                continue
+            rows.append({
+                "job_id": job_id,
+                "type": "output",
+                "status": output.get("status"),
+                "rows": output.get("rows"),
+                "path": output.get("path"),
+                "day": output.get("day"),
+                "timestamp": output.get("timestamp"),
+            })
+        for error_row in payload.get("errors") or []:
+            if not isinstance(error_row, dict) or normalize_symbol(str(error_row.get("symbol") or "")) != wanted:
+                continue
+            rows.append({
+                "job_id": job_id,
+                "type": "error",
+                "kind": error_row.get("kind"),
+                "message": error_row.get("message"),
+                "day": error_row.get("day"),
+                "timestamp": error_row.get("timestamp"),
+            })
+    return rows[:limit]
+
+
+def build_data_symbol_diagnostic(
+    symbol: str,
+    *,
+    data_roots: list[Path],
+    fetch_manifest_roots: list[Path],
+    catalog_limit: int = 200,
+) -> dict[str, Any]:
+    cleaned = symbol.strip().upper()
+    if not cleaned:
+        raise ValueError("symbol is required")
+    if not re.match(r"^[A-Z0-9][A-Z0-9.-]{0,31}$", cleaned):
+        raise ValueError("symbol must look like a ticker, e.g. SPY or BTC-USD")
+    catalog = build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
+    wanted = normalize_symbol(cleaned)
+    catalog_matches = [
+        row for row in catalog["datasets"]
+        if normalize_symbol(str(row.get("symbol") or "")) == wanted
+    ]
+    catalog_scope_paths = {
+        display_path(path)
+        for path in data_file_candidates(data_roots, limit=catalog_limit)
+    }
+
+    configured_candidates = [
+        {
+            "path": row.get("path"),
+            "root": row.get("root"),
+            "in_catalog_scope": True,
+            "symbol": row.get("symbol"),
+            "quality_status": row.get("quality_status"),
+            "rows": row.get("rows"),
+            "bar_size": row.get("bar_size"),
+            "first_timestamp": row.get("first_timestamp"),
+            "last_timestamp": row.get("last_timestamp"),
+        }
+        for row in catalog_matches
+    ]
+    parse_errors = []
+    limit_blocked = []
+    if not catalog_matches:
+        for path, root in matching_symbol_files(data_roots, cleaned, limit=50, max_scanned_files=5000):
+            row = {
+                "path": display_path(path),
+                "root": display_path(root),
+                "in_catalog_scope": display_path(path) in catalog_scope_paths,
+            }
+            try:
+                summary = summarize_data_file(path, root=root, preview_points=2)
+                row.update({
+                    "symbol": summary.get("symbol"),
+                    "quality_status": summary.get("quality_status"),
+                    "rows": summary.get("rows"),
+                    "bar_size": summary.get("bar_size"),
+                    "first_timestamp": summary.get("first_timestamp"),
+                    "last_timestamp": summary.get("last_timestamp"),
+                })
+                if normalize_symbol(str(summary.get("symbol") or "")) == wanted and not row["in_catalog_scope"]:
+                    limit_blocked.append(row)
+            except Exception as exc:
+                row["error"] = str(exc)
+                parse_errors.append(row)
+            configured_candidates.append(row)
+
+    configured_resolved = [row for row in configured_candidates if normalize_symbol(str(row.get("symbol") or "")) == wanted]
+    suggested_roots = [
+        root.resolve()
+        for root in SUGGESTED_DATA_ROOTS
+        if root.resolve() not in {candidate.resolve() for candidate in data_roots}
+    ]
+    unconfigured_matches = [
+        {
+            "path": display_path(path),
+            "root": display_path(root),
+        }
+        for path, root in matching_symbol_files(suggested_roots, cleaned, limit=50, max_scanned_files=5000)
+    ]
+    fetch_rows = fetch_manifest_symbol_rows(cleaned, fetch_manifest_roots)
+    if catalog_matches:
+        status = "visible"
+        message = f"{cleaned} is visible in the current catalog."
+        action = "Use Search or Inspect in Data Library."
+    elif limit_blocked:
+        status = "catalog_limited"
+        message = f"{cleaned} exists under configured roots but is outside the current catalog limit."
+        action = "Increase Rows to scan or narrow roots."
+    elif configured_resolved:
+        status = "parse_or_quality_issue"
+        message = f"{cleaned} has configured candidate files but was not returned as a visible catalog row."
+        action = "Inspect parser errors, quality warnings, and catalog limit."
+    elif parse_errors:
+        status = "parse_error"
+        message = f"{cleaned} has matching configured files, but parsing failed."
+        action = "Fix the file format, timestamp column, or close/last column."
+    elif unconfigured_matches:
+        status = "not_configured"
+        message = f"{cleaned} appears under a local root that is not configured."
+        action = "Add that root to dashboard.data_roots or start the server with --data-root."
+    elif any(row.get("type") == "error" for row in fetch_rows):
+        status = "fetch_failed_or_empty"
+        message = f"{cleaned} appears in fetch manifests but no visible saved file was found."
+        action = "Open Fetch Jobs to review no-data, permission, or request errors."
+    else:
+        status = "not_found"
+        message = f"No configured or suggested saved-data file was found for {cleaned}."
+        action = "Fetch the symbol or add the directory containing it to dashboard.data_roots."
+    return {
+        "generated_at": utc_now(),
+        "symbol": cleaned,
+        "status": status,
+        "message": message,
+        "action": action,
+        "catalog_limit": catalog_limit,
+        "catalog_matches": catalog_matches,
+        "configured_candidates": configured_candidates,
+        "unconfigured_matches": unconfigured_matches,
+        "fetch_manifest_rows": fetch_rows,
+        "root_summary": {
+            "configured": [data_root_row(root) for root in data_roots],
+            "suggested": [
+                data_root_row(root)
+                for root in suggested_roots
+                if root.exists() and root.is_dir() and data_file_count(root)
+            ],
+        },
+    }
 
 
 def fetch_manifest_root_row(root: Path) -> dict[str, Any]:
@@ -3378,6 +3739,41 @@ class StatusHandler(BaseHTTPRequestHandler):
                     data_roots=self.data_roots,
                     preview_points=preview_points,
                     gap_limit=gap_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_coverage":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=1000)
+                max_symbols = parse_int_param(params, "max_symbols", default=60, maximum=500)
+                max_dates = parse_int_param(params, "max_dates", default=60, maximum=366)
+                payload = build_data_coverage(
+                    self.data_roots,
+                    limit=limit,
+                    max_symbols=max_symbols,
+                    max_dates=max_dates,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_diagnostic":
+            if not self.require_auth():
+                return
+            raw_symbol = str(params.get("symbol", [""])[0]).strip()
+            try:
+                catalog_limit = parse_limit(params, default=200, maximum=1000)
+                payload = build_data_symbol_diagnostic(
+                    raw_symbol,
+                    data_roots=self.data_roots,
+                    fetch_manifest_roots=self.fetch_manifest_roots,
+                    catalog_limit=catalog_limit,
                 )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})

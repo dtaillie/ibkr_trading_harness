@@ -449,6 +449,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
+        assert "data-coverage-grid" in html
+        assert "data-symbol-diagnostic-form" in html
+        assert "data-symbol-candidates-body" in html
         assert "nav-performance" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
@@ -483,6 +486,8 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
+        assert ("GET", "/data_coverage") in endpoints
+        assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
@@ -731,6 +736,47 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["source"] == "file"
         assert exported[0]["quality_status"] == "ok"
         assert exported[0]["bar_size"] == "5min"
+
+        with request.urlopen(f"{base}/data_coverage?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
+            coverage = json.loads(resp.read().decode("utf-8"))
+        assert coverage["count"] == 1
+        assert coverage["symbols"][0]["symbol"] == "SPY"
+        assert coverage["symbols"][0]["coverage"] == [True]
+        assert coverage["date_bins"] == ["2026-01-02"]
+
+        with request.urlopen(f"{base}/data_symbol_diagnostic?symbol=SPY&limit=5", timeout=5) as resp:
+            diagnostic = json.loads(resp.read().decode("utf-8"))
+        assert diagnostic["symbol"] == "SPY"
+        assert diagnostic["status"] == "visible"
+        assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
+        assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_symbol_diagnostic_finds_unconfigured_root(tmp_path, monkeypatch):
+    configured_root = tmp_path / "configured"
+    configured_root.mkdir()
+    suggested_root = tmp_path / "cache"
+    suggested_root.mkdir()
+    (suggested_root / "ABC_5min_sample.csv").write_text(
+        "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", (suggested_root,))
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[configured_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_symbol_diagnostic?symbol=ABC&limit=5", timeout=5) as resp:
+            diagnostic = json.loads(resp.read().decode("utf-8"))
+
+        assert diagnostic["status"] == "not_configured"
+        assert diagnostic["unconfigured_matches"][0]["path"].endswith("ABC_5min_sample.csv")
+        assert diagnostic["root_summary"]["suggested"][0]["data_file_count"] == 1
     finally:
         server.shutdown()
         server.server_close()

@@ -165,7 +165,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   contains data but is not currently configured. The dashboard server can now
   load `dashboard.data_roots` from config while CLI `--data-root` values remain
   available for one-off overrides. Catalog rows now include inferred asset class
-  and source filters.
+  and source filters. Data Library now includes a coverage heatmap-style view
+  and a symbol diagnostic that explains visible, scan-limited, parse-error,
+  unconfigured-root, fetch-error, and not-found states.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
@@ -178,6 +180,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   - show whether a symbol is missing because the file does not exist, the root
     is not configured, the parser skipped it, the timestamps failed validation,
     or the source returned no data
+    - partial; the symbol diagnostic now checks configured roots, suggested
+      roots, parse errors, catalog scan limit, and fetch manifest clues
 - Expand data-root configuration for the dashboard:
   - support multiple roots in config and CLI
   - include real cache roots in private/local config
@@ -206,12 +210,22 @@ QQQ show up, treat that as a bug until proven otherwise.
     relevant
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
+    - partial; Data Library now renders recent date-bin coverage by symbol
   - missing-day and missing-minute summaries
+    - partial; dataset details show gap rows/missing intervals, coverage view
+      shows missing recent date bins; minute-level aggregate heatmaps remain
+      open
   - "why is this symbol not visible?" diagnostic
+    - done for configured/suggested roots, parser failures, catalog limits, and
+      fetch-manifest clues
   - data-root scan errors in the UI
+    - partial; catalog parser errors and root diagnostics are visible
   - root-by-root scan duration, file count, skipped count, and parser error
     count
+    - partial; root file counts and parser errors are visible, scan duration and
+      skipped counts need richer scanner instrumentation
   - warning when the catalog result is capped and not all symbols are shown
+    - done in the Data Library visibility card
 - Add saved fetch manifests:
   - Progress: stock and crypto fetchers write dashboard-readable JSON manifests
     under `paper_logs/fetch_manifests` by default; the dashboard has Fetch Jobs

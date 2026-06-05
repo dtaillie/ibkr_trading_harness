@@ -70,6 +70,9 @@ def run_smoke(
             "overview-timeline-body",
             "data-root-cards",
             "data-catalog-limit",
+            "data-coverage-grid",
+            "data-symbol-diagnostic-form",
+            "data-symbol-candidates-body",
             "fetch-manifests-body",
             "fetch-detail-summary",
             "data-filter-quality",
@@ -98,6 +101,8 @@ def run_smoke(
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
             "workbench_endpoints",
+            "data_coverage",
+            "data_symbol_diagnostic",
             "fetch_manifests",
             "fetch_manifest_detail",
             "drawdownChart",
@@ -119,6 +124,9 @@ def run_smoke(
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
+        coverage = fetch_json(base_url, "/data_coverage?limit=5&max_symbols=10&max_dates=20")
+        if "date_bins" not in coverage or "symbols" not in coverage:
+            raise RuntimeError("data coverage summary is invalid")
         csv_header = data_catalog_csv.splitlines()[0]
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
@@ -134,6 +142,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing fetch_manifests")
+        if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
@@ -145,6 +155,9 @@ def run_smoke(
         alignment_count = 0
         datasets = catalog.get("datasets") or []
         if datasets:
+            diagnostic = fetch_json(base_url, f"/data_symbol_diagnostic?symbol={datasets[0]['symbol']}&limit=5")
+            if diagnostic.get("status") != "visible":
+                raise RuntimeError("symbol diagnostic did not find the sample dataset")
             alignment = post_json(
                 base_url,
                 "/data_alignment",
@@ -155,6 +168,7 @@ def run_smoke(
         return {
             "base_url": base_url,
             "catalog_count": catalog.get("count", 0),
+            "coverage_symbol_count": coverage.get("count", 0),
             "diagnostics_status": diagnostics.get("status"),
             "endpoint_count": endpoint_map.get("count", 0),
             "fetch_manifest_count": fetch_manifests.get("count", 0),

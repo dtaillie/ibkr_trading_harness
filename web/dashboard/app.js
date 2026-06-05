@@ -3,6 +3,8 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataDetail: null,
+  dataCoverage: { symbols: [], date_bins: [], errors: [] },
+  symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
   workbenchStatus: {},
@@ -775,6 +777,81 @@ function renderDataLibrarySummary() {
         </div>
       `).join("")
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
+}
+
+function renderDataCoverage() {
+  const coverage = state.dataCoverage || {};
+  const symbols = coverage.symbols || [];
+  const dateBins = coverage.date_bins || [];
+  $("data-coverage-note").textContent = coverage.generated_at
+    ? `${numberText(symbols.length, 0)} shown / ${numberText(coverage.total_symbol_count || symbols.length, 0)} symbols / ${numberText(dateBins.length, 0)} dates`
+    : "No coverage loaded";
+  $("data-coverage-grid").innerHTML = symbols.length
+    ? symbols.slice(0, 30).map((item) => {
+        const covered = (item.coverage || []).filter(Boolean).length;
+        const cells = (item.coverage || []).map((hasData, index) => {
+          const title = `${dateBins[index] || "date"} ${hasData ? "covered" : "missing"}`;
+          return `<span class="coverage-cell ${hasData ? "covered" : "missing"}" title="${escapeHtml(title)}"></span>`;
+        }).join("");
+        return `
+          <div class="coverage-row">
+            <div class="coverage-label">
+              <strong>${escapeHtml(item.symbol)}</strong>
+              <small>${escapeHtml((item.bar_sizes || []).join(", ") || "n/a")} / ${escapeHtml((item.sources || []).join(", ") || "n/a")}</small>
+            </div>
+            <div class="coverage-strip">${cells}</div>
+            <small>${escapeHtml(numberText(covered, 0))}/${escapeHtml(numberText(dateBins.length, 0))} recent dates</small>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No coverage yet</strong><span>No parseable saved datasets are visible under configured roots.</span></div>`;
+}
+
+function renderSymbolDiagnostic() {
+  const diagnostic = state.symbolDiagnostic || {};
+  $("data-symbol-diagnostic-status").innerHTML = diagnostic.status
+    ? statusText(diagnostic.status === "visible" ? "ok" : diagnostic.status === "not_found" ? "bad" : "warn")
+    : "No symbol checked";
+  const pairs = diagnostic.symbol
+    ? [
+        ["Symbol", diagnostic.symbol],
+        ["Status", diagnostic.status],
+        ["Finding", diagnostic.message],
+        ["Next Step", diagnostic.action],
+        ["Catalog Matches", numberText((diagnostic.catalog_matches || []).length, 0)],
+        ["Configured Candidates", numberText((diagnostic.configured_candidates || []).length, 0)],
+        ["Unconfigured Matches", numberText((diagnostic.unconfigured_matches || []).length, 0)],
+      ]
+    : [["How to use", "Enter a ticker to explain whether saved data is visible, outside the scan limit, in an unconfigured root, malformed, or only present in fetch errors."]];
+  $("data-symbol-diagnostic-summary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+
+  const candidates = [
+    ...(diagnostic.configured_candidates || []),
+    ...(diagnostic.unconfigured_matches || []).map((item) => ({ ...item, unconfigured: true })),
+  ];
+  $("data-symbol-candidates-body").innerHTML = candidates.length
+    ? candidates.slice(0, 50).map((item) => row([
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+        escapeHtml(item.unconfigured ? "unconfigured" : text(item.in_catalog_scope)),
+        escapeHtml(item.symbol || "n/a"),
+        escapeHtml(numberText(item.rows, 0)),
+        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        escapeHtml(item.error || item.quality_status || ""),
+      ])).join("")
+    : row([`<span class="muted">No matching files checked</span>`, "", "", "", "", ""]);
+
+  const fetchRows = diagnostic.fetch_manifest_rows || [];
+  $("data-symbol-fetch-body").innerHTML = fetchRows.length
+    ? fetchRows.slice(0, 50).map((item) => row([
+        escapeHtml(item.job_id),
+        escapeHtml(item.type),
+        statusText(item.status || item.kind),
+        escapeHtml(item.day),
+        escapeHtml(item.path || item.message || `rows=${text(item.rows)}`),
+      ])).join("")
+    : row([`<span class="muted">No fetch manifest clues for this symbol</span>`, "", "", "", ""]);
 }
 
 function renderWorkbenchStatus() {
@@ -1710,6 +1787,8 @@ function renderAll() {
   renderEndpointMap();
   renderDataCatalog();
   renderDataDetail();
+  renderDataCoverage();
+  renderSymbolDiagnostic();
   renderFetchJobs();
   renderFetchManifestDetail();
   renderConfigBuilder();
@@ -1737,6 +1816,7 @@ async function refresh() {
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
+  const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
@@ -1751,6 +1831,7 @@ async function refresh() {
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+  state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
@@ -1834,6 +1915,20 @@ async function loadDataDetail(path) {
   state.dataDetail = response;
   renderDataDetail();
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
+}
+
+async function diagnoseDataSymbol(event) {
+  event.preventDefault();
+  const symbol = $("data-symbol-input").value.trim();
+  if (!symbol) {
+    $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">Enter a symbol</span>`;
+    return;
+  }
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const response = await fetchJson(`/data_symbol_diagnostic?symbol=${encodeURIComponent(symbol)}&limit=${catalogLimit}`);
+  state.symbolDiagnostic = response;
+  renderSymbolDiagnostic();
+  $("last-refresh").textContent = `Symbol diagnostic loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadFetchManifestDetail(jobId) {
@@ -2193,6 +2288,11 @@ function init() {
   $("config-form").addEventListener("submit", (event) => {
     generateConfigDraft(event).catch((err) => {
       $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-diagnostic-form").addEventListener("submit", (event) => {
+    diagnoseDataSymbol(event).catch((err) => {
+      $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("config-run-form").addEventListener("submit", (event) => {

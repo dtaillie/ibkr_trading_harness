@@ -148,7 +148,8 @@ footer {
 
 .toolbar,
 .command-form,
-.builder-form {
+.builder-form,
+.diagnostic-form {
   display: flex;
   align-items: end;
   gap: 10px;
@@ -217,6 +218,14 @@ button.secondary {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 10px;
+}
+
+.diagnostic-form {
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
 }
 
 .builder-form {
@@ -510,6 +519,57 @@ section {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.coverage-grid {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.coverage-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.24fr) minmax(180px, 1fr) 100px;
+  gap: 10px;
+  align-items: center;
+  min-height: 34px;
+}
+
+.coverage-label strong,
+.coverage-label small {
+  display: block;
+}
+
+.coverage-label small,
+.coverage-row > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.coverage-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(4px, 1fr);
+  gap: 2px;
+  min-height: 18px;
+}
+
+.coverage-cell {
+  display: block;
+  min-width: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.coverage-cell.covered {
+  background: var(--good);
+}
+
+.coverage-cell.missing {
+  background: #edf1ed;
 }
 
 .help-card strong {
@@ -869,6 +929,10 @@ footer {
 
   .toolbar {
     margin-top: 14px;
+  }
+
+  .coverage-row {
+    grid-template-columns: 1fr;
   }
 
   .metrics {

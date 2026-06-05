@@ -350,6 +350,70 @@
         </div>
       </div>
       <div id="data-root-cards" class="root-grid"></div>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Coverage</h2>
+            <span id="data-coverage-note" class="section-note">No coverage loaded</span>
+          </div>
+          <div id="data-coverage-grid" class="coverage-grid"></div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Find Missing Symbol</h2>
+            <span id="data-symbol-diagnostic-status" class="section-note">No symbol checked</span>
+          </div>
+          <form id="data-symbol-diagnostic-form" class="diagnostic-form">
+            <label>
+              <span>Symbol</span>
+              <input id="data-symbol-input" type="search" placeholder="SPY or BTC-USD">
+            </label>
+            <button type="submit">Diagnose</button>
+          </form>
+          <dl id="data-symbol-diagnostic-summary" class="kv wide-kv"></dl>
+        </div>
+      </section>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Symbol File Candidates</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Path</th>
+                  <th>In Scope</th>
+                  <th>Parsed</th>
+                  <th>Rows</th>
+                  <th>Range</th>
+                  <th>Issue</th>
+                </tr>
+              </thead>
+              <tbody id="data-symbol-candidates-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Fetch Clues</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Day</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody id="data-symbol-fetch-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       <div class="filter-row">
         <label>
           <span>Search</span>

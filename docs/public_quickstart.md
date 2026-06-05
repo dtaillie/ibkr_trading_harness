@@ -183,7 +183,10 @@ decision/order/fill events. Performance summarizes the latest run or selected
 artifact with equity, return, drawdown, exposure, an equity curve, drawdown
 curve, and daily return bars when account snapshots are available. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
-historical previews. Fetch Jobs shows historical-data pull manifests, status
+historical previews. Use the coverage grid to see recent date-bin coverage by
+symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
+outside the catalog limit, in an unconfigured root, malformed, only present in
+fetch errors, or absent. Fetch Jobs shows historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
 Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
