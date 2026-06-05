@@ -2311,6 +2311,12 @@ function selectedSymbolBrowserDatasets() {
   return symbolBrowserGroups().get(symbol) || [];
 }
 
+function bestCatalogDatasetForSymbol(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  if (!normalized) return null;
+  return (symbolBrowserGroups().get(normalized) || [])[0] || null;
+}
+
 function renderSymbolBrowser() {
   const groups = symbolBrowserGroups();
   const symbols = Array.from(groups.keys()).sort();
@@ -3210,6 +3216,9 @@ function renderDataDetail() {
   $("data-detail-title").textContent = detail.path
     ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
     : "No dataset selected";
+  if (detail.path && detail.symbol) {
+    $("data-detail-symbol").value = text(detail.symbol);
+  }
   $("data-detail-viewer-note").textContent = detail.path
     ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} ${timezoneLabel(timezoneMode)} view`
     : "Select a dataset to inspect saved history offline.";
@@ -5569,6 +5578,21 @@ async function reloadDataDetail(event) {
   await loadDataDetail(path);
 }
 
+async function loadDataDetailForSymbol() {
+  const symbol = ($("data-detail-symbol").value || "").trim().toUpperCase();
+  if (!symbol) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Enter a scanned symbol first</span>`;
+    return;
+  }
+  const dataset = bestCatalogDatasetForSymbol(symbol);
+  if (!dataset || !dataset.path) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">No catalog file found for ${escapeHtml(symbol)}</span>`;
+    return;
+  }
+  await loadDataDetail(dataset.path, { resetControls: true });
+  $("data-detail-viewer-note").textContent = `Opened ${text(dataset.symbol)} ${text(dataset.bar_size)} from ${text(dataset.source)}.`;
+}
+
 async function loadDataCompare(event) {
   event.preventDefault();
   const selected = selectedCompareDatasets();
@@ -6142,6 +6166,18 @@ function init() {
   });
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-detail-chart-style").addEventListener("change", renderDataDetail);
+  $("data-detail-symbol-load").addEventListener("click", () => {
+    loadDataDetailForSymbol().catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-symbol").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    loadDataDetailForSymbol().catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {

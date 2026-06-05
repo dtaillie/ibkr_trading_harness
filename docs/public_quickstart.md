@@ -264,7 +264,9 @@ and calendar-gap rows. Use Export Minute CSV to download intraday hour and
 date/hour completeness rows. Use Export Compare CSV after Compare Saved Data to
 download normalized close-return paths by symbol and timestamp. Use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
-fetch errors, or absent. Use Copy data_roots YAML when Data Library finds
+fetch errors, or absent. Use Jump to Symbol in Data Detail to open the
+catalog's best matching saved file for a ticker without searching the full
+table. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status

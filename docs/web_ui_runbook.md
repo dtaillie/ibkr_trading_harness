@@ -96,6 +96,8 @@ rows from the Minute Coverage Heatmap.
 
 1. Inspect the saved dataset and review quality, gaps, nulls, timezone, and
    date range.
+   Use Jump to Symbol in Data Detail when you know the ticker but not the
+   exact saved file path.
 2. Open Workbench and select one or more saved datasets.
 3. Choose a public example plugin or a private local plugin from an ignored
    registry.

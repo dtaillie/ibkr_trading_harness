@@ -452,6 +452,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe
+    - done for Data Detail jump navigation; the detail viewer now has a
+      catalog-backed Jump to Symbol input that opens the best matching saved
+      file directly, and Find Missing Symbol shares the same suggestions.
   - gap markers
     - partial; gaps are listed in the detail table, chart markers remain open
     - partial; Data Detail charts now render gap bands/markers over the price

@@ -790,7 +790,7 @@
           <form id="data-symbol-diagnostic-form" class="diagnostic-form">
             <label>
               <span>Symbol</span>
-              <input id="data-symbol-input" type="search" placeholder="SPY or BTC-USD">
+              <input id="data-symbol-input" type="search" list="data-symbol-browser-options" placeholder="SPY or BTC-USD">
             </label>
             <button type="submit">Diagnose</button>
           </form>
@@ -1002,6 +1002,11 @@
         <span id="data-detail-title" class="section-note">No dataset selected</span>
       </div>
       <form id="data-detail-form" class="viewer-controls">
+        <label class="wide-field">
+          <span>Jump to Symbol</span>
+          <input id="data-detail-symbol" type="search" list="data-symbol-browser-options" placeholder="SPY, NVDA, BTC-USD">
+        </label>
+        <button id="data-detail-symbol-load" class="secondary" type="button">Open Best File</button>
         <label>
           <span>Start</span>
           <input id="data-detail-start" type="date">

@@ -611,6 +611,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
+        assert "data-detail-symbol" in html
+        assert "data-detail-symbol-load" in html
         assert "data-detail-viewer-note" in html
         assert "data-detail-chart-style" in html
         assert "data-detail-timezone" in html
