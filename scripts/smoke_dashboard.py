@@ -328,6 +328,7 @@ def run_smoke(
             "data-filter-quality",
             "data-filter-asset",
             "data-filter-source",
+            "data-filter-sort",
             "export-data-catalog-csv",
             "export-workbench-snapshot",
             "workbench-guide-note",

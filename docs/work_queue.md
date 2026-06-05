@@ -257,6 +257,8 @@ strategy-private.
   - consistent badge styles for modes, health, fills, rejects, and stale data
   - consistent chart sizing and empty chart states
   - reusable table toolbar patterns for search, filters, and export/copy actions
+    - partial; Saved Data now includes an explicit sort control for newest file,
+      symbol, row count, file size, latest bar, and quality-first ordering.
   - mobile navigation behavior that keeps the main action visible
     - partial; mobile dashboard navigation now uses a sticky horizontal tab
       rail instead of a compressed two-column sidebar, active nav items set

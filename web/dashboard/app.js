@@ -2067,12 +2067,40 @@ function dataCatalogFilters() {
     bar: $("data-filter-bar").value || "",
     asset: $("data-filter-asset").value || "",
     source: $("data-filter-source").value || "",
+    sort: $("data-filter-sort").value || "modified_desc",
   };
+}
+
+function dataCatalogSortValue(dataset, key) {
+  if (key === "modified") return timestampMillis(dataset.modified_at) || 0;
+  if (key === "rows") return Number(dataset.rows || 0);
+  if (key === "size") return Number(dataset.size_bytes || 0);
+  if (key === "range") return timestampMillis(dataset.last_timestamp) || 0;
+  if (key === "quality") {
+    const rank = { ok: 0, warn: 1, bad: 2 };
+    return rank[String(dataset.quality_status || "").toLowerCase()] ?? 3;
+  }
+  return String(dataset.symbol || dataset.path || "").toLowerCase();
+}
+
+function sortDataCatalogRows(datasets, sortKey) {
+  const [key, direction] = String(sortKey || "modified_desc").split("_");
+  const multiplier = direction === "asc" ? 1 : -1;
+  return (datasets || []).slice().sort((left, right) => {
+    const leftValue = dataCatalogSortValue(left, key);
+    const rightValue = dataCatalogSortValue(right, key);
+    if (typeof leftValue === "number" && typeof rightValue === "number" && leftValue !== rightValue) {
+      return (leftValue - rightValue) * multiplier;
+    }
+    const primary = String(leftValue).localeCompare(String(rightValue)) * multiplier;
+    if (primary) return primary;
+    return `${text(left.symbol)} ${text(left.path)}`.localeCompare(`${text(right.symbol)} ${text(right.path)}`);
+  });
 }
 
 function filteredDataCatalog(datasets) {
   const filters = dataCatalogFilters();
-  return (datasets || []).filter((dataset) => {
+  const filtered = (datasets || []).filter((dataset) => {
     if (filters.quality && dataset.quality_status !== filters.quality) return false;
     if (filters.bar && text(dataset.bar_size) !== filters.bar) return false;
     if (filters.asset && text(dataset.asset_class) !== filters.asset) return false;
@@ -2091,6 +2119,7 @@ function filteredDataCatalog(datasets) {
     }
     return true;
   });
+  return sortDataCatalogRows(filtered, filters.sort);
 }
 
 function renderDataFilterOptions(datasets) {
@@ -4663,6 +4692,7 @@ function init() {
   $("data-filter-bar").addEventListener("change", renderDataCatalog);
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
+  $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);
