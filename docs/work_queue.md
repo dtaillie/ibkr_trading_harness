@@ -802,6 +802,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields
     in the UI.
+  - partial; Config Builder now adds section-level readiness cards for data,
+    alignment, plugin, mode/range, risk, simulated costs, and generated draft
+    state so users can see what needs attention before scanning every field.
   - partial; plugin registry entries can now expose public-safe
     `strategy_fields`, the Workbench renders fields for the selected plugin,
     and generated drafts write only those allowlisted values under `strategy`.

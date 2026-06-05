@@ -5078,6 +5078,7 @@ function renderConfigBuilder() {
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
   renderConfigBrokerBoundary();
+  renderConfigBuilderReadiness();
 
   const draft = state.configDraft;
   if (!draft) {
@@ -5099,6 +5100,90 @@ function renderConfigBuilder() {
       )).join("")
     : "";
   renderConfigAlignment(draft.alignment || {});
+}
+
+function renderConfigBuilderReadiness() {
+  if (!$("config-builder-readiness")) return;
+  const selected = selectedConfigDatasets();
+  const plugin = selectedConfigPlugin();
+  const mode = $("config-mode") ? $("config-mode").value : "";
+  const dateRange = configDateRangePayload();
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
+  const riskValues = [
+    finiteNumber($("config-max-orders") && $("config-max-orders").value),
+    finiteNumber($("config-max-notional") && $("config-max-notional").value),
+    finiteNumber($("config-max-exposure") && $("config-max-exposure").value),
+  ];
+  const costValues = [
+    finiteNumber($("config-slippage") && $("config-slippage").value),
+    finiteNumber($("config-commission") && $("config-commission").value),
+  ];
+  const draft = state.configDraft || {};
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const cards = [
+    {
+      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      title: numberText(selected.length, 0),
+      label: "Data",
+      note: selected.length
+        ? warningRows.length
+          ? `${numberText(warningRows.length, 0)} selected dataset${warningRows.length === 1 ? "" : "s"} need quality acknowledgement.`
+          : "Selected datasets are catalog-ready."
+        : "Choose one or more Data Library files.",
+    },
+    {
+      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "bad",
+      title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
+      label: "Alignment",
+      note: alignment.dataset_count
+        ? `${numberText(alignment.dataset_count, 0)} dataset${alignment.dataset_count === 1 ? "" : "s"}; ${pctText(alignment.common_coverage_pct)} common coverage.`
+        : "Preview alignment before trusting a replay window.",
+    },
+    {
+      status: plugin.id ? plugin.visibility === "public_example" ? "warn" : "ok" : "bad",
+      title: text(plugin.label || plugin.id),
+      label: "Plugin",
+      note: plugin.visibility === "public_example"
+        ? "Public example plugin demonstrates wiring only."
+        : text(plugin.boundary || "Private/local plugin metadata loaded from registry."),
+    },
+    {
+      status: mode ? "ok" : "bad",
+      title: text(mode),
+      label: "Mode",
+      note: dateRange.start || dateRange.end
+        ? `Range ${dateRange.start || "first bar"} to ${dateRange.end || "last bar"}.`
+        : "No date range set; replay uses each selected file's full history.",
+    },
+    {
+      status: riskValues.every((value) => value !== null && value > 0) ? "ok" : "bad",
+      title: text($("config-risk-preset") && $("config-risk-preset").value),
+      label: "Risk",
+      note: `Orders ${text($("config-max-orders") && $("config-max-orders").value)}, notional ${money($("config-max-notional") && $("config-max-notional").value)}, exposure ${pctText(Number($("config-max-exposure") && $("config-max-exposure").value) * 100)}.`,
+    },
+    {
+      status: costValues.every((value) => value !== null && value >= 0) ? "ok" : "bad",
+      title: `${numberText($("config-slippage") && $("config-slippage").value, 2)} / ${numberText($("config-commission") && $("config-commission").value, 2)}`,
+      label: "Costs",
+      note: "Simulated slippage and commission basis points.",
+    },
+    {
+      status: draft.yaml ? draftValid ? "ok" : "warn" : "bad",
+      title: draft.yaml ? draftValid ? "Valid" : "Review" : "Not Generated",
+      label: "Draft",
+      note: draft.yaml
+        ? draft.saved_path ? `Saved to ${text(draft.saved_path)}.` : "Generated draft is not saved."
+        : "Generate a draft to get YAML and local commands.",
+    },
+  ];
+  $("config-builder-readiness").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function configPluginStrategyPayload() {
@@ -5144,6 +5229,7 @@ function renderConfigAlignment(alignment) {
   $("config-alignment").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  renderConfigBuilderReadiness();
   renderWorkbenchGuide();
 }
 
