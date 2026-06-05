@@ -2658,7 +2658,7 @@ async function diagnoseSelectedSymbol() {
   await diagnoseDataSymbol(new Event("submit"));
 }
 
-function compareSelectedSymbolDatasets() {
+async function compareSelectedSymbolDatasets() {
   const symbol = selectedSymbolBrowserSymbol();
   if (!symbol) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Enter a symbol first</span>`;
@@ -2675,8 +2675,9 @@ function compareSelectedSymbolDatasets() {
   state.dataCompareSelectionCleared = false;
   $("data-compare-filter").value = symbol;
   renderDataCompareControls();
-  $("data-symbol-browser-note").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} datasets for comparison`;
-  $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} datasets for comparison; run Compare Saved Data to load the chart`;
+  $("data-symbol-browser-note").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} datasets and loaded comparison`;
+  await loadDataCompare();
+  $("last-refresh").textContent = `Loaded comparison for ${numberText(matches.length, 0)} ${symbol} datasets`;
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
@@ -5819,7 +5820,7 @@ function dataComparePayload() {
 }
 
 async function loadDataCompare(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
   let payload;
   try {
     payload = dataComparePayload();
@@ -6495,7 +6496,11 @@ function init() {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
-  $("data-symbol-browser-compare").addEventListener("click", compareSelectedSymbolDatasets);
+  $("data-symbol-browser-compare").addEventListener("click", () => {
+    compareSelectedSymbolDatasets().catch((err) => {
+      $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-symbol-browser-diagnose").addEventListener("click", () => {
     diagnoseSelectedSymbol().catch((err) => {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

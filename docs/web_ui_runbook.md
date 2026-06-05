@@ -84,9 +84,9 @@ symbols over one date range. Use Find Dataset to narrow large catalogs without
 dropping already selected files. Select Symbol chooses exact matches for the
 typed catalog symbol, and Select Shown chooses the visible comparison set up to
 the 8-dataset comparison cap. From Symbol Browser, Compare preselects matching
-saved files for the typed symbol and jumps to the comparison workflow. Copy
-Compare JSON copies the exact request body that the dashboard will send to
-`/data_compare`.
+saved files for the typed symbol, loads the normalized comparison chart, and
+jumps to the comparison workflow. Copy Compare JSON copies the exact request
+body that the dashboard will send to `/data_compare`.
 
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.
