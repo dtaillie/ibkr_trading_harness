@@ -41,6 +41,7 @@ SUPPORTED_ORDER_TYPES = {"market"}
 SUPPORTED_BROKER_ADAPTERS = broker_adapter_ids()
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
 KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
+SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class RunnerResult:
     unrealized_pnl: float | None = None
     total_pnl: float | None = None
     total_commission: float | None = None
+    total_borrow_fees: float | None = None
     approval_required_orders: int = 0
     loop_enabled: bool = False
     loop_iterations: int = 0
@@ -168,6 +170,19 @@ def validate_string_list(value: Any, field: str, errors: list[str], *, allowed: 
         invalid = sorted(normalized - allowed)
         if invalid:
             errors.append(f"{field} contains unsupported values: {invalid}")
+
+
+def validate_nonnegative_float_map(value: Any, field: str, errors: list[str]) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        errors.append(f"{field} must be a mapping")
+        return
+    for raw_key, raw_value in value.items():
+        if not str(raw_key).strip():
+            errors.append(f"{field} contains an empty symbol")
+            continue
+        validate_nonnegative_float(raw_value, f"{field}[{raw_key}]", errors)
 
 
 def validate_config(
@@ -298,6 +313,12 @@ def validate_config(
     validate_nonnegative_float(execution_cfg.get("sim_commission_per_share"), "execution.sim_commission_per_share", errors)
     validate_nonnegative_float(execution_cfg.get("sim_min_commission"), "execution.sim_min_commission", errors)
     validate_nonnegative_float(execution_cfg.get("sim_max_commission_pct"), "execution.sim_max_commission_pct", errors, positive=True)
+    validate_nonnegative_float(execution_cfg.get("sim_short_borrow_bps_annual"), "execution.sim_short_borrow_bps_annual", errors)
+    validate_nonnegative_float_map(
+        execution_cfg.get("sim_short_borrow_bps_annual_by_symbol"),
+        "execution.sim_short_borrow_bps_annual_by_symbol",
+        errors,
+    )
 
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
@@ -677,6 +698,16 @@ def account_snapshot_record(
             "unrealized_pnl_by_symbol": {symbol: finite_float(value) for symbol, value in unrealized_by_symbol.items()},
             "total_pnl": finite_float(accounting.get("total_pnl")),
             "total_commission": finite_float(accounting.get("total_commission")),
+            "total_borrow_fees": finite_float(accounting.get("total_borrow_fees")),
+            "borrow_fee_accrued": finite_float(accounting.get("borrow_fee_accrued")),
+            "borrow_fee_accrued_by_symbol": {
+                symbol: finite_float(value)
+                for symbol, value in (
+                    accounting.get("borrow_fee_accrued_by_symbol")
+                    if isinstance(accounting.get("borrow_fee_accrued_by_symbol"), dict)
+                    else {}
+                ).items()
+            },
         })
     return record
 
@@ -728,6 +759,7 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             "unrealized_pnl": finite_float(latest_accounting.get("unrealized_pnl")),
             "total_pnl": finite_float(latest_accounting.get("total_pnl")),
             "total_commission": finite_float(latest_accounting.get("total_commission")),
+            "total_borrow_fees": finite_float(latest_accounting.get("total_borrow_fees")),
         }
     initial = equity_values[0]
     final = equity_values[-1]
@@ -775,6 +807,7 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "unrealized_pnl": finite_float(latest_accounting.get("unrealized_pnl")),
         "total_pnl": finite_float(latest_accounting.get("total_pnl")),
         "total_commission": finite_float(latest_accounting.get("total_commission")),
+        "total_borrow_fees": finite_float(latest_accounting.get("total_borrow_fees")),
     }
 
 
@@ -785,6 +818,10 @@ class SimulatedExecutor:
         self.average_costs: dict[str, float] = {}
         self.realized_pnl = 0.0
         self.total_commission = 0.0
+        self.total_borrow_fees = 0.0
+        self.last_borrow_fee_time: pd.Timestamp | None = None
+        self.last_borrow_fee_accrued = 0.0
+        self.last_borrow_fee_accrued_by_symbol: dict[str, float] = {}
         self.allow_short = bool(execution_cfg.get("allow_short", False))
         self.slippage_bps = float(execution_cfg.get("sim_slippage_bps", 0.0))
         self.buy_slippage_bps = execution_cfg.get("sim_buy_slippage_bps")
@@ -794,6 +831,11 @@ class SimulatedExecutor:
         self.commission_per_share = float(execution_cfg.get("sim_commission_per_share", 0.0))
         self.min_commission = float(execution_cfg.get("sim_min_commission", 0.0))
         self.max_commission_pct = execution_cfg.get("sim_max_commission_pct")
+        self.short_borrow_bps_annual = float(execution_cfg.get("sim_short_borrow_bps_annual", 0.0))
+        self.short_borrow_bps_annual_by_symbol = {
+            str(symbol).upper(): float(rate)
+            for symbol, rate in (execution_cfg.get("sim_short_borrow_bps_annual_by_symbol") or {}).items()
+        }
 
     def slippage_for(self, *, side: str, requested_notional: float | None) -> float:
         if side == "buy" and self.buy_slippage_bps is not None:
@@ -839,9 +881,53 @@ class SimulatedExecutor:
             "realized_pnl": self.realized_pnl,
             "unrealized_pnl": unrealized,
             "unrealized_pnl_by_symbol": unrealized_by_symbol,
-            "total_pnl": self.realized_pnl + unrealized,
+            "total_pnl": self.realized_pnl + unrealized - self.total_borrow_fees,
             "total_commission": self.total_commission,
+            "total_borrow_fees": self.total_borrow_fees,
+            "borrow_fee_accrued": self.last_borrow_fee_accrued,
+            "borrow_fee_accrued_by_symbol": dict(self.last_borrow_fee_accrued_by_symbol),
         }
+
+    def borrow_bps_for(self, symbol: str) -> float:
+        return self.short_borrow_bps_annual_by_symbol.get(str(symbol).upper(), self.short_borrow_bps_annual)
+
+    def accrue_borrow_fees(self, now: pd.Timestamp, prices: dict[str, float]) -> float:
+        timestamp = pd.Timestamp(now)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize(timezone.utc)
+        else:
+            timestamp = timestamp.tz_convert(timezone.utc)
+        self.last_borrow_fee_accrued = 0.0
+        self.last_borrow_fee_accrued_by_symbol = {}
+        if self.last_borrow_fee_time is None:
+            self.last_borrow_fee_time = timestamp
+            return 0.0
+        elapsed_seconds = (timestamp - self.last_borrow_fee_time).total_seconds()
+        self.last_borrow_fee_time = timestamp
+        if elapsed_seconds <= 0:
+            return 0.0
+
+        accrued_by_symbol: dict[str, float] = {}
+        for symbol, qty in self.positions.items():
+            if float(qty) >= 0:
+                continue
+            price = finite_float(prices.get(symbol))
+            if price is None or price <= 0:
+                continue
+            borrow_bps = self.borrow_bps_for(symbol)
+            if borrow_bps <= 0:
+                continue
+            short_notional = abs(float(qty)) * price
+            fee = short_notional * (borrow_bps / 10000.0) * (elapsed_seconds / SECONDS_PER_YEAR)
+            if fee > 0:
+                accrued_by_symbol[symbol] = fee
+        total_fee = sum(accrued_by_symbol.values())
+        if total_fee > 0:
+            self.cash -= total_fee
+            self.total_borrow_fees += total_fee
+            self.last_borrow_fee_accrued = total_fee
+            self.last_borrow_fee_accrued_by_symbol = accrued_by_symbol
+        return total_fee
 
     @staticmethod
     def opening_average_cost(side_sign: float, fill_price: float, quantity: float, commission: float) -> float:
@@ -1329,6 +1415,8 @@ def run_from_config(
         if snapshot_time is not None:
             latest_data_time = snapshot_time.isoformat()
         final_prices = latest_prices(snapshot)
+        if simulated is not None:
+            simulated.accrue_borrow_fees(now, final_prices)
         if pause_marker is not None and pause_marker.exists():
             decisions += 1
             append_jsonl(output_dir / "decisions.jsonl", {
@@ -1625,6 +1713,7 @@ def run_from_config(
         unrealized_pnl=perf["unrealized_pnl"],
         total_pnl=perf["total_pnl"],
         total_commission=perf["total_commission"],
+        total_borrow_fees=perf["total_borrow_fees"],
         approval_required_orders=approval_required_orders,
         loop_enabled=loop_enabled,
         loop_iterations=loop_iterations,

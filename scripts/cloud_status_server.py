@@ -4615,6 +4615,12 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "net_exposure": row.get("net_exposure"),
         "positions": row.get("positions") if isinstance(row.get("positions"), dict) else {},
         "position_values": row.get("position_values") if isinstance(row.get("position_values"), dict) else {},
+        "realized_pnl": row.get("realized_pnl"),
+        "unrealized_pnl": row.get("unrealized_pnl"),
+        "total_pnl": row.get("total_pnl"),
+        "total_commission": row.get("total_commission"),
+        "total_borrow_fees": row.get("total_borrow_fees"),
+        "borrow_fee_accrued": row.get("borrow_fee_accrued"),
     }
 
 
@@ -4646,6 +4652,7 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
         if isinstance(positions, dict):
             count = sum(1 for value in positions.values() if finite_float(value) not in (None, 0.0))
             max_position_count = max(max_position_count, count)
+    latest_accounting = rows[-1] if rows else {}
     if equity_values:
         initial_equity = equity_values[0]
         final_equity = equity_values[-1]
@@ -4709,6 +4716,11 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
             else None,
         ),
         "max_position_count": summary.get("max_position_count", max_position_count),
+        "realized_pnl": summary.get("realized_pnl", finite_float(latest_accounting.get("realized_pnl"))),
+        "unrealized_pnl": summary.get("unrealized_pnl", finite_float(latest_accounting.get("unrealized_pnl"))),
+        "total_pnl": summary.get("total_pnl", finite_float(latest_accounting.get("total_pnl"))),
+        "total_commission": summary.get("total_commission", finite_float(latest_accounting.get("total_commission"))),
+        "total_borrow_fees": summary.get("total_borrow_fees", finite_float(latest_accounting.get("total_borrow_fees"))),
     }
 
 

@@ -799,7 +799,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     also supports shortable-symbol whitelists, per-symbol/total short-notional
     caps, side-specific slippage, simple size-based market-impact slippage,
     commission bps, per-share commission, minimum commission, and max
-    commission caps. Borrow-fee accrual schedules and venue-specific cost
+    commission caps. Simulated shorts can now accrue global or per-symbol
+    annual borrow fees over elapsed account-snapshot time. Venue-specific cost
     models remain open.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing

@@ -49,6 +49,8 @@ execution:
   sim_commission_per_share: 0
   sim_min_commission: 0
   sim_max_commission_pct: 1
+  sim_short_borrow_bps_annual: 0
+  sim_short_borrow_bps_annual_by_symbol: {}
 
 control:
   pause_marker: paper_logs/control/example_plugin_runner.pause

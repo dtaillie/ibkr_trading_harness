@@ -149,6 +149,7 @@ its final summary/artifacts.
 - If shorts are allowed, `shortable_symbols` and short-notional caps are set.
 - Simulated-paper cost settings are realistic enough for the asset class:
   slippage, market impact, commission bps, per-share commission, min
-  commission, and max commission cap.
+  commission, max commission cap, and short-borrow fee rates when simulated
+  shorts can remain open across bars.
 - Dashboard shows fresh telemetry.
 - You know how to stop the runner quickly.

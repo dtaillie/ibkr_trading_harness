@@ -1443,6 +1443,7 @@ function renderPerformance() {
   const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl;
   const totalPnl = latestAccount.total_pnl ?? perf.total_pnl ?? summary.total_pnl;
   const totalCommission = latestAccount.total_commission ?? perf.total_commission ?? summary.total_commission;
+  const totalBorrowFees = latestAccount.total_borrow_fees ?? perf.total_borrow_fees ?? summary.total_borrow_fees;
   const sourceMeta = sourceMetaLabel(source, latestAccount);
   const windowMeta = `${window.label} / ${accountRows.length ? `${numberText(accountRows.length, 0)} account snapshots` : "no account snapshots"}`;
   const fillsMeta = `${window.label} / ${numberText(fills.length, 0)} fills`;
@@ -1507,7 +1508,7 @@ function renderPerformance() {
     ["Elapsed", elapsedDays !== null && elapsedDays !== undefined ? `${numberText(elapsedDays, 4)} days` : "n/a"],
     ["Turnover Basis", `${money(turnover.notional)} filled notional${turnover.pct !== null ? ` / ${money(initialEquity)} initial equity` : "; initial equity unavailable"}`],
     ["Accounting PnL", `Realized ${money(realizedPnl)} / Unrealized ${money(unrealizedPnl)} / Total ${money(totalPnl)}`],
-    ["Total Commission", money(totalCommission)],
+    ["Costs", `Commission ${money(totalCommission)} / Borrow ${money(totalBorrowFees)}`],
     ["Approval Holds", numberText(approvalRequired, 0)],
     ["Loop", summary.loop_enabled ? `${numberText(loopIterations, 0)} iterations` : "one-shot"],
     ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
@@ -4354,6 +4355,7 @@ function renderWorkbenchArtifacts() {
     ["Unrealized PnL", money(performance.unrealized_pnl ?? summary.unrealized_pnl)],
     ["Total PnL", money(performance.total_pnl ?? summary.total_pnl)],
     ["Total Commission", money(performance.total_commission ?? summary.total_commission)],
+    ["Total Borrow Fees", money(performance.total_borrow_fees ?? summary.total_borrow_fees)],
     ["Return", pctText(performance.total_return_pct)],
     ["Max Drawdown", pctText(performance.max_drawdown_pct)],
     ["Elapsed Days", numberText(performance.elapsed_days, 4)],

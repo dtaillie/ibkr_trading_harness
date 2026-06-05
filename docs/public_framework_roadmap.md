@@ -46,8 +46,8 @@ This roadmap is broader context; the queue is the current execution order.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow
   constraints, commission schedules, and slippage models. The public runner now
   covers basic shortable/cap checks, side-specific slippage, simple market
-  impact, and commission floors/caps; richer borrow-fee schedules remain future
-  work.
+  impact, commission floors/caps, and global/per-symbol simulated short-borrow
+  fee schedules; venue-specific cost models remain future work.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins. The public runner now has an adapter factory with `ibkr`

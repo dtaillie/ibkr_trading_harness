@@ -151,7 +151,9 @@ max notional per order, short-sale permission, shortable-symbol whitelists,
 short-notional caps, and gross-exposure limits. Simulated-paper mode can model
 fixed/side-specific slippage bps, simple notional-based market impact,
 commission bps, per-share commission, minimum commission, and max commission as
-a percent of notional.
+a percent of notional. For simulated shorts, `sim_short_borrow_bps_annual` sets
+a global annual borrow-fee drag in basis points, and
+`sim_short_borrow_bps_annual_by_symbol` can override that rate by symbol.
 `--validate-only` checks the static parts of this config before a run starts.
 Private strategy modules or factory functions can also expose
 `validate_config(config, *, full_config=None)` or

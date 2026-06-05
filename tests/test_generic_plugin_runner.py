@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from live.plugin_runner import ConfigValidationError, paper_broker_safety_errors, run_from_config, validate_config_file
+from live.plugin_runner import (
+    SECONDS_PER_YEAR,
+    ConfigValidationError,
+    paper_broker_safety_errors,
+    run_from_config,
+    validate_config_file,
+)
 
 
 def write_sample_bars(path: Path) -> None:
@@ -342,6 +348,68 @@ def test_simulated_paper_caps_commission_by_notional_pct(tmp_path):
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["commission"] == pytest.approx(10.0)
     assert result.total_commission == pytest.approx(10.0)
+
+
+def test_simulated_paper_accrues_short_borrow_fees(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    borrow_bps = 10000.0
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "side": "sell", "quantity": 10, "cash_quantity": None},
+        execution={
+            "allow_short": True,
+            "shortable_symbols": ["SPY"],
+            "sim_short_borrow_bps_annual_by_symbol": {"SPY": borrow_bps},
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    fee_step_2 = 10 * 101 * (borrow_bps / 10000.0) * (300.0 / SECONDS_PER_YEAR)
+    fee_step_3 = 10 * 102 * (borrow_bps / 10000.0) * (300.0 / SECONDS_PER_YEAR)
+    total_fee = fee_step_2 + fee_step_3
+    assert result.fills == 1
+    assert result.final_positions["SPY"] == pytest.approx(-10.0)
+    assert result.final_cash == pytest.approx(11000.0 - total_fee)
+    assert result.final_equity == pytest.approx(10000.0 - 20.0 - total_fee)
+    assert result.unrealized_pnl == pytest.approx(-20.0)
+    assert result.total_pnl == pytest.approx(-20.0 - total_fee)
+    assert result.total_borrow_fees == pytest.approx(total_fee)
+
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[0]["borrow_fee_accrued"] == pytest.approx(0.0)
+    assert account[1]["borrow_fee_accrued"] == pytest.approx(fee_step_2)
+    assert account[1]["borrow_fee_accrued_by_symbol"]["SPY"] == pytest.approx(fee_step_2)
+    assert account[-1]["total_borrow_fees"] == pytest.approx(total_fee)
+    assert account[-1]["total_pnl"] == pytest.approx(-20.0 - total_fee)
+
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["total_borrow_fees"] == pytest.approx(total_fee)
+
+
+def test_validate_config_rejects_invalid_short_borrow_fee_schedule(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        execution={"sim_short_borrow_bps_annual_by_symbol": {"SPY": -1}},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "execution.sim_short_borrow_bps_annual_by_symbol[SPY] must be >= 0" in str(exc.value)
 
 
 def test_runner_holds_order_when_manual_approval_required(tmp_path):
