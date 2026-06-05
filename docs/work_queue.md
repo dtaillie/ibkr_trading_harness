@@ -267,6 +267,8 @@ strategy-private.
     - partial; dense Operations/History JSON cells for status counts, command
       params, and command results now render as compact expandable drilldowns
       instead of raw pretty-printed blobs
+    - partial; Workbench status, Fetch Detail, and artifact position maps now
+      use the same compact drilldown treatment
   - make dense tables secondary to charts and summary cards
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric

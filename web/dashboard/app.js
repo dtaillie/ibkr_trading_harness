@@ -169,6 +169,17 @@ function row(cells) {
   return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
 }
 
+function kvRows(pairs, { mono = false } = {}) {
+  return pairs.map(([key, value, isHtml]) => {
+    const body = isHtml
+      ? value
+      : mono
+        ? `<span class="mono">${escapeHtml(value)}</span>`
+        : escapeHtml(value);
+    return `<dt>${escapeHtml(key)}</dt><dd>${body}</dd>`;
+  }).join("");
+}
+
 function statusText(value) {
   const label = text(value);
   return `<span class="${statusClass(value)}">${escapeHtml(label)}</span>`;
@@ -2548,14 +2559,12 @@ function renderWorkbenchStatus() {
     ["Draft Size", bytes(status.draft_bytes)],
     ["Archive Size", bytes(status.archived_artifact_bytes)],
     ["Output Size", bytes(status.workbench_output_bytes)],
-    ["Run Statuses", JSON.stringify(status.status_counts || {})],
-    ["Run Actions", JSON.stringify(status.action_counts || {})],
+    ["Run Statuses", jsonDrilldown(status.status_counts || {}, countSummary(status.status_counts || {})), true],
+    ["Run Actions", jsonDrilldown(status.action_counts || {}, countSummary(status.action_counts || {})), true],
     ["Latest Run", latestLabel],
     ["State Dir", status.state_dir],
   ];
-  $("workbench-status-list").innerHTML = pairs.map(([key, value]) => (
-    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
-  )).join("");
+  $("workbench-status-list").innerHTML = kvRows(pairs);
 }
 
 function pathList(items) {
@@ -2845,10 +2854,10 @@ function renderFetchManifestDetail() {
     ["Started", text(detail.started_at)],
     ["Finished", text(detail.finished_at)],
     ["Bar / Range", `${text(parameters.bar_size)} ${rangeLabel(plan.range_start || parameters.start, plan.range_end || parameters.end || parameters.duration)}`],
-    ["Symbols", JSON.stringify(counts.status_counts || {})],
+    ["Symbols", jsonDrilldown(counts.status_counts || {}, countSummary(counts.status_counts || {})), true],
     ["Outputs", `${numberText(detail.output_total, 0)} total / rows ${numberText(counts.rows, 0)}`],
-    ["Output Statuses", JSON.stringify(counts.output_status_counts || {})],
-    ["Errors", `${numberText(detail.error_total, 0)} total ${JSON.stringify(counts.error_kind_counts || {})}`],
+    ["Output Statuses", jsonDrilldown(counts.output_status_counts || {}, countSummary(counts.output_status_counts || {})), true],
+    ["Errors", `${escapeHtml(numberText(detail.error_total, 0))} total ${jsonDrilldown(counts.error_kind_counts || {}, countSummary(counts.error_kind_counts || {}))}`, true],
     ["Retries", `${numberText(counts.retry_events, 0)} retry events`],
     ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
     ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
@@ -2859,9 +2868,7 @@ function renderFetchManifestDetail() {
     ["Output Dir", text(parameters.out_dir)],
     ["Manifest", text(detail.path)],
   ];
-  $("fetch-detail-summary").innerHTML = pairs.map(([key, value]) => (
-    `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`
-  )).join("");
+  $("fetch-detail-summary").innerHTML = kvRows(pairs, { mono: true });
 
   const symbols = detail.symbols || [];
   $("fetch-symbols-body").innerHTML = symbols.length
@@ -3392,11 +3399,9 @@ function renderWorkbenchArtifacts() {
     ["Max Gross Exposure", `${money(performance.max_gross_exposure)} (${pctText(performance.max_gross_exposure_pct)})`],
     ["Max Abs Net Exposure", `${money(performance.max_abs_net_exposure)} (${pctText(performance.max_abs_net_exposure_pct)})`],
     ["Max Positions", numberText(performance.max_position_count, 0)],
-    ["Positions", JSON.stringify(summary.final_positions || {})],
+    ["Positions", jsonDrilldown(summary.final_positions || {}, objectSummary(summary.final_positions || {})), true],
   ];
-  $("artifact-summary").innerHTML = pairs.map(([key, value]) => (
-    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
-  )).join("");
+  $("artifact-summary").innerHTML = kvRows(pairs);
   $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || []);
 
   const decisions = artifacts.decisions || [];
