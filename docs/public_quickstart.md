@@ -401,6 +401,12 @@ The example worker config also limits command bursts with
 `worker.max_commands_per_poll`. Commands over that local limit are rejected and
 audited instead of being executed in the same sweep.
 
+The receiver also keeps a sanitized server-side audit at
+`paper_logs/cloud_status_server/command_audit.jsonl` and exposes it through
+`/command_audit`. The example dashboard config rate-limits command queue
+requests per node with `dashboard.command_rate_limit`; rejected queue attempts
+are audited and return HTTP 429.
+
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,
 `run_supervisor_once`, `pause_runner`, and `resume_runner`. `run_supervisor_once`

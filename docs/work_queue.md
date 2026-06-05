@@ -735,8 +735,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; command worker now enforces a local command cap, action risk
     metadata, explicit local enable markers for launcher actions, and local
     audit records for completed/rejected commands
-  - remaining gap: server-side role scopes, stronger remote rate limits, and
-    immutable/append-only remote audit storage
+  - partial; receiver now rate-limits command queue requests per node and writes
+    sanitized queue/cancel/result audit events to an append-only JSONL file with
+    a bounded `/command_audit` endpoint
+  - remaining gap: server-side role scopes, provider/network-specific hosted
+    deployment controls, and stronger tamper-evident remote audit storage
 - Keep initial commands low-risk:
   - pause
   - resume

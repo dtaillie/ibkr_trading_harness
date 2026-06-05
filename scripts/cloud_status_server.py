@@ -514,6 +514,13 @@ PUBLIC_ENDPOINTS = (
         "description": "Receive and persist a command execution result.",
         "response": "JSON receipt",
     },
+    {
+        "method": "GET",
+        "path": "/command_audit",
+        "category": "remote",
+        "description": "List sanitized command queue/cancel/result audit events.",
+        "response": "JSON audit event list",
+    },
 )
 
 
@@ -939,6 +946,7 @@ def dashboard_server_settings(
         "data_roots": None,
         "fetch_manifest_roots": None,
         "auth_token_env": None,
+        "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
     }
     if config_path is not None:
         config = read_optional_yaml_mapping(config_path)
@@ -965,6 +973,14 @@ def dashboard_server_settings(
             if not isinstance(raw_roots, list):
                 raise ValueError("dashboard.fetch_manifest_roots must be a list")
             settings["fetch_manifest_roots"] = [Path(str(root)) for root in raw_roots]
+        if dashboard.get("command_rate_limit") is not None:
+            rate_limit = dashboard["command_rate_limit"]
+            if not isinstance(rate_limit, dict):
+                raise ValueError("dashboard.command_rate_limit must be a mapping")
+            settings["command_rate_limit"] = {
+                **settings["command_rate_limit"],
+                **rate_limit,
+            }
 
     if host is not None:
         settings["host"] = host
@@ -4615,6 +4631,14 @@ def results_path(state_dir: Path) -> Path:
     return state_dir / "command_results.jsonl"
 
 
+def command_audit_path(state_dir: Path) -> Path:
+    return state_dir / "command_audit.jsonl"
+
+
+def command_rate_limit_path(state_dir: Path) -> Path:
+    return state_dir / "command_rate_limits.json"
+
+
 def load_commands(state_dir: Path) -> list[dict[str, Any]]:
     path = commands_path(state_dir)
     if not path.exists():
@@ -4629,6 +4653,100 @@ def save_commands(state_dir: Path, commands: list[dict[str, Any]]) -> None:
     with commands_path(state_dir).open("w") as f:
         json.dump(commands, f, indent=2, sort_keys=True)
         f.write("\n")
+
+
+def sanitized_command_audit_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    return {
+        "command_id": str(payload.get("command_id") or ""),
+        "node_id": str(payload.get("node_id") or ""),
+        "action": str(payload.get("action") or ""),
+        "status": str(payload.get("status") or ""),
+        "param_keys": sorted(str(key) for key in params),
+    }
+
+
+def append_command_audit(state_dir: Path, record: dict[str, Any]) -> None:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "audited_at": utc_now(),
+        **record,
+    }
+    with command_audit_path(state_dir).open("a") as f:
+        f.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def load_command_audit(state_dir: Path, *, node_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    path = command_audit_path(state_dir)
+    if not path.exists():
+        return []
+    events: deque[dict[str, Any]] = deque(maxlen=max(1, limit))
+    with path.open() as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            if node_id is not None and row.get("node_id") != node_id:
+                continue
+            events.append(row)
+    return list(events)
+
+
+def load_command_rate_state(state_dir: Path) -> dict[str, list[float]]:
+    path = command_rate_limit_path(state_dir)
+    if not path.exists():
+        return {}
+    try:
+        with path.open() as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    state: dict[str, list[float]] = {}
+    for key, values in data.items():
+        if isinstance(values, list):
+            state[str(key)] = [float(value) for value in values if isinstance(value, int | float)]
+    return state
+
+
+def save_command_rate_state(state_dir: Path, state: dict[str, list[float]]) -> None:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    with command_rate_limit_path(state_dir).open("w") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def command_rate_limit_error(
+    state_dir: Path,
+    node_id: str,
+    config: dict[str, Any],
+    *,
+    now_monotonic: float | None = None,
+) -> str | None:
+    if config.get("enabled") is False:
+        return None
+    if not node_id:
+        return None
+    window_seconds = float(config.get("window_seconds", 60.0))
+    max_per_node = int(config.get("max_per_node", 30))
+    if window_seconds <= 0 or max_per_node <= 0:
+        return None
+
+    now_value = time.monotonic() if now_monotonic is None else now_monotonic
+    state = load_command_rate_state(state_dir)
+    recent = [ts for ts in state.get(node_id, []) if now_value - ts <= window_seconds]
+    if len(recent) >= max_per_node:
+        state[node_id] = recent
+        save_command_rate_state(state_dir, state)
+        return f"command queue rate limit exceeded for {node_id}: max_per_node={max_per_node}"
+    recent.append(now_value)
+    state[node_id] = recent
+    save_command_rate_state(state_dir, state)
+    return None
 
 
 def enqueue_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -4705,6 +4823,13 @@ def save_command_result(state_dir: Path, payload: dict[str, Any]) -> dict[str, A
     state_dir.mkdir(parents=True, exist_ok=True)
     with results_path(state_dir).open("a") as f:
         f.write(json.dumps(stored, sort_keys=True) + "\n")
+    append_command_audit(
+        state_dir,
+        {
+            "event": "result_received",
+            **sanitized_command_audit_payload(stored),
+        },
+    )
     return stored
 
 
@@ -4742,6 +4867,13 @@ def cancel_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
     state_dir.mkdir(parents=True, exist_ok=True)
     with results_path(state_dir).open("a") as f:
         f.write(json.dumps(stored, sort_keys=True) + "\n")
+    append_command_audit(
+        state_dir,
+        {
+            "event": "command_canceled",
+            **sanitized_command_audit_payload(stored),
+        },
+    )
     return stored
 
 
@@ -4853,6 +4985,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     dashboard_dir = DEFAULT_DASHBOARD_DIR
     data_roots = list(DEFAULT_DATA_ROOTS)
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
+    command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
 
     def auth_token(self) -> str | None:
         if not self.auth_token_env:
@@ -4886,11 +5019,38 @@ class StatusHandler(BaseHTTPRequestHandler):
             payload = read_json_body(self)
             if payload is None:
                 return
+            node_id = str(payload.get("node_id") or "").strip() if isinstance(payload, dict) else ""
+            if error := command_rate_limit_error(self.state_dir, node_id, self.command_rate_limit):
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "queue_rejected",
+                        "error": error,
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
+                json_response(self, 429, {"error": error})
+                return
             try:
                 command = enqueue_command(self.state_dir, payload)
             except ValueError as exc:
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "queue_rejected",
+                        "error": str(exc),
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
                 json_response(self, 400, {"error": str(exc)})
                 return
+            append_command_audit(
+                self.state_dir,
+                {
+                    "event": "command_queued",
+                    **sanitized_command_audit_payload(command),
+                },
+            )
             json_response(self, 200, {"ok": True, "command": command})
             return
         if self.path == "/commands/cancel":
@@ -4900,6 +5060,14 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 result = cancel_command(self.state_dir, payload)
             except ValueError as exc:
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "cancel_rejected",
+                        "error": str(exc),
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, {"ok": True, "result": result})
@@ -4911,6 +5079,14 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 result = save_command_result(self.state_dir, payload)
             except ValueError as exc:
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "result_rejected",
+                        "error": str(exc),
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, {"ok": True, "result": result})
@@ -5037,6 +5213,16 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, {"results": load_command_results(self.state_dir, node_id=node_id)})
+            return
+        if parsed.path == "/command_audit":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"events": load_command_audit(self.state_dir, node_id=node_id, limit=limit)})
             return
         if parsed.path == "/data_catalog":
             if not self.require_auth():
@@ -5464,6 +5650,7 @@ def create_server(
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
+    command_rate_limit: dict[str, Any] | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
@@ -5473,6 +5660,7 @@ def create_server(
     Handler.dashboard_dir = dashboard_dir
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
+    Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -5521,6 +5709,7 @@ def main() -> None:
         dashboard_dir=settings["dashboard_dir"],
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],
+        command_rate_limit=settings["command_rate_limit"],
     )
     print(f"Serving status dashboard at http://{settings['host']}:{server.server_address[1]}/")
     server.serve_forever()

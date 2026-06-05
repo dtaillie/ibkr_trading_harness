@@ -892,6 +892,10 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "  state_dir: custom_state",
                 "  dashboard_dir: custom_dashboard",
                 "  auth_token_env: TOKEN_ENV",
+                "  command_rate_limit:",
+                "    enabled: true",
+                "    window_seconds: 12",
+                "    max_per_node: 7",
                 "  data_roots:",
                 f"    - {data_root}",
                 "  fetch_manifest_roots:",
@@ -909,6 +913,7 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert settings["state_dir"] == Path("custom_state")
     assert settings["dashboard_dir"] == Path("custom_dashboard")
     assert settings["auth_token_env"] == "TOKEN_ENV"
+    assert settings["command_rate_limit"] == {"enabled": True, "window_seconds": 12, "max_per_node": 7}
     assert settings["data_roots"] == [data_root]
     assert settings["fetch_manifest_roots"] == [tmp_path / "fetch_manifests"]
 
@@ -2694,6 +2699,58 @@ def test_cloud_status_server_command_queue(tmp_path):
         with request.urlopen(f"{base}/command_results?node_id=test-node", timeout=5) as resp:
             results = json.loads(resp.read().decode("utf-8"))
         assert results["results"][0]["command_id"] == command_id
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert [event["event"] for event in audit["events"]] == ["command_queued", "result_received"]
+        assert audit["events"][0]["param_keys"] == []
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_rate_limits_command_queue(tmp_path):
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        command_rate_limit={"enabled": True, "window_seconds": 60, "max_per_node": 1},
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        for expected_code in (200, 429):
+            command_req = request.Request(
+                f"{base}/commands",
+                data=json.dumps({
+                    "node_id": "test-node",
+                    "action": "request_status",
+                    "params": {},
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            if expected_code == 200:
+                with request.urlopen(command_req, timeout=5) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                assert payload["ok"] is True
+            else:
+                try:
+                    request.urlopen(command_req, timeout=5)
+                    raise AssertionError("expected rate-limit response")
+                except error.HTTPError as exc:
+                    assert exc.code == 429
+                    payload = json.loads(exc.read().decode("utf-8"))
+                assert "rate limit exceeded" in payload["error"]
+
+        with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
+            pending = json.loads(resp.read().decode("utf-8"))
+        assert len(pending["commands"]) == 1
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert [event["event"] for event in audit["events"]] == ["command_queued", "queue_rejected"]
     finally:
         server.shutdown()
         server.server_close()

@@ -97,6 +97,10 @@ small `worker.max_commands_per_poll`, and require a local enable marker for
 launcher actions such as `run_supervisor_once`. With the example config, the
 worker rejects launcher commands until
 `paper_logs/control/remote_commands.enabled` exists on the trading machine.
+The receiver also records sanitized queue/cancel/result events in
+`paper_logs/cloud_status_server/command_audit.jsonl`, exposes them through
+`/command_audit`, and rate-limits command queue requests per node with
+`dashboard.command_rate_limit`.
 
 Run the worker once:
 
