@@ -493,7 +493,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - open the resulting performance page
   - partial; the Workbench guide now gives this path an explicit step status
     and points users from saved data through alignment, draft, run, and artifact
-    inspection. Date-range-specific replay controls are still open.
+    inspection. Date-range controls are now in the Config Builder, alignment
+    previews show the selected filter window, generated configs persist
+    `data.start`/`data.end`, and the public plugin runner filters file replay
+    data to that window. Richer schema-driven controls remain future work.
 - Add a guided "paper monitor" path:
   - verify Gateway/API status
   - verify account state freshness

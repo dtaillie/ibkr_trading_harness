@@ -1397,6 +1397,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
                 "plugin_id": "no_edge_template",
                 "mode": "simulated_paper",
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "start": "2026-01-02",
+                "end": "2026-01-02",
                 "starting_cash": 25000,
                 "history_bars": 20,
                 "risk_preset": "costed_demo",
@@ -1419,12 +1421,19 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
         assert draft["config"]["metadata"]["risk_preset"] == "costed_demo"
+        assert draft["config"]["metadata"]["date_range"] == {"start": "2026-01-02", "end": "2026-01-02"}
+        assert draft["config"]["data"]["start"] == "2026-01-02"
+        assert draft["config"]["data"]["end"] == "2026-01-02"
         assert draft["config"]["data"]["files"] == {"SPY": str(data_file)}
         assert draft["alignment"]["dataset_count"] == 1
         assert draft["alignment"]["symbols"] == ["SPY"]
+        assert draft["alignment"]["filter_start"] == "2026-01-02T00:00:00+00:00"
+        assert draft["alignment"]["filter_end"] == "2026-01-02T23:59:59.999999+00:00"
         assert draft["alignment"]["common_timestamp_count"] == 2
         assert draft["alignment"]["warning_count"] == 0
         assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in draft["yaml"]
+        assert "start: '2026-01-02'" in draft["yaml"]
+        assert "end: '2026-01-02'" in draft["yaml"]
         assert draft["saved_path"]
         assert Path(draft["saved_path"]).exists()
         assert Path(draft["saved_path"]).is_relative_to(state_dir)

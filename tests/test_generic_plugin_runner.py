@@ -30,6 +30,7 @@ def write_config(
     output_dir: Path,
     plugin: str,
     strategy: dict | None = None,
+    data: dict | None = None,
     execution: dict | None = None,
     control: dict | None = None,
 ) -> None:
@@ -48,6 +49,7 @@ def write_config(
                     "source": "files",
                     "timestamp_column": "timestamp",
                     "files": {"SPY": str(bars_path)},
+                    **(data or {}),
                 },
                 "execution": {
                     "allow_short": False,
@@ -100,6 +102,47 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert account[-1]["equity"] == pytest.approx(10000.0)
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
+
+
+def test_replay_runner_filters_file_data_range(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        data={"start": "2026-01-02T14:35:00Z", "end": "2026-01-02T14:35:00Z"},
+    )
+
+    result = run_from_config(config_path, mode_override="replay")
+
+    assert result.decisions == 1
+    assert result.account_snapshot_count == 1
+    assert result.latest_data_time == "2026-01-02T14:35:00+00:00"
+    records = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert [record["timestamp"] for record in records] == ["2026-01-02T14:35:00+00:00"]
+
+
+def test_validate_config_rejects_reversed_data_range(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        data={"start": "2026-01-03", "end": "2026-01-02"},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "data.start must be before or equal to data.end" in str(exc.value)
 
 
 def test_validate_config_file_does_not_create_output_dir(tmp_path):

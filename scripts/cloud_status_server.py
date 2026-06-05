@@ -1919,7 +1919,13 @@ def pct(value: float | None) -> float | None:
     return finite_float(value * 100.0) if value is not None else None
 
 
-def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
+def timestamp_summary_for_file(
+    symbol: str,
+    path: Path,
+    *,
+    start_ts: pd.Timestamp | None = None,
+    end_ts: pd.Timestamp | None = None,
+) -> dict[str, Any]:
     df, fmt = read_data_file(path)
     data_summary = summarize_data_file(path, root=path.parent.resolve(), preview_points=2)
     ts_col = timestamp_column(df)
@@ -1927,7 +1933,12 @@ def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
     parsed = pd.Series([], dtype="datetime64[ns, UTC]")
     if raw_ts is not None:
         parsed = pd.Series(parse_datetime_utc(raw_ts))
-    valid = parsed.dropna().drop_duplicates().sort_values()
+    valid_all = parsed.dropna().drop_duplicates().sort_values()
+    valid = valid_all
+    if start_ts is not None:
+        valid = valid[valid >= start_ts]
+    if end_ts is not None:
+        valid = valid[valid <= end_ts]
     diffs = valid.diff().dropna().dt.total_seconds() if len(valid) > 1 else pd.Series([], dtype="float64")
     return {
         "symbol": symbol,
@@ -1936,7 +1947,10 @@ def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
         "rows": int(len(df)),
         "timestamp_column": ts_col,
         "timestamp_count": int(len(valid)),
+        "total_timestamp_count": int(len(valid_all)),
         "timestamp_parse_failures": int(parsed.isna().sum()) if raw_ts is not None else None,
+        "filter_start": start_ts.isoformat() if start_ts is not None else None,
+        "filter_end": end_ts.isoformat() if end_ts is not None else None,
         "first_timestamp": valid.iloc[0].isoformat() if not valid.empty else None,
         "last_timestamp": valid.iloc[-1].isoformat() if not valid.empty else None,
         "median_interval_seconds": finite_float(diffs.median()) if not diffs.empty else None,
@@ -1947,18 +1961,26 @@ def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
     }
 
 
-def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dict[str, Any]:
+def build_data_alignment_for_files(
+    selected: dict[str, tuple[Path, str]],
+    *,
+    start_ts: pd.Timestamp | None = None,
+    end_ts: pd.Timestamp | None = None,
+) -> dict[str, Any]:
     rows = []
     warnings = []
     timestamp_sets = []
     union_values: set[pd.Timestamp] = set()
     for symbol, (path, _rel_path) in sorted(selected.items()):
-        summary = timestamp_summary_for_file(symbol, path)
+        summary = timestamp_summary_for_file(symbol, path, start_ts=start_ts, end_ts=end_ts)
         timestamps = list(summary.pop("_timestamps"))
         if not summary["timestamp_column"]:
             warnings.append(f"{symbol}: no timestamp column found")
         if not timestamps:
-            warnings.append(f"{symbol}: no parseable timestamps")
+            if start_ts is not None or end_ts is not None:
+                warnings.append(f"{symbol}: no parseable timestamps in selected date range")
+            else:
+                warnings.append(f"{symbol}: no parseable timestamps")
         elif summary["timestamp_parse_failures"]:
             warnings.append(f"{symbol}: {summary['timestamp_parse_failures']} timestamp parse failures")
         if summary.get("quality_status") in {"warn", "bad"}:
@@ -1997,6 +2019,8 @@ def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dic
         "dataset_count": len(rows),
         "symbols": [row["symbol"] for row in rows],
         "rows": rows,
+        "filter_start": start_ts.isoformat() if start_ts is not None else None,
+        "filter_end": end_ts.isoformat() if end_ts is not None else None,
         "common_timestamp_count": common_count,
         "union_timestamp_count": len(union_values),
         "min_timestamp_count": min_timestamp_count,
@@ -2009,9 +2033,20 @@ def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dic
     }
 
 
+def parse_payload_date_range(payload: dict[str, Any]) -> tuple[str | None, str | None, pd.Timestamp | None, pd.Timestamp | None]:
+    start_raw = str(payload.get("start") or "").strip() or None
+    end_raw = str(payload.get("end") or "").strip() or None
+    start_ts = parse_optional_utc_timestamp(start_raw)
+    end_ts = parse_optional_utc_timestamp(end_raw, end_of_day=True)
+    if start_ts is not None and end_ts is not None and start_ts > end_ts:
+        raise ValueError("start must be before or equal to end")
+    return start_raw, end_raw, start_ts, end_ts
+
+
 def build_data_alignment(payload: dict[str, Any], *, data_roots: list[Path]) -> dict[str, Any]:
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
-    return build_data_alignment_for_files(selected)
+    _start_raw, _end_raw, start_ts, end_ts = parse_payload_date_range(payload)
+    return build_data_alignment_for_files(selected, start_ts=start_ts, end_ts=end_ts)
 
 
 def build_data_compare(payload: dict[str, Any], *, data_roots: list[Path]) -> dict[str, Any]:
@@ -2384,7 +2419,8 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
 
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
     data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
-    alignment = build_data_alignment_for_files(selected)
+    start_raw, end_raw, start_ts, end_ts = parse_payload_date_range(payload)
+    alignment = build_data_alignment_for_files(selected, start_ts=start_ts, end_ts=end_ts)
     quality_rows = [
         row
         for row in alignment.get("rows", [])
@@ -2406,16 +2442,33 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     max_cash_quantity = number_field(payload, "max_cash_quantity", 100)
     max_gross_exposure_pct = number_field(payload, "max_gross_exposure_pct", 0.05)
 
+    data_config = {
+        "source": "files",
+        "timestamp_column": str(payload.get("timestamp_column") or "timestamp"),
+        "files": data_files,
+    }
+    if start_raw:
+        data_config["start"] = start_raw
+    if end_raw:
+        data_config["end"] = end_raw
+
+    metadata = {
+        "strategy_plugin": plugin["spec"],
+        "status": plugin["status"],
+        "risk_preset": risk_preset,
+    }
+    if start_raw or end_raw:
+        metadata["date_range"] = {
+            "start": start_raw,
+            "end": end_raw,
+        }
+
     config = {
         "description": (
             "GENERATED EXAMPLE ONLY. Public workbench draft using a no-edge "
             "strategy plugin. This demonstrates wiring and validation only."
         ),
-        "metadata": {
-            "strategy_plugin": plugin["spec"],
-            "status": plugin["status"],
-            "risk_preset": risk_preset,
-        },
+        "metadata": metadata,
         "strategy": {
             "example_parameter": True,
         },
@@ -2427,11 +2480,7 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
             "output_dir": f"paper_logs/workbench/{name}",
             "clean_output_dir": True,
         },
-        "data": {
-            "source": "files",
-            "timestamp_column": str(payload.get("timestamp_column") or "timestamp"),
-            "files": data_files,
-        },
+        "data": data_config,
         "execution": {
             "allowed_symbols": sorted(data_files),
             "allowed_sides": ["buy", "sell"],

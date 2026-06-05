@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import math
+import re
 import shutil
 import sys
 from dataclasses import asdict, dataclass, is_dataclass
@@ -207,6 +208,10 @@ def validate_config(
         errors.append("control.pause_marker must not be empty")
 
     source = str(data_cfg.get("source", "files")).lower()
+    try:
+        data_date_range(data_cfg)
+    except ValueError as exc:
+        errors.append(str(exc))
     if source not in {"files", "ibkr"}:
         errors.append("data.source must be files or ibkr")
     elif source == "files":
@@ -328,6 +333,46 @@ def finite_float(raw: Any) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def parse_optional_timestamp(raw: Any, *, field: str, end_of_day: bool = False) -> pd.Timestamp | None:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    try:
+        parsed = pd.to_datetime(value, utc=True, errors="raise", format="mixed")
+    except TypeError:
+        parsed = pd.to_datetime(value, utc=True, errors="raise")
+    except Exception as exc:
+        raise ValueError(f"{field} must be a parseable timestamp") from exc
+    if end_of_day and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        parsed = parsed + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+    return parsed
+
+
+def data_date_range(data_cfg: dict[str, Any]) -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
+    start_ts = parse_optional_timestamp(data_cfg.get("start"), field="data.start")
+    end_ts = parse_optional_timestamp(data_cfg.get("end"), field="data.end", end_of_day=True)
+    if start_ts is not None and end_ts is not None and start_ts > end_ts:
+        raise ValueError("data.start must be before or equal to data.end")
+    return start_ts, end_ts
+
+
+def filter_frame_by_data_range(
+    frame: pd.DataFrame,
+    *,
+    symbol: str,
+    start_ts: pd.Timestamp | None,
+    end_ts: pd.Timestamp | None,
+) -> pd.DataFrame:
+    out = frame
+    if start_ts is not None:
+        out = out.loc[out.index >= start_ts]
+    if end_ts is not None:
+        out = out.loc[out.index <= end_ts]
+    if (start_ts is not None or end_ts is not None) and out.empty:
+        raise ValueError(f"{symbol}: no bars remain after data.start/data.end filter")
+    return out
+
+
 def normalize_frame(
     df: pd.DataFrame,
     *,
@@ -376,6 +421,7 @@ def load_file_panels(data_cfg: dict[str, Any]) -> dict[str, pd.DataFrame]:
     if not isinstance(files, dict) or not files:
         raise ValueError("data.source=files requires data.files mapping symbols to CSV/parquet paths")
     timestamp_column = str(data_cfg.get("timestamp_column", "timestamp"))
+    start_ts, end_ts = data_date_range(data_cfg)
     panels: dict[str, pd.DataFrame] = {}
     for symbol, raw_path in files.items():
         path = Path(str(raw_path))
@@ -385,10 +431,16 @@ def load_file_panels(data_cfg: dict[str, Any]) -> dict[str, pd.DataFrame]:
             raw = pd.read_parquet(path)
         else:
             raw = pd.read_csv(path)
-        panels[str(symbol).upper()] = normalize_frame(
+        normalized = normalize_frame(
             raw,
             symbol=str(symbol).upper(),
             timestamp_column=timestamp_column,
+        )
+        panels[str(symbol).upper()] = filter_frame_by_data_range(
+            normalized,
+            symbol=str(symbol).upper(),
+            start_ts=start_ts,
+            end_ts=end_ts,
         )
     return panels
 

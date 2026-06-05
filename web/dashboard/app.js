@@ -289,6 +289,13 @@ function selectedConfigDatasets() {
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
+function configDateRangePayload() {
+  return {
+    start: $("config-start-date") ? $("config-start-date").value : "",
+    end: $("config-end-date") ? $("config-end-date").value : "",
+  };
+}
+
 function renderConfigDataQuality() {
   const selected = selectedConfigDatasets();
   if (!$("config-data-quality-note") || !$("config-data-quality-body")) return;
@@ -339,6 +346,8 @@ function renderWorkbenchGuide() {
   const alignmentWarnings = Number(alignment.warning_count || 0);
   const draftValid = draft.validation ? Boolean(draft.validation.valid) : Boolean(validation && validation.valid);
   const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const dateRange = configDateRangePayload();
+  const hasDateRange = Boolean(dateRange.start || dateRange.end);
   const steps = [
     {
       id: "data",
@@ -357,6 +366,16 @@ function renderWorkbenchGuide() {
         : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad")
           ? "One or more selected files has quality warnings; acknowledge only after review."
           : "Selected files are marked ok by the catalog scanner.",
+    },
+    {
+      id: "range",
+      status: !selected.length ? "bad" : hasDateRange ? "ok" : "warn",
+      label: "Choose Range",
+      detail: !selected.length
+        ? "Select data before narrowing the replay window."
+        : hasDateRange
+          ? `Replay window: ${dateRange.start || "first bar"} to ${dateRange.end || "last bar"}.`
+          : "Optional; unset uses each file's full history.",
     },
     {
       id: "alignment",
@@ -2268,6 +2287,7 @@ function renderConfigAlignment(alignment) {
   const pairs = [
     ["Datasets", numberText(alignment.dataset_count, 0)],
     ["Symbols", (alignment.symbols || []).join(", ")],
+    ["Filter Range", alignment.filter_start || alignment.filter_end ? timeRangeLabel(alignment.filter_start, alignment.filter_end) : "Full file history"],
     ["Common Timestamps", numberText(alignment.common_timestamp_count, 0)],
     ["Union Timestamps", numberText(alignment.union_timestamp_count, 0)],
     ["Common Coverage", pctText(alignment.common_coverage_pct)],
@@ -3101,6 +3121,7 @@ async function generateConfigDraft(event) {
     plugin_id: $("config-plugin").value,
     mode: $("config-mode").value,
     datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
+    ...configDateRangePayload(),
     starting_cash: $("config-starting-cash").value,
     history_bars: $("config-history-bars").value,
     risk_preset: $("config-risk-preset").value,
@@ -3146,6 +3167,7 @@ async function previewConfigAlignment() {
     method: "POST",
     body: JSON.stringify({
       datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
+      ...configDateRangePayload(),
     }),
   });
   state.alignmentPreview = response.alignment || {};
@@ -3556,6 +3578,8 @@ function init() {
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
+  $("config-start-date").addEventListener("change", renderWorkbenchGuide);
+  $("config-end-date").addEventListener("change", renderWorkbenchGuide);
   $("config-plugin").addEventListener("change", renderConfigPluginBoundary);
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
