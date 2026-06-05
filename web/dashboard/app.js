@@ -1259,9 +1259,7 @@ function buildTradeLedger(fills) {
   };
 }
 
-function nonzeroPositionsFromSource(source) {
-  const summary = (source && source.summary) || {};
-  const accountRow = latestAccountRow((source && source.account) || []);
+function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
   const positions = accountRow.positions || summary.final_positions || {};
   const values = accountRow.position_values || {};
   const averageCosts = accountRow.average_costs || {};
@@ -1302,6 +1300,12 @@ function nonzeroPositionsFromSource(source) {
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 }
 
+function nonzeroPositionsFromSource(source) {
+  const summary = (source && source.summary) || {};
+  const accountRow = latestAccountRow((source && source.account) || []);
+  return nonzeroPositionsFromAccountRow(accountRow, summary);
+}
+
 function positionDetailHtml(position, { includeQuantity = true } = {}) {
   const exitState = position.exit_state || position.stop_state;
   const entryMillis = timestampMillis(position.entry_time);
@@ -1326,6 +1330,36 @@ function positionDetailHtml(position, { includeQuantity = true } = {}) {
     position.mfe_pct !== null ? `MFE ${pctText(position.mfe_pct)}` : "",
   ].filter(Boolean);
   return detailLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("");
+}
+
+function positionSnapshotDrilldown(snapshot) {
+  const positions = nonzeroPositionsFromAccountRow(snapshot);
+  if (!positions.length) return `<span class="muted">flat</span>`;
+  const detailCount = positions.filter((position) => (
+    position.entry_time ||
+    position.entry_price !== null ||
+    position.expected_hold_minutes !== null ||
+    position.active_exit_rule ||
+    position.stop_price !== null ||
+    position.target_price !== null ||
+    position.mae_pct !== null ||
+    position.mfe_pct !== null
+  )).length;
+  const summary = `${numberText(positions.length, 0)} open${detailCount ? ` / ${numberText(detailCount, 0)} detailed` : ""}`;
+  return `
+    <details class="json-drilldown position-drilldown">
+      <summary>${escapeHtml(summary)}</summary>
+      <div class="position-mini-list">
+        ${positions.map((position) => `
+          <div class="position-mini-card">
+            <span>${escapeHtml(position.symbol)}</span>
+            <strong>${escapeHtml(numberText(position.quantity, 4))}</strong>
+            ${positionDetailHtml(position, { includeQuantity: false })}
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
 }
 
 function overviewHealthChecks() {
@@ -5462,8 +5496,9 @@ function renderWorkbenchArtifacts() {
         escapeHtml(money(snapshot.gross_exposure)),
         escapeHtml(money(snapshot.net_exposure)),
         jsonDrilldown(snapshot.positions || {}, `${numberText(nonzeroObjectCount(snapshot.positions), 0)} open`),
+        positionSnapshotDrilldown(snapshot),
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderRuns() {

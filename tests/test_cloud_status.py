@@ -733,6 +733,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Signature" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
+        assert "Position Detail" in html
         assert "Page Guide" in html
         assert "Web UI Runbook" in html
         assert "doc-link-grid" in html
