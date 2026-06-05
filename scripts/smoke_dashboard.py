@@ -568,6 +568,9 @@ def run_smoke(
         coverage = fetch_json(base_url, f"/data_coverage?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
+        coverage_csv = fetch_text(base_url, f"/data_coverage_export?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
+        if "symbol,asset_class,sources,bar_sizes" not in coverage_csv:
+            raise RuntimeError("data coverage CSV header is missing")
         gap_summary = fetch_json(base_url, f"/data_gap_summary?catalog_limit={catalog_limit}&top_limit=10")
         if "gap_rows" not in gap_summary or "calendar_rows" not in gap_summary:
             raise RuntimeError("data gap summary is invalid")
@@ -607,6 +610,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
+        if ("GET", "/data_coverage_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_coverage_export")
         if ("GET", "/data_gap_summary") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_gap_summary")
         if ("GET", "/data_missing_intervals_export") not in endpoint_paths:

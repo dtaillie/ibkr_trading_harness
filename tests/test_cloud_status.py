@@ -599,6 +599,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-filter-symbol-options" in html
         assert "data-filter-sort" in html
         assert "data-coverage-grid" in html
+        assert "export-data-coverage-csv" in html
         assert "data-gap-summary-note" in html
         assert "data-gap-summary-body" in html
         assert "data-calendar-gap-body" in html
@@ -726,6 +727,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
+        assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
@@ -1335,6 +1337,13 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert coverage["symbols"][0]["symbol"] == "SPY"
         assert coverage["symbols"][0]["coverage"] == [True]
         assert coverage["date_bins"] == ["2026-01-02"]
+        with request.urlopen(f"{base}/data_coverage_export?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            coverage_csv = resp.read().decode("utf-8")
+        coverage_rows = list(csv.DictReader(io.StringIO(coverage_csv)))
+        assert coverage_rows[0]["symbol"] == "SPY"
+        assert coverage_rows[0]["date"] == "2026-01-02"
+        assert coverage_rows[0]["covered"] == "True"
 
         with request.urlopen(f"{base}/data_symbol_diagnostic?symbol=SPY&limit=5", timeout=5) as resp:
             diagnostic = json.loads(resp.read().decode("utf-8"))

@@ -348,6 +348,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_coverage_export",
+        "category": "data",
+        "description": "Download saved-data symbol/date coverage rows.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_gap_summary",
         "category": "data",
         "description": "Summarize worst saved-data timestamp gaps and missing calendar days.",
@@ -1936,6 +1943,21 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
 )
 
 
+DATA_COVERAGE_EXPORT_FIELDS = (
+    "symbol",
+    "asset_class",
+    "sources",
+    "bar_sizes",
+    "dataset_count",
+    "row_count",
+    "date_count",
+    "first_timestamp",
+    "last_timestamp",
+    "date",
+    "covered",
+)
+
+
 def compact_csv_value(value: Any) -> Any:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
@@ -1972,6 +1994,37 @@ def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
     writer.writeheader()
     for row in catalog["datasets"]:
         writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_data_coverage_csv(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    max_symbols: int = 60,
+    max_dates: int = 60,
+) -> str:
+    coverage = build_data_coverage(data_roots, limit=limit, max_symbols=max_symbols, max_dates=max_dates)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_COVERAGE_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    date_bins = coverage.get("date_bins") or []
+    for item in coverage.get("symbols") or []:
+        flags = list(item.get("coverage") or [])
+        for index, date_value in enumerate(date_bins):
+            writer.writerow({
+                "symbol": item.get("symbol"),
+                "asset_class": item.get("asset_class"),
+                "sources": compact_csv_value(item.get("sources")),
+                "bar_sizes": compact_csv_value(item.get("bar_sizes")),
+                "dataset_count": item.get("dataset_count"),
+                "row_count": item.get("row_count"),
+                "date_count": item.get("date_count"),
+                "first_timestamp": item.get("first_timestamp"),
+                "last_timestamp": item.get("last_timestamp"),
+                "date": date_value,
+                "covered": bool(flags[index]) if index < len(flags) else False,
+            })
     return out.getvalue()
 
 
@@ -6574,6 +6627,30 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_coverage_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=1000)
+                max_symbols = parse_int_param(params, "max_symbols", default=60, maximum=500)
+                max_dates = parse_int_param(params, "max_dates", default=60, maximum=366)
+                csv_body = build_data_coverage_csv(
+                    self.data_roots,
+                    limit=limit,
+                    max_symbols=max_symbols,
+                    max_dates=max_dates,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_coverage.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_gap_summary":
             if not self.require_auth():

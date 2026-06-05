@@ -497,6 +497,8 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol
+    - partial; Data Library now exposes `/data_coverage_export` and an Export
+      Coverage CSV button so symbol/date coverage rows can be reviewed offline.
   - missing-day and missing-minute summaries
     - partial; dataset details show gap rows/missing intervals, coverage view
       shows missing recent date bins; minute-level aggregate heatmaps remain
