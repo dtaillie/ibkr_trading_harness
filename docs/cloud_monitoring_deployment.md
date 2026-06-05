@@ -181,6 +181,12 @@ Both tokens can read dashboard/status endpoints. Only the operator token can
 queue pause/resume control commands, and launcher commands still need explicit
 server and local opt-in.
 
+The server-side command audit is hash-chained. Each appended audit row includes
+`prev_hash` and `record_hash`, and `/command_audit` returns an `integrity`
+summary with `ok`, `warn`, `bad`, or `empty` status. This is tamper-evident for
+local file edits after the fact; it is not a substitute for off-host immutable
+storage, signed logs, or provider-level retention controls.
+
 Run the worker once:
 
 ```bash

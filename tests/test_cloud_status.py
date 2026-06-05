@@ -2752,9 +2752,38 @@ def test_cloud_status_server_command_queue(tmp_path):
             audit = json.loads(resp.read().decode("utf-8"))
         assert [event["event"] for event in audit["events"]] == ["command_queued", "result_received"]
         assert audit["events"][0]["param_keys"] == []
+        assert audit["integrity"]["status"] == "ok"
+        assert audit["integrity"]["checked_records"] == 2
+        assert audit["events"][0]["record_hash"]
+        assert audit["events"][1]["prev_hash"] == audit["events"][0]["record_hash"]
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_cloud_status_server_detects_command_audit_tampering(tmp_path):
+    state_dir = tmp_path / "state"
+    status_server.append_command_audit(
+        state_dir,
+        {"event": "command_queued", "node_id": "test-node", "command_id": "cmd-1", "action": "request_status"},
+    )
+    status_server.append_command_audit(
+        state_dir,
+        {"event": "result_received", "node_id": "test-node", "command_id": "cmd-1", "action": "request_status"},
+    )
+
+    clean = status_server.verify_command_audit(state_dir)
+    assert clean["status"] == "ok"
+    assert clean["checked_records"] == 2
+
+    path = status_server.command_audit_path(state_dir)
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    rows[0]["action"] = "pause_runner"
+    path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+
+    tampered = status_server.verify_command_audit(state_dir)
+    assert tampered["status"] == "bad"
+    assert any(error["error"] == "record_hash mismatch" for error in tampered["errors"])
 
 
 def test_cloud_status_server_rate_limits_command_queue(tmp_path):

@@ -424,6 +424,9 @@ launcher actions such as `run_supervisor_once` require an explicit server-side
 opt-in. Hosted configs can also define `dashboard.auth_tokens` so a monitoring
 token can read status and queue only read-only commands while a separate
 operator token can queue pause/resume control commands.
+Command audit rows are hash-chained as they are appended. `/command_audit`
+returns an `integrity` summary so the dashboard can flag missing legacy hashes
+or modified rows.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,

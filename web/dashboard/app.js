@@ -4251,9 +4251,13 @@ function renderResults() {
 
 function renderCommandAudit() {
   const events = (state.commandAudit && state.commandAudit.events) || [];
+  const integrity = (state.commandAudit && state.commandAudit.integrity) || {};
+  const integrityText = integrity.status
+    ? `Integrity ${integrity.status}; checked ${numberText(integrity.checked_records, 0)} hashed records`
+    : "Integrity not loaded";
   $("command-audit-note").textContent = events.length
-    ? `${events.length} latest sanitized command audit events`
-    : "No command audit events have been recorded yet";
+    ? `${events.length} latest sanitized command audit events. ${integrityText}`
+    : `No command audit events have been recorded yet. ${integrityText}`;
   $("command-audit-body").innerHTML = events.length
     ? events.slice(-30).reverse().map((event) => row([
         escapeHtml(event.audited_at),

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import html
 import io
 import json
@@ -4786,8 +4787,115 @@ def append_command_audit(state_dir: Path, record: dict[str, Any]) -> None:
         "audited_at": utc_now(),
         **record,
     }
-    with command_audit_path(state_dir).open("a") as f:
+    path = command_audit_path(state_dir)
+    payload["hash_algorithm"] = "sha256"
+    payload["prev_hash"] = latest_command_audit_hash(path)
+    payload["record_hash"] = command_audit_record_hash(payload)
+    with path.open("a") as f:
         f.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def command_audit_hash_payload(payload: dict[str, Any]) -> str:
+    stripped = {key: value for key, value in payload.items() if key != "record_hash"}
+    return json.dumps(stripped, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def command_audit_record_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(command_audit_hash_payload(payload).encode("utf-8")).hexdigest()
+
+
+def latest_command_audit_hash(path: Path) -> str:
+    if not path.exists():
+        return ""
+    latest = ""
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict) and row.get("record_hash"):
+                latest = str(row["record_hash"])
+    return latest
+
+
+def verify_command_audit(state_dir: Path) -> dict[str, Any]:
+    path = command_audit_path(state_dir)
+    if not path.exists():
+        return {
+            "status": "empty",
+            "checked_records": 0,
+            "legacy_records": 0,
+            "line_count": 0,
+            "latest_hash": "",
+            "errors": [],
+        }
+    expected_prev = ""
+    checked_records = 0
+    legacy_records = 0
+    line_count = 0
+    latest_hash = ""
+    errors: list[dict[str, Any]] = []
+    with path.open() as f:
+        for line_no, line in enumerate(f, start=1):
+            if not line.strip():
+                continue
+            line_count += 1
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append({"line": line_no, "error": f"invalid JSON: {exc}"})
+                continue
+            if not isinstance(row, dict):
+                errors.append({"line": line_no, "error": "audit row is not an object"})
+                continue
+            record_hash = str(row.get("record_hash") or "")
+            if not record_hash:
+                legacy_records += 1
+                if checked_records:
+                    errors.append({"line": line_no, "error": "legacy unhashed row appears after hash chain started"})
+                expected_prev = ""
+                continue
+            algorithm = str(row.get("hash_algorithm") or "")
+            if algorithm != "sha256":
+                errors.append({"line": line_no, "error": f"unsupported hash algorithm: {algorithm or 'missing'}"})
+            prev_hash = str(row.get("prev_hash") or "")
+            if prev_hash != expected_prev:
+                errors.append({
+                    "line": line_no,
+                    "error": "prev_hash mismatch",
+                    "expected_prev_hash": expected_prev,
+                    "actual_prev_hash": prev_hash,
+                })
+            computed_hash = command_audit_record_hash(row)
+            if computed_hash != record_hash:
+                errors.append({
+                    "line": line_no,
+                    "error": "record_hash mismatch",
+                    "expected_record_hash": computed_hash,
+                    "actual_record_hash": record_hash,
+                })
+            checked_records += 1
+            latest_hash = record_hash
+            expected_prev = record_hash
+    if errors:
+        status = "bad"
+    elif legacy_records:
+        status = "warn"
+    elif checked_records:
+        status = "ok"
+    else:
+        status = "empty"
+    return {
+        "status": status,
+        "checked_records": checked_records,
+        "legacy_records": legacy_records,
+        "line_count": line_count,
+        "latest_hash": latest_hash,
+        "errors": errors[:20],
+    }
 
 
 def load_command_audit(state_dir: Path, *, node_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
@@ -5405,7 +5513,14 @@ class StatusHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
-            json_response(self, 200, {"events": load_command_audit(self.state_dir, node_id=node_id, limit=limit)})
+            json_response(
+                self,
+                200,
+                {
+                    "events": load_command_audit(self.state_dir, node_id=node_id, limit=limit),
+                    "integrity": verify_command_audit(self.state_dir),
+                },
+            )
             return
         if parsed.path == "/data_catalog":
             if not self.require_auth():

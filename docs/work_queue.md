@@ -780,13 +780,17 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; server-side command scopes now classify queued actions as
     read-only, control, or launcher and reject commands outside
     `dashboard.command_scopes` before they are persisted. Remaining gaps:
-    provider/network-specific hosted deployment controls and stronger
-    tamper-evident remote audit storage
+    provider/network-specific hosted deployment controls and off-host immutable
+    or signed audit storage
   - partial; hosted receivers can now configure multiple bearer-token roles
     with `dashboard.auth_tokens`, limiting command queue access per token while
     keeping dashboard/status reads authenticated. Remaining gaps:
-    provider/network-specific hosted deployment controls and stronger
-    tamper-evident remote audit storage
+    provider/network-specific hosted deployment controls and off-host immutable
+    or signed audit storage
+  - partial; server-side command audit rows are now hash-chained and
+    `/command_audit` reports integrity status, checked records, legacy rows,
+    latest hash, and bounded errors. Remaining gap: off-host immutable or signed
+    audit storage for internet-facing deployments
 - Keep initial commands low-risk:
   - pause
   - resume
