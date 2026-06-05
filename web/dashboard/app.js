@@ -24,6 +24,7 @@ const state = {
   configRuns: { runs: [] },
   runComparison: { runs: [], leaders: {} },
   performanceRollups: { rollups: [], errors: [] },
+  statusEquityRollups: { rollups: [], period_rollups: {} },
   runDetail: null,
   configArtifacts: null,
   performanceSourceMode: "current",
@@ -1571,6 +1572,29 @@ function renderPerformanceRollups() {
           : "",
       ])).join("")
     : row([`<span class="muted">No archived account artifacts have daily equity snapshots yet.</span>`, "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderStatusEquityRollups() {
+  if (!$("performance-status-rollups-body") || !$("performance-status-rollups-note")) return;
+  const payload = state.statusEquityRollups || {};
+  const rollups = payload.rollups || [];
+  $("performance-status-rollups-note").textContent = payload.generated_at
+    ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} status-history day rows from ${numberText(payload.history_scanned || 0, 0)} snapshots; O/F/R are max observed sanitized recent-event counts`
+    : "No status-history rollups loaded";
+  $("performance-status-rollups-body").innerHTML = rollups.length
+    ? rollups.map((item) => row([
+        escapeHtml(item.day),
+        escapeHtml(item.node_id),
+        escapeHtml(text(item.mode)),
+        `<span class="${Number(item.daily_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.daily_return_pct))}</span>`,
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(numberText(item.snapshot_count, 0)),
+        escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
+        escapeHtml(numberText(item.alert_count, 0)),
+        statusText(item.gateway_reachable),
+      ])).join("")
+    : row([`<span class="muted">No status-history equity snapshots yet. Run the status publisher during paper/live sessions to populate this table.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderPerformancePeriodRollups() {
@@ -4354,6 +4378,7 @@ function renderAll() {
   renderOverviewChanges();
   renderMetrics();
   renderPerformance();
+  renderStatusEquityRollups();
   renderPerformancePeriodRollups();
   renderPerformanceRollups();
   renderWorkbenchStatus();
@@ -4418,6 +4443,7 @@ async function refresh() {
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
   const runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
   const performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
+  const statusEquityRollups = await fetchJson("/status_equity_rollups?limit=100&history_limit=5000");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   const commandAudit = await fetchJson(`/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`);
@@ -4439,6 +4465,7 @@ async function refresh() {
   state.configRuns = configRuns || { runs: [] };
   state.runComparison = runComparison || { runs: [], leaders: {} };
   state.performanceRollups = performanceRollups || { rollups: [], errors: [] };
+  state.statusEquityRollups = statusEquityRollups || { rollups: [], period_rollups: {} };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   state.commandAudit = commandAudit || { events: [] };

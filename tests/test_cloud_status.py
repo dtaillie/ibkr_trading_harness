@@ -880,6 +880,118 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_serves_status_equity_rollups(tmp_path):
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    rows = [
+        {
+            "schema_version": 1,
+            "node_id": "paper-node",
+            "status": "ok",
+            "received_at": "2026-01-02T14:30:00+00:00",
+            "gateway": {"reachable": True},
+            "runs": [
+                {
+                    "id": "paper-run",
+                    "status": "ok",
+                    "metrics": {
+                        "mode": "paper",
+                        "final_equity": 10000.0,
+                        "final_cash": 9000.0,
+                        "final_positions": {"SPY": 1},
+                        "rejections": 0,
+                    },
+                    "recent_events": {"orders": [], "fills": []},
+                }
+            ],
+        },
+        {
+            "schema_version": 1,
+            "node_id": "paper-node",
+            "status": "warn",
+            "received_at": "2026-01-02T21:00:00+00:00",
+            "gateway": {"reachable": False},
+            "alerts": [{"level": "warn", "kind": "gateway", "message": "stale"}],
+            "runs": [
+                {
+                    "id": "paper-run",
+                    "status": "ok",
+                    "metrics": {
+                        "mode": "paper",
+                        "final_equity": 10250.0,
+                        "final_cash": 9250.0,
+                        "final_positions": {"SPY": 1},
+                        "rejections": 1,
+                    },
+                    "recent_events": {
+                        "orders": [{"timestamp": "2026-01-02T15:00:00+00:00", "status": "Submitted"}],
+                        "fills": [{"timestamp": "2026-01-02T15:01:00+00:00"}],
+                    },
+                }
+            ],
+        },
+        {
+            "schema_version": 1,
+            "node_id": "paper-node",
+            "status": "ok",
+            "received_at": "2026-01-03T21:00:00+00:00",
+            "gateway": {"reachable": True},
+            "runs": [
+                {
+                    "id": "paper-run",
+                    "status": "ok",
+                    "metrics": {
+                        "mode": "paper",
+                        "final_equity": 10147.5,
+                        "final_cash": 10147.5,
+                        "final_positions": {},
+                        "rejections": 1,
+                    },
+                    "recent_events": {"orders": [], "fills": []},
+                }
+            ],
+        },
+        {
+            "schema_version": 1,
+            "node_id": "other-node",
+            "status": "ok",
+            "received_at": "2026-01-02T21:00:00+00:00",
+            "runs": [{"id": "other-run", "status": "ok", "metrics": {"final_equity": 20000.0}}],
+        },
+    ]
+    (state_dir / "status_history.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/status_equity_rollups?node_id=paper-node&limit=10&history_limit=10", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["history_scanned"] == 3
+        assert payload["total"] == 2
+        by_day = {row["day"]: row for row in payload["rollups"]}
+        assert abs(by_day["2026-01-02"]["daily_return_pct"] - 2.5) < 1e-9
+        assert by_day["2026-01-02"]["start_equity"] == 10000.0
+        assert by_day["2026-01-02"]["end_equity"] == 10250.0
+        assert by_day["2026-01-02"]["alert_count"] == 1
+        assert by_day["2026-01-02"]["order_count"] == 1
+        assert by_day["2026-01-02"]["fill_count"] == 1
+        assert by_day["2026-01-02"]["rejection_count"] == 1
+        assert by_day["2026-01-02"]["gateway_reachable"] is False
+        assert abs(by_day["2026-01-03"]["daily_return_pct"] - 0.0) < 1e-9
+        month = payload["period_rollups"]["month"][0]
+        assert month["label"] == "2026-01"
+        assert month["day_count"] == 2
+        assert abs(month["total_return_pct"] - 1.475) < 1e-9
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_rejects_invalid_status_history_limit(tmp_path):
     server = create_server("127.0.0.1", 0, tmp_path / "state")
     thread = threading.Thread(target=server.serve_forever, daemon=True)

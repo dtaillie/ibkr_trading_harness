@@ -234,6 +234,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/status_equity_rollups",
+        "category": "telemetry",
+        "description": "Summarize sanitized status-history equity snapshots by UTC day, month, and year.",
+        "response": "JSON status-history performance rollups",
+    },
+    {
+        "method": "GET",
         "path": "/remote_nodes",
         "category": "telemetry",
         "description": "Return sanitized latest read-only monitoring summaries by node.",
@@ -652,6 +659,18 @@ def summarize_status_snapshot(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def parse_status_timestamp(raw: Any) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def nonterminal_order_count(recent_events: dict[str, Any]) -> int:
     orders = recent_events.get("orders") if isinstance(recent_events, dict) else []
     if not isinstance(orders, list):
@@ -863,6 +882,107 @@ def load_status_history(state_dir: Path, *, node_id: str | None = None, limit: i
             rows.append(summarize_status_snapshot(row))
     history = list(reversed(rows))
     return {"history": history, "count": len(history), "total": total, "limit": limit}
+
+
+def build_status_equity_rollups(
+    state_dir: Path,
+    *,
+    node_id: str | None = None,
+    limit: int = 100,
+    history_limit: int = 5000,
+) -> dict[str, Any]:
+    path = status_history_path(state_dir)
+    if not path.exists():
+        return {
+            "generated_at": utc_now(),
+            "rollups": [],
+            "period_rollups": {"month": [], "year": []},
+            "count": 0,
+            "total": 0,
+            "limit": limit,
+            "history_limit": history_limit,
+            "node_id": node_id,
+        }
+    rows: deque[dict[str, Any]] = deque(maxlen=history_limit)
+    scanned = 0
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(raw, dict):
+                continue
+            if node_id and str(raw.get("node_id") or "") != node_id:
+                continue
+            scanned += 1
+            rows.append(raw)
+
+    by_day: dict[tuple[str, str], list[tuple[datetime, dict[str, Any]]]] = {}
+    for raw in rows:
+        timestamp = parse_status_timestamp(raw.get("received_at") or raw.get("generated_at"))
+        if timestamp is None:
+            continue
+        summary = summarize_remote_node(raw)
+        equity = finite_float(summary.get("final_equity"))
+        if equity is None:
+            continue
+        node = str(summary.get("node_id") or raw.get("node_id") or "local")
+        summary["snapshot_time"] = timestamp.isoformat()
+        summary["final_equity"] = equity
+        by_day.setdefault((node, timestamp.date().isoformat()), []).append((timestamp, summary))
+
+    rollups = []
+    for (node, day), items in by_day.items():
+        ordered = sorted(items, key=lambda item: item[0])
+        start = ordered[0][1]
+        end = ordered[-1][1]
+        start_equity = finite_float(start.get("final_equity"))
+        end_equity = finite_float(end.get("final_equity"))
+        daily_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        rollups.append({
+            "day": day,
+            "node_id": node,
+            "mode": end.get("mode"),
+            "latest_run_id": end.get("latest_run_id"),
+            "latest_run_status": end.get("latest_run_status"),
+            "status": end.get("status"),
+            "gateway_reachable": end.get("gateway_reachable"),
+            "snapshot_count": len(ordered),
+            "account_start_time": ordered[0][0].isoformat(),
+            "account_end_time": ordered[-1][0].isoformat(),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "daily_return_pct": finite_float(daily_return_pct),
+            "position_count": end.get("position_count"),
+            "open_order_count": end.get("open_order_count"),
+            "alert_count": max(int(item[1].get("alert_count") or 0) for item in ordered),
+            "order_count": max(int(item[1].get("order_count") or 0) for item in ordered),
+            "fill_count": max(int(item[1].get("fill_count") or 0) for item in ordered),
+            "rejection_count": max(int(item[1].get("rejection_count") or 0) for item in ordered),
+        })
+    rollups = sorted(
+        rollups,
+        key=lambda row: (str(row.get("day") or ""), str(row.get("account_end_time") or ""), str(row.get("node_id") or "")),
+        reverse=True,
+    )
+    return {
+        "generated_at": utc_now(),
+        "rollups": rollups[:limit],
+        "period_rollups": build_period_rollups_from_daily_rows(rollups),
+        "count": min(len(rollups), limit),
+        "total": len(rollups),
+        "limit": limit,
+        "history_limit": history_limit,
+        "history_scanned": scanned,
+        "node_id": node_id,
+    }
 
 
 def parse_limit(params: dict[str, list[str]], *, default: int = 50, maximum: int = 500) -> int:
@@ -5545,6 +5665,18 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             payload = load_status_history(self.state_dir, node_id=node_id, limit=limit)
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/status_equity_rollups":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                history_limit = parse_int_param(params, "history_limit", default=5000, maximum=50000)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            payload = build_status_equity_rollups(self.state_dir, node_id=node_id, limit=limit, history_limit=history_limit)
             json_response(self, 200, payload)
             return
         if parsed.path == "/remote_nodes":

@@ -192,6 +192,10 @@ strategy-private.
   - partial; daily, monthly, and yearly rollups are derived from archived
     workbench account artifacts, dedicated live paper rollup storage remains
     open
+  - partial; `/status_equity_rollups` now derives daily/month/year summaries
+    from sanitized status-history snapshots, and Performance shows Live/Paper
+    Status Rollups without opening archived artifacts. Dedicated runner-owned
+    rollup files are still future work.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows
