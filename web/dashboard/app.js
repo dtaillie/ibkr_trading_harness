@@ -5217,23 +5217,22 @@ function configFormOptionRows(field, options) {
   }));
 }
 
-const CONFIG_SECTION_LABELS = {
-  identity: ["Setup", "Name the local draft, choose the plugin, and choose the run mode."],
-  data: ["Data", "Pick scanned files and an optional replay date window."],
-  plugin_strategy: ["Plugin Settings", "Configure public-safe fields exposed by the selected plugin."],
-  account: ["Account", "Set starting cash and replay bounds for local accounting."],
-  runtime: ["Runtime", "Add optional loop/session boundaries for monitoring configs."],
-  risk: ["Risk Limits", "Keep generated example runs bounded before validation."],
-  costs: ["Simulated Costs", "Model basic local slippage and commissions."],
-  output: ["Output", "Choose whether to save and whether suspicious data is acknowledged."],
-};
-
-function configSectionTitle(section) {
-  return (CONFIG_SECTION_LABELS[section] || [text(section), ""])[0];
+function configSectionMetadataById() {
+  const sections = (state.configOptions && state.configOptions.form_sections) || [];
+  return Object.fromEntries(sections.map((section) => [section.id, section]));
 }
 
-function configSectionHelp(section) {
-  return (CONFIG_SECTION_LABELS[section] || ["", ""])[1];
+function configSectionTitle(section, metadataById = configSectionMetadataById()) {
+  return text((metadataById[section] || {}).label || section);
+}
+
+function configSectionHelp(section, metadataById = configSectionMetadataById()) {
+  return text((metadataById[section] || {}).help || "");
+}
+
+function configSectionOrder(section, metadataById = configSectionMetadataById()) {
+  const value = Number((metadataById[section] || {}).order);
+  return Number.isFinite(value) ? value : 999;
 }
 
 function renderConfigField(field) {
@@ -5277,6 +5276,7 @@ function renderConfigFormSchema() {
   const fields = (state.configOptions && state.configOptions.form_schema) || [];
   const container = $("config-form-fields");
   if (!container || container.dataset.rendered === "true" || !fields.length) return;
+  const sectionMetadata = configSectionMetadataById();
   const sections = [];
   for (const field of fields) {
     const section = field.section || "settings";
@@ -5287,10 +5287,14 @@ function renderConfigFormSchema() {
     }
     group.fields.push(field);
   }
+  sections.sort((left, right) => (
+    configSectionOrder(left.section, sectionMetadata) - configSectionOrder(right.section, sectionMetadata)
+    || left.section.localeCompare(right.section)
+  ));
   container.innerHTML = sections.map((group) => `
     <fieldset id="config-section-${escapeHtml(group.section)}" class="config-field-section">
-      <legend>${escapeHtml(configSectionTitle(group.section))}</legend>
-      <p>${escapeHtml(configSectionHelp(group.section))}</p>
+      <legend>${escapeHtml(configSectionTitle(group.section, sectionMetadata))}</legend>
+      <p>${escapeHtml(configSectionHelp(group.section, sectionMetadata))}</p>
       <div class="config-field-grid">
         ${group.fields.map(renderConfigField).join("")}
       </div>

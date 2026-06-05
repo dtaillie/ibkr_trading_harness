@@ -2424,6 +2424,14 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
+        assert [section["id"] for section in options["form_sections"]][:4] == [
+            "identity",
+            "data",
+            "plugin_strategy",
+            "account",
+        ]
+        assert options["form_sections"][0]["label"] == "Setup"
+        assert options["form_sections"][0]["order"] == 10
         field_ids = [field["id"] for field in options["form_schema"]]
         assert field_ids[:4] == ["config-name", "config-plugin", "config-mode", "config-dataset"]
         assert "config-plugin-field-no-edge-template-example-parameter" in field_ids

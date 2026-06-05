@@ -226,6 +226,16 @@ CONFIG_BUILDER_FORM_SCHEMA = (
     {"id": "config-save", "name": "save", "label": "Save draft locally", "kind": "checkbox", "section": "output", "help": "Save generated YAML under the local workbench state directory."},
     {"id": "config-allow-quality-warnings", "name": "allow_quality_warnings", "label": "Allow suspicious data for this draft", "kind": "checkbox", "wide": True, "section": "output", "help": "Requires explicit acknowledgement before using warn/bad datasets."},
 )
+CONFIG_BUILDER_FORM_SECTIONS = (
+    {"id": "identity", "label": "Setup", "help": "Name the local draft, choose the plugin, and choose the run mode.", "order": 10},
+    {"id": "data", "label": "Data", "help": "Pick scanned files and an optional replay date window.", "order": 20},
+    {"id": "plugin_strategy", "label": "Plugin Settings", "help": "Configure public-safe fields exposed by the selected plugin.", "order": 30},
+    {"id": "account", "label": "Account", "help": "Set starting cash and replay bounds for local accounting.", "order": 40},
+    {"id": "runtime", "label": "Runtime", "help": "Add optional loop/session boundaries for monitoring configs.", "order": 50},
+    {"id": "risk", "label": "Risk Limits", "help": "Keep generated example runs bounded before validation.", "order": 60},
+    {"id": "costs", "label": "Simulated Costs", "help": "Model basic local slippage and commissions.", "order": 70},
+    {"id": "output", "label": "Output", "help": "Choose whether to save and whether suspicious data is acknowledged.", "order": 80},
+)
 WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
@@ -4454,6 +4464,7 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
         "broker_adapters": broker_adapter_capabilities(),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
+        "form_sections": list(CONFIG_BUILDER_FORM_SECTIONS),
         "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA) + plugin_strategy_fields,
         "defaults": {
             "name": "workbench_example",

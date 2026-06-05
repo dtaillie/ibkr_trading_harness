@@ -824,6 +824,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields
     in the UI.
+  - partial; `/config_options` now exposes `form_sections` with section
+    labels, help text, and ordering, and the Workbench renderer consumes that
+    schema metadata instead of frontend-only section definitions.
   - partial; Config Builder now adds section-level readiness cards for data,
     alignment, plugin, mode/range, risk, simulated costs, and generated draft
     state so users can see what needs attention before scanning every field.
