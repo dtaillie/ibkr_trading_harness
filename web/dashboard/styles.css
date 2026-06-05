@@ -1048,6 +1048,66 @@ section {
   padding-left: 18px;
 }
 
+.help-start-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.4fr);
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.help-start-panel h3 {
+  margin: 4px 0 8px;
+  font-size: 22px;
+}
+
+.help-start-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.help-start-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.help-start-grid a {
+  display: block;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--soft-panel);
+  text-decoration: none;
+}
+
+.help-start-grid a:hover {
+  border-color: var(--accent);
+}
+
+.help-start-grid strong,
+.help-start-grid span {
+  display: block;
+}
+
+.help-start-grid strong {
+  font-size: 13px;
+}
+
+.help-start-grid span {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .check-list li + li {
   margin-top: 7px;
 }
@@ -1745,6 +1805,7 @@ footer {
   .viewer-controls,
   .symbol-browser,
   .data-home-panel,
+  .help-start-panel,
   .builder-output,
   .overview-hero,
   .performance-layout,

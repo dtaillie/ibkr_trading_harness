@@ -314,6 +314,9 @@ strategy-private.
   - common workflows that connect Overview, Performance, Fetch Jobs, Data
     Library, Workbench, and Runs
     - done on the Help page and mirrored in the Web UI runbook
+    - partial; Help now starts with a question-driven Start Here panel that
+      routes users to current health, performance, saved data, simulation, run
+      drilldowns, and operations diagnostics before dense reference cards.
   - empty states that explain what to do next instead of showing blank tables
 - Add a short web UI README/runbook:
   - how to start the local dashboard
@@ -336,6 +339,9 @@ strategy-private.
   - responsive mobile/tablet views
   - chart-first summaries instead of dense text-first tables
   - avoid nested cards and oversized marketing layout
+  - partial; Help now has a standalone first-screen Start Here panel with
+    route links, keeping the operating guide closer to a task picker than a
+    long documentation dump.
 - Add a small design system for the dashboard:
   - color tokens for cash/equity/gain/loss/warning/neutral states
   - consistent badge styles for modes, health, fills, rejects, and stale data

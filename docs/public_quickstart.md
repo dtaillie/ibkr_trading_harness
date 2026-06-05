@@ -230,10 +230,11 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
-Open `http://127.0.0.1:8765/` to view the dashboard. The Help page links to
-allowlisted local Markdown docs, including `docs/web_ui_runbook.md`, so the
-operating runbook is available without browsing the source tree. The sidebar splits the
-workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
+Open `http://127.0.0.1:8765/` to view the dashboard. The Help page has a Start
+Here panel that maps common questions to pages and links to allowlisted local
+Markdown docs, including `docs/web_ui_runbook.md`, so the operating runbook is
+available without browsing the source tree. The sidebar splits the workbench
+into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
@@ -252,8 +253,9 @@ table, win/loss, average win/loss, and profit factor. Daily Run Rollups summariz
 archived account artifacts by UTC day with return, equity, orders, fills,
 rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
-configured data roots, saved-data coverage, root-scan diagnostics, and
-historical previews. Use Storage Audit to compare CSV/parquet files on disk
+configured data roots, saved-data coverage, root-scan diagnostics, historical
+previews, and a Data Home shortlist with direct Inspect, Filter, and Compare
+actions for the best currently visible files. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so

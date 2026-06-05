@@ -22,6 +22,10 @@ Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.
 
+Open Help when you are not sure where to start. The Start Here panel maps the
+main questions to pages: current health, performance, saved data, simulation,
+run drilldowns, and operations diagnostics.
+
 ## Configure Data Roots
 
 The dashboard only scans paths listed in `dashboard.data_roots`. Public example
@@ -89,6 +93,10 @@ works offline from saved CSV/parquet files and shows:
 - timestamp timezone context
 - gap/null/duplicate warnings
 - sampled or bounded full-in-range views
+
+Start with the Data Home shortlist when the catalog is large. It ranks the
+currently visible saved files by quality, rows, and recency, then gives direct
+Inspect, Filter, and Compare actions before you need to use the dense table.
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range. Use Find Dataset to narrow large catalogs without
