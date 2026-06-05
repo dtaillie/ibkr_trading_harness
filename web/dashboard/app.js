@@ -799,6 +799,31 @@ function renderPerformanceRollups() {
     : row([`<span class="muted">No archived account artifacts have daily equity snapshots yet.</span>`, "", "", "", "", "", "", "", "", "", ""]);
 }
 
+function renderPerformancePeriodRollups() {
+  const payload = state.performanceRollups || {};
+  const periodRollups = payload.period_rollups || {};
+  const rows = [
+    ...(periodRollups.month || []).map((item) => ({ ...item, periodLabel: `Month ${item.label}` })),
+    ...(periodRollups.year || []).map((item) => ({ ...item, periodLabel: `Year ${item.label}` })),
+  ];
+  $("performance-period-rollups-note").textContent = payload.generated_at
+    ? `${numberText(rows.length, 0)} month/year summaries from ${numberText(payload.total || 0, 0)} daily rows`
+    : "No period rollups loaded";
+  $("performance-period-rollups-body").innerHTML = rows.length
+    ? rows.map((item) => row([
+        escapeHtml(item.periodLabel),
+        escapeHtml(rangeLabel(item.first_day, item.last_day)),
+        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(numberText(item.day_count, 0)),
+        escapeHtml(numberText(item.run_count, 0)),
+        escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
+        escapeHtml(pctText(item.max_gross_exposure_pct)),
+      ])).join("")
+    : row([`<span class="muted">No month/year summaries yet.</span>`, "", "", "", "", "", "", "", ""]);
+}
+
 function rangeLabel(start, end) {
   if (!start && !end) return "n/a";
   return `${text(start)} -> ${text(end)}`;
@@ -2495,6 +2520,7 @@ function renderAll() {
   renderOverviewChanges();
   renderMetrics();
   renderPerformance();
+  renderPerformancePeriodRollups();
   renderPerformanceRollups();
   renderWorkbenchStatus();
   renderCleanupPlan();

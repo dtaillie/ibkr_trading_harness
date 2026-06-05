@@ -1904,6 +1904,17 @@ def test_cloud_status_server_serves_daily_run_rollups(tmp_path):
         assert abs(by_day["2026-01-03"]["daily_return_pct"] - -2.0) < 1e-9
         assert by_day["2026-01-03"]["rejection_count"] == 1
         assert by_day["2026-01-03"]["mode"] == "replay"
+        month = payload["period_rollups"]["month"][0]
+        year = payload["period_rollups"]["year"][0]
+        assert month["label"] == "2026-01"
+        assert month["day_count"] == 2
+        assert month["run_count"] == 1
+        assert abs(month["total_return_pct"] - 2.9) < 1e-9
+        assert month["order_count"] == 2
+        assert month["fill_count"] == 1
+        assert month["rejection_count"] == 1
+        assert year["label"] == "2026"
+        assert abs(year["total_return_pct"] - 2.9) < 1e-9
     finally:
         server.shutdown()
         server.server_close()

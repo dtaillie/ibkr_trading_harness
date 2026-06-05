@@ -77,6 +77,8 @@ def run_smoke(
             "performance-avg-win-loss",
             "performance-rollups-note",
             "performance-rollups-body",
+            "performance-period-rollups-note",
+            "performance-period-rollups-body",
             "comparison-filter-text",
             "current-orders-body",
             "current-positions-grid",
@@ -147,6 +149,7 @@ def run_smoke(
             "buildTradeLedger",
             "performancePeriodWindow",
             "renderPerformanceRollups",
+            "renderPerformancePeriodRollups",
             "config_draft_daily_rollups",
             "activityChanges",
             "renderOverviewChanges",
@@ -210,7 +213,7 @@ def run_smoke(
         if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:
             raise RuntimeError("fetch manifest summary is invalid")
         daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
-        if "rollups" not in daily_rollups or "total" not in daily_rollups:
+        if "rollups" not in daily_rollups or "total" not in daily_rollups or "period_rollups" not in daily_rollups:
             raise RuntimeError("daily rollup summary is invalid")
 
         alignment_count = 0

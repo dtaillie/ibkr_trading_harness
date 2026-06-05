@@ -3587,6 +3587,7 @@ def build_config_draft_daily_rollups(
     return {
         "generated_at": utc_now(),
         "rollups": rows[:limit],
+        "period_rollups": build_period_rollups_from_daily_rows(rows),
         "count": min(len(rows), limit),
         "total": len(rows),
         "limit": limit,
@@ -3595,6 +3596,55 @@ def build_config_draft_daily_rollups(
         "error_count": len(errors),
         "errors": errors[:25],
     }
+
+
+def build_period_rollups_from_daily_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, dict[str, list[dict[str, Any]]]] = {"month": {}, "year": {}}
+    for row in rows:
+        day = str(row.get("day") or "")
+        if len(day) >= 7:
+            grouped["month"].setdefault(day[:7], []).append(row)
+        if len(day) >= 4:
+            grouped["year"].setdefault(day[:4], []).append(row)
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    for period, buckets in grouped.items():
+        period_rows = []
+        for label, bucket in buckets.items():
+            ordered = sorted(bucket, key=lambda item: str(item.get("account_start_time") or item.get("day") or ""))
+            start_equity = finite_float(ordered[0].get("start_equity")) if ordered else None
+            end_equity = finite_float(ordered[-1].get("end_equity")) if ordered else None
+            total_return_pct = (
+                ((end_equity / start_equity) - 1.0) * 100.0
+                if start_equity and end_equity is not None
+                else None
+            )
+            max_exposure_pct = max(
+                (
+                    value
+                    for value in (finite_float(item.get("max_gross_exposure_pct")) for item in ordered)
+                    if value is not None
+                ),
+                default=None,
+            )
+            period_rows.append({
+                "period": period,
+                "label": label,
+                "day_count": len({str(item.get("day")) for item in ordered if item.get("day")}),
+                "run_count": len({str(item.get("run_id")) for item in ordered if item.get("run_id")}),
+                "start_equity": start_equity,
+                "end_equity": end_equity,
+                "total_return_pct": finite_float(total_return_pct),
+                "snapshot_count": sum(int(item.get("snapshot_count") or 0) for item in ordered),
+                "order_count": sum(int(item.get("order_count") or 0) for item in ordered),
+                "fill_count": sum(int(item.get("fill_count") or 0) for item in ordered),
+                "rejection_count": sum(int(item.get("rejection_count") or 0) for item in ordered),
+                "max_gross_exposure_pct": finite_float(max_exposure_pct),
+                "first_day": ordered[0].get("day") if ordered else None,
+                "last_day": ordered[-1].get("day") if ordered else None,
+            })
+        out[period] = sorted(period_rows, key=lambda item: str(item.get("label") or ""), reverse=True)
+    return out
 
 
 def load_config_draft_artifacts(

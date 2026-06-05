@@ -154,8 +154,9 @@ strategy-private.
     UTC day with return, equity, orders, fills, rejects, and artifact drilldown
 - Add persistent period summaries so daily/monthly/yearly stats do not depend
   on a currently open process.
-  - partial; daily rollups are persisted from archived workbench artifacts,
-    broader month/year rollup storage remains open
+  - partial; daily, monthly, and yearly rollups are derived from archived
+    workbench account artifacts, dedicated live paper rollup storage remains
+    open
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows

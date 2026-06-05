@@ -193,7 +193,8 @@ charts and KPIs to today, week, month, 3 months, or all available snapshots.
 When sanitized fills are present, Performance also shows an open/closed trade
 table, win/loss, average win/loss, and profit factor. Daily Run Rollups summarize
 archived account artifacts by UTC day with return, equity, orders, fills,
-rejects, and artifact drilldown. Data Library shows
+rejects, and artifact drilldown; Period Rollups group the same archived rows by
+month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not

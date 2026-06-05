@@ -218,7 +218,8 @@ open position count, and decision/order/fill/reject activity before the charts.
 It also supports account-artifact period presets and a fill-derived
 trade table with open/closed rows, win/loss, average win/loss, and profit
 factor. Daily run rollups summarize archived account artifacts by UTC day so
-the dashboard can answer how saved runs performed without a live process. It shows
+the dashboard can answer how saved runs performed without a live process; period
+rollups summarize those same archived rows by month and year. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, searchable run history, recent open-order telemetry, managed
 positions, and local disk usage. It can also inspect configured local
