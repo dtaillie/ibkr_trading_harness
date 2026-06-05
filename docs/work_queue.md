@@ -145,6 +145,11 @@ strategy-private.
     - done for archived run account artifacts
   - intraday equity/PnL chart for today's run when minute bars or account
     snapshots are available
+    - partial; Performance now shows a Today / Latest Session panel with
+      session PnL, return, high/low PnL, snapshot count, and an intraday PnL
+      curve derived from account snapshots. Runner telemetry still needs to
+      publish richer live minute/account snapshots for this to be useful in all
+      paper/live modes.
   - open/closed trade table
     - done for selected archived artifacts with sanitized fills
   - win/loss, average win/loss, profit factor, max drawdown, exposure, turnover

@@ -611,6 +611,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-exposure" in html
         assert "overview-next-check" in html
         assert "performance-drawdown-chart" in html
+        assert "performance-intraday-chart" in html
+        assert "performance-intraday-pnl" in html
         assert "performance-daily-return-chart" in html
         assert "performance-calendar-chart" in html
         assert "performance-source-mode" in html

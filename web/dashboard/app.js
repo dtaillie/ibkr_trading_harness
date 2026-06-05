@@ -1232,9 +1232,10 @@ function renderPerformance() {
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
   const summary = source.summary || {};
+  const allAccountRows = source.account || [];
   const period = $("performance-period").value || "all";
-  const window = performancePeriodWindow(source.account || [], period);
-  const accountRows = period === "all" ? (source.account || []) : rowsInWindow(source.account || [], window);
+  const window = performancePeriodWindow(allAccountRows, period);
+  const accountRows = period === "all" ? allAccountRows : rowsInWindow(allAccountRows, window);
   const periodPerf = Object.keys(perf).length && period === "all"
     ? perf
     : performanceFromAccountRows(accountRows);
@@ -1293,6 +1294,20 @@ function renderPerformance() {
   $("performance-metric-context").innerHTML = contextPairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  const sessionRows = latestSessionAccountRows(allAccountRows);
+  const sessionStats = intradayPnlStats(sessionRows);
+  $("performance-intraday-note").textContent = sessionStats
+    ? `${sessionStats.day} ${text(sessionStats.start_time)} -> ${text(sessionStats.end_time)}`
+    : "Load account snapshots to see today's or the latest session's PnL";
+  $("performance-intraday-pnl").textContent = sessionStats ? money(sessionStats.pnl) : "n/a";
+  $("performance-intraday-pnl").className = sessionStats ? (sessionStats.pnl >= 0 ? "status-ok" : "status-bad") : "status-unknown";
+  $("performance-intraday-return").textContent = sessionStats ? pctText(sessionStats.return_pct) : "n/a";
+  $("performance-intraday-return").className = sessionStats ? (sessionStats.return_pct >= 0 ? "status-ok" : "status-bad") : "status-unknown";
+  $("performance-intraday-range").textContent = sessionStats
+    ? `${money(sessionStats.high_pnl)} / ${money(sessionStats.low_pnl)}`
+    : "n/a";
+  $("performance-intraday-snapshots").textContent = sessionStats ? numberText(sessionStats.count, 0) : "n/a";
+  $("performance-intraday-chart").innerHTML = intradayPnlChart(sessionRows);
   $("performance-equity-chart").innerHTML = equityChart(accountRows);
   $("performance-drawdown-chart").innerHTML = drawdownChart(accountRows);
   $("performance-daily-return-chart").innerHTML = dailyReturnChart(accountRows);
@@ -1639,6 +1654,56 @@ function numericAccountRows(points) {
     timestamp: point.timestamp,
     equity: Number(point.equity),
   })).filter((point) => point.timestamp && Number.isFinite(point.equity));
+}
+
+function latestSessionAccountRows(points) {
+  const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  if (!rows.length) return [];
+  const latestDay = String(rows[rows.length - 1].timestamp).slice(0, 10);
+  return rows.filter((point) => String(point.timestamp).slice(0, 10) === latestDay);
+}
+
+function intradayPnlStats(points) {
+  const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  if (!rows.length) return null;
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const pnls = rows.map((point) => point.equity - first.equity);
+  const pnl = last.equity - first.equity;
+  return {
+    day: String(last.timestamp).slice(0, 10),
+    start_time: first.timestamp,
+    end_time: last.timestamp,
+    count: rows.length,
+    pnl,
+    return_pct: first.equity > 0 ? (pnl / first.equity) * 100 : null,
+    high_pnl: Math.max(...pnls),
+    low_pnl: Math.min(...pnls),
+  };
+}
+
+function intradayPnlChart(points) {
+  const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  if (rows.length < 2) return `<span class="muted">No intraday PnL curve available</span>`;
+  const base = rows[0].equity;
+  const values = rows.map((point) => point.equity - base).filter((value) => Number.isFinite(value));
+  if (values.length < 2) return `<span class="muted">No intraday PnL curve available</span>`;
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 0);
+  const width = 720;
+  const height = 180;
+  const span = max - min || 1;
+  const yFor = (value) => height - ((value - min) / span) * height;
+  const coords = values.map((value, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = yFor(value);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const finalPnl = values[values.length - 1];
+  const cls = finalPnl >= 0 ? "spark-good" : "spark-bad";
+  const zeroY = yFor(0).toFixed(1);
+  const caption = `${String(rows[0].timestamp).slice(0, 10)} session PnL ${money(finalPnl)} from ${numberText(rows.length, 0)} snapshots`;
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="intraday profit and loss curve"><line class="axis-line" x1="0" y1="${zeroY}" x2="${width}" y2="${zeroY}"></line><polyline points="${coords}"></polyline></svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function drawdownChart(points) {

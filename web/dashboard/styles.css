@@ -580,6 +580,10 @@ section {
   gap: 12px;
 }
 
+.compact-kpis {
+  margin-bottom: 12px;
+}
+
 .compact-chart {
   min-height: 220px;
 }
