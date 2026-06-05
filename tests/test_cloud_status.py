@@ -627,6 +627,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-filter-kind" in html
         assert "fetch-filter-sort" in html
         assert "fetch-events-body" in html
+        assert "copy-fetch-roots-yaml" in html
         assert "copy-fetch-resume-command" in html
         assert "show-fetch-outputs-data" in html
         assert "copy-fetch-output-paths" in html

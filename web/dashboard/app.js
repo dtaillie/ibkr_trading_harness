@@ -2441,6 +2441,26 @@ function dataRootsYamlSnippet() {
   ].join("\n");
 }
 
+function fetchManifestRootConfigPaths() {
+  const payload = state.fetchManifests || {};
+  const paths = new Set();
+  for (const root of (payload.roots || [])) {
+    const value = text(root.display_path || root.path);
+    if (value && value !== "n/a") paths.add(value);
+  }
+  return Array.from(paths).sort();
+}
+
+function fetchManifestRootsYamlSnippet() {
+  const paths = fetchManifestRootConfigPaths();
+  if (!paths.length) return "";
+  return [
+    "dashboard:",
+    "  fetch_manifest_roots:",
+    ...paths.map((path) => `    - ${yamlScalar(path)}`),
+  ].join("\n");
+}
+
 function replayStarterCommand(detail) {
   const path = detail && detail.path;
   const symbol = detail && detail.symbol;
@@ -3408,6 +3428,7 @@ function renderFetchJobs() {
   const manifests = payload.manifests || [];
   const filteredManifests = filteredFetchManifests(manifests);
   const roots = payload.roots || [];
+  const rootConfigPaths = fetchManifestRootConfigPaths();
   const rowsTotal = manifests.reduce((sum, item) => sum + Number(item.rows || 0), 0);
   renderFetchFilterOptions(manifests);
   $("fetch-jobs-note").textContent = payload.generated_at
@@ -3421,6 +3442,10 @@ function renderFetchJobs() {
   $("fetch-root-note").textContent = roots.length
     ? `${numberText(roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0), 0)} manifest files under configured roots`
     : "No fetch manifest roots configured";
+  $("copy-fetch-roots-yaml").disabled = !rootConfigPaths.length;
+  $("fetch-root-config-note").textContent = rootConfigPaths.length
+    ? `${numberText(rootConfigPaths.length, 0)} manifest root${rootConfigPaths.length === 1 ? "" : "s"} ready to copy`
+    : "No manifest roots to copy";
   $("fetch-root-cards").innerHTML = roots.length
     ? roots.map((root) => {
         const status = !root.exists ? "bad" : !root.is_dir ? "bad" : Number(root.manifest_count || 0) ? "ok" : "warn";
@@ -3635,6 +3660,20 @@ function copyDataRootsYaml() {
   }
   copyText(snippet).then(() => {
     $("last-refresh").textContent = `Copied dashboard.data_roots YAML for ${numberText(count, 0)} root${count === 1 ? "" : "s"}`;
+  }).catch((err) => {
+    $("last-refresh").textContent = `Copy failed: ${err.message}`;
+  });
+}
+
+function copyFetchManifestRootsYaml() {
+  const snippet = fetchManifestRootsYamlSnippet();
+  const count = fetchManifestRootConfigPaths().length;
+  if (!snippet) {
+    $("last-refresh").textContent = "No configured fetch manifest roots to copy";
+    return;
+  }
+  copyText(snippet).then(() => {
+    $("last-refresh").textContent = `Copied dashboard.fetch_manifest_roots YAML for ${numberText(count, 0)} root${count === 1 ? "" : "s"}`;
   }).catch((err) => {
     $("last-refresh").textContent = `Copy failed: ${err.message}`;
   });
@@ -5956,6 +5995,7 @@ function init() {
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
   $("fetch-filter-sort").addEventListener("change", renderFetchJobs);
+  $("copy-fetch-roots-yaml").addEventListener("click", copyFetchManifestRootsYaml);
   $("remote-filter-text").addEventListener("input", renderRemoteNodes);
   $("remote-filter-status").addEventListener("change", renderRemoteNodes);
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);

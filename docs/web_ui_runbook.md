@@ -107,6 +107,8 @@ translations, not stable performance estimates.
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
 to inspect completed and active fetches, failed symbols, no-data chunks, output
 files, and generated data-detail links for files under configured data roots.
+Use Copy fetch_manifest_roots YAML to copy the currently visible manifest roots
+as a local dashboard config block.
 
 If a fetch output is not visible in Data Library, check whether the output root
 is included in `dashboard.data_roots`.

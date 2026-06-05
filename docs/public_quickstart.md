@@ -312,7 +312,9 @@ python3 scripts/audit_data_storage.py \
 The `dashboard.fetch_manifest_roots` list controls where Fetch Jobs looks for
 JSON fetch manifests. The default fetch commands write to
 `paper_logs/fetch_manifests`; add that root to local dashboard config when you
-want fetch jobs visible.
+want fetch jobs visible. Use Copy fetch_manifest_roots YAML in Fetch Jobs to
+copy a ready-to-paste local config block for the roots currently visible to the
+dashboard.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 range-filtered sampled or full-in-range price path, volume bars, timestamp
 coverage, gap rows, null counts, price/return stats, volume stats, and a

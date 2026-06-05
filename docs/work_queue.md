@@ -101,6 +101,9 @@ strategy-private.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.
+    - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
+      block from visible manifest roots, giving users the matching config fix
+      for fetch-history visibility.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes
@@ -569,6 +572,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now has client-side search, status/kind filters, and
       sort controls so long completed/active manifest histories are easier to
       scan for failed jobs, recent jobs, large pulls, and output paths.
+    - partial; Fetch Jobs can copy configured manifest roots as a
+      `dashboard.fetch_manifest_roots` YAML block for local dashboard config.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time
