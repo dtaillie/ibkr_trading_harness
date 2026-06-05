@@ -1467,6 +1467,20 @@
             <thead>
               <tr>
                 <th>Time</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Symbol</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="artifact-session-body"></tbody>
+          </table>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
                 <th>Step</th>
                 <th>Mode</th>
                 <th>Intents</th>
@@ -1511,6 +1525,27 @@
             </tr>
           </thead>
           <tbody id="artifact-fills-body"></tbody>
+        </table>
+      </div>
+      <div class="table-wrap compact-table">
+        <div class="section-head inline-section-head">
+          <h2>Account Snapshots</h2>
+          <span id="artifact-account-note" class="section-note">Sanitized equity, cash, exposure, and position counts</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Step</th>
+              <th>Mode</th>
+              <th>Cash</th>
+              <th>Equity</th>
+              <th>Gross Exp</th>
+              <th>Net Exp</th>
+              <th>Positions</th>
+            </tr>
+          </thead>
+          <tbody id="artifact-account-body"></tbody>
         </table>
       </div>
     </section>

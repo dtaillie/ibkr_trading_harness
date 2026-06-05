@@ -203,6 +203,10 @@ strategy-private.
   - searchable run history
     - done for saved run comparison rows
   - session timeline of decisions, orders, fills, rejects, account snapshots
+    - partial; Run Artifacts now include a combined sanitized session timeline
+      that interleaves decisions, orders, rejected orders, fills, and account
+      snapshots, plus a dedicated account-snapshot table for equity, cash,
+      exposure, and position counts.
   - current open orders and current managed positions
     - partial; current managed positions and recent non-terminal order events
       are visible, broker-native open-order state still depends on runner

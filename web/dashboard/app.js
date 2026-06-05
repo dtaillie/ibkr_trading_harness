@@ -3658,6 +3658,65 @@ function renderRunDetail() {
   $("run-log-stderr").value = detail.stderr_tail || "";
 }
 
+function nonzeroObjectCount(value) {
+  if (!value || typeof value !== "object") return 0;
+  return Object.values(value).filter((item) => {
+    const number = finiteNumber(item);
+    return number !== null && number !== 0;
+  }).length;
+}
+
+function artifactSessionRows(artifacts) {
+  const rows = [];
+  for (const decision of artifacts.decisions || []) {
+    rows.push({
+      timestamp: decision.timestamp,
+      type: "decision",
+      status: decision.paused ? "paused" : "ok",
+      symbol: (decision.symbols || []).slice(0, 5).join(", "),
+      detail: `${numberText(decision.intent_count, 0)} intents; step ${text(decision.step)}`,
+    });
+  }
+  for (const orderItem of artifacts.orders || []) {
+    const status = text(orderItem.status);
+    const rejected = status.toLowerCase().includes("reject");
+    const quantity = orderItem.cash_quantity !== undefined && orderItem.cash_quantity !== null && orderItem.cash_quantity !== ""
+      ? `cash ${money(orderItem.cash_quantity)}`
+      : `qty ${text(orderItem.quantity)}`;
+    rows.push({
+      timestamp: orderItem.timestamp,
+      type: rejected ? "reject" : "order",
+      status,
+      symbol: orderItem.symbol,
+      detail: `${text(orderItem.side)} ${quantity}; ${text(orderItem.reason || orderItem.tag || orderItem.order_type)}`,
+    });
+  }
+  for (const fill of artifacts.fills || []) {
+    rows.push({
+      timestamp: fill.timestamp,
+      type: "fill",
+      status: fill.simulated ? "simulated" : "filled",
+      symbol: fill.symbol,
+      detail: `${text(fill.side)} qty ${numberText(fill.quantity, 4)} @ ${money(fill.price)}; commission ${money(fill.commission)}`,
+    });
+  }
+  for (const account of artifacts.account || []) {
+    rows.push({
+      timestamp: account.timestamp,
+      type: "account",
+      status: "snapshot",
+      symbol: `${numberText(nonzeroObjectCount(account.positions), 0)} positions`,
+      detail: `equity ${money(account.equity)}; cash ${money(account.cash)}; gross ${money(account.gross_exposure)}`,
+    });
+  }
+  return rows.sort((left, right) => {
+    const leftTime = timestampMillis(left.timestamp) || 0;
+    const rightTime = timestampMillis(right.timestamp) || 0;
+    if (leftTime !== rightTime) return rightTime - leftTime;
+    return String(right.type || "").localeCompare(String(left.type || ""));
+  });
+}
+
 function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
@@ -3697,6 +3756,16 @@ function renderWorkbenchArtifacts() {
   ];
   $("artifact-summary").innerHTML = kvRows(pairs);
   $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || []);
+  const timeline = artifactSessionRows(artifacts);
+  $("artifact-session-body").innerHTML = timeline.length
+    ? timeline.map((item) => row([
+        escapeHtml(item.timestamp),
+        statusText(item.type),
+        statusText(item.status),
+        escapeHtml(text(item.symbol)),
+        escapeHtml(item.detail),
+      ])).join("")
+    : row([`<span class="muted">No decisions, orders, fills, or account snapshots in this artifact.</span>`, "", "", "", ""]);
 
   const decisions = artifacts.decisions || [];
   $("artifact-decisions-body").innerHTML = decisions.length
@@ -3736,6 +3805,23 @@ function renderWorkbenchArtifacts() {
         escapeHtml(fill.commission),
         escapeHtml(fill.simulated),
         escapeHtml(fill.tag),
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+
+  const account = artifacts.account || [];
+  $("artifact-account-note").textContent = account.length
+    ? `${numberText(account.length, 0)} sanitized account snapshot${account.length === 1 ? "" : "s"}`
+    : "No account snapshots in this artifact";
+  $("artifact-account-body").innerHTML = account.length
+    ? account.map((snapshot) => row([
+        escapeHtml(snapshot.timestamp),
+        escapeHtml(text(snapshot.step)),
+        escapeHtml(text(snapshot.mode)),
+        escapeHtml(money(snapshot.cash)),
+        escapeHtml(money(snapshot.equity)),
+        escapeHtml(money(snapshot.gross_exposure)),
+        escapeHtml(money(snapshot.net_exposure)),
+        jsonDrilldown(snapshot.positions || {}, `${numberText(nonzeroObjectCount(snapshot.positions), 0)} open`),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
 }
