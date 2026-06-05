@@ -450,7 +450,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - inspect a date range without starting a live runner
     - done for single-file Data Detail and partial for multi-file comparison
   - compare several symbols over the same window
-    - partial; Compare Saved Data overlays normalized close-return paths
+    - partial; Compare Saved Data overlays normalized close-return paths and
+      now shows overlap, warning, sampling, and comparison-readiness cards so
+      users can tell whether the selected files share enough timestamps.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, and a replay-starter command. Fully generated

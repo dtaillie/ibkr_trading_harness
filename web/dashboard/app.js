@@ -3029,6 +3029,7 @@ function renderDataCompare() {
   $("data-compare-note").innerHTML = comparison.generated_at
     ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
     : "Select two or more datasets to compare normalized close paths.";
+  $("data-compare-readiness").innerHTML = dataCompareReadinessCards(comparison, timezoneMode);
   $("data-compare-chart").innerHTML = compareChart(series, timezoneMode);
   $("data-compare-body").innerHTML = series.length
     ? series.map((item) => row([
@@ -3042,6 +3043,58 @@ function renderDataCompare() {
         `<span class="mono">${escapeHtml(item.path)}</span>`,
       ])).join("")
     : row([`<span class="muted">No comparison loaded</span>`, "", "", "", "", "", "", ""]);
+}
+
+function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
+  if (!comparison || !comparison.generated_at) {
+    return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Datasets</strong><small>Choose at least two saved files to check timestamp overlap.</small></div>`;
+  }
+  const common = Number(comparison.common_timestamp_count || 0);
+  const union = Number(comparison.union_timestamp_count || 0);
+  const warningCount = Number(comparison.warning_count || 0);
+  const datasetCount = Number(comparison.dataset_count || 0);
+  const overlapPct = union > 0 ? (common / union) * 100 : null;
+  const readiness = common <= 0
+    ? "bad"
+    : warningCount > 0 || datasetCount < 2
+      ? "warn"
+      : "ok";
+  const sampleStatus = comparison.sample_mode === "full" ? "ok" : "warn";
+  const cards = [
+    {
+      status: common > 0 ? "ok" : "bad",
+      title: numberText(common, 0),
+      label: "Common Timestamps",
+      note: `${overlapPct === null ? "n/a" : pctText(overlapPct)} of ${numberText(union, 0)} union timestamps.`,
+    },
+    {
+      status: warningCount ? "warn" : "ok",
+      title: numberText(warningCount, 0),
+      label: "Warnings",
+      note: warningCount ? (comparison.warnings || []).slice(0, 2).join("; ") : "No comparison warnings reported.",
+    },
+    {
+      status: sampleStatus,
+      title: text(comparison.sample_mode),
+      label: "Sampling",
+      note: `${numberText(comparison.preview_points, 0)} requested points; chart uses sampled paths unless full mode fits.`,
+    },
+    {
+      status: readiness,
+      title: readiness === "ok" ? "Ready" : readiness === "warn" ? "Review" : "Blocked",
+      label: "Comparison Readiness",
+      note: common > 0
+        ? `Common range ${timeRangeLabel(comparison.common_first_timestamp, comparison.common_last_timestamp, timezoneMode)}.`
+        : "No shared timestamps in the selected range.",
+    },
+  ];
+  return cards.map((card) => `
+    <div class="health-card data-compare-card">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderFetchJobs() {

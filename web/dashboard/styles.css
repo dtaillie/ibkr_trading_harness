@@ -942,6 +942,10 @@ section {
   margin: 0 0 12px;
 }
 
+.data-compare-readiness {
+  margin: 12px 0;
+}
+
 .detail-chart-wrap {
   min-height: 230px;
   padding: 14px;
