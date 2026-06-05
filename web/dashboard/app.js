@@ -2828,6 +2828,29 @@ function bestCatalogDatasetForSymbol(symbol) {
   return (symbolBrowserGroups().get(normalized) || [])[0] || null;
 }
 
+function datasetQualityRank(value) {
+  const rank = { ok: 0, warn: 1, bad: 2 };
+  return rank[String(value || "").toLowerCase()] ?? 3;
+}
+
+function recommendedDataRows(filteredRows = []) {
+  const sourceRows = filteredRows.length ? filteredRows : (state.dataCatalog.datasets || []);
+  return sourceRows
+    .filter((dataset) => dataset && dataset.path)
+    .slice()
+    .sort((left, right) => {
+      const qualityDelta = datasetQualityRank(left.quality_status) - datasetQualityRank(right.quality_status);
+      if (qualityDelta) return qualityDelta;
+      const rowDelta = Number(right.rows || 0) - Number(left.rows || 0);
+      if (rowDelta) return rowDelta;
+      const timeDelta = (timestampMillis(right.last_timestamp) || timestampMillis(right.modified_at) || 0)
+        - (timestampMillis(left.last_timestamp) || timestampMillis(left.modified_at) || 0);
+      if (timeDelta) return timeDelta;
+      return `${text(left.symbol)} ${text(left.path)}`.localeCompare(`${text(right.symbol)} ${text(right.path)}`);
+    })
+    .slice(0, 6);
+}
+
 function renderSymbolBrowser() {
   const groups = symbolBrowserGroups();
   const symbols = Array.from(groups.keys()).sort();
@@ -3290,6 +3313,38 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Bars", catalog.bar_size_counts || countBy(datasets, "bar_size")),
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
   ].join("");
+  renderDataHomeShortlist(filteredRows);
+}
+
+function renderDataHomeShortlist(filteredRows = []) {
+  const container = $("data-home-shortlist");
+  if (!container) return;
+  const rows = recommendedDataRows(filteredRows);
+  if (!rows.length) {
+    container.innerHTML = `<div class="empty-card"><strong>No saved files to shortlist</strong><span>Configure data roots or fetch history, then refresh the catalog.</span></div>`;
+    return;
+  }
+  container.innerHTML = rows.map((dataset) => {
+    const symbol = text(dataset.symbol);
+    const exactMatches = (symbolBrowserGroups().get(symbol) || []).filter((item) => item.path);
+    const compareDisabled = exactMatches.length < 2 ? " disabled" : "";
+    return `
+      <div class="data-shortlist-card">
+        <div>
+          <span class="eyebrow">${escapeHtml(text(dataset.asset_class))} / ${escapeHtml(text(dataset.source))}</span>
+          <strong>${escapeHtml(symbol)}</strong>
+          <small>${escapeHtml(text(dataset.bar_size))} / ${escapeHtml(text(dataset.storage_session))} / ${escapeHtml(numberText(dataset.rows, 0))} rows</small>
+          <small>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</small>
+          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${escapeHtml(bytes(dataset.size_bytes))} / updated ${escapeHtml(shortTimestampAgeLabel(dataset.modified_at))}</small>
+        </div>
+        <div class="data-shortlist-actions">
+          <button type="button" data-home-action="inspect" data-path="${escapeHtml(dataset.path)}" data-symbol="${escapeHtml(symbol)}">Inspect</button>
+          <button type="button" class="secondary" data-home-action="filter" data-symbol="${escapeHtml(symbol)}">Filter</button>
+          <button type="button" class="secondary" data-home-action="compare" data-symbol="${escapeHtml(symbol)}"${compareDisabled}>Compare</button>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function selectedSymbolBrowserPath() {
@@ -3367,6 +3422,35 @@ async function handleSymbolDirectoryAction(target) {
   if (target.classList.contains("symbol-directory-diagnose")) {
     $("data-symbol-input").value = symbol;
     await diagnoseDataSymbol(new Event("submit"));
+  }
+}
+
+async function handleDataHomeShortlistAction(target) {
+  const action = String(target.dataset.homeAction || "");
+  const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
+  if (symbol) {
+    $("data-symbol-browser-input").value = symbol;
+    renderSymbolBrowser();
+  }
+  if (action === "inspect") {
+    const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
+    if (!path) {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">No inspectable file for ${escapeHtml(symbol || "selected symbol")}</span>`;
+      return;
+    }
+    await loadDataDetail(path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded ${symbol || "selected"} data detail`;
+    return;
+  }
+  if (action === "filter") {
+    $("data-filter-text").value = symbol;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    return;
+  }
+  if (action === "compare") {
+    await compareSelectedSymbolDatasets();
   }
 }
 
@@ -8120,6 +8204,13 @@ function init() {
   });
   $("data-home-open-workbench").addEventListener("click", () => navigateToView("workbench"));
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
+  $("data-home-shortlist").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataHomeShortlistAction(target).catch((err) => {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);

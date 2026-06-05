@@ -575,6 +575,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Symbol Directory now has exact asset, source, bar-size, storage
       session, and quality facets so large saved universes can be narrowed
       without relying on free-text search.
+    - partial; Data Home now shows a ranked shortlist of currently visible
+      saved files with direct Inspect, Filter, and Compare actions, so users can
+      start from recommended catalog rows before using dense tables.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.

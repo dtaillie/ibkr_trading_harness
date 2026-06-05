@@ -335,6 +335,44 @@ button.secondary {
   font-size: 18px;
 }
 
+.data-shortlist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.data-shortlist-card {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.data-shortlist-card strong,
+.data-shortlist-card small {
+  display: block;
+}
+
+.data-shortlist-card strong {
+  font-size: 19px;
+}
+
+.data-shortlist-card small {
+  color: var(--muted);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-shortlist-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .symbol-directory-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
