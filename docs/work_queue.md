@@ -326,8 +326,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - done for configured saved data roots
   - clear timestamp timezone display and conversion to local/UTC/Eastern where
     relevant
-    - partial; source timezone and normalized UTC are shown, local/Eastern
-      conversion toggles remain open
+    - done for Data Detail and Compare Saved Data; source timezone and
+      normalized UTC are shown, and saved-data ranges, gaps, and chart captions
+      can be displayed as UTC, local time, or US Eastern.
 - Add historical-data workflows:
   - pick any scanned symbol and bar size
     - partial; Data Detail and Compare Saved Data are populated from scanned

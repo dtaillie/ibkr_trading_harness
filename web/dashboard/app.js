@@ -1036,6 +1036,35 @@ function rangeLabel(start, end) {
   return `${text(start)} -> ${text(end)}`;
 }
 
+function timezoneLabel(mode) {
+  if (mode === "local") return "Local";
+  if (mode === "eastern") return "Eastern";
+  return "UTC";
+}
+
+function formatTimestampForMode(value, mode = "utc") {
+  const millis = timestampMillis(value);
+  if (millis === null) return text(value);
+  const options = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZoneName: "short",
+  };
+  if (mode === "utc") options.timeZone = "UTC";
+  if (mode === "eastern") options.timeZone = "America/New_York";
+  return new Intl.DateTimeFormat("en-US", options).format(new Date(millis));
+}
+
+function timeRangeLabel(start, end, mode = "utc") {
+  if (!start && !end) return "n/a";
+  return `${formatTimestampForMode(start, mode)} -> ${formatTimestampForMode(end, mode)}`;
+}
+
 function miniChart(points) {
   if (!points || points.length < 2) return `<span class="muted">n/a</span>`;
   const closes = points.map((point) => Number(point.close)).filter((value) => Number.isFinite(value));
@@ -1056,7 +1085,7 @@ function miniChart(points) {
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
 }
 
-function detailChart(points) {
+function detailChart(points, timezoneMode = "utc") {
   if (!points || points.length < 2) return `<span class="muted">No price preview available</span>`;
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
@@ -1092,14 +1121,14 @@ function detailChart(points) {
       const x = index * (width / rows.length);
       const barHeight = Math.max(1, (point.volume / maxVolume) * volumeHeight);
       const y = baseY + volumeHeight - barHeight;
-      return `<rect class="volume-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"><title>${escapeHtml(point.timestamp)} volume ${escapeHtml(numberText(point.volume, 0))}</title></rect>`;
+      return `<rect class="volume-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"><title>${escapeHtml(formatTimestampForMode(point.timestamp, timezoneMode))} volume ${escapeHtml(numberText(point.volume, 0))}</title></rect>`;
     }).join("");
   }
-  const caption = `${rows[0].timestamp} close ${numberText(first)} | ${rows[rows.length - 1].timestamp} close ${numberText(last)}`;
+  const caption = `${formatTimestampForMode(rows[0].timestamp, timezoneMode)} close ${numberText(first)} | ${formatTimestampForMode(rows[rows.length - 1].timestamp, timezoneMode)} close ${numberText(last)}`;
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price and volume"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function compareChart(series) {
+function compareChart(series, timezoneMode = "utc") {
   const rows = (series || []).map((item) => ({
     symbol: item.symbol,
     points: (item.points || []).map((point) => ({
@@ -1138,7 +1167,7 @@ function compareChart(series) {
   const legend = rows.map((item, index) => (
     `<span class="legend-item"><span style="background:${colors[index % colors.length]}"></span>${escapeHtml(item.symbol)}</span>`
   )).join("");
-  const caption = `${new Date(minTime).toISOString()} -> ${new Date(maxTime).toISOString()} normalized close return`;
+  const caption = `${formatTimestampForMode(new Date(minTime).toISOString(), timezoneMode)} -> ${formatTimestampForMode(new Date(maxTime).toISOString(), timezoneMode)} normalized close return`;
   return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data comparison">${zeroLine}${polylines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
@@ -1709,11 +1738,12 @@ function renderDataDetail() {
   const returns = detail.return_stats || {};
   const volume = detail.volume_stats || {};
   const viewer = detail.viewer || {};
+  const timezoneMode = $("data-detail-timezone").value || "utc";
   $("data-detail-title").textContent = detail.path
     ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
     : "No dataset selected";
   $("data-detail-viewer-note").textContent = detail.path
-    ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} UTC view`
+    ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} ${timezoneLabel(timezoneMode)} view`
     : "Select a dataset to inspect saved history offline.";
   $("copy-data-path").disabled = !detail.path;
   $("copy-data-root-flag").disabled = !detail.path;
@@ -1724,8 +1754,8 @@ function renderDataDetail() {
     ["Source", text(detail.source)],
     ["Rows", numberText(detail.rows, 0)],
     ["Viewer Rows", `${numberText(viewer.filtered_rows, 0)} filtered / ${numberText(viewer.available_rows, 0)} available`],
-    ["Viewer Range", rangeLabel(viewer.first_timestamp, viewer.last_timestamp)],
-    ["Range", rangeLabel(coverage.first_timestamp, coverage.last_timestamp)],
+    ["Viewer Range", timeRangeLabel(viewer.first_timestamp, viewer.last_timestamp, timezoneMode)],
+    ["Range", timeRangeLabel(coverage.first_timestamp, coverage.last_timestamp, timezoneMode)],
     ["Median Step", interval(coverage.median_interval_seconds)],
     ["Largest Gap", interval(coverage.largest_gap_seconds)],
     ["Missing Est.", numberText(coverage.estimated_missing_intervals, 0)],
@@ -1733,6 +1763,7 @@ function renderDataDetail() {
     ["Quality", `${text(quality.quality_status)}${(quality.quality_warnings || []).length ? ` (${(quality.quality_warnings || []).length})` : ""}`],
     ["Warnings", (quality.quality_warnings || []).join("; ") || "none"],
     ["TZ", text(detail.source_timezone)],
+    ["Display TZ", timezoneLabel(timezoneMode)],
     ["Close Range", `${numberText(price.min_close)} -> ${numberText(price.max_close)}`],
     ["Total Return", pctText(price.total_return_pct)],
     ["Bar Std", pctText(returns.std_pct)],
@@ -1742,7 +1773,7 @@ function renderDataDetail() {
   $("data-detail-summary").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
-  $("data-detail-chart").innerHTML = detailChart(detail.preview || []);
+  $("data-detail-chart").innerHTML = detailChart(detail.preview || [], timezoneMode);
 
   const nullCounts = quality.null_counts || {};
   $("data-quality-body").innerHTML = Object.keys(nullCounts).length
@@ -1755,8 +1786,8 @@ function renderDataDetail() {
   const gaps = detail.gaps || [];
   $("data-gaps-body").innerHTML = gaps.length
     ? gaps.map((gap) => row([
-        escapeHtml(gap.from_timestamp),
-        escapeHtml(gap.to_timestamp),
+        escapeHtml(formatTimestampForMode(gap.from_timestamp, timezoneMode)),
+        escapeHtml(formatTimestampForMode(gap.to_timestamp, timezoneMode)),
         escapeHtml(interval(gap.gap_seconds)),
         escapeHtml(gap.estimated_missing_intervals),
       ])).join("")
@@ -1781,15 +1812,16 @@ function renderDataCompareControls() {
 function renderDataCompare() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
+  const timezoneMode = $("data-compare-timezone").value || "utc";
   $("data-compare-note").innerHTML = comparison.generated_at
     ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
     : "Select two or more datasets to compare normalized close paths.";
-  $("data-compare-chart").innerHTML = compareChart(series);
+  $("data-compare-chart").innerHTML = compareChart(series, timezoneMode);
   $("data-compare-body").innerHTML = series.length
     ? series.map((item) => row([
         escapeHtml(item.symbol),
         `${escapeHtml(numberText(item.filtered_rows, 0))} / ${escapeHtml(numberText(item.available_rows, 0))}`,
-        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        escapeHtml(timeRangeLabel(item.first_timestamp, item.last_timestamp, timezoneMode)),
         escapeHtml(numberText(item.first_close)),
         escapeHtml(numberText(item.last_close)),
         `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
@@ -3331,6 +3363,8 @@ function init() {
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
+  $("data-detail-timezone").addEventListener("change", renderDataDetail);
+  $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;

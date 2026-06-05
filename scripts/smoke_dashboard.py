@@ -98,11 +98,13 @@ def run_smoke(
             "data-symbol-candidates-body",
             "data-detail-form",
             "data-detail-viewer-note",
+            "data-detail-timezone",
             "copy-data-path",
             "copy-data-root-flag",
             "copy-data-replay-command",
             "data-compare-form",
             "data-compare-datasets",
+            "data-compare-timezone",
             "data-compare-chart",
             "data-compare-body",
             "fetch-manifests-body",
@@ -182,6 +184,8 @@ def run_smoke(
             "renderConfigDataQuality",
             "quality_warning_count",
             "allow_quality_warnings",
+            "formatTimestampForMode",
+            "timeRangeLabel",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

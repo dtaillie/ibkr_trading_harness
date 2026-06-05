@@ -469,6 +469,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
         assert "data-detail-viewer-note" in html
+        assert "data-detail-timezone" in html
+        assert "data-compare-timezone" in html
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html

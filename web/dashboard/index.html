@@ -685,6 +685,14 @@
             <option value="full">Full if range fits</option>
           </select>
         </label>
+        <label>
+          <span>Display TZ</span>
+          <select id="data-detail-timezone">
+            <option value="utc" selected>UTC</option>
+            <option value="local">Local</option>
+            <option value="eastern">Eastern</option>
+          </select>
+        </label>
         <button type="submit">Reload View</button>
         <button id="copy-data-path" class="secondary" type="button" disabled>Copy Path</button>
         <button id="copy-data-root-flag" class="secondary" type="button" disabled>Copy Data Root Flag</button>
@@ -760,6 +768,14 @@
           <select id="data-compare-mode">
             <option value="sampled" selected>Sampled</option>
             <option value="full">Full if range fits</option>
+          </select>
+        </label>
+        <label>
+          <span>Display TZ</span>
+          <select id="data-compare-timezone">
+            <option value="utc" selected>UTC</option>
+            <option value="local">Local</option>
+            <option value="eastern">Eastern</option>
           </select>
         </label>
         <button type="submit">Compare</button>
