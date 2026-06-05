@@ -646,6 +646,13 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "paper-monitor-note" in html
         assert "paper-monitor-guide" in html
         assert "remote-nodes-note" in html
+        assert "remote-node-count" in html
+        assert "remote-alert-count" in html
+        assert "remote-open-order-count" in html
+        assert "remote-filter-text" in html
+        assert "remote-filter-status" in html
+        assert "remote-filter-mode" in html
+        assert "remote-filter-sort" in html
         assert "remote-nodes-body" in html
         assert "remote-node-detail-note" in html
         assert "remote-node-history-body" in html

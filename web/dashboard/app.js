@@ -2223,6 +2223,16 @@ function countSummary(counts) {
     : "none";
 }
 
+function countBy(rows, key) {
+  const counts = {};
+  for (const rowItem of rows || []) {
+    const value = text(rowItem[key]);
+    if (!value || value === "n/a") continue;
+    counts[value] = (counts[value] || 0) + 1;
+  }
+  return counts;
+}
+
 function timestampRangeFromDatasets(datasets) {
   const starts = (datasets || []).map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
   const ends = (datasets || []).map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
@@ -4033,15 +4043,86 @@ function renderPaperMonitor() {
   )).join("");
 }
 
+function remoteNodeFilters() {
+  return {
+    text: ($("remote-filter-text").value || "").trim().toLowerCase(),
+    status: $("remote-filter-status").value || "",
+    mode: $("remote-filter-mode").value || "",
+    sort: $("remote-filter-sort").value || "heartbeat_desc",
+  };
+}
+
+function renderRemoteNodeFilterOptions(nodes) {
+  const makeOptions = (id, values) => {
+    const current = $(id).value || "";
+    const unique = Array.from(new Set((values || []).map(text).filter((value) => value && value !== "n/a"))).sort();
+    $(id).innerHTML = `<option value="">All</option>${unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+    if (unique.includes(current)) $(id).value = current;
+  };
+  makeOptions("remote-filter-status", (nodes || []).map((node) => node.status));
+  makeOptions("remote-filter-mode", (nodes || []).map((node) => node.mode));
+}
+
+function remoteNodeSortValue(node, key) {
+  if (key === "heartbeat") return timestampMillis(node.received_at || node.generated_at) || 0;
+  if (key === "alerts") return Number(node.alert_count || 0);
+  if (key === "orders") return Number(node.open_order_count || 0);
+  if (key === "equity") return finiteNumber(node.final_equity) || 0;
+  return String(node.node_id || "").toLowerCase();
+}
+
+function filteredRemoteNodes(nodes) {
+  const filters = remoteNodeFilters();
+  const filtered = (nodes || []).filter((node) => {
+    if (filters.status && text(node.status) !== filters.status) return false;
+    if (filters.mode && text(node.mode) !== filters.mode) return false;
+    if (filters.text) {
+      const haystack = [
+        node.node_id,
+        node.status,
+        node.mode,
+        node.latest_run_id,
+        node.latest_run_status,
+      ].map(text).join(" ").toLowerCase();
+      if (!haystack.includes(filters.text)) return false;
+    }
+    return true;
+  });
+  const [key, direction] = String(filters.sort || "heartbeat_desc").split("_");
+  const multiplier = direction === "asc" ? 1 : -1;
+  return filtered.slice().sort((left, right) => {
+    const leftValue = remoteNodeSortValue(left, key);
+    const rightValue = remoteNodeSortValue(right, key);
+    if (typeof leftValue === "number" && typeof rightValue === "number" && leftValue !== rightValue) {
+      return (leftValue - rightValue) * multiplier;
+    }
+    const primary = String(leftValue).localeCompare(String(rightValue)) * multiplier;
+    if (primary) return primary;
+    return String(left.node_id || "").localeCompare(String(right.node_id || ""));
+  });
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
   const nodes = payload.nodes || [];
+  const filteredNodes = filteredRemoteNodes(nodes);
+  const alertTotal = nodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const openOrderTotal = nodes.reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
+  renderRemoteNodeFilterOptions(nodes);
   $("remote-nodes-note").textContent = nodes.length
-    ? `${numberText(nodes.length, 0)} monitored node${nodes.length === 1 ? "" : "s"} from ${numberText(payload.total, 0)} status snapshot${payload.total === 1 ? "" : "s"}`
+    ? `${numberText(filteredNodes.length, 0)} shown / ${numberText(nodes.length, 0)} monitored node${nodes.length === 1 ? "" : "s"} from ${numberText(payload.total, 0)} status snapshot${payload.total === 1 ? "" : "s"}`
     : "No remote status snapshots have been received yet";
-  $("remote-nodes-body").innerHTML = nodes.length
-    ? nodes.map((node) => row([
+  $("remote-node-count").textContent = numberText(nodes.length, 0);
+  $("remote-node-status-summary").textContent = nodes.length ? countSummary(countBy(nodes, "status")) : "No snapshots received";
+  $("remote-alert-count").textContent = numberText(alertTotal, 0);
+  $("remote-alert-count").className = statusClass(alertTotal ? "warn" : nodes.length ? "ok" : "unknown");
+  $("remote-alert-note").textContent = nodes.length ? `${numberText(alertTotal, 0)} alert${alertTotal === 1 ? "" : "s"} across monitored nodes` : "No remote alerts loaded";
+  $("remote-open-order-count").textContent = numberText(openOrderTotal, 0);
+  $("remote-open-order-count").className = statusClass(openOrderTotal ? "warn" : nodes.length ? "ok" : "unknown");
+  $("remote-open-order-note").textContent = nodes.length ? `${numberText(openOrderTotal, 0)} non-terminal order event${openOrderTotal === 1 ? "" : "s"}` : "Sanitized order telemetry only";
+  $("remote-nodes-body").innerHTML = filteredNodes.length
+    ? filteredNodes.map((node) => row([
         escapeHtml(node.node_id),
         statusText(node.status),
         escapeHtml(timestampAgeLabel(node.received_at || node.generated_at)),
@@ -4056,7 +4137,7 @@ function renderRemoteNodes() {
         escapeHtml(numberText(node.alert_count, 0)),
         `<button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button>`,
       ])).join("")
-    : row([`<span class="muted">No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderRemoteNodeDetail() {
@@ -4802,6 +4883,10 @@ function init() {
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
   $("fetch-filter-sort").addEventListener("change", renderFetchJobs);
+  $("remote-filter-text").addEventListener("input", renderRemoteNodes);
+  $("remote-filter-status").addEventListener("change", renderRemoteNodes);
+  $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
+  $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);

@@ -663,6 +663,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     with node heartbeat, Gateway, mode, equity, position count, open-order
     count, recent decision/order/fill/rejection counts, latest account/data
     age, and alerts from sanitized status posts.
+  - partial; Remote Nodes now has summary cards plus client-side search,
+    status/mode filters, and sort controls for heartbeat age, alerts, open
+    orders, equity, and node name so cloud monitoring snapshots are easier to
+    triage.
 - Add alerts:
   - missed heartbeat
   - Gateway login required

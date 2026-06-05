@@ -1589,6 +1589,51 @@
         <h2>Remote Nodes</h2>
         <span id="remote-nodes-note" class="section-note">Latest read-only cloud monitoring snapshots by node</span>
       </div>
+      <div class="data-library-summary">
+        <div class="data-library-card">
+          <span class="eyebrow">Nodes</span>
+          <strong id="remote-node-count">0</strong>
+          <span id="remote-node-status-summary">No snapshots received</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Alerts</span>
+          <strong id="remote-alert-count">0</strong>
+          <span id="remote-alert-note">No remote alerts loaded</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Open Orders</span>
+          <strong id="remote-open-order-count">0</strong>
+          <span id="remote-open-order-note">Sanitized order telemetry only</span>
+        </div>
+      </div>
+      <div class="filter-row">
+        <label>
+          <span>Search</span>
+          <input id="remote-filter-text" type="search" placeholder="Node, status, mode">
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="remote-filter-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Mode</span>
+          <select id="remote-filter-mode">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="remote-filter-sort">
+            <option value="heartbeat_desc" selected>Newest heartbeat</option>
+            <option value="alerts_desc">Most alerts</option>
+            <option value="orders_desc">Most open orders</option>
+            <option value="equity_desc">Highest equity</option>
+            <option value="node_asc">Node A-Z</option>
+          </select>
+        </label>
+      </div>
       <div class="table-wrap compact-table">
         <table>
           <thead>
