@@ -202,6 +202,9 @@ def run_smoke(
             "latestWorkbenchRunForDraft",
             "renderConfigPluginBoundary",
             "selectedConfigPlugin",
+            "status_label",
+            "draft.folder",
+            "draft.tags",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

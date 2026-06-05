@@ -2552,6 +2552,39 @@ def read_yaml_mapping(path: Path) -> dict[str, Any]:
     return config
 
 
+def draft_folder_label(path: Path) -> str:
+    root = config_drafts_dir(Path(".")).name
+    parent = path.parent.name or root
+    return parent
+
+
+def draft_status_label(metadata: dict[str, Any], runner: dict[str, Any]) -> str:
+    status = str(metadata.get("status") or "").strip()
+    mode = str(runner.get("mode") or "").strip()
+    if status:
+        return status
+    if mode:
+        return mode
+    return "unknown"
+
+
+def draft_tags(metadata: dict[str, Any], runner: dict[str, Any], data: dict[str, Any]) -> list[str]:
+    tags = []
+    mode = str(runner.get("mode") or "").strip()
+    status = str(metadata.get("status") or "").strip()
+    plugin = str(metadata.get("strategy_plugin") or metadata.get("plugin") or "").strip()
+    files = data.get("files") if isinstance(data.get("files"), dict) else {}
+    if status:
+        tags.append(status)
+    if mode:
+        tags.append(mode)
+    if plugin.startswith("examples."):
+        tags.append("public_example")
+    if files:
+        tags.append(f"{len(files)} symbols")
+    return tags
+
+
 def config_draft_record(path: Path) -> dict[str, Any]:
     config = read_yaml_mapping(path)
     runner = config.get("runner") or {}
@@ -2568,6 +2601,9 @@ def config_draft_record(path: Path) -> dict[str, Any]:
         "output_dir": runner.get("output_dir"),
         "plugin": metadata.get("strategy_plugin") or metadata.get("plugin"),
         "status": metadata.get("status"),
+        "status_label": draft_status_label(metadata, runner),
+        "folder": draft_folder_label(path),
+        "tags": draft_tags(metadata, runner, data),
         "symbols": sorted((data.get("files") or {}).keys()) if isinstance(data.get("files"), dict) else [],
     }
 
@@ -2597,6 +2633,9 @@ def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dic
         "output_dir": None,
         "plugin": None,
         "status": None,
+        "status_label": "unknown",
+        "folder": draft_folder_label(path),
+        "tags": [],
         "symbols": [],
         "valid": False,
         "errors": [],
@@ -2618,6 +2657,8 @@ def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dic
             "output_dir": runner.get("output_dir"),
             "plugin": metadata.get("strategy_plugin") or metadata.get("plugin"),
             "status": metadata.get("status"),
+            "status_label": draft_status_label(metadata, runner),
+            "tags": draft_tags(metadata, runner, data),
             "symbols": sorted((data.get("files") or {}).keys()) if isinstance(data.get("files"), dict) else [],
             "valid": not errors,
             "errors": errors,

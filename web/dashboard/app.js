@@ -2341,14 +2341,17 @@ function renderWorkbenchRuns() {
   $("config-drafts-body").innerHTML = drafts.length
     ? drafts.map((draft) => row([
         escapeHtml(draft.draft_id),
+        escapeHtml(draft.folder),
+        statusText(draft.status_label || draft.status || "unknown"),
         escapeHtml(draft.mode),
         escapeHtml((draft.symbols || []).join(", ")),
+        escapeHtml((draft.tags || []).join(", ") || "none"),
         escapeHtml(draft.modified_at),
         draftValidationBadge(draft.draft_id),
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
 
   const runs = (state.configRuns && state.configRuns.runs) || [];
   $("config-runs-body").innerHTML = runs.length

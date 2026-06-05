@@ -474,6 +474,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     public Workbench remains future work.
 - Add schema-driven form rendering after config schemas are reliable.
 - Add saved draft folders/tags/status labels.
+  - done for the Workbench saved-drafts table; draft records now expose folder,
+    status label, and tags derived from mode/status/plugin/symbol count, and
+    the UI displays them beside validation/output state.
 - Add safer empty states and validation messages.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands

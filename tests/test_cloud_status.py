@@ -1453,6 +1453,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert validations["validations"][0]["draft_id"] == "Test_Draft"
         assert validations["validations"][0]["valid"] is True
         assert validations["validations"][0]["errors"] == []
+        assert validations["validations"][0]["folder"] == "config_drafts"
+        assert validations["validations"][0]["status_label"] == "example_only"
+        assert "simulated_paper" in validations["validations"][0]["tags"]
 
         bad_delete_req = request.Request(
             f"{base}/config_draft/delete",
@@ -1573,6 +1576,9 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert drafts["count"] == 1
         assert drafts["drafts"][0]["draft_id"] == "Run_Draft"
         assert drafts["drafts"][0]["symbols"] == ["QQQ", "SPY"]
+        assert drafts["drafts"][0]["folder"] == "config_drafts"
+        assert drafts["drafts"][0]["status_label"] == "example_only"
+        assert "2 symbols" in drafts["drafts"][0]["tags"]
 
         validate_req = request.Request(
             f"{base}/config_draft/run",
