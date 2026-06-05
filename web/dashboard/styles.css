@@ -350,6 +350,57 @@ button.secondary {
   margin-top: 10px;
 }
 
+.symbol-quick-picks {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.symbol-quick-pick-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.symbol-quick-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.symbol-quick-pick {
+  display: block;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  text-align: left;
+}
+
+.symbol-quick-pick:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+.symbol-quick-pick span,
+.symbol-quick-pick small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.symbol-quick-pick strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
 .symbol-match-card {
   display: block;
   min-height: 104px;

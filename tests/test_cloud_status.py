@@ -645,6 +645,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-browser-input" in html
         assert "data-symbol-browser-dataset" in html
         assert "data-symbol-browser-matches" in html
+        assert "data-symbol-quick-picks" in html
         assert "data-symbol-browser-compare" in html
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html

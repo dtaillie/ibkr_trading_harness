@@ -3319,6 +3319,87 @@ function selectedSymbolBrowserDatasets() {
   return symbolBrowserGroups().get(symbol) || [];
 }
 
+function symbolGroupSummary(symbol, rows) {
+  const datasets = rows || [];
+  const best = datasets[0] || {};
+  const sources = Array.from(new Set(datasets.map((item) => text(item.source)).filter((item) => item !== "n/a"))).slice(0, 4);
+  const bars = Array.from(new Set(datasets.map((item) => text(item.bar_size)).filter((item) => item !== "n/a"))).slice(0, 4);
+  const assets = Array.from(new Set(datasets.map((item) => text(item.asset_class)).filter((item) => item !== "n/a"))).slice(0, 3);
+  const rowsTotal = datasets.reduce((sum, item) => sum + Number(item.rows || 0), 0);
+  const latest = datasets
+    .map((item) => timestampMillis(item.last_timestamp) || timestampMillis(item.modified_at) || 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+  return {
+    symbol,
+    best,
+    file_count: datasets.length,
+    rows_total: rowsTotal,
+    sources,
+    bars,
+    assets,
+    quality_status: text(best.quality_status),
+    latest_millis: latest,
+    range: rangeLabel(best.first_timestamp, best.last_timestamp),
+  };
+}
+
+function symbolQuickPickSuggestions(query, groups, limit = 8) {
+  const normalized = String(query || "").trim().toUpperCase();
+  const summaries = Array.from(groups.entries()).map(([symbol, rows]) => symbolGroupSummary(symbol, rows));
+  return summaries
+    .map((summary) => {
+      const symbol = text(summary.symbol).toUpperCase();
+      const exact = normalized && symbol === normalized;
+      const starts = normalized && symbol.startsWith(normalized);
+      const includes = normalized && symbol.includes(normalized);
+      const score = exact
+        ? 0
+        : starts
+          ? 1
+          : includes
+            ? 2
+            : normalized ? 5 : 3;
+      return { ...summary, score };
+    })
+    .filter((summary) => !normalized || summary.score < 5)
+    .sort((left, right) => {
+      if (left.score !== right.score) return left.score - right.score;
+      const qualityDelta = datasetQualityRank(left.quality_status) - datasetQualityRank(right.quality_status);
+      if (qualityDelta) return qualityDelta;
+      if (left.file_count !== right.file_count) return right.file_count - left.file_count;
+      if (left.rows_total !== right.rows_total) return right.rows_total - left.rows_total;
+      if (left.latest_millis !== right.latest_millis) return right.latest_millis - left.latest_millis;
+      return text(left.symbol).localeCompare(text(right.symbol));
+    })
+    .slice(0, limit);
+}
+
+function renderSymbolQuickPicks(groups, query) {
+  const container = $("data-symbol-quick-picks");
+  if (!container) return;
+  const suggestions = symbolQuickPickSuggestions(query, groups, 8);
+  if (!suggestions.length) {
+    container.innerHTML = "";
+    return;
+  }
+  const normalized = String(query || "").trim().toUpperCase();
+  const title = normalized ? `Quick picks matching ${normalized}` : "Quick picks from scanned data";
+  container.innerHTML = `
+    <span class="symbol-quick-pick-head">${escapeHtml(title)}</span>
+    <div class="symbol-quick-pick-grid">
+      ${suggestions.map((summary) => `
+        <button type="button" class="symbol-quick-pick" data-symbol="${escapeHtml(summary.symbol)}">
+          <span>${escapeHtml(summary.assets.join(", ") || "unknown asset")}</span>
+          <strong>${escapeHtml(summary.symbol)}</strong>
+          <small>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows</small>
+          <small>${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")}</small>
+          <small>${qualityBadge(summary.quality_status)} ${escapeHtml(summary.range)}</small>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
 function bestCatalogDatasetForSymbol(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return null;
@@ -3356,10 +3437,12 @@ function renderSymbolBrowser() {
   const previousSymbol = selectedSymbolBrowserSymbol();
   renderCatalogSymbolDatalists(symbols);
   if (!previousSymbol && symbols.length) input.value = symbols[0];
+  const activeSymbol = selectedSymbolBrowserSymbol();
+  renderSymbolQuickPicks(groups, activeSymbol);
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
     $("data-symbol-browser-note").innerHTML = `<span class="status-warn">No catalog files match ${escapeHtml(previousSymbol)}</span>`;
-    $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No match</strong><span>Use Diagnose to check unconfigured roots and fetch manifests for this symbol.</span></div>`;
+    $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No exact match</strong><span>Choose a quick pick above, or use Diagnose to check unconfigured roots and fetch manifests for this symbol.</span></div>`;
     return;
   }
   const selected = selectedSymbolBrowserDatasets();
@@ -8900,6 +8983,13 @@ function init() {
     });
   });
   $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-quick-picks").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".symbol-quick-pick") : null;
+    if (!(target instanceof HTMLElement)) return;
+    $("data-symbol-browser-input").value = String(target.dataset.symbol || "");
+    renderSymbolBrowser();
+    $("last-refresh").textContent = `Selected ${String(target.dataset.symbol || "")} in Symbol Browser`;
+  });
   $("data-symbol-directory-filter").addEventListener("input", renderSymbolDirectory);
   $("data-symbol-directory-asset").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-source").addEventListener("change", renderSymbolDirectory);

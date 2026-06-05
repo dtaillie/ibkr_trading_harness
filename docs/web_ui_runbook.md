@@ -123,6 +123,9 @@ Use Symbol Directory when you want to browse discovered symbols without already
 knowing the ticker. It can search by symbol, asset, source, bar size, quality,
 or date range, sort by files/rows/latest data/symbol/quality, and provides
 direct Filter, Inspect, Compare, and Diagnose actions for each symbol.
+Use Symbol Browser quick picks when you only remember part of a ticker; the
+cards summarize matching symbols and select one into the existing Inspect,
+Compare, Filter, and Diagnose actions.
 
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.

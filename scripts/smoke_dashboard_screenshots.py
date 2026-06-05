@@ -110,6 +110,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".data-library-card strong",
     ".data-shortlist-card strong",
     ".data-shortlist-card small",
+    ".symbol-quick-pick strong",
+    ".symbol-quick-pick small",
     ".root-card span",
     ".root-card strong",
     ".help-start-grid strong",

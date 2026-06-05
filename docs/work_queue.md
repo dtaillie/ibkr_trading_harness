@@ -551,6 +551,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library now has a catalog-fed Symbol Browser with a
       typeahead symbol input, best-file selector, one-click table filter,
       diagnose action, and direct Data Detail inspection for scanned files.
+    - partial; Symbol Browser now adds ranked quick-pick cards for partial or
+      empty symbol input, summarizing file count, rows, asset/source/bar
+      coverage, quality, and range with one-click selection into Inspect,
+      Compare, Filter, or Diagnose.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe
