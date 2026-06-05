@@ -597,6 +597,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-storage-audit-body" in html
         assert "<th>Assets</th>" in html
         assert "<th>Bars</th>" in html
+        assert "<th>Unsupported</th>" in html
+        assert "<th>Sample Unsupported Paths</th>" in html
         assert "data-symbol-browser-input" in html
         assert "data-symbol-browser-dataset" in html
         assert "data-symbol-browser-matches" in html
@@ -1704,6 +1706,7 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
             + "\n",
             encoding="utf-8",
         )
+    (data_root / "notes.txt").write_text("not market data\n", encoding="utf-8")
     monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", (suggested_root,))
     server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1718,6 +1721,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert audit["configured_file_count"] == 2
         assert audit["hidden_configured_file_count"] == 1
         assert audit["suggested_file_count"] == 1
+        assert audit["unsupported_file_count"] == 1
+        assert audit["unsupported_extension_counts"] == {".txt": 1}
         assert audit["scan_duration_ms_total"] >= 0
         configured = audit["configured_roots"][0]
         assert configured["display_path"] == str(data_root.resolve())
@@ -1728,6 +1733,9 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert configured["scan_duration_ms"] >= 0
         assert configured["asset_class_guess_counts"] == {"etf": 2}
         assert configured["bar_size_guess_counts"] == {"5min": 2}
+        assert configured["unsupported_file_count"] == 1
+        assert configured["unsupported_extension_counts"] == {".txt": 1}
+        assert configured["sample_unsupported_paths"][0].endswith("notes.txt")
         assert configured["sample_hidden_paths"][0].endswith("_5min_sample.csv")
         suggested = audit["suggested_roots"][0]
         assert suggested["display_path"] == str(suggested_root.resolve())
@@ -1739,10 +1747,13 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
             assert resp.headers["Content-Type"].startswith("text/csv")
         assert "scope,path,display_path" in csv_body
         assert "scan_duration_ms" in csv_body.splitlines()[0]
+        assert "unsupported_file_count" in csv_body.splitlines()[0]
+        assert "sample_unsupported_paths" in csv_body.splitlines()[0]
         assert "asset_class_guess_counts" in csv_body.splitlines()[0]
         assert "bar_size_guess_counts" in csv_body.splitlines()[0]
         assert "configured" in csv_body
         assert "suggested" in csv_body
+        assert "notes.txt" in csv_body
         assert str(suggested_root.resolve()) in csv_body
     finally:
         server.shutdown()

@@ -1895,20 +1895,33 @@ def build_data_catalog(
     }
 
 
-def data_files_for_root(root: Path, *, scan_limit: int) -> tuple[list[Path], bool, list[dict[str, str]]]:
+def data_files_for_root(root: Path, *, scan_limit: int) -> tuple[list[Path], bool, list[dict[str, str]], dict[str, Any]]:
     files: list[Path] = []
     errors: list[dict[str, str]] = []
+    unsupported: dict[str, Any] = {
+        "unsupported_file_count": 0,
+        "unsupported_extension_counts": {},
+        "sample_unsupported_paths": [],
+    }
     capped = False
     if not root.exists() or not root.is_dir():
-        return files, capped, errors
+        return files, capped, errors, unsupported
     try:
         iterator = root.rglob("*")
         for path in iterator:
             try:
-                if not path.is_file() or path.suffix.lower() not in DATA_FILE_SUFFIXES:
+                if not path.is_file():
                     continue
             except OSError as exc:
                 errors.append({"path": display_path(path), "error": str(exc)})
+                continue
+            suffix = path.suffix.lower() or "none"
+            if suffix not in DATA_FILE_SUFFIXES:
+                unsupported["unsupported_file_count"] += 1
+                counts = unsupported["unsupported_extension_counts"]
+                counts[suffix] = int(counts.get(suffix, 0)) + 1
+                if len(unsupported["sample_unsupported_paths"]) < 10:
+                    unsupported["sample_unsupported_paths"].append(display_path(path))
                 continue
             if len(files) >= scan_limit:
                 capped = True
@@ -1916,7 +1929,8 @@ def data_files_for_root(root: Path, *, scan_limit: int) -> tuple[list[Path], boo
             files.append(path)
     except OSError as exc:
         errors.append({"path": display_path(root), "error": str(exc)})
-    return files, capped, errors
+    unsupported["unsupported_extension_counts"] = dict(sorted(unsupported["unsupported_extension_counts"].items()))
+    return files, capped, errors, unsupported
 
 
 def audit_data_root(
@@ -1929,7 +1943,7 @@ def audit_data_root(
     resolved = root.resolve()
     started = time.perf_counter()
     probe = writable_probe(resolved, expect_dir=True)
-    files, capped, errors = data_files_for_root(resolved, scan_limit=scan_limit)
+    files, capped, errors, unsupported = data_files_for_root(resolved, scan_limit=scan_limit)
     file_rows = []
     for path in files:
         display = display_path(path)
@@ -1969,6 +1983,9 @@ def audit_data_root(
         "source_guess_counts": count_values(file_rows, "source"),
         "bar_size_guess_counts": count_values(file_rows, "bar_size"),
         "sample_hidden_paths": [row["path"] for row in hidden_rows[:10]],
+        "unsupported_file_count": unsupported["unsupported_file_count"],
+        "unsupported_extension_counts": unsupported["unsupported_extension_counts"],
+        "sample_unsupported_paths": unsupported["sample_unsupported_paths"],
         "errors": errors,
         "error_count": len(errors),
     }
@@ -2010,6 +2027,7 @@ def build_data_storage_audit(
     configured_visible_count = sum(int(row.get("catalog_visible_count") or 0) for row in configured_rows)
     hidden_configured_count = sum(int(row.get("hidden_file_count") or 0) for row in configured_rows)
     suggested_file_count = sum(int(row.get("file_count") or 0) for row in suggested_rows)
+    unsupported_file_count = sum(int(row.get("unsupported_file_count") or 0) for row in configured_rows + suggested_rows)
     warnings = []
     if not configured_file_count:
         warnings.append("No CSV/parquet files were found under configured data roots.")
@@ -2017,6 +2035,8 @@ def build_data_storage_audit(
         warnings.append("Some configured-root files are not visible in the current catalog result.")
     if suggested_file_count:
         warnings.append("Suggested local roots contain files that are not currently scanned.")
+    if unsupported_file_count:
+        warnings.append("Some root files have unsupported extensions and are not catalog-visible.")
     if catalog.get("errors"):
         warnings.append("Some configured-root files failed catalog parsing.")
     if any(row.get("scan_capped") for row in configured_rows + suggested_rows):
@@ -2041,7 +2061,9 @@ def build_data_storage_audit(
         "configured_visible_count": configured_visible_count,
         "hidden_configured_file_count": hidden_configured_count,
         "suggested_file_count": suggested_file_count,
+        "unsupported_file_count": unsupported_file_count,
         "extension_counts": merge_count_maps(configured_rows + suggested_rows, "extension_counts"),
+        "unsupported_extension_counts": merge_count_maps(configured_rows + suggested_rows, "unsupported_extension_counts"),
         "asset_class_guess_counts": merge_count_maps(configured_rows + suggested_rows, "asset_class_guess_counts"),
         "source_guess_counts": merge_count_maps(configured_rows + suggested_rows, "source_guess_counts"),
         "bar_size_guess_counts": merge_count_maps(configured_rows + suggested_rows, "bar_size_guess_counts"),
@@ -2121,6 +2143,9 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "scan_capped",
     "size_bytes",
     "error_count",
+    "unsupported_file_count",
+    "unsupported_extension_counts",
+    "sample_unsupported_paths",
     "extension_counts",
     "asset_class_guess_counts",
     "source_guess_counts",

@@ -475,6 +475,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Storage Audit now renders action cards that recommend adding
       suggested roots, raising scan limits, inspecting hidden configured-root
       files, or reviewing parser/root scan errors before using the catalog.
+    - partial; Storage Audit now also counts unsupported-extension files,
+      exports unsupported counts/samples, and shows bounded unsupported path
+      samples beside hidden-file samples in the dashboard.
 - Add historical-data visualization:
   - line/candlestick chart for saved files
     - partial; saved files now have a range-filtered close-price chart,

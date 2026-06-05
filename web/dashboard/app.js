@@ -3448,6 +3448,7 @@ function renderDataStorageAudit() {
     ["Configured Files", numberText(audit.configured_file_count, 0)],
     ["Hidden Configured Files", numberText(audit.hidden_configured_file_count, 0)],
     ["Suggested-root Files", numberText(audit.suggested_file_count, 0)],
+    ["Unsupported Files", numberText(audit.unsupported_file_count, 0)],
     ["Root Scan Time", `${numberText(audit.scan_duration_ms_total, 3)} ms`],
     ["Warnings", (audit.warnings || []).join("; ") || "none"],
   ];
@@ -3463,6 +3464,7 @@ function renderDataStorageAudit() {
     ? rows.map((item) => {
         const scopeClass = item.scope === "configured" ? "status-ok" : "status-warn";
         const hiddenSamples = (item.sample_hidden_paths || []).slice(0, 3);
+        const unsupportedSamples = (item.sample_unsupported_paths || []).slice(0, 3);
         return row([
           `<span class="${scopeClass}">${escapeHtml(item.scope)}</span>`,
           `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
@@ -3470,6 +3472,7 @@ function renderDataStorageAudit() {
           `${escapeHtml(numberText(item.file_count, 0))}${item.scan_capped ? " capped" : ""}`,
           escapeHtml(numberText(item.catalog_visible_count, 0)),
           escapeHtml(numberText(item.hidden_file_count, 0)),
+          `${escapeHtml(numberText(item.unsupported_file_count, 0))}<br><span class="muted">${escapeHtml(countSummary(item.unsupported_extension_counts))}</span>`,
           `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
           escapeHtml(countSummary(item.extension_counts)),
           escapeHtml(countSummary(item.asset_class_guess_counts)),
@@ -3478,9 +3481,12 @@ function renderDataStorageAudit() {
           hiddenSamples.length
             ? hiddenSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
             : `<span class="muted">none</span>`,
+          unsupportedSamples.length
+            ? unsupportedSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
+            : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function dataStorageAuditActions(audit = {}) {
@@ -3490,6 +3496,7 @@ function dataStorageAuditActions(audit = {}) {
   const configuredFiles = Number(audit.configured_file_count || 0);
   const suggestedFiles = Number(audit.suggested_file_count || 0);
   const hiddenConfigured = Number(audit.hidden_configured_file_count || 0);
+  const unsupportedFiles = Number(audit.unsupported_file_count || 0);
   const catalogErrors = Number(audit.catalog_error_count || 0);
   const cappedRows = rows.filter((rowItem) => rowItem.scan_capped);
   const errorRoots = rows.filter((rowItem) => Number(rowItem.error_count || 0) > 0);
@@ -3538,6 +3545,13 @@ function dataStorageAuditActions(audit = {}) {
       status: "warn",
       title: "Raise Disk Scan Limit",
       note: `${numberText(cappedRows.length, 0)} root${cappedRows.length === 1 ? "" : "s"} hit the per-root scan limit of ${numberText(audit.scan_limit, 0)} files.`,
+    });
+  }
+  if (unsupportedFiles) {
+    cards.push({
+      status: "warn",
+      title: "Check Unsupported Files",
+      note: `${numberText(unsupportedFiles, 0)} file${unsupportedFiles === 1 ? "" : "s"} under audited roots have unsupported extensions and are not catalog-visible.`,
     });
   }
   if (catalogErrors || errorRoots.length) {
