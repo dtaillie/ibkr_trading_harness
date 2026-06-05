@@ -946,6 +946,10 @@ section {
   margin: 12px 0;
 }
 
+.fetch-recovery-cards {
+  margin: 0 0 12px;
+}
+
 .detail-chart-wrap {
   min-height: 230px;
   padding: 14px;

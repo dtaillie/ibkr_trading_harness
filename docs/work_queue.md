@@ -515,6 +515,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       crypto chunks can be retried without manually reconstructing the run.
     - partial; Fetch Detail now exposes a copyable crypto resume command for
       selected `crypto_history` JSON manifests.
+    - partial; Fetch Detail now includes recovery cards that summarize symbol
+      coverage, permission blockers, retry events, pacing waits, and whether a
+      selected job is ready to inspect, retry, or fix before resuming.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to

@@ -3195,6 +3195,7 @@ function renderFetchManifestDetail() {
   const counts = detail.counts || {};
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
+  $("fetch-recovery-cards").innerHTML = fetchRecoveryCards(detail, resumeCommand);
   const pairs = [
     ["Job", text(detail.job_id)],
     ["Kind", text(detail.kind)],
@@ -3277,6 +3278,72 @@ function renderFetchManifestDetail() {
           : `<span class="muted">not in data roots</span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function fetchRecoveryCards(detail, resumeCommand = "") {
+  if (!detail || !detail.job_id) {
+    return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Fetch</strong><small>Inspect a fetch job to see retry and recovery guidance.</small></div>`;
+  }
+  const counts = detail.counts || {};
+  const failedSymbols = Number(counts.failed_symbols || detail.failed_symbols || 0);
+  const emptySymbols = Number(counts.empty_symbols || detail.empty_symbols || 0);
+  const successSymbols = Number(counts.success_symbols || detail.success_symbols || 0);
+  const failedChunks = Number(counts.failed_chunks || detail.failed_chunks || 0);
+  const errors = Number(counts.errors || detail.error_total || 0);
+  const retryEvents = Number(counts.retry_events || 0);
+  const waits = Number(counts.pacing_wait_events || 0);
+  const waitSeconds = Number(counts.pacing_wait_seconds || 0);
+  const errorKinds = counts.error_kind_counts || {};
+  const permissionErrors = Number(errorKinds.permission || 0);
+  const hasFailures = failedSymbols > 0 || failedChunks > 0 || errors > 0;
+  const recoverStatus = permissionErrors > 0
+    ? "bad"
+    : hasFailures
+      ? "warn"
+      : "ok";
+  const recoverNote = permissionErrors > 0
+    ? "Permission failures usually need subscription/account changes before retrying."
+    : hasFailures && resumeCommand
+      ? "Copy the resume command to retry failed or missing work."
+      : hasFailures
+        ? "Review errors and rerun with the same inputs after fixing the cause."
+        : "No failed symbols or chunks recorded.";
+  const coverageStatus = failedSymbols > 0 ? "warn" : successSymbols > 0 ? "ok" : "bad";
+  const retryStatus = retryEvents > 0 ? "warn" : "ok";
+  const pacingStatus = waits > 0 ? "warn" : "ok";
+  const cards = [
+    {
+      status: coverageStatus,
+      title: `${numberText(successSymbols, 0)} ok / ${numberText(failedSymbols, 0)} failed`,
+      label: "Symbol Coverage",
+      note: `${numberText(emptySymbols, 0)} empty symbols; ${numberText(failedChunks, 0)} failed chunks.`,
+    },
+    {
+      status: recoverStatus,
+      title: recoverStatus === "ok" ? "Ready" : recoverStatus === "warn" ? "Retry" : "Blocked",
+      label: "Recovery",
+      note: recoverNote,
+    },
+    {
+      status: retryStatus,
+      title: numberText(retryEvents, 0),
+      label: "Retries",
+      note: retryEvents ? "Transient failures were retried; inspect event rows." : "No retry events recorded.",
+    },
+    {
+      status: pacingStatus,
+      title: interval(waitSeconds),
+      label: "Pacing Waits",
+      note: waits ? `${numberText(waits, 0)} waits recorded; useful for IBKR pacing diagnosis.` : "No pacing waits recorded.",
+    },
+  ];
+  return cards.map((card) => `
+    <div class="health-card fetch-recovery-card">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function fetchResumeCommand(detail) {
