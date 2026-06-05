@@ -3141,6 +3141,23 @@ def test_cloud_status_server_preserves_public_safe_position_accounting():
         "average_costs": {"SPY": 100.0},
         "unrealized_pnl_by_symbol": {"SPY": 4.0},
         "borrow_fee_accrued_by_symbol": {"SPY": 0.12},
+        "position_details": {
+            "SPY": {
+                "entry_time": "2026-01-02T14:35:00+00:00",
+                "entry_price": 100.5,
+                "current_price": 102.0,
+                "expected_hold_minutes": 390,
+                "hold_until": "2026-01-02T21:00:00+00:00",
+                "active_exit_rule": "session_close",
+                "exit_state": "holding",
+                "stop_price": 98.0,
+                "target_price": 106.0,
+                "mae_pct": -0.01,
+                "mfe_pct": 0.03,
+                "private_signal": "hidden",
+            },
+            "BAD": "not-a-map",
+        },
         "diagnostics": {"private": "hidden"},
     })
 
@@ -3149,6 +3166,19 @@ def test_cloud_status_server_preserves_public_safe_position_accounting():
     assert row["average_costs"] == {"SPY": 100.0}
     assert row["unrealized_pnl_by_symbol"] == {"SPY": 4.0}
     assert row["borrow_fee_accrued_by_symbol"] == {"SPY": 0.12}
+    assert row["position_details"]["SPY"]["entry_time"] == "2026-01-02T14:35:00+00:00"
+    assert row["position_details"]["SPY"]["entry_price"] == 100.5
+    assert row["position_details"]["SPY"]["current_price"] == 102.0
+    assert row["position_details"]["SPY"]["expected_hold_minutes"] == 390
+    assert row["position_details"]["SPY"]["hold_until"] == "2026-01-02T21:00:00+00:00"
+    assert row["position_details"]["SPY"]["active_exit_rule"] == "session_close"
+    assert row["position_details"]["SPY"]["exit_state"] == "holding"
+    assert row["position_details"]["SPY"]["stop_price"] == 98.0
+    assert row["position_details"]["SPY"]["target_price"] == 106.0
+    assert row["position_details"]["SPY"]["mae_pct"] == -0.01
+    assert row["position_details"]["SPY"]["mfe_pct"] == 0.03
+    assert "private_signal" not in row["position_details"]["SPY"]
+    assert "BAD" not in row["position_details"]
     assert "diagnostics" not in row
 
 

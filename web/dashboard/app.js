@@ -1267,11 +1267,16 @@ function nonzeroPositionsFromSource(source) {
   const averageCosts = accountRow.average_costs || {};
   const unrealizedBySymbol = accountRow.unrealized_pnl_by_symbol || {};
   const borrowFees = accountRow.borrow_fee_accrued_by_symbol || {};
+  const positionDetails = accountRow.position_details || {};
   return Object.entries(positions || {})
     .map(([symbol, quantity]) => {
       const numericQuantity = Number(quantity);
       const value = Number(values[symbol]);
-      const currentPrice = Number.isFinite(value) && numericQuantity ? value / numericQuantity : null;
+      const detail = positionDetails[symbol] || {};
+      const detailCurrentPrice = finiteNumber(detail.current_price);
+      const currentPrice = detailCurrentPrice !== null
+        ? detailCurrentPrice
+        : Number.isFinite(value) && numericQuantity ? value / numericQuantity : null;
       return {
         symbol,
         quantity: numericQuantity,
@@ -1280,6 +1285,17 @@ function nonzeroPositionsFromSource(source) {
         current_price: currentPrice,
         unrealized_pnl: finiteNumber(unrealizedBySymbol[symbol]),
         borrow_fee_accrued: finiteNumber(borrowFees[symbol]),
+        entry_time: text(detail.entry_time) !== "n/a" ? detail.entry_time : null,
+        entry_price: finiteNumber(detail.entry_price),
+        expected_hold_minutes: finiteNumber(detail.expected_hold_minutes),
+        hold_until: text(detail.hold_until) !== "n/a" ? detail.hold_until : null,
+        active_exit_rule: text(detail.active_exit_rule) !== "n/a" ? detail.active_exit_rule : null,
+        exit_state: text(detail.exit_state) !== "n/a" ? detail.exit_state : null,
+        stop_state: text(detail.stop_state) !== "n/a" ? detail.stop_state : null,
+        stop_price: finiteNumber(detail.stop_price),
+        target_price: finiteNumber(detail.target_price),
+        mae_pct: finiteNumber(detail.mae_pct),
+        mfe_pct: finiteNumber(detail.mfe_pct),
       };
     })
     .filter((item) => Number.isFinite(item.quantity) && item.quantity !== 0)
@@ -1287,13 +1303,24 @@ function nonzeroPositionsFromSource(source) {
 }
 
 function positionDetailHtml(position, { includeQuantity = true } = {}) {
+  const exitState = position.exit_state || position.stop_state;
   const detailLines = [
     includeQuantity ? `Quantity ${numberText(position.quantity, 6)}` : "",
     Number.isFinite(position.value) ? `Value ${money(position.value)}` : "",
+    position.entry_time ? `Entry ${text(position.entry_time)}` : "",
+    position.entry_price !== null ? `Entry Px ${money(position.entry_price)}` : "",
     position.average_cost !== null ? `Avg ${money(position.average_cost)}` : "",
     position.current_price !== null ? `Price ${money(position.current_price)}` : "",
     position.unrealized_pnl !== null ? `Unrealized ${money(position.unrealized_pnl)}` : "",
     position.borrow_fee_accrued !== null ? `Borrow ${money(position.borrow_fee_accrued)}` : "",
+    position.expected_hold_minutes !== null ? `Hold ${numberText(position.expected_hold_minutes, 0)}m` : "",
+    position.hold_until ? `Until ${text(position.hold_until)}` : "",
+    position.active_exit_rule ? `Exit ${text(position.active_exit_rule)}` : "",
+    exitState ? `State ${text(exitState)}` : "",
+    position.stop_price !== null ? `Stop ${money(position.stop_price)}` : "",
+    position.target_price !== null ? `Target ${money(position.target_price)}` : "",
+    position.mae_pct !== null ? `MAE ${pctText(position.mae_pct)}` : "",
+    position.mfe_pct !== null ? `MFE ${pctText(position.mfe_pct)}` : "",
   ].filter(Boolean);
   return detailLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("");
 }

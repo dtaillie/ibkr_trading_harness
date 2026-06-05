@@ -261,6 +261,20 @@ PUBLIC_DECISION_DRILLDOWN_FIELDS = (
     "mae_pct",
     "mfe_pct",
 )
+PUBLIC_POSITION_DETAIL_FIELDS = (
+    "entry_time",
+    "entry_price",
+    "current_price",
+    "expected_hold_minutes",
+    "hold_until",
+    "active_exit_rule",
+    "exit_state",
+    "stop_state",
+    "stop_price",
+    "target_price",
+    "mae_pct",
+    "mfe_pct",
+)
 PUBLIC_ENDPOINTS = (
     {
         "method": "GET",
@@ -5512,7 +5526,27 @@ def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_position_details(raw: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw, dict):
+        return {}
+    details: dict[str, dict[str, Any]] = {}
+    for symbol, value in raw.items():
+        if not isinstance(value, dict):
+            continue
+        public = {
+            field: value.get(field)
+            for field in PUBLIC_POSITION_DETAIL_FIELDS
+            if value.get(field) is not None
+        }
+        if public:
+            details[str(symbol)] = public
+    return details
+
+
 def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    raw_position_details = row.get("position_details")
+    if not isinstance(raw_position_details, dict):
+        raw_position_details = row.get("position_metadata")
     return {
         "timestamp": row.get("timestamp"),
         "step": row.get("step"),
@@ -5525,6 +5559,7 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "position_values": row.get("position_values") if isinstance(row.get("position_values"), dict) else {},
         "average_costs": row.get("average_costs") if isinstance(row.get("average_costs"), dict) else {},
         "unrealized_pnl_by_symbol": row.get("unrealized_pnl_by_symbol") if isinstance(row.get("unrealized_pnl_by_symbol"), dict) else {},
+        "position_details": summarize_position_details(raw_position_details),
         "realized_pnl": row.get("realized_pnl"),
         "unrealized_pnl": row.get("unrealized_pnl"),
         "total_pnl": row.get("total_pnl"),
