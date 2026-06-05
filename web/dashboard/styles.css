@@ -917,6 +917,28 @@ tr:last-child td {
   vector-effect: non-scaling-stroke;
 }
 
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-item span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
 .volume-bar {
   fill: #a9b5ad;
   opacity: 0.7;

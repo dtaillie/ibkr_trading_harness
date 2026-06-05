@@ -92,6 +92,10 @@ def run_smoke(
             "data-symbol-candidates-body",
             "data-detail-form",
             "data-detail-viewer-note",
+            "data-compare-form",
+            "data-compare-datasets",
+            "data-compare-chart",
+            "data-compare-body",
             "fetch-manifests-body",
             "fetch-detail-summary",
             "fetch-outputs-body",
@@ -130,6 +134,8 @@ def run_smoke(
             "data_symbol_diagnostic",
             "data_detail",
             "data_detail_available",
+            "data_compare",
+            "compareChart",
             "fetch_manifests",
             "fetch_manifest_detail",
             "Fetch output data detail failed",
@@ -188,6 +194,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if ("GET", "/data_storage_audit") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_storage_audit")
+        if ("POST", "/data_compare") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_compare")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
@@ -197,6 +205,7 @@ def run_smoke(
             raise RuntimeError("fetch manifest summary is invalid")
 
         alignment_count = 0
+        compare_count = 0
         datasets = catalog.get("datasets") or []
         if datasets:
             detail = fetch_json(
@@ -214,6 +223,19 @@ def run_smoke(
                 {"datasets": [{"symbol": datasets[0]["symbol"], "path": datasets[0]["path"]}]},
             )
             alignment_count = int((alignment.get("alignment") or {}).get("dataset_count") or 0)
+            if len(datasets) >= 2:
+                comparison = post_json(
+                    base_url,
+                    "/data_compare",
+                    {
+                        "datasets": [
+                            {"symbol": datasets[0]["symbol"], "path": datasets[0]["path"]},
+                            {"symbol": datasets[1]["symbol"], "path": datasets[1]["path"]},
+                        ],
+                        "preview_points": 3,
+                    },
+                )
+                compare_count = int((comparison.get("comparison") or {}).get("dataset_count") or 0)
 
         return {
             "base_url": base_url,
@@ -227,6 +249,7 @@ def run_smoke(
             "risk_preset_count": len(options.get("risk_presets") or []),
             "draft_validation_count": draft_validations.get("count", 0),
             "alignment_dataset_count": alignment_count,
+            "compare_dataset_count": compare_count,
         }
     finally:
         server.shutdown()

@@ -104,6 +104,17 @@ def write_audit_log(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
+def post_json(base_url: str, path: str, payload: dict) -> dict:
+    req = request.Request(
+        f"{base_url}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.parquet") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -505,6 +516,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
+        assert ("POST", "/data_compare") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
@@ -1025,6 +1037,69 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert filtered["price_stats"]["start_close"] == 101.0
         assert filtered["price_stats"]["end_close"] == 102.0
         assert len(filtered["preview"]) == 2
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_compares_saved_data(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    spy_file = data_root / "SPY_5min_sample.csv"
+    qqq_file = data_root / "QQQ_5min_sample.csv"
+    spy_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.0,1000",
+                "2026-01-02T14:35:00Z,100,102,99,101.0,1100",
+                "2026-01-02T14:40:00Z,101,103,100,102.0,1200",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    qqq_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,200,201,199,200.0,1000",
+                "2026-01-02T14:35:00Z,200,202,199,198.0,1100",
+                "2026-01-02T14:40:00Z,198,203,197,204.0,1200",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        payload = {
+            "datasets": [
+                {"symbol": "SPY", "path": str(spy_file)},
+                {"symbol": "QQQ", "path": str(qqq_file)},
+            ],
+            "preview_points": 3,
+            "sample_mode": "full",
+            "start": "2026-01-02T14:30:00Z",
+            "end": "2026-01-02T14:40:00Z",
+        }
+        response = post_json(base, "/data_compare", payload)
+        comparison = response["comparison"]
+
+        assert comparison["dataset_count"] == 2
+        assert comparison["common_timestamp_count"] == 3
+        assert comparison["common_first_timestamp"] == "2026-01-02T14:30:00+00:00"
+        assert comparison["common_last_timestamp"] == "2026-01-02T14:40:00+00:00"
+        series = {row["symbol"]: row for row in comparison["series"]}
+        assert series["SPY"]["filtered_rows"] == 3
+        assert series["SPY"]["sampled"] is False
+        assert abs(series["SPY"]["total_return_pct"] - 2.0) < 1e-9
+        assert series["SPY"]["points"][0]["normalized_return_pct"] == 0.0
+        assert abs(series["QQQ"]["total_return_pct"] - 2.0) < 1e-9
+        assert abs(series["QQQ"]["points"][1]["normalized_return_pct"] - -1.0) < 1e-9
     finally:
         server.shutdown()
         server.server_close()

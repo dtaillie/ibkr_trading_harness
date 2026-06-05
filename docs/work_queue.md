@@ -306,7 +306,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; sampled mode is default and full mode is available when the
       selected range fits the bounded point limit
   - compare two or more symbols on the same time range
-    - not started
+    - partial; Data Library now has a saved-data comparison panel and
+      `/data_compare` endpoint for normalized close paths over one date range
   - offline mode for browsing saved files without connecting to IBKR or any
     live runner
     - done for configured saved data roots
@@ -316,8 +317,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       conversion toggles remain open
 - Add historical-data workflows:
   - pick any scanned symbol and bar size
+    - partial; Data Detail and Compare Saved Data are populated from scanned
+      catalog rows
   - inspect a date range without starting a live runner
+    - done for single-file Data Detail and partial for multi-file comparison
   - compare several symbols over the same window
+    - partial; Compare Saved Data overlays normalized close-return paths
   - export/copy the local file path and generated replay command
   - flag suspicious files before they are used in a strategy replay
 - Add data coverage diagnostics:

@@ -653,6 +653,57 @@
       </section>
     </section>
 
+    <section class="dashboard-section" data-view="data" hidden>
+      <div class="section-head">
+        <h2>Compare Saved Data</h2>
+        <span id="data-compare-note" class="section-note">Select two or more datasets to compare normalized close paths.</span>
+      </div>
+      <form id="data-compare-form" class="builder-form">
+        <label>
+          <span>Datasets</span>
+          <select id="data-compare-datasets" multiple size="5"></select>
+        </label>
+        <label>
+          <span>Start</span>
+          <input id="data-compare-start" type="date">
+        </label>
+        <label>
+          <span>End</span>
+          <input id="data-compare-end" type="date">
+        </label>
+        <label>
+          <span>Points</span>
+          <input id="data-compare-points" type="number" min="2" max="1000" step="1" value="400">
+        </label>
+        <label>
+          <span>Mode</span>
+          <select id="data-compare-mode">
+            <option value="sampled" selected>Sampled</option>
+            <option value="full">Full if range fits</option>
+          </select>
+        </label>
+        <button type="submit">Compare</button>
+      </form>
+      <div id="data-compare-chart" class="detail-chart-wrap"></div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Rows</th>
+              <th>Range</th>
+              <th>Start Close</th>
+              <th>End Close</th>
+              <th>Return</th>
+              <th>Source</th>
+              <th>Path</th>
+            </tr>
+          </thead>
+          <tbody id="data-compare-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="dashboard-section" data-view="fetch" hidden>
       <div class="section-head">
         <h2>Fetch Jobs</h2>

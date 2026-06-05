@@ -152,6 +152,7 @@ MAX_ARTIFACT_ROWS = 500
 MAX_DATA_DETAIL_POINTS = 1000
 MAX_DATA_GAP_ROWS = 200
 MAX_CONFIG_DRAFT_DATASETS = 20
+MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
 RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl")
 PUBLIC_ENDPOINTS = (
@@ -238,6 +239,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Preview timestamp alignment for selected saved datasets.",
         "response": "JSON alignment summary",
+    },
+    {
+        "method": "POST",
+        "path": "/data_compare",
+        "category": "data",
+        "description": "Compare normalized close paths for several saved datasets over one local time range.",
+        "response": "JSON normalized saved-data comparison series",
     },
     {
         "method": "GET",
@@ -1875,6 +1883,120 @@ def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dic
 def build_data_alignment(payload: dict[str, Any], *, data_roots: list[Path]) -> dict[str, Any]:
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
     return build_data_alignment_for_files(selected)
+
+
+def build_data_compare(payload: dict[str, Any], *, data_roots: list[Path]) -> dict[str, Any]:
+    datasets = payload.get("datasets") or []
+    selected = selected_data_files(datasets, data_roots)
+    if len(selected) < 2:
+        raise ValueError("select at least two datasets to compare")
+    if len(selected) > MAX_DATA_COMPARE_DATASETS:
+        raise ValueError(f"comparison cannot exceed {MAX_DATA_COMPARE_DATASETS} datasets")
+    try:
+        preview_points = int(payload.get("preview_points") or 300)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("preview_points must be an integer") from exc
+    if preview_points < 2 or preview_points > MAX_DATA_DETAIL_POINTS:
+        raise ValueError(f"preview_points must be between 2 and {MAX_DATA_DETAIL_POINTS}")
+    sample_mode = str(payload.get("sample_mode") or "sampled").strip().lower()
+    if sample_mode not in {"sampled", "full"}:
+        raise ValueError("sample_mode must be sampled or full")
+    start_ts = parse_optional_utc_timestamp(str(payload.get("start") or "").strip() or None)
+    end_ts = parse_optional_utc_timestamp(str(payload.get("end") or "").strip() or None, end_of_day=True)
+    if start_ts is not None and end_ts is not None and start_ts > end_ts:
+        raise ValueError("start must be before end")
+
+    series = []
+    timestamp_sets = []
+    union_values: set[pd.Timestamp] = set()
+    warnings = []
+    for symbol, (path, rel_path) in sorted(selected.items()):
+        df, fmt = read_data_file(path)
+        ts_col = timestamp_column(df)
+        close_col = close_column(df)
+        if not ts_col:
+            raise ValueError(f"{symbol}: no timestamp column found")
+        if not close_col:
+            raise ValueError(f"{symbol}: no close/last column found")
+        scoped = pd.DataFrame({
+            "timestamp": parse_datetime_utc(df[ts_col]),
+            "close": pd.to_numeric(df[close_col], errors="coerce"),
+        }).dropna(subset=["timestamp", "close"]).sort_values("timestamp")
+        available_rows = int(len(scoped))
+        if start_ts is not None:
+            scoped = scoped[scoped["timestamp"] >= start_ts]
+        if end_ts is not None:
+            scoped = scoped[scoped["timestamp"] <= end_ts]
+        filtered_rows = int(len(scoped))
+        if filtered_rows < 2:
+            warnings.append(f"{symbol}: fewer than two rows in selected range")
+        if sample_mode == "full" and filtered_rows > preview_points:
+            raise ValueError(
+                "full sample_mode requires every selected file to fit inside preview_points; "
+                "narrow the date range, increase preview_points, or use sampled mode"
+            )
+
+        timestamp_set = set(scoped["timestamp"].drop_duplicates())
+        timestamp_sets.append(timestamp_set)
+        union_values.update(timestamp_set)
+        first_close = finite_float(scoped.iloc[0]["close"]) if filtered_rows else None
+        last_close = finite_float(scoped.iloc[-1]["close"]) if filtered_rows else None
+        total_return = (
+            (last_close / first_close - 1.0)
+            if first_close is not None and first_close != 0 and last_close is not None
+            else None
+        )
+        sample_indices = list(range(len(scoped))) if sample_mode == "full" else evenly_sample_indices(len(scoped), preview_points)
+        points = []
+        for idx in sample_indices:
+            row = scoped.iloc[idx]
+            close_value = finite_float(row["close"])
+            normalized = (
+                ((close_value / first_close) - 1.0) * 100.0
+                if first_close is not None and first_close != 0 and close_value is not None
+                else None
+            )
+            points.append({
+                "timestamp": row["timestamp"].isoformat(),
+                "close": close_value,
+                "normalized_return_pct": finite_float(normalized),
+            })
+        series.append({
+            "symbol": symbol,
+            "path": rel_path,
+            "format": fmt,
+            "source": infer_data_source(path),
+            "asset_class": infer_asset_class(path, symbol),
+            "bar_size": infer_bar_size(path, df),
+            "available_rows": available_rows,
+            "filtered_rows": filtered_rows,
+            "sampled_points": len(points),
+            "sampled": bool(filtered_rows > len(points)),
+            "first_timestamp": scoped.iloc[0]["timestamp"].isoformat() if filtered_rows else None,
+            "last_timestamp": scoped.iloc[-1]["timestamp"].isoformat() if filtered_rows else None,
+            "first_close": first_close,
+            "last_close": last_close,
+            "total_return_pct": pct(total_return),
+            "points": points,
+        })
+
+    common_values = set.intersection(*timestamp_sets) if timestamp_sets and all(timestamp_sets) else set()
+    common_sorted = sorted(common_values)
+    return {
+        "generated_at": utc_now(),
+        "dataset_count": len(series),
+        "sample_mode": sample_mode,
+        "preview_points": preview_points,
+        "requested_start": start_ts.isoformat() if start_ts is not None else None,
+        "requested_end": end_ts.isoformat() if end_ts is not None else None,
+        "series": series,
+        "common_timestamp_count": len(common_values),
+        "union_timestamp_count": len(union_values),
+        "common_first_timestamp": common_sorted[0].isoformat() if common_sorted else None,
+        "common_last_timestamp": common_sorted[-1].isoformat() if common_sorted else None,
+        "warnings": warnings,
+        "warning_count": len(warnings),
+    }
 
 
 def build_data_detail(
@@ -3860,6 +3982,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, {"ok": True, "alignment": result})
+            return
+        if self.path == "/data_compare":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                result = build_data_compare(payload, data_roots=self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "comparison": result})
             return
         if self.path == "/config_draft/run":
             payload = read_json_body(self)

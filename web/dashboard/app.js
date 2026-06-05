@@ -6,6 +6,7 @@ const state = {
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
+  dataCompare: null,
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
@@ -264,6 +265,11 @@ function latestArtifactPerformance() {
 
 function selectedConfigDatasets() {
   const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
+  return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+}
+
+function selectedCompareDatasets() {
+  const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
@@ -835,6 +841,49 @@ function detailChart(points) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price and volume"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
+function compareChart(series) {
+  const rows = (series || []).map((item) => ({
+    symbol: item.symbol,
+    points: (item.points || []).map((point) => ({
+      timestamp: point.timestamp,
+      millis: timestampMillis(point.timestamp),
+      value: Number(point.normalized_return_pct),
+    })).filter((point) => point.millis !== null && Number.isFinite(point.value)),
+  })).filter((item) => item.points.length >= 2);
+  const allPoints = rows.flatMap((item) => item.points);
+  if (rows.length < 2 || allPoints.length < 4) {
+    return `<span class="muted">Select at least two datasets with comparable close paths.</span>`;
+  }
+  const minTime = Math.min(...allPoints.map((point) => point.millis));
+  const maxTime = Math.max(...allPoints.map((point) => point.millis));
+  const minValue = Math.min(...allPoints.map((point) => point.value));
+  const maxValue = Math.max(...allPoints.map((point) => point.value));
+  const width = 720;
+  const height = 220;
+  const timeSpan = maxTime - minTime || 1;
+  const valueSpan = maxValue - minValue || 1;
+  const colors = ["#00a76f", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be123c", "#4d7c0f"];
+  const polylines = rows.map((item, index) => {
+    const coords = item.points.map((point) => {
+      const x = ((point.millis - minTime) / timeSpan) * width;
+      const y = height - ((point.value - minValue) / valueSpan) * height;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    return `<polyline points="${coords}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="2"><title>${escapeHtml(item.symbol)}</title></polyline>`;
+  }).join("");
+  const axisY = maxValue >= 0 && minValue <= 0
+    ? height - ((0 - minValue) / valueSpan) * height
+    : null;
+  const zeroLine = axisY === null
+    ? ""
+    : `<line class="axis-line" x1="0" y1="${axisY.toFixed(1)}" x2="${width}" y2="${axisY.toFixed(1)}"></line>`;
+  const legend = rows.map((item, index) => (
+    `<span class="legend-item"><span style="background:${colors[index % colors.length]}"></span>${escapeHtml(item.symbol)}</span>`
+  )).join("");
+  const caption = `${new Date(minTime).toISOString()} -> ${new Date(maxTime).toISOString()} normalized close return`;
+  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data comparison">${zeroLine}${polylines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
+}
+
 function equityChart(points) {
   if (!points || points.length < 2) return `<span class="muted">No equity curve available</span>`;
   const values = points.map((point) => Number(point.equity)).filter((value) => Number.isFinite(value));
@@ -1392,6 +1441,42 @@ function renderDataDetail() {
         escapeHtml(gap.estimated_missing_intervals),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", ""]);
+}
+
+function renderDataCompareControls() {
+  const select = $("data-compare-datasets");
+  const previousSelection = Array.from(select.selectedOptions).map((option) => option.value);
+  const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
+    value: dataset.path,
+    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
+  }));
+  replaceOptions(select, datasets);
+  if (!previousSelection.length && datasets.length >= 2) {
+    for (const option of select.options) option.selected = false;
+    select.options[0].selected = true;
+    select.options[1].selected = true;
+  }
+}
+
+function renderDataCompare() {
+  const comparison = state.dataCompare || {};
+  const series = comparison.series || [];
+  $("data-compare-note").innerHTML = comparison.generated_at
+    ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
+    : "Select two or more datasets to compare normalized close paths.";
+  $("data-compare-chart").innerHTML = compareChart(series);
+  $("data-compare-body").innerHTML = series.length
+    ? series.map((item) => row([
+        escapeHtml(item.symbol),
+        `${escapeHtml(numberText(item.filtered_rows, 0))} / ${escapeHtml(numberText(item.available_rows, 0))}`,
+        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        escapeHtml(numberText(item.first_close)),
+        escapeHtml(numberText(item.last_close)),
+        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
+        escapeHtml(`${text(item.source)} ${text(item.bar_size)}`),
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">No comparison loaded</span>`, "", "", "", "", "", "", ""]);
 }
 
 function renderFetchJobs() {
@@ -2390,6 +2475,8 @@ function renderAll() {
   renderEndpointMap();
   renderDataCatalog();
   renderDataDetail();
+  renderDataCompareControls();
+  renderDataCompare();
   renderDataCoverage();
   renderDataStorageAudit();
   renderSymbolDiagnostic();
@@ -2555,6 +2642,29 @@ async function reloadDataDetail(event) {
     return;
   }
   await loadDataDetail(path);
+}
+
+async function loadDataCompare(event) {
+  event.preventDefault();
+  const selected = selectedCompareDatasets();
+  if (selected.length < 2) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">Select at least two saved datasets first</span>`;
+    return;
+  }
+  const payload = {
+    datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
+    preview_points: $("data-compare-points").value || "400",
+    sample_mode: $("data-compare-mode").value || "sampled",
+    start: $("data-compare-start").value,
+    end: $("data-compare-end").value,
+  };
+  const response = await fetchJson("/data_compare", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  state.dataCompare = response.comparison || {};
+  renderDataCompare();
+  $("last-refresh").textContent = `Data comparison loaded: ${new Date().toLocaleString()}`;
 }
 
 async function diagnoseDataSymbol(event) {
@@ -2956,6 +3066,11 @@ function init() {
   $("data-detail-form").addEventListener("submit", (event) => {
     reloadDataDetail(event).catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-compare-form").addEventListener("submit", (event) => {
+    loadDataCompare(event).catch((err) => {
+      $("data-compare-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("config-run-form").addEventListener("submit", (event) => {

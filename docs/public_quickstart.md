@@ -234,6 +234,9 @@ Use Inspect on a saved dataset row to load a local-only detail view with a
 range-filtered sampled or full-in-range price path, volume bars, timestamp
 coverage, gap rows, null counts, price/return stats, volume stats, and a
 compact ok/warn/bad quality summary.
+Use Compare Saved Data to select several catalog-visible datasets and overlay
+their normalized close-return paths over one requested date range. This is
+offline and only reads CSV/parquet files under configured data roots.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
