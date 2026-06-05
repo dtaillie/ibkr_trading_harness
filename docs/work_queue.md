@@ -104,10 +104,14 @@ strategy-private.
   - intraday equity/PnL chart for today's run when minute bars or account
     snapshots are available
   - open/closed trade table
+    - done for selected archived artifacts with sanitized fills
   - win/loss, average win/loss, profit factor, max drawdown, exposure, turnover
+    - partial; win/loss, average win/loss inputs, profit factor, max drawdown,
+      and exposure are available from artifacts; turnover remains open
   - benchmark overlay where appropriate
   - clear short-horizon projection caveats for per-day/month/year stats
   - selectable period presets: today, week, month, 3 months, all available
+    - done for account-artifact charts and KPIs
   - obvious difference between realized historical backtest, simulated paper,
     IBKR paper, and live account metrics
 - Add a Runs and Orders page:

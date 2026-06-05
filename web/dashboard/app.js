@@ -197,6 +197,9 @@ function latestArtifactPerformance() {
       summary: artifacts.summary || {},
       performance: artifacts.performance || {},
       account: artifacts.account || [],
+      fills: artifacts.fills || [],
+      orders: artifacts.orders || [],
+      decisions: artifacts.decisions || [],
     };
   }
   const comparison = latestSummarizedComparisonRun();
@@ -206,6 +209,9 @@ function latestArtifactPerformance() {
       summary: comparison,
       performance: comparison,
       account: [],
+      fills: [],
+      orders: [],
+      decisions: [],
     };
   }
   const telemetryRun = latestTelemetryRun();
@@ -216,9 +222,12 @@ function latestArtifactPerformance() {
       summary: metrics,
       performance: metrics,
       account: [],
+      fills: [],
+      orders: [],
+      decisions: [],
     };
   }
-  return { label: "No run data", summary: {}, performance: {}, account: [] };
+  return { label: "No run data", summary: {}, performance: {}, account: [], fills: [], orders: [], decisions: [] };
 }
 
 function selectedConfigDatasets() {
@@ -235,6 +244,198 @@ function latestAccountRow(accountRows) {
     }
   }
   return {};
+}
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function timestampMillis(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function performancePeriodWindow(accountRows, period) {
+  const rows = (accountRows || []).filter((item) => timestampMillis(item.timestamp) !== null);
+  if (!rows.length || period === "all") {
+    return { start: null, end: null, label: "all available" };
+  }
+  const ordered = rows.slice().sort((a, b) => timestampMillis(a.timestamp) - timestampMillis(b.timestamp));
+  const end = timestampMillis(ordered[ordered.length - 1].timestamp);
+  if (end === null) return { start: null, end: null, label: "all available" };
+  if (period === "today") {
+    const day = new Date(end);
+    const start = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
+    return { start, end, label: "today" };
+  }
+  const days = period === "week" ? 7 : period === "month" ? 30 : period === "3m" ? 90 : null;
+  if (!days) return { start: null, end: null, label: "all available" };
+  return { start: end - days * 24 * 60 * 60 * 1000, end, label: period === "3m" ? "3 months" : period };
+}
+
+function rowsInWindow(rows, window) {
+  if (!window || (window.start === null && window.end === null)) return rows || [];
+  return (rows || []).filter((item) => {
+    const millis = timestampMillis(item.timestamp);
+    if (millis === null) return false;
+    if (window.start !== null && millis < window.start) return false;
+    if (window.end !== null && millis > window.end) return false;
+    return true;
+  });
+}
+
+function performanceFromAccountRows(accountRows) {
+  const rows = numericAccountRows(accountRows);
+  if (rows.length < 2) return {};
+  const initialEquity = rows[0].equity;
+  const finalEquity = rows[rows.length - 1].equity;
+  let peak = initialEquity;
+  let maxDrawdown = 0;
+  for (const rowItem of rows) {
+    peak = Math.max(peak, rowItem.equity);
+    if (peak > 0) {
+      maxDrawdown = Math.min(maxDrawdown, ((rowItem.equity / peak) - 1) * 100);
+    }
+  }
+  const grossValues = (accountRows || []).map((rowItem) => finiteNumber(rowItem.gross_exposure)).filter((value) => value !== null);
+  const maxGrossExposure = grossValues.length ? Math.max(...grossValues) : null;
+  const startTime = timestampMillis(rows[0].timestamp);
+  const endTime = timestampMillis(rows[rows.length - 1].timestamp);
+  const elapsedDays = startTime !== null && endTime !== null ? Math.max((endTime - startTime) / 86400000, 0) : null;
+  const totalReturnPct = initialEquity ? ((finalEquity / initialEquity) - 1) * 100 : null;
+  return {
+    initial_equity: initialEquity,
+    final_equity: finalEquity,
+    total_return_pct: totalReturnPct,
+    max_drawdown_pct: maxDrawdown,
+    return_per_day_pct: elapsedDays && elapsedDays > 0 && initialEquity > 0
+      ? ((Math.pow(finalEquity / initialEquity, 1 / elapsedDays) - 1) * 100)
+      : null,
+    max_gross_exposure: maxGrossExposure,
+    max_gross_exposure_pct: maxGrossExposure !== null && initialEquity > 0 ? (maxGrossExposure / initialEquity) * 100 : null,
+  };
+}
+
+function normalizedFillSide(value) {
+  const side = String(value || "").trim().toLowerCase();
+  if (side === "buy" || side === "bot" || side === "b") return "buy";
+  if (side === "sell" || side === "sld" || side === "s") return "sell";
+  return side;
+}
+
+function holdDurationLabel(start, end) {
+  const startMs = timestampMillis(start);
+  const endMs = timestampMillis(end);
+  if (startMs === null || endMs === null || endMs < startMs) return "n/a";
+  const minutes = Math.round((endMs - startMs) / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  if (hours < 48) return `${hours.toLocaleString("en-US", { maximumFractionDigits: 1 })}h`;
+  return `${(hours / 24).toLocaleString("en-US", { maximumFractionDigits: 1 })}d`;
+}
+
+function buildTradeLedger(fills) {
+  const lotsBySymbol = new Map();
+  const closed = [];
+  const sortedFills = (fills || []).slice().sort((a, b) => String(a.timestamp || "").localeCompare(String(b.timestamp || "")));
+  const lotsFor = (symbol) => {
+    if (!lotsBySymbol.has(symbol)) lotsBySymbol.set(symbol, { long: [], short: [] });
+    return lotsBySymbol.get(symbol);
+  };
+  const openLot = (bucket, fill, quantity, side) => {
+    const price = finiteNumber(fill.price);
+    if (!quantity || price === null) return;
+    bucket.push({
+      symbol: text(fill.symbol),
+      side,
+      quantity,
+      remaining: quantity,
+      entry_price: price,
+      entry_time: fill.timestamp,
+      commission_per_unit: (finiteNumber(fill.commission) || 0) / quantity,
+      tag: fill.tag,
+    });
+  };
+  const closeLots = (bucket, fill, quantity, side) => {
+    const exitPrice = finiteNumber(fill.price);
+    if (!quantity || exitPrice === null) return quantity;
+    let remaining = quantity;
+    const exitCommissionPerUnit = (finiteNumber(fill.commission) || 0) / quantity;
+    while (remaining > 0 && bucket.length) {
+      const lot = bucket[0];
+      const closeQuantity = Math.min(remaining, lot.remaining);
+      const grossPnl = side === "long"
+        ? (exitPrice - lot.entry_price) * closeQuantity
+        : (lot.entry_price - exitPrice) * closeQuantity;
+      const commission = ((lot.commission_per_unit || 0) + exitCommissionPerUnit) * closeQuantity;
+      closed.push({
+        symbol: lot.symbol,
+        state: "closed",
+        side,
+        quantity: closeQuantity,
+        entry_time: lot.entry_time,
+        entry_price: lot.entry_price,
+        exit_time: fill.timestamp,
+        exit_price: exitPrice,
+        pnl: grossPnl - commission,
+      });
+      lot.remaining -= closeQuantity;
+      remaining -= closeQuantity;
+      if (lot.remaining <= 1e-9) bucket.shift();
+    }
+    return remaining;
+  };
+
+  for (const fill of sortedFills) {
+    const symbol = text(fill.symbol);
+    const side = normalizedFillSide(fill.side);
+    const quantity = Math.abs(finiteNumber(fill.quantity) || 0);
+    const lots = lotsFor(symbol);
+    if (!symbol || !quantity) continue;
+    if (side === "buy") {
+      const remainder = closeLots(lots.short, fill, quantity, "short");
+      openLot(lots.long, fill, remainder, "long");
+    } else if (side === "sell") {
+      const remainder = closeLots(lots.long, fill, quantity, "long");
+      openLot(lots.short, fill, remainder, "short");
+    }
+  }
+
+  const open = [];
+  for (const lots of lotsBySymbol.values()) {
+    for (const lot of [...lots.long, ...lots.short]) {
+      open.push({
+        symbol: lot.symbol,
+        state: "open",
+        side: lot.side,
+        quantity: lot.remaining,
+        entry_time: lot.entry_time,
+        entry_price: lot.entry_price,
+        exit_time: null,
+        exit_price: null,
+        pnl: null,
+      });
+    }
+  }
+  const wins = closed.filter((trade) => finiteNumber(trade.pnl) > 0);
+  const losses = closed.filter((trade) => finiteNumber(trade.pnl) < 0);
+  const grossProfit = wins.reduce((sum, trade) => sum + Number(trade.pnl), 0);
+  const grossLoss = Math.abs(losses.reduce((sum, trade) => sum + Number(trade.pnl), 0));
+  return {
+    closed,
+    open,
+    rows: [...open, ...closed].sort((a, b) => String(b.exit_time || b.entry_time || "").localeCompare(String(a.exit_time || a.entry_time || ""))),
+    stats: {
+      closed_count: closed.length,
+      open_count: open.length,
+      wins: wins.length,
+      losses: losses.length,
+      avg_win: wins.length ? grossProfit / wins.length : null,
+      avg_loss: losses.length ? grossLoss / losses.length : null,
+      profit_factor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : null,
+    },
+  };
 }
 
 function nonzeroPositionsFromSource(source) {
@@ -449,29 +650,61 @@ function renderPerformance() {
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
   const summary = source.summary || {};
-  const equity = perf.final_equity ?? summary.final_equity;
-  $("performance-note").textContent = source.label;
+  const period = $("performance-period").value || "all";
+  const window = performancePeriodWindow(source.account || [], period);
+  const accountRows = period === "all" ? (source.account || []) : rowsInWindow(source.account || [], window);
+  const periodPerf = Object.keys(perf).length && period === "all"
+    ? perf
+    : performanceFromAccountRows(accountRows);
+  const fills = period === "all" ? (source.fills || []) : rowsInWindow(source.fills || [], window);
+  const ledger = buildTradeLedger(fills);
+  const equity = periodPerf.final_equity ?? summary.final_equity;
+  $("performance-note").textContent = `${source.label} / ${window.label}`;
   $("performance-equity").textContent = money(equity);
-  $("performance-context").textContent = source.account.length
-    ? "Showing selected archived run artifacts."
+  $("performance-context").textContent = accountRows.length
+    ? `${numberText(accountRows.length, 0)} account snapshots in selected period.`
     : "Showing latest summarized run; select Artifacts for an equity curve.";
-  $("performance-return").textContent = pctText(perf.total_return_pct ?? summary.total_return_pct);
-  $("performance-drawdown").textContent = pctText(perf.max_drawdown_pct ?? summary.max_drawdown_pct);
-  $("performance-return-day").textContent = pctText(perf.return_per_day_pct ?? summary.return_per_day_pct);
-  $("performance-exposure").textContent = pctText(perf.max_gross_exposure_pct ?? summary.max_gross_exposure_pct);
-  $("performance-equity-chart").innerHTML = equityChart(source.account || []);
-  $("performance-drawdown-chart").innerHTML = drawdownChart(source.account || []);
-  $("performance-daily-return-chart").innerHTML = dailyReturnChart(source.account || []);
-  $("performance-calendar-chart").innerHTML = calendarReturnHeatmap(source.account || []);
-  $("performance-drawdown-note").textContent = source.account.length
+  $("performance-return").textContent = pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null));
+  $("performance-drawdown").textContent = pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null));
+  $("performance-return-day").textContent = pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null));
+  $("performance-exposure").textContent = pctText(periodPerf.max_gross_exposure_pct ?? (period === "all" ? summary.max_gross_exposure_pct : null));
+  $("performance-win-loss").textContent = ledger.stats.closed_count
+    ? `${numberText(ledger.stats.wins, 0)}W / ${numberText(ledger.stats.losses, 0)}L`
+    : "n/a";
+  $("performance-profit-factor").textContent = Number.isFinite(ledger.stats.profit_factor)
+    ? numberText(ledger.stats.profit_factor, 2)
+    : ledger.stats.profit_factor === Infinity ? "inf" : "n/a";
+  $("performance-avg-win-loss").textContent = ledger.stats.closed_count
+    ? `${money(ledger.stats.avg_win)} / ${money(ledger.stats.avg_loss)}`
+    : "n/a";
+  $("performance-equity-chart").innerHTML = equityChart(accountRows);
+  $("performance-drawdown-chart").innerHTML = drawdownChart(accountRows);
+  $("performance-daily-return-chart").innerHTML = dailyReturnChart(accountRows);
+  $("performance-calendar-chart").innerHTML = calendarReturnHeatmap(accountRows);
+  $("performance-drawdown-note").textContent = accountRows.length
     ? "Computed from account equity snapshots"
     : "Load archived artifacts for drawdown curve";
-  $("performance-daily-note").textContent = source.account.length
+  $("performance-daily-note").textContent = accountRows.length
     ? "Computed from first/last equity by date"
     : "Load archived artifacts for daily bars";
-  $("performance-calendar-note").textContent = source.account.length
+  $("performance-calendar-note").textContent = accountRows.length
     ? "Green/red daily return cells"
     : "Load archived artifacts for calendar view";
+  $("performance-trade-note").textContent = fills.length
+    ? `${numberText(ledger.stats.closed_count, 0)} closed / ${numberText(ledger.stats.open_count, 0)} open from ${numberText(fills.length, 0)} fills`
+    : "Load artifacts with fills for trade rows";
+  $("performance-trades-body").innerHTML = ledger.rows.length
+    ? ledger.rows.slice(0, 40).map((trade) => row([
+        escapeHtml(trade.symbol),
+        statusText(trade.state === "closed" ? "ok" : "warn"),
+        escapeHtml(trade.side),
+        numberText(trade.quantity, 4),
+        `${escapeHtml(text(trade.entry_time))}<br>${escapeHtml(money(trade.entry_price))}`,
+        trade.exit_time ? `${escapeHtml(text(trade.exit_time))}<br>${escapeHtml(money(trade.exit_price))}` : `<span class="muted">open</span>`,
+        trade.pnl === null ? "n/a" : `<span class="${Number(trade.pnl) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(money(trade.pnl))}</span>`,
+        escapeHtml(holdDurationLabel(trade.entry_time, trade.exit_time || new Date().toISOString())),
+      ])).join("")
+    : row([`<span class="muted">No fills in selected period</span>`, "", "", "", "", "", "", ""]);
 
   const runs = ((state.runComparison && state.runComparison.runs) || []).slice(0, 12);
   $("performance-runs-body").innerHTML = runs.length
@@ -2370,6 +2603,7 @@ function init() {
   $("comparison-filter-action").addEventListener("change", renderRunComparison);
   $("comparison-filter-summary").addEventListener("change", renderRunComparison);
   $("comparison-sort").addEventListener("change", renderRunComparison);
+  $("performance-period").addEventListener("change", renderPerformance);
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {
       $("last-refresh").textContent = `Command failed: ${err.message}`;

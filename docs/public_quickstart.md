@@ -182,7 +182,10 @@ health checks, setup checklist items, open positions, and recent
 decision/order/fill events. Performance summarizes the latest run or selected
 artifact with equity, return, drawdown, exposure, an equity curve, drawdown
 curve, daily return bars, and a calendar-style daily return heatmap when
-account snapshots are available. Data Library shows
+account snapshots are available. Use the Period selector to narrow artifact
+charts and KPIs to today, week, month, 3 months, or all available snapshots.
+When sanitized fills are present, Performance also shows an open/closed trade
+table, win/loss, average win/loss, and profit factor. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use the coverage grid to see recent date-bin coverage by
 symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,

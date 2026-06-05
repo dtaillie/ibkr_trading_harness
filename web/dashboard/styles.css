@@ -652,6 +652,23 @@ section {
   margin-bottom: 8px;
 }
 
+.inline-section-head {
+  padding: 10px 12px 0;
+}
+
+.inline-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.inline-control span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .section-note {
   color: var(--muted);
   font-size: 12px;

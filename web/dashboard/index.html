@@ -166,7 +166,19 @@
     <section class="dashboard-section" data-view="performance" hidden>
       <div class="section-head">
         <h2>Strategy Performance</h2>
-        <span id="performance-note" class="section-note">No performance data loaded</span>
+        <span class="button-pair">
+          <label class="inline-control">
+            <span>Period</span>
+            <select id="performance-period">
+              <option value="all" selected>All</option>
+              <option value="today">Today</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="3m">3 months</option>
+            </select>
+          </label>
+          <span id="performance-note" class="section-note">No performance data loaded</span>
+        </span>
       </div>
       <div class="performance-layout">
         <div class="performance-card">
@@ -190,6 +202,18 @@
           <div class="status-tile">
             <span>Exposure</span>
             <strong id="performance-exposure">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Win/Loss</span>
+            <strong id="performance-win-loss">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Profit Factor</span>
+            <strong id="performance-profit-factor">n/a</strong>
+          </div>
+          <div class="status-tile">
+            <span>Avg Win/Loss</span>
+            <strong id="performance-avg-win-loss">n/a</strong>
           </div>
         </div>
       </div>
@@ -224,6 +248,31 @@
         </div>
       </div>
       <div class="table-wrap compact-table">
+        <div class="section-head inline-section-head">
+          <h2>Trades</h2>
+          <span id="performance-trade-note" class="section-note">Derived from sanitized fills</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>State</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Entry</th>
+              <th>Exit</th>
+              <th>PnL</th>
+              <th>Hold</th>
+            </tr>
+          </thead>
+          <tbody id="performance-trades-body"></tbody>
+        </table>
+      </div>
+      <div class="table-wrap compact-table">
+        <div class="section-head inline-section-head">
+          <h2>Recent Runs</h2>
+          <span class="section-note">Use Runs for deeper artifact/log inspection</span>
+        </div>
         <table>
           <thead>
             <tr>
@@ -1233,7 +1282,7 @@
           <strong>Today's Strategy Performance</strong>
           <ol>
             <li>Start in Overview for current mode, latest signal/fill, and open-position cards.</li>
-            <li>Open Performance for the latest account artifact, equity curve, drawdown, and daily returns.</li>
+            <li>Open Performance for period-filtered equity, drawdown, daily returns, and fill-derived trade rows.</li>
             <li>Open Runs when a number looks suspicious and inspect the exact artifact or log.</li>
             <li>Check Operations if the latest run is stale, the API is disconnected, or no current telemetry exists.</li>
           </ol>

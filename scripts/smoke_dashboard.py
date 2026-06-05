@@ -66,6 +66,10 @@ def run_smoke(
             "performance-drawdown-chart",
             "performance-daily-return-chart",
             "performance-calendar-chart",
+            "performance-period",
+            "performance-trades-body",
+            "performance-profit-factor",
+            "performance-avg-win-loss",
             "overview-health-grid",
             "overview-positions-grid",
             "overview-timeline-body",
@@ -115,6 +119,8 @@ def run_smoke(
             "drawdownChart",
             "dailyReturnChart",
             "calendarReturnHeatmap",
+            "buildTradeLedger",
+            "performancePeriodWindow",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]

@@ -204,7 +204,9 @@ Overview surfaces current health checks, setup checklist state, open positions,
 and a latest decision/order/fill timeline. Performance shows latest equity,
 return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
 bars plus a calendar-style daily return heatmap when account artifacts are
-available. It shows
+available. It also supports account-artifact period presets and a fill-derived
+trade table with open/closed rows, win/loss, average win/loss, and profit
+factor. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, and local disk usage. It can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
