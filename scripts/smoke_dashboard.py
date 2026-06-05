@@ -69,6 +69,8 @@ def run_smoke(
             "performance-period",
             "performance-source",
             "performance-mode",
+            "performance-context-note",
+            "performance-metric-context",
             "performance-latest-account",
             "performance-position-count",
             "performance-activity",
@@ -186,6 +188,9 @@ def run_smoke(
             "allow_quality_warnings",
             "formatTimestampForMode",
             "timeRangeLabel",
+            "projectionCaveat",
+            "modeMeaning",
+            "sourceMeaning",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

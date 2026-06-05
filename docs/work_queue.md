@@ -145,10 +145,16 @@ strategy-private.
       and exposure are available from artifacts; turnover remains open
   - benchmark overlay where appropriate
   - clear short-horizon projection caveats for per-day/month/year stats
+    - done for the Performance page; Metric Context now flags short-horizon
+      annualized stats and explains that per-day/month/year figures are scale
+      references, not forecasts.
   - selectable period presets: today, week, month, 3 months, all available
     - done for account-artifact charts and KPIs
   - obvious difference between realized historical backtest, simulated paper,
     IBKR paper, and live account metrics
+    - partial; Metric Context now explains replay, simulated-paper, shadow,
+      paper, live, artifact, summary-only, and live-telemetry sources. Broker
+      paper/live state still depends on runner telemetry fields being present.
 - Add a clean "current strategy performance" mode that does not require picking
   through historical run comparison rows.
 - Add strategy/session comparison only after the current-strategy page is easy

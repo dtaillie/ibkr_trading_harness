@@ -251,6 +251,7 @@ function latestArtifactPerformance() {
       fills: artifacts.fills || [],
       orders: artifacts.orders || [],
       decisions: artifacts.decisions || [],
+      source_type: "archived_artifact",
     };
   }
   const comparison = latestSummarizedComparisonRun();
@@ -263,6 +264,7 @@ function latestArtifactPerformance() {
       fills: [],
       orders: [],
       decisions: [],
+      source_type: "run_summary",
     };
   }
   const telemetryRun = latestTelemetryRun();
@@ -276,9 +278,10 @@ function latestArtifactPerformance() {
       fills: [],
       orders: [],
       decisions: [],
+      source_type: "live_telemetry",
     };
   }
-  return { label: "No run data", summary: {}, performance: {}, account: [], fills: [], orders: [], decisions: [] };
+  return { label: "No run data", summary: {}, performance: {}, account: [], fills: [], orders: [], decisions: [], source_type: "none" };
 }
 
 function selectedConfigDatasets() {
@@ -534,14 +537,51 @@ function performanceFromAccountRows(accountRows) {
   return {
     initial_equity: initialEquity,
     final_equity: finalEquity,
+    elapsed_days: elapsedDays,
     total_return_pct: totalReturnPct,
     max_drawdown_pct: maxDrawdown,
     return_per_day_pct: elapsedDays && elapsedDays > 0 && initialEquity > 0
       ? ((Math.pow(finalEquity / initialEquity, 1 / elapsedDays) - 1) * 100)
       : null,
+    return_per_month_pct: elapsedDays && elapsedDays > 0 && initialEquity > 0
+      ? ((Math.pow(finalEquity / initialEquity, 30.4375 / elapsedDays) - 1) * 100)
+      : null,
+    return_per_year_pct: elapsedDays && elapsedDays > 0 && initialEquity > 0
+      ? ((Math.pow(finalEquity / initialEquity, 365.25 / elapsedDays) - 1) * 100)
+      : null,
+    short_horizon_projection: elapsedDays !== null && elapsedDays < 30,
     max_gross_exposure: maxGrossExposure,
     max_gross_exposure_pct: maxGrossExposure !== null && initialEquity > 0 ? (maxGrossExposure / initialEquity) * 100 : null,
   };
+}
+
+function modeMeaning(mode) {
+  const value = String(mode || "").replace("-", "_").toLowerCase();
+  if (value === "replay") return "Historical replay from saved files; no broker account is touched.";
+  if (value === "simulated_paper") return "Local simulated-paper run using saved or streamed prices and simulated fills.";
+  if (value === "shadow") return "Observation mode; signals can be logged without submitting orders.";
+  if (value === "paper") return "Broker paper account metrics; orders may have been submitted to a paper account.";
+  if (value === "live") return "Live account metrics; treat all results and controls as production-sensitive.";
+  return "Mode unavailable; inspect the source run or telemetry before interpreting results.";
+}
+
+function sourceMeaning(source) {
+  if (source.source_type === "archived_artifact") return "Full archived run artifacts are loaded, including account snapshots when available.";
+  if (source.source_type === "run_summary") return "Using a saved run summary; detailed curves need the run artifacts.";
+  if (source.source_type === "live_telemetry") return "Using latest published telemetry; persistence depends on the runner output.";
+  return "No performance source is loaded yet.";
+}
+
+function projectionCaveat(perf, summary, elapsedDays) {
+  const projected = Boolean(perf.short_horizon_projection ?? summary.short_horizon_projection);
+  if (projected || (elapsedDays !== null && elapsedDays < 30)) {
+    const horizon = elapsedDays !== null ? `${numberText(elapsedDays, 2)} elapsed days` : "a short elapsed window";
+    return `Short horizon: per-day/month/year figures annualize ${horizon}. They are scale references, not forecasts.`;
+  }
+  if (elapsedDays !== null) {
+    return `Window spans ${numberText(elapsedDays, 2)} elapsed days; annualized figures are still descriptive, not predictive.`;
+  }
+  return "No elapsed account window is available; prefer total return and drawdown over annualized figures.";
 }
 
 function normalizedFillSide(value) {
@@ -912,6 +952,7 @@ function renderPerformance() {
   const orders = summary.orders ?? (source.orders || []).length;
   const fillCount = summary.fills ?? (source.fills || []).length;
   const rejections = summary.rejections ?? summary.rejects ?? 0;
+  const elapsedDays = periodPerf.elapsed_days ?? (period === "all" ? (perf.elapsed_days ?? summary.elapsed_days) : null);
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   $("performance-equity").textContent = money(equity);
   $("performance-context").textContent = accountRows.length
@@ -936,6 +977,21 @@ function renderPerformance() {
   $("performance-avg-win-loss").textContent = ledger.stats.closed_count
     ? `${money(ledger.stats.avg_win)} / ${money(ledger.stats.avg_loss)}`
     : "n/a";
+  const projectionWarning = Boolean(periodPerf.short_horizon_projection ?? perf.short_horizon_projection ?? summary.short_horizon_projection);
+  $("performance-context-note").innerHTML = projectionWarning
+    ? `<span class="status-warn">Short-horizon annualized stats</span>`
+    : "How to read the selected performance window";
+  const contextPairs = [
+    ["Metric Source", sourceMeaning(source)],
+    ["Mode Meaning", modeMeaning(mode)],
+    ["Selected Window", `${window.label}; ${accountRows.length ? `${numberText(accountRows.length, 0)} account snapshots` : "no account snapshots"}`],
+    ["Elapsed", elapsedDays !== null && elapsedDays !== undefined ? `${numberText(elapsedDays, 4)} days` : "n/a"],
+    ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
+    ["Annualized Scale", `Day ${pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null))} / Month ${pctText(periodPerf.return_per_month_pct ?? (period === "all" ? summary.return_per_month_pct : null))} / Year ${pctText(periodPerf.return_per_year_pct ?? (period === "all" ? summary.return_per_year_pct : null))}`],
+  ];
+  $("performance-metric-context").innerHTML = contextPairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
   $("performance-equity-chart").innerHTML = equityChart(accountRows);
   $("performance-drawdown-chart").innerHTML = drawdownChart(accountRows);
   $("performance-daily-return-chart").innerHTML = dailyReturnChart(accountRows);

@@ -475,6 +475,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html
         assert "nav-performance" in html
+        assert "performance-context-note" in html
+        assert "performance-metric-context" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
         assert "overview-health-grid" in html
