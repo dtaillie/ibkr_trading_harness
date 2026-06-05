@@ -2406,6 +2406,7 @@ function dataCatalogFilters() {
     bar: $("data-filter-bar").value || "",
     asset: $("data-filter-asset").value || "",
     source: $("data-filter-source").value || "",
+    session: $("data-filter-session").value || "",
     sort: $("data-filter-sort").value || "modified_desc",
   };
 }
@@ -2446,12 +2447,14 @@ function filteredDataCatalog(datasets) {
     if (filters.bar && text(dataset.bar_size) !== filters.bar) return false;
     if (filters.asset && text(dataset.asset_class) !== filters.asset) return false;
     if (filters.source && text(dataset.source) !== filters.source) return false;
+    if (filters.session && text(dataset.storage_session) !== filters.session) return false;
     if (filters.text) {
       const haystack = [
         dataset.symbol,
         dataset.asset_class,
         dataset.source,
         dataset.bar_size,
+        dataset.storage_session,
         dataset.path,
         dataset.root,
         dataset.source_timezone,
@@ -2479,6 +2482,7 @@ function renderDataFilterOptions(datasets) {
   makeOptions("data-filter-bar", (datasets || []).map((item) => item.bar_size));
   makeOptions("data-filter-asset", (datasets || []).map((item) => item.asset_class));
   makeOptions("data-filter-source", (datasets || []).map((item) => item.source));
+  makeOptions("data-filter-session", (datasets || []).map((item) => item.storage_session));
 }
 
 function symbolBrowserGroups() {
@@ -2918,6 +2922,7 @@ function dataFilterSummary() {
   if (filters.bar) labels.push(`bar ${filters.bar}`);
   if (filters.asset) labels.push(`asset ${filters.asset}`);
   if (filters.source) labels.push(`source ${filters.source}`);
+  if (filters.session) labels.push(`session ${filters.session}`);
   if (state.manifestPathFilter && (state.manifestPathFilter.paths || []).length) {
     labels.push(`fetch outputs ${numberText((state.manifestPathFilter.paths || []).length, 0)}`);
   }
@@ -4252,6 +4257,7 @@ function applyFetchOutputDataFilter() {
   $("data-filter-bar").value = "";
   $("data-filter-asset").value = "";
   $("data-filter-source").value = "";
+  $("data-filter-session").value = "";
   $("data-filter-sort").value = "modified_desc";
   navigateToView("data");
   renderDataCatalog();
@@ -6839,6 +6845,7 @@ function init() {
   $("data-filter-bar").addEventListener("change", renderDataCatalog);
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
+  $("data-filter-session").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-home-clear-filters").addEventListener("click", () => {
     $("data-filter-text").value = "";
@@ -6846,6 +6853,7 @@ function init() {
     $("data-filter-bar").value = "";
     $("data-filter-asset").value = "";
     $("data-filter-source").value = "";
+    $("data-filter-session").value = "";
     $("data-filter-sort").value = "modified_desc";
     state.manifestPathFilter = null;
     renderDataCatalog();

@@ -407,6 +407,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
     - partial; Data Library rows now expose inferred storage session and
       adjustment metadata alongside source timezone.
+    - partial; Saved Data filters now include storage session, so users can
+      narrow detailed rows to RTH, extended-hours, 24/7 crypto, or unknown
+      files without relying on text search.
   - last updated time and file size
     - partial; Saved Data rows now show file size plus last-modified age, Data
       Detail includes file size and modified time, and the summary card labels the
