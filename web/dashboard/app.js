@@ -1399,6 +1399,40 @@ function renderDataLibrarySummary() {
         </div>
       `).join("")
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
+  renderDataCatalogScanDiagnostics();
+}
+
+function renderDataCatalogScanDiagnostics() {
+  const catalog = state.dataCatalog || {};
+  const rows = catalog.root_summaries || [];
+  const totalCandidates = rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
+  const totalErrors = rows.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0);
+  const capped = rows.filter((item) => item.scan_capped).length;
+  $("data-catalog-scan-note").textContent = rows.length
+    ? `${numberText(rows.length, 0)} roots / ${numberText(totalCandidates, 0)} candidates / ${numberText(totalErrors, 0)} errors${capped ? ` / ${numberText(capped, 0)} capped` : ""}`
+    : "No catalog scan loaded";
+  $("data-catalog-scan-body").innerHTML = rows.length
+    ? rows.map((item) => {
+        const status = !item.exists || !item.is_dir
+          ? "bad"
+          : item.scan_capped || item.not_scanned_reason || Number(item.parse_error_count || 0)
+            ? "warn"
+            : "ok";
+        const reason = item.not_scanned_reason
+          || ((item.sample_errors || [])[0] || {}).error
+          || (item.scan_capped ? "catalog limit reached" : "none");
+        return row([
+          `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
+          statusText(status),
+          escapeHtml(numberText(item.candidate_count, 0)),
+          escapeHtml(numberText(item.parsed_count, 0)),
+          escapeHtml(numberText(item.parse_error_count, 0)),
+          escapeHtml(numberText(item.unsupported_file_count, 0)),
+          `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
+          escapeHtml(reason),
+        ]);
+      }).join("")
+    : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", ""]);
 }
 
 function renderDataStorageAudit() {

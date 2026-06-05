@@ -460,6 +460,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
+        assert "data-catalog-scan-note" in html
+        assert "data-catalog-scan-body" in html
         assert "data-coverage-grid" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
@@ -773,6 +775,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         + "\n",
         encoding="utf-8",
     )
+    (data_root / "notes.txt").write_text("not market data\n", encoding="utf-8")
+    (data_root / "BROKEN_5min_sample.parquet").write_bytes(b"not a parquet file")
     server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -787,6 +791,14 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert payload["row_count_total"] == 3
         assert payload["size_bytes_total"] > 0
         assert payload["latest_modified_at"]
+        assert payload["error_count"] == 1
+        assert payload["errors"][0]["root"] == str(data_root.resolve())
+        scan = payload["root_summaries"][0]
+        assert scan["candidate_count"] == 2
+        assert scan["parsed_count"] == 1
+        assert scan["parse_error_count"] == 1
+        assert scan["unsupported_file_count"] == 1
+        assert scan["scan_duration_ms"] >= 0
         dataset = payload["datasets"][0]
         assert dataset["symbol"] == "SPY"
         assert dataset["asset_class"] == "etf"

@@ -730,16 +730,67 @@ def dashboard_server_settings(
     return settings
 
 
-def data_file_candidates(data_roots: list[Path], *, limit: int) -> list[Path]:
+def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[list[Path], list[dict[str, Any]]]:
     files: list[Path] = []
+    root_summaries: list[dict[str, Any]] = []
     for root in data_roots:
-        if not root.exists() or not root.is_dir():
+        started = time.monotonic()
+        resolved = root.resolve()
+        summary: dict[str, Any] = {
+            "path": display_path(resolved),
+            "display_path": display_path(resolved),
+            "exists": resolved.exists(),
+            "is_dir": resolved.is_dir() if resolved.exists() else False,
+            "catalog_limit": limit,
+            "candidate_count": 0,
+            "parsed_count": 0,
+            "parse_error_count": 0,
+            "unsupported_file_count": 0,
+            "scan_capped": False,
+            "not_scanned_reason": None,
+            "sample_errors": [],
+        }
+        root_summaries.append(summary)
+        if len(files) >= limit:
+            summary["not_scanned_reason"] = "global catalog limit already reached"
+            summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
             continue
-        for path in sorted(root.rglob("*")):
-            if path.is_file() and path.suffix.lower() in DATA_FILE_SUFFIXES:
-                files.append(path)
+        if not root.exists() or not root.is_dir():
+            summary["not_scanned_reason"] = "root missing or not a directory"
+            summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
+            continue
+        try:
+            for path in sorted(root.rglob("*")):
+                try:
+                    if not path.is_file():
+                        continue
+                except OSError as exc:
+                    summary["parse_error_count"] += 1
+                    if len(summary["sample_errors"]) < 5:
+                        summary["sample_errors"].append({"path": display_path(path), "error": str(exc)})
+                    continue
+                if path.suffix.lower() not in DATA_FILE_SUFFIXES:
+                    summary["unsupported_file_count"] += 1
+                    continue
                 if len(files) >= limit:
-                    return files
+                    summary["scan_capped"] = True
+                    summary["not_scanned_reason"] = "global catalog limit reached"
+                    summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
+                    break
+                files.append(path)
+                summary["candidate_count"] += 1
+        except OSError as exc:
+            summary["parse_error_count"] += 1
+            summary["not_scanned_reason"] = str(exc)
+            if len(summary["sample_errors"]) < 5:
+                summary["sample_errors"].append({"path": display_path(resolved), "error": str(exc)})
+        finally:
+            summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
+    return files, root_summaries
+
+
+def data_file_candidates(data_roots: list[Path], *, limit: int) -> list[Path]:
+    files, _root_summaries = scan_data_file_candidates(data_roots, limit=limit)
     return files
 
 
@@ -1012,19 +1063,35 @@ def build_data_catalog(
         raise ValueError("preview_points must be between 2 and 500")
     datasets = []
     errors = []
-    files = data_file_candidates(data_roots, limit=limit)
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit)
+    root_summary_by_path = {str(row["path"]): row for row in root_summaries}
     for path in files:
         root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+        root_key = display_path(root)
+        root_summary = root_summary_by_path.get(root_key)
         try:
             datasets.append(summarize_data_file(path, root=root, preview_points=preview_points))
+            if root_summary is not None:
+                root_summary["parsed_count"] += 1
         except Exception as exc:
+            if root_summary is not None:
+                root_summary["parse_error_count"] += 1
+                if len(root_summary["sample_errors"]) < 5:
+                    root_summary["sample_errors"].append({
+                        "path": display_path(path),
+                        "error": str(exc),
+                    })
             errors.append({
                 "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+                "root": root_key,
                 "error": str(exc),
             })
     modified_values = [str(item.get("modified_at")) for item in datasets if item.get("modified_at")]
+    for row in root_summaries:
+        row["skipped_candidate_count"] = max(0, int(row.get("candidate_count") or 0) - int(row.get("parsed_count") or 0) - int(row.get("parse_error_count") or 0))
     return {
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
+        "root_summaries": root_summaries,
         "datasets": datasets,
         "errors": errors,
         "count": len(datasets),

@@ -355,8 +355,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; catalog parser errors and root diagnostics are visible
   - root-by-root scan duration, file count, skipped count, and parser error
     count
-    - partial; root file counts and parser errors are visible, scan duration and
-      skipped counts need richer scanner instrumentation
+    - partial; Data Library now shows catalog scan diagnostics with per-root
+      candidate, parsed, parser-error, unsupported-file, cap/reason, and scan
+      duration fields. Storage Audit still handles deeper full-root file counts.
   - warning when the catalog result is capped and not all symbols are shown
     - done in the Data Library visibility card
 - Add saved fetch manifests:
