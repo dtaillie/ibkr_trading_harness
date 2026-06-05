@@ -376,6 +376,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_minute_heatmap_export",
+        "category": "data",
+        "description": "Download saved-data intraday interval completeness rows.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_diagnostic",
         "category": "data",
         "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
@@ -1987,6 +1994,27 @@ DATA_GAP_SUMMARY_EXPORT_FIELDS = (
 )
 
 
+DATA_MINUTE_HEATMAP_EXPORT_FIELDS = (
+    "row_type",
+    "symbol",
+    "asset_class",
+    "source",
+    "bar_size",
+    "path",
+    "first_timestamp",
+    "last_timestamp",
+    "median_interval_seconds",
+    "completeness_pct",
+    "actual_intervals",
+    "expected_intervals",
+    "estimated_missing_intervals",
+    "hour_utc",
+    "date_utc",
+    "format",
+    "rows",
+)
+
+
 def compact_csv_value(value: Any) -> Any:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
@@ -2073,6 +2101,42 @@ def build_data_gap_summary_csv(
     writer.writeheader()
     for row in rows:
         writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_GAP_SUMMARY_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_data_minute_heatmap_csv(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    top_limit: int = 20,
+) -> str:
+    summary = build_data_minute_heatmap(data_roots, catalog_limit=catalog_limit, top_limit=top_limit)
+    rows = []
+    for item in summary.get("rows") or []:
+        for hour in item.get("hours") or []:
+            if int(hour.get("expected_intervals") or 0) <= 0:
+                continue
+            rows.append({
+                "row_type": "hour_summary",
+                "symbol": item.get("symbol"),
+                "asset_class": item.get("asset_class"),
+                "source": item.get("source"),
+                "bar_size": item.get("bar_size"),
+                "path": item.get("path"),
+                "first_timestamp": item.get("first_timestamp"),
+                "last_timestamp": item.get("last_timestamp"),
+                "median_interval_seconds": item.get("median_interval_seconds"),
+                "format": item.get("format"),
+                "rows": item.get("rows"),
+                **hour,
+            })
+    for item in summary.get("date_hour_rows") or []:
+        rows.append({**item, "row_type": "date_hour"})
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_MINUTE_HEATMAP_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_MINUTE_HEATMAP_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -6753,6 +6817,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_minute_heatmap_export":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
+                csv_body = build_data_minute_heatmap_csv(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    top_limit=top_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_minute_heatmap.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_symbol_diagnostic":
             if not self.require_auth():

@@ -606,6 +606,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-calendar-gap-body" in html
         assert "data-minute-heatmap-note" in html
         assert "data-minute-heatmap-grid" in html
+        assert "export-data-minute-heatmap-csv" in html
         assert "data-minute-heatmap-body" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
@@ -732,6 +733,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
+        assert ("GET", "/data_minute_heatmap_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
         assert ("GET", "/data_storage_audit_export") in endpoints
@@ -1932,6 +1934,13 @@ def test_cloud_status_server_serves_data_minute_heatmap(tmp_path):
         assert payload["date_hour_rows"][0]["symbol"] == "SPY"
         assert payload["date_hour_rows"][0]["date_utc"] == "2026-01-02"
         assert payload["date_hour_rows"][0]["hour_utc"] == 14
+        with request.urlopen(f"{base}/data_minute_heatmap_export?catalog_limit=10&top_limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert {row["row_type"] for row in exported} == {"hour_summary", "date_hour"}
+        assert exported[0]["symbol"] == "SPY"
+        assert exported[0]["hour_utc"] == "14"
     finally:
         server.shutdown()
         server.server_close()

@@ -5869,6 +5869,21 @@ async function downloadDataGapSummaryCsv() {
   $("last-refresh").textContent = `Gap summary CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataMinuteHeatmapCsv() {
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const body = await fetchText(`/data_minute_heatmap_export?catalog_limit=${catalogLimit}&top_limit=100`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_minute_heatmap.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Minute heatmap CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataMissingIntervalsCsv() {
   const path = (state.dataDetail || {}).path || "";
   if (!path) {
@@ -6120,6 +6135,11 @@ function init() {
   $("export-data-gap-summary-csv").addEventListener("click", () => {
     downloadDataGapSummaryCsv().catch((err) => {
       $("last-refresh").textContent = `Gap summary CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-minute-heatmap-csv").addEventListener("click", () => {
+    downloadDataMinuteHeatmapCsv().catch((err) => {
+      $("last-refresh").textContent = `Minute heatmap CSV export failed: ${err.message}`;
     });
   });
   $("export-workbench-snapshot").addEventListener("click", () => {

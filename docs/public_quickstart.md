@@ -260,7 +260,8 @@ comparison for offline review; the audit includes per-root scan duration so
 large or slow roots are visible. Use the coverage grid to see recent date-bin
 coverage by symbol, or Export Coverage CSV to download symbol/date coverage
 rows for offline review. Use Export Gap CSV to download aggregate timestamp-gap
-and calendar-gap rows. Use Find Missing Symbol to diagnose whether a ticker is visible,
+and calendar-gap rows. Use Export Minute CSV to download intraday hour and
+date/hour completeness rows. Use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored

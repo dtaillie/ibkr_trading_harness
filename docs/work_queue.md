@@ -516,6 +516,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       drilldowns from the same endpoint. Data Detail now lists bounded exact
       inferred missing timestamps for the selected saved file and can export a
       full-file missing-interval CSV through `/data_missing_intervals_export`.
+    - partial; Data Library now exposes `/data_minute_heatmap_export` and an
+      Export Minute CSV button for intraday hour and date/hour completeness
+      rows.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues

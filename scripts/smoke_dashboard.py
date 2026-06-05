@@ -577,6 +577,9 @@ def run_smoke(
         gap_summary_csv = fetch_text(base_url, f"/data_gap_summary_export?catalog_limit={catalog_limit}&top_limit=10")
         if "row_type,symbol,asset_class" not in gap_summary_csv:
             raise RuntimeError("data gap summary CSV header is missing")
+        minute_heatmap_csv = fetch_text(base_url, f"/data_minute_heatmap_export?catalog_limit={catalog_limit}&top_limit=10")
+        if "row_type,symbol,asset_class" not in minute_heatmap_csv:
+            raise RuntimeError("data minute heatmap CSV header is missing")
         storage_audit = fetch_json(base_url, f"/data_storage_audit?catalog_limit={catalog_limit}&scan_limit=100")
         if "configured_roots" not in storage_audit or "catalog_visible_count" not in storage_audit:
             raise RuntimeError("data storage audit summary is invalid")
@@ -621,6 +624,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_gap_summary_export")
         if ("GET", "/data_missing_intervals_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_missing_intervals_export")
+        if ("GET", "/data_minute_heatmap_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_minute_heatmap_export")
         if ("GET", "/data_storage_audit") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_storage_audit")
         if ("GET", "/data_storage_audit_export") not in endpoint_paths:
