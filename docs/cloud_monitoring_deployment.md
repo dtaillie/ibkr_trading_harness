@@ -218,9 +218,17 @@ private networking.
 
 The server-side command audit is hash-chained. Each appended audit row includes
 `prev_hash` and `record_hash`, and `/command_audit` returns an `integrity`
-summary with `ok`, `warn`, `bad`, or `empty` status. This is tamper-evident for
-local file edits after the fact; it is not a substitute for off-host immutable
-storage, signed logs, or provider-level retention controls.
+summary with `ok`, `warn`, `bad`, or `empty` status. Hosted receivers can also
+set `dashboard.command_audit_signature_env` to the name of an environment
+variable containing an HMAC secret. New command audit rows then include
+`row_signature`, and `/command_audit` reports whether signatures are disabled,
+valid, unsigned, missing a key, or failing verification. Keep the signing secret
+outside the repo and rotate it like any other service secret.
+
+This is tamper-evident for local file edits after the fact. It is still not a
+substitute for off-host immutable storage or provider-level retention controls;
+ship or back up the audit file to storage whose write permissions are separate
+from the receiver host if the service is internet-facing.
 
 Run the worker once:
 

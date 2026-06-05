@@ -672,6 +672,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-history-body" in html
         assert "command-audit-note" in html
         assert "command-audit-body" in html
+        assert "Signature" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html
@@ -1063,6 +1064,7 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "      - read_only",
                 "    allowed_actions:",
                 "      - pause_runner",
+                "  command_audit_signature_env: AUDIT_HMAC_KEY",
                 "  data_roots:",
                 f"    - {data_root}",
                 "  fetch_manifest_roots:",
@@ -1097,6 +1099,7 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
         "allowed_action_classes": {"read_only"},
         "allowed_actions": {"pause_runner"},
     }
+    assert settings["command_audit_signature_env"] == "AUDIT_HMAC_KEY"
     assert settings["data_roots"] == [data_root]
     assert settings["fetch_manifest_roots"] == [tmp_path / "fetch_manifests"]
     assert settings["plugin_registry_paths"] == [tmp_path / "plugin_registry.yaml"]
@@ -1109,10 +1112,12 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
         fetch_manifest_roots=[tmp_path / "manifest_override"],
         plugin_registry_paths=[tmp_path / "registry_override.yaml"],
         auth_token_env="OTHER_TOKEN",
+        command_audit_signature_env="OTHER_AUDIT_HMAC_KEY",
     )
     assert override["host"] == "127.0.0.1"
     assert override["port"] == 0
     assert override["data_roots"] == [tmp_path / "override"]
+    assert override["command_audit_signature_env"] == "OTHER_AUDIT_HMAC_KEY"
     assert override["fetch_manifest_roots"] == [tmp_path / "manifest_override"]
     assert override["plugin_registry_paths"] == [tmp_path / "registry_override.yaml"]
     assert override["auth_token_env"] == "OTHER_TOKEN"
@@ -3056,6 +3061,7 @@ def test_cloud_status_server_command_queue(tmp_path):
         assert audit["events"][0]["param_keys"] == []
         assert audit["integrity"]["status"] == "ok"
         assert audit["integrity"]["checked_records"] == 2
+        assert audit["integrity"]["signature_status"] == "disabled"
         assert audit["events"][0]["record_hash"]
         assert audit["events"][1]["prev_hash"] == audit["events"][0]["record_hash"]
     finally:
@@ -3086,6 +3092,71 @@ def test_cloud_status_server_detects_command_audit_tampering(tmp_path):
     tampered = status_server.verify_command_audit(state_dir)
     assert tampered["status"] == "bad"
     assert any(error["error"] == "record_hash mismatch" for error in tampered["errors"])
+
+
+def test_cloud_status_server_signs_and_verifies_command_audit(tmp_path, monkeypatch):
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("AUDIT_HMAC_KEY", "test-secret")
+
+    status_server.append_command_audit(
+        state_dir,
+        {"event": "command_queued", "node_id": "test-node", "command_id": "cmd-1", "action": "request_status"},
+        signature_env="AUDIT_HMAC_KEY",
+    )
+    clean = status_server.verify_command_audit(state_dir, signature_env="AUDIT_HMAC_KEY")
+    assert clean["status"] == "ok"
+    assert clean["signature_status"] == "ok"
+    assert clean["signed_records"] == 1
+    assert clean["unsigned_records"] == 0
+
+    path = status_server.command_audit_path(state_dir)
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert rows[0]["signature_algorithm"] == "hmac-sha256"
+    assert rows[0]["signature_key_env"] == "AUDIT_HMAC_KEY"
+    assert rows[0]["row_signature"]
+
+    rows[0]["row_signature"] = "0" * 64
+    path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+    tampered = status_server.verify_command_audit(state_dir, signature_env="AUDIT_HMAC_KEY")
+    assert tampered["status"] == "bad"
+    assert tampered["signature_status"] == "bad"
+    assert any(error["error"] == "row_signature mismatch" for error in tampered["errors"])
+
+    monkeypatch.delenv("AUDIT_HMAC_KEY")
+    missing_key = status_server.verify_command_audit(state_dir, signature_env="AUDIT_HMAC_KEY")
+    assert missing_key["signature_status"] == "missing_key"
+
+
+def test_cloud_status_server_command_audit_endpoint_reports_signed_rows(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIT_HMAC_KEY", "test-secret")
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        command_audit_signature_env="AUDIT_HMAC_KEY",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        command_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({"node_id": "test-node", "action": "request_status"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(command_req, timeout=5) as resp:
+            assert json.loads(resp.read().decode("utf-8"))["ok"] is True
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert audit["integrity"]["status"] == "ok"
+        assert audit["integrity"]["signature_status"] == "ok"
+        assert audit["integrity"]["signed_records"] == 1
+        assert audit["events"][0]["row_signature"]
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_cloud_status_server_rate_limits_command_queue(tmp_path):

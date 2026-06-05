@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import hmac
 import html
 import io
 import ipaddress
@@ -1111,6 +1112,7 @@ def dashboard_server_settings(
     fetch_manifest_roots: list[Path] | None = None,
     plugin_registry_paths: list[Path] | None = None,
     auth_token_env: str | None = None,
+    command_audit_signature_env: str | None = None,
 ) -> dict[str, Any]:
     settings: dict[str, Any] = {
         "host": "127.0.0.1",
@@ -1125,6 +1127,7 @@ def dashboard_server_settings(
         "network_access": {"enabled": False, "allowed_client_networks": [], "trust_x_forwarded_for": False},
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
         "command_scopes": normalize_command_scope_policy({}),
+        "command_audit_signature_env": None,
     }
     if config_path is not None:
         config = read_optional_yaml_mapping(config_path)
@@ -1148,6 +1151,8 @@ def dashboard_server_settings(
             if not isinstance(network_access, dict):
                 raise ValueError("dashboard.network_access must be a mapping")
             settings["network_access"] = normalize_network_access_config(network_access)
+        if dashboard.get("command_audit_signature_env") is not None:
+            settings["command_audit_signature_env"] = str(dashboard["command_audit_signature_env"]).strip() or None
         if dashboard.get("data_roots") is not None:
             raw_roots = dashboard["data_roots"]
             if not isinstance(raw_roots, list):
@@ -1193,6 +1198,8 @@ def dashboard_server_settings(
         settings["plugin_registry_paths"] = plugin_registry_paths
     if auth_token_env is not None:
         settings["auth_token_env"] = auth_token_env
+    if command_audit_signature_env is not None:
+        settings["command_audit_signature_env"] = command_audit_signature_env
     return settings
 
 
@@ -5296,7 +5303,7 @@ def sanitized_command_audit_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def append_command_audit(state_dir: Path, record: dict[str, Any]) -> None:
+def append_command_audit(state_dir: Path, record: dict[str, Any], *, signature_env: str | None = None) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "audited_at": utc_now(),
@@ -5306,17 +5313,51 @@ def append_command_audit(state_dir: Path, record: dict[str, Any]) -> None:
     payload["hash_algorithm"] = "sha256"
     payload["prev_hash"] = latest_command_audit_hash(path)
     payload["record_hash"] = command_audit_record_hash(payload)
+    if signature_env:
+        payload["signature_algorithm"] = "hmac-sha256"
+        payload["signature_key_env"] = signature_env
+        payload["row_signature"] = command_audit_signature(payload, signature_env)
     with path.open("a") as f:
         f.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
 def command_audit_hash_payload(payload: dict[str, Any]) -> str:
-    stripped = {key: value for key, value in payload.items() if key != "record_hash"}
+    stripped = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"record_hash", "row_signature", "signature_algorithm", "signature_key_env"}
+    }
     return json.dumps(stripped, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def command_audit_record_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(command_audit_hash_payload(payload).encode("utf-8")).hexdigest()
+
+
+def command_audit_signature_payload(payload: dict[str, Any]) -> str:
+    signed = {
+        "record_hash": str(payload.get("record_hash") or ""),
+        "hash_algorithm": str(payload.get("hash_algorithm") or ""),
+        "prev_hash": str(payload.get("prev_hash") or ""),
+        "audited_at": str(payload.get("audited_at") or ""),
+        "event": str(payload.get("event") or ""),
+        "node_id": str(payload.get("node_id") or ""),
+        "command_id": str(payload.get("command_id") or ""),
+        "action": str(payload.get("action") or ""),
+        "status": str(payload.get("status") or ""),
+    }
+    return json.dumps(signed, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def command_audit_signature(payload: dict[str, Any], signature_env: str) -> str:
+    signing_material = os.getenv(signature_env)
+    if not signing_material:
+        return ""
+    return hmac.new(
+        signing_material.encode("utf-8"),
+        command_audit_signature_payload(payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def latest_command_audit_hash(path: Path) -> str:
@@ -5336,7 +5377,7 @@ def latest_command_audit_hash(path: Path) -> str:
     return latest
 
 
-def verify_command_audit(state_dir: Path) -> dict[str, Any]:
+def verify_command_audit(state_dir: Path, *, signature_env: str | None = None) -> dict[str, Any]:
     path = command_audit_path(state_dir)
     if not path.exists():
         return {
@@ -5345,6 +5386,10 @@ def verify_command_audit(state_dir: Path) -> dict[str, Any]:
             "legacy_records": 0,
             "line_count": 0,
             "latest_hash": "",
+            "signature_status": "disabled" if not signature_env else "empty",
+            "signed_records": 0,
+            "unsigned_records": 0,
+            "signature_key_env": signature_env or "",
             "errors": [],
         }
     expected_prev = ""
@@ -5352,7 +5397,10 @@ def verify_command_audit(state_dir: Path) -> dict[str, Any]:
     legacy_records = 0
     line_count = 0
     latest_hash = ""
+    signed_records = 0
+    unsigned_records = 0
     errors: list[dict[str, Any]] = []
+    signature_secret_available = bool(signature_env and os.getenv(signature_env))
     with path.open() as f:
         for line_no, line in enumerate(f, start=1):
             if not line.strip():
@@ -5392,6 +5440,23 @@ def verify_command_audit(state_dir: Path) -> dict[str, Any]:
                     "expected_record_hash": computed_hash,
                     "actual_record_hash": record_hash,
                 })
+            row_signature = str(row.get("row_signature") or "")
+            if row_signature:
+                signed_records += 1
+                signature_algorithm = str(row.get("signature_algorithm") or "")
+                if signature_algorithm != "hmac-sha256":
+                    errors.append({"line": line_no, "error": f"unsupported signature algorithm: {signature_algorithm or 'missing'}"})
+                if signature_env and signature_secret_available:
+                    expected_signature = command_audit_signature(row, signature_env)
+                    if not hmac.compare_digest(expected_signature, row_signature):
+                        errors.append({
+                            "line": line_no,
+                            "error": "row_signature mismatch",
+                            "expected_signature": expected_signature,
+                            "actual_signature": row_signature,
+                        })
+            elif signature_env:
+                unsigned_records += 1
             checked_records += 1
             latest_hash = record_hash
             expected_prev = record_hash
@@ -5403,12 +5468,28 @@ def verify_command_audit(state_dir: Path) -> dict[str, Any]:
         status = "ok"
     else:
         status = "empty"
+    if not signature_env:
+        signature_status = "disabled"
+    elif not signature_secret_available:
+        signature_status = "missing_key"
+    elif errors:
+        signature_status = "bad" if any("signature" in str(error.get("error", "")) for error in errors) else ("warn" if unsigned_records else "ok")
+    elif unsigned_records:
+        signature_status = "warn"
+    elif signed_records:
+        signature_status = "ok"
+    else:
+        signature_status = "empty"
     return {
         "status": status,
         "checked_records": checked_records,
         "legacy_records": legacy_records,
         "line_count": line_count,
         "latest_hash": latest_hash,
+        "signature_status": signature_status,
+        "signed_records": signed_records,
+        "unsigned_records": unsigned_records,
+        "signature_key_env": signature_env or "",
         "errors": errors[:20],
     }
 
@@ -5542,7 +5623,7 @@ def pending_commands(state_dir: Path, node_id: str | None = None) -> list[dict[s
     ]
 
 
-def save_command_result(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+def save_command_result(state_dir: Path, payload: dict[str, Any], *, signature_env: str | None = None) -> dict[str, Any]:
     command_id = str(payload.get("command_id") or "").strip()
     node_id = str(payload.get("node_id") or "").strip()
     status = str(payload.get("status") or "").strip()
@@ -5570,11 +5651,12 @@ def save_command_result(state_dir: Path, payload: dict[str, Any]) -> dict[str, A
             "event": "result_received",
             **sanitized_command_audit_payload(stored),
         },
+        signature_env=signature_env,
     )
     return stored
 
 
-def cancel_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+def cancel_command(state_dir: Path, payload: dict[str, Any], *, signature_env: str | None = None) -> dict[str, Any]:
     command_id = str(payload.get("command_id") or "").strip()
     node_id = str(payload.get("node_id") or "").strip()
     if not command_id:
@@ -5614,6 +5696,7 @@ def cancel_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
             "event": "command_canceled",
             **sanitized_command_audit_payload(stored),
         },
+        signature_env=signature_env,
     )
     return stored
 
@@ -5730,6 +5813,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
     command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     command_scopes: dict[str, Any] = normalize_command_scope_policy({})
+    command_audit_signature_env: str | None = None
 
     def auth_token(self) -> str | None:
         if not self.auth_token_env:
@@ -5835,6 +5919,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 403, {"error": error})
                 return
@@ -5848,6 +5933,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 403, {"error": error})
                 return
@@ -5860,6 +5946,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 429, {"error": error})
                 return
@@ -5874,6 +5961,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -5884,6 +5972,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     "auth_role": str(auth_context.get("role") or ""),
                     **sanitized_command_audit_payload(command),
                 },
+                signature_env=self.command_audit_signature_env,
             )
             json_response(self, 200, {"ok": True, "command": command})
             return
@@ -5892,7 +5981,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
-                result = cancel_command(self.state_dir, payload)
+                result = cancel_command(self.state_dir, payload, signature_env=self.command_audit_signature_env)
             except ValueError as exc:
                 append_command_audit(
                     self.state_dir,
@@ -5901,6 +5990,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "error": str(exc),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -5911,7 +6001,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
-                result = save_command_result(self.state_dir, payload)
+                result = save_command_result(self.state_dir, payload, signature_env=self.command_audit_signature_env)
             except ValueError as exc:
                 append_command_audit(
                     self.state_dir,
@@ -5920,6 +6010,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "error": str(exc),
                         **sanitized_command_audit_payload(payload),
                     },
+                    signature_env=self.command_audit_signature_env,
                 )
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -6077,7 +6168,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 200,
                 {
                     "events": load_command_audit(self.state_dir, node_id=node_id, limit=limit),
-                    "integrity": verify_command_audit(self.state_dir),
+                    "integrity": verify_command_audit(self.state_dir, signature_env=self.command_audit_signature_env),
                 },
             )
             return
@@ -6528,6 +6619,7 @@ def create_server(
     plugin_registry_paths: list[Path] | None = None,
     command_rate_limit: dict[str, Any] | None = None,
     command_scopes: dict[str, Any] | None = None,
+    command_audit_signature_env: str | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
@@ -6542,6 +6634,7 @@ def create_server(
     Handler.plugin_registry_paths = parse_plugin_registry_paths(plugin_registry_paths)
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     Handler.command_scopes = normalize_command_scope_policy(command_scopes)
+    Handler.command_audit_signature_env = command_audit_signature_env
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -6574,6 +6667,11 @@ def main() -> None:
         help="Ignored local plugin registry YAML to expose private plugin metadata in the Workbench. Can be repeated.",
     )
     parser.add_argument("--auth-token-env", default=None, help="Optional env var containing bearer token")
+    parser.add_argument(
+        "--command-audit-signature-env",
+        default=None,
+        help="Optional env var containing an HMAC key for signing command audit rows.",
+    )
     args = parser.parse_args()
     try:
         settings = dashboard_server_settings(
@@ -6586,6 +6684,7 @@ def main() -> None:
             fetch_manifest_roots=args.fetch_manifest_root,
             plugin_registry_paths=args.plugin_registry,
             auth_token_env=args.auth_token_env,
+            command_audit_signature_env=args.command_audit_signature_env,
         )
     except (TypeError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
@@ -6603,6 +6702,7 @@ def main() -> None:
         plugin_registry_paths=settings["plugin_registry_paths"],
         command_rate_limit=settings["command_rate_limit"],
         command_scopes=settings["command_scopes"],
+        command_audit_signature_env=settings["command_audit_signature_env"],
     )
     print(f"Serving status dashboard at http://{settings['host']}:{server.server_address[1]}/")
     server.serve_forever()

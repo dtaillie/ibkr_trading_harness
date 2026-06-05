@@ -403,6 +403,7 @@ def run_smoke(
             "artifact-account-body",
             "command-audit-note",
             "command-audit-body",
+            "Signature",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -419,6 +420,8 @@ def run_smoke(
             "plugin_registry_paths",
             "workbench_endpoints",
             "command_audit",
+            "signature_status",
+            "row_signature",
             "data_coverage",
             "data-library-guide",
             "renderDataLibraryGuide",

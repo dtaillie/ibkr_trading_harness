@@ -444,7 +444,12 @@ token can read status and queue only read-only commands while a separate
 operator token can queue pause/resume control commands.
 Command audit rows are hash-chained as they are appended. `/command_audit`
 returns an `integrity` summary so the dashboard can flag missing legacy hashes
-or modified rows.
+or modified rows. For hosted receivers, set
+`dashboard.command_audit_signature_env` to an environment variable containing an
+HMAC secret, for example `TRADING_COMMAND_AUDIT_HMAC_KEY`. New audit rows will
+include `row_signature`, and the Operations page will report whether signatures
+are disabled, valid, unsigned, missing their key, or failing verification. Keep
+the HMAC value in the service environment, not in config or source control.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,

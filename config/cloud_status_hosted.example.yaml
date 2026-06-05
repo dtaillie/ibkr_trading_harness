@@ -34,6 +34,9 @@ dashboard:
       - read_only
       - control
     allowed_actions: []
+  # Optional HMAC signing for server-side command audit rows. Store the secret
+  # in the process environment, not in this file.
+  command_audit_signature_env: TRADING_COMMAND_AUDIT_HMAC_KEY
   data_roots:
     - examples/data
   fetch_manifest_roots:
@@ -41,6 +44,8 @@ dashboard:
 
 notes:
   - Set TRADING_STATUS_TOKEN in the process environment; do not commit it.
+  - Set TRADING_COMMAND_AUDIT_HMAC_KEY in the process environment if audit
+    signing is enabled.
   - Put HTTPS and authentication-aware network controls in front of this service.
   - Keep remote command workers on the local trading machine, not in the cloud.
   - This config intentionally scans only public example data.

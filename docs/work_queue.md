@@ -858,8 +858,13 @@ QQQ show up, treat that as a bug until proven otherwise.
     or signed audit storage
   - partial; server-side command audit rows are now hash-chained and
     `/command_audit` reports integrity status, checked records, legacy rows,
-    latest hash, and bounded errors. Remaining gap: off-host immutable or signed
-    audit storage for internet-facing deployments
+    latest hash, and bounded errors.
+  - partial; hosted receivers can now set
+    `dashboard.command_audit_signature_env` to sign new server-side command
+    audit rows with an HMAC secret kept in the environment. `/command_audit`
+    reports signature status, signed/unsigned row counts, and signature
+    verification errors. Remaining gap: provider/network-specific off-host
+    immutable audit retention for internet-facing deployments.
 - Keep initial commands low-risk:
   - pause
   - resume

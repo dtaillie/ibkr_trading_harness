@@ -5085,8 +5085,11 @@ function renderResults() {
 function renderCommandAudit() {
   const events = (state.commandAudit && state.commandAudit.events) || [];
   const integrity = (state.commandAudit && state.commandAudit.integrity) || {};
+  const signatureText = integrity.signature_status
+    ? `signature ${integrity.signature_status}${integrity.signature_key_env ? ` via ${integrity.signature_key_env}` : ""}; signed ${numberText(integrity.signed_records, 0)} / unsigned ${numberText(integrity.unsigned_records, 0)}`
+    : "signature not loaded";
   const integrityText = integrity.status
-    ? `Integrity ${integrity.status}; checked ${numberText(integrity.checked_records, 0)} hashed records`
+    ? `Integrity ${integrity.status}; checked ${numberText(integrity.checked_records, 0)} hashed records; ${signatureText}`
     : "Integrity not loaded";
   $("command-audit-note").textContent = events.length
     ? `${events.length} latest sanitized command audit events. ${integrityText}`
@@ -5099,10 +5102,11 @@ function renderCommandAudit() {
         escapeHtml(event.command_id),
         escapeHtml(event.action),
         statusText(event.status || (event.error ? "rejected" : "")),
+        event.row_signature ? statusText("ok") : `<span class="muted">${integrity.signature_status === "disabled" ? "disabled" : "unsigned"}</span>`,
         escapeHtml(Array.isArray(event.param_keys) ? event.param_keys.join(", ") : ""),
         event.error ? `<span class="status-bad">${escapeHtml(event.error)}</span>` : "",
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderAll() {
