@@ -550,6 +550,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail can now filter Data Library to the selected job's
       visible output files, making completed fetch output sets reviewable as a
       group.
+    - partial; Fetch Detail can now copy the selected job's Data
+      Library-visible output paths as a newline-separated list for local
+      scripts or manual audit.
 
 ## P1: Fetch jobs and backend data reliability
 

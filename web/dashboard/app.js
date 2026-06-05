@@ -3471,6 +3471,7 @@ function renderFetchManifestDetail() {
     : "No fetch job selected";
   $("copy-fetch-resume-command").disabled = !resumeCommand;
   $("show-fetch-outputs-data").disabled = !visibleOutputPaths.length;
+  $("copy-fetch-output-paths").disabled = !visibleOutputPaths.length;
   const counts = detail.counts || {};
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
@@ -3580,6 +3581,20 @@ function applyFetchOutputDataFilter() {
   navigateToView("data");
   renderDataCatalog();
   $("last-refresh").textContent = `Data Library filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
+}
+
+function copyFetchVisibleOutputPaths() {
+  const detail = state.fetchManifestDetail || {};
+  const paths = fetchVisibleOutputPaths(detail);
+  if (!paths.length) {
+    $("last-refresh").textContent = "Selected fetch has no Data Library-visible output paths";
+    return;
+  }
+  copyText(paths.join("\n")).then(() => {
+    $("last-refresh").textContent = `Copied ${numberText(paths.length, 0)} visible fetch output path${paths.length === 1 ? "" : "s"}`;
+  }).catch((err) => {
+    $("last-refresh").textContent = `Copy failed: ${err.message}`;
+  });
 }
 
 function fetchOutputVisibilityLabel(item) {
@@ -6167,6 +6182,7 @@ function init() {
     });
   });
   $("show-fetch-outputs-data").addEventListener("click", applyFetchOutputDataFilter);
+  $("copy-fetch-output-paths").addEventListener("click", copyFetchVisibleOutputPaths);
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;
