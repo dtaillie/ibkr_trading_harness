@@ -412,6 +412,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; dataset details show gap rows/missing intervals, coverage view
       shows missing recent date bins; minute-level aggregate heatmaps remain
       open
+    - partial; Data Library now has a Gap Summary panel backed by
+      `/data_gap_summary`, showing worst timestamp-gap files, estimated missing
+      intervals, largest gaps, and missing calendar-day rows across the current
+      bounded catalog scan. A richer minute-level heatmap remains future work.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues

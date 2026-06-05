@@ -5,6 +5,7 @@ const state = {
   dataDetail: null,
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
+  dataGapSummary: { gap_rows: [], calendar_rows: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
   dataCompare: null,
   symbolDiagnostic: null,
@@ -2222,6 +2223,47 @@ function renderDataCoverage() {
     : `<div class="empty-card"><strong>No coverage yet</strong><span>No parseable saved datasets are visible under configured roots.</span></div>`;
 }
 
+function renderDataGapSummary() {
+  const summary = state.dataGapSummary || {};
+  const gapRows = summary.gap_rows || [];
+  const calendarRows = summary.calendar_rows || [];
+  $("data-gap-summary-note").innerHTML = summary.generated_at
+    ? qualityBadge(summary.status, summary.warnings || [])
+    : "No gap summary loaded";
+  const pairs = [
+    ["Datasets", numberText(summary.dataset_count, 0)],
+    ["Files With Gaps", numberText(summary.files_with_gap_warnings, 0)],
+    ["Estimated Missing Intervals", numberText(summary.total_estimated_missing_intervals, 0)],
+    ["Largest Gap", interval(summary.largest_gap_seconds)],
+    ["Files With Missing Days", numberText(summary.files_with_missing_calendar_days, 0)],
+    ["Catalog Errors", numberText(summary.catalog_error_count, 0)],
+  ];
+  $("data-gap-summary-list").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  $("data-gap-summary-body").innerHTML = gapRows.length
+    ? gapRows.map((item) => row([
+        escapeHtml(item.symbol),
+        escapeHtml(text(item.bar_size)),
+        escapeHtml(numberText(item.estimated_missing_intervals, 0)),
+        escapeHtml(interval(item.largest_gap_seconds)),
+        qualityBadge(item.quality_status, []),
+        escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">No timestamp gap warnings in the current catalog scan.</span>`, "", "", "", "", "", ""]);
+  $("data-calendar-gap-body").innerHTML = calendarRows.length
+    ? calendarRows.map((item) => row([
+        escapeHtml(item.symbol),
+        escapeHtml(text(item.bar_size)),
+        escapeHtml(numberText(item.missing_calendar_days, 0)),
+        `${escapeHtml(numberText(item.date_count, 0))} / ${escapeHtml(numberText(item.calendar_day_count, 0))}`,
+        escapeHtml(rangeLabel(item.first_day, item.last_day)),
+        `<span class="mono">${escapeHtml(item.path)}</span>`,
+      ])).join("")
+    : row([`<span class="muted">No missing calendar-day gaps in the current catalog scan.</span>`, "", "", "", "", ""]);
+}
+
 function renderSymbolDiagnostic() {
   const diagnostic = state.symbolDiagnostic || {};
   $("data-symbol-diagnostic-status").innerHTML = diagnostic.status
@@ -3681,6 +3723,7 @@ function renderAll() {
   renderDataCompareControls();
   renderDataCompare();
   renderDataCoverage();
+  renderDataGapSummary();
   renderDataStorageAudit();
   renderSymbolDiagnostic();
   renderFetchJobs();
@@ -3717,6 +3760,7 @@ async function refresh() {
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
+  const dataGapSummary = await fetchJson(`/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`);
   const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
@@ -3735,6 +3779,7 @@ async function refresh() {
   state.remoteNodes = remoteNodes || { nodes: [] };
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
+  state.dataGapSummary = dataGapSummary || { gap_rows: [], calendar_rows: [] };
   state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};

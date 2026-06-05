@@ -268,6 +268,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_gap_summary",
+        "category": "data",
+        "description": "Summarize worst saved-data timestamp gaps and missing calendar days.",
+        "response": "JSON aggregate gap rows",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_diagnostic",
         "category": "data",
         "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
@@ -1741,6 +1748,101 @@ def build_data_coverage(
         "limit": limit,
         "max_symbols": max_symbols,
         "max_dates": max_dates,
+    }
+
+
+def build_data_gap_summary(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    top_limit: int = 20,
+) -> dict[str, Any]:
+    if top_limit < 1 or top_limit > 100:
+        raise ValueError("top_limit must be between 1 and 100")
+    catalog = build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
+    coverage = build_data_coverage(data_roots, limit=catalog_limit, max_symbols=500, max_dates=366)
+    datasets = catalog.get("datasets") or []
+    gap_rows = []
+    for item in datasets:
+        missing = int(item.get("estimated_missing_intervals") or 0)
+        largest_gap = finite_float(item.get("largest_gap_seconds"))
+        median_interval = finite_float(item.get("median_interval_seconds"))
+        suspicious_gap = (
+            largest_gap is not None
+            and median_interval is not None
+            and median_interval > 0
+            and largest_gap > median_interval * 3
+        )
+        if missing <= 0 and not suspicious_gap:
+            continue
+        gap_rows.append({
+            "symbol": item.get("symbol"),
+            "asset_class": item.get("asset_class"),
+            "source": item.get("source"),
+            "bar_size": item.get("bar_size"),
+            "path": item.get("path"),
+            "rows": item.get("rows"),
+            "first_timestamp": item.get("first_timestamp"),
+            "last_timestamp": item.get("last_timestamp"),
+            "median_interval_seconds": median_interval,
+            "largest_gap_seconds": largest_gap,
+            "estimated_missing_intervals": missing,
+            "quality_status": item.get("quality_status"),
+            "quality_warning_count": item.get("quality_warning_count"),
+        })
+    gap_rows.sort(key=lambda row: (
+        -int(row.get("estimated_missing_intervals") or 0),
+        -float(row.get("largest_gap_seconds") or 0.0),
+        str(row.get("symbol") or ""),
+    ))
+    calendar_rows = [
+        {
+            "symbol": row.get("symbol"),
+            "asset_class": row.get("asset_class"),
+            "source": row.get("source"),
+            "bar_size": row.get("bar_size"),
+            "path": row.get("path"),
+            "first_day": row.get("first_day"),
+            "last_day": row.get("last_day"),
+            "date_count": row.get("date_count"),
+            "calendar_day_count": row.get("calendar_day_count"),
+            "missing_calendar_days": row.get("missing_calendar_days"),
+        }
+        for row in (coverage.get("datasets") or [])
+        if int(row.get("missing_calendar_days") or 0) > 0
+    ]
+    calendar_rows.sort(key=lambda row: (
+        -int(row.get("missing_calendar_days") or 0),
+        str(row.get("symbol") or ""),
+    ))
+    total_missing = sum(int(row.get("estimated_missing_intervals") or 0) for row in gap_rows)
+    files_with_missing = sum(1 for row in gap_rows if int(row.get("estimated_missing_intervals") or 0) > 0)
+    largest_gap = max([float(row.get("largest_gap_seconds") or 0.0) for row in gap_rows], default=0.0)
+    status = "bad" if catalog.get("error_count") and not datasets else "warn" if gap_rows or calendar_rows or catalog.get("error_count") else "ok"
+    warnings = []
+    if gap_rows:
+        warnings.append(f"{len(gap_rows)} files have timestamp gaps or suspicious intervals")
+    if calendar_rows:
+        warnings.append(f"{len(calendar_rows)} files have missing calendar days")
+    if catalog.get("error_count"):
+        warnings.append(f"{catalog.get('error_count')} files failed catalog parsing")
+    return {
+        "generated_at": utc_now(),
+        "status": status,
+        "warnings": warnings,
+        "warning_count": len(warnings),
+        "roots": [display_path(root) for root in data_roots],
+        "catalog_limit": catalog_limit,
+        "top_limit": top_limit,
+        "dataset_count": len(datasets),
+        "catalog_error_count": catalog.get("error_count"),
+        "total_estimated_missing_intervals": total_missing,
+        "files_with_missing_intervals": files_with_missing,
+        "files_with_gap_warnings": len(gap_rows),
+        "largest_gap_seconds": largest_gap if largest_gap > 0 else None,
+        "files_with_missing_calendar_days": len(calendar_rows),
+        "gap_rows": gap_rows[:top_limit],
+        "calendar_rows": calendar_rows[:top_limit],
     }
 
 
@@ -4857,6 +4959,22 @@ class StatusHandler(BaseHTTPRequestHandler):
                     limit=limit,
                     max_symbols=max_symbols,
                     max_dates=max_dates,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_gap_summary":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
+                payload = build_data_gap_summary(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    top_limit=top_limit,
                 )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})

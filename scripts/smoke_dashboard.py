@@ -296,6 +296,9 @@ def run_smoke(
             "data-symbol-browser-dataset",
             "data-symbol-browser-matches",
             "data-coverage-grid",
+            "data-gap-summary-note",
+            "data-gap-summary-body",
+            "data-calendar-gap-body",
             "data-symbol-diagnostic-form",
             "data-symbol-candidates-body",
             "data-detail-form",
@@ -362,6 +365,7 @@ def run_smoke(
             "config_draft_runs_export",
             "workbench_endpoints",
             "data_coverage",
+            "data_gap_summary",
             "data_storage_audit",
             "data_symbol_diagnostic",
             "data_detail",
@@ -454,6 +458,9 @@ def run_smoke(
         coverage = fetch_json(base_url, f"/data_coverage?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
+        gap_summary = fetch_json(base_url, f"/data_gap_summary?catalog_limit={catalog_limit}&top_limit=10")
+        if "gap_rows" not in gap_summary or "calendar_rows" not in gap_summary:
+            raise RuntimeError("data gap summary is invalid")
         storage_audit = fetch_json(base_url, f"/data_storage_audit?catalog_limit={catalog_limit}&scan_limit=100")
         if "configured_roots" not in storage_audit or "catalog_visible_count" not in storage_audit:
             raise RuntimeError("data storage audit summary is invalid")
@@ -480,6 +487,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
+        if ("GET", "/data_gap_summary") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_gap_summary")
         if ("GET", "/data_storage_audit") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_storage_audit")
         if ("POST", "/data_compare") not in endpoint_paths:

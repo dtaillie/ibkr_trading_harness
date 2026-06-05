@@ -583,6 +583,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-browser-dataset" in html
         assert "data-symbol-browser-matches" in html
         assert "data-coverage-grid" in html
+        assert "data-gap-summary-note" in html
+        assert "data-gap-summary-body" in html
+        assert "data-calendar-gap-body" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
@@ -672,6 +675,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
+        assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
         assert ("POST", "/data_compare") in endpoints
@@ -1076,6 +1080,45 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["status"] == "visible"
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_data_gap_summary(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "GAP_5min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+                "2026-01-02T14:40:00Z,100.75,102,100.5,101.25,900",
+                "2026-01-04T14:40:00Z,101.25,102,101,101.5,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_gap_summary?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["status"] == "warn"
+        assert payload["dataset_count"] == 1
+        assert payload["files_with_gap_warnings"] == 1
+        assert payload["files_with_missing_intervals"] == 1
+        assert payload["total_estimated_missing_intervals"] > 0
+        assert payload["largest_gap_seconds"] > 0
+        assert payload["gap_rows"][0]["symbol"] == "GAP"
+        assert payload["gap_rows"][0]["estimated_missing_intervals"] > 0
+        assert payload["calendar_rows"][0]["symbol"] == "GAP"
+        assert payload["calendar_rows"][0]["missing_calendar_days"] == 1
     finally:
         server.shutdown()
         server.server_close()
