@@ -513,8 +513,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       seeds symbols, range, exchange/bar/data type, output directory, and
       ok/empty done paths from a prior JSON manifest so failed or missing
       crypto chunks can be retried without manually reconstructing the run.
-    - partial; Fetch Detail now exposes a copyable crypto resume command for
-      selected `crypto_history` JSON manifests.
+    - partial; `live/fetch_history.py --resume-manifest <json>` now seeds
+      stock symbols, bar size, duration/months, RTH, and data-type options from
+      a prior JSON manifest and skips previously ok/empty symbols unless
+      `--force` is supplied.
+    - partial; Fetch Detail now exposes copyable stock and crypto resume
+      commands for selected fetch manifests.
     - partial; Fetch Detail now includes recovery cards that summarize symbol
       coverage, permission blockers, retry events, pacing waits, and whether a
       selected job is ready to inspect, retry, or fix before resuming.

@@ -58,6 +58,13 @@ Fetch commands write dashboard-readable JSON job manifests under
 those manifests to show what was fetched, what failed, and which output files
 were produced.
 
+Resume a failed or partial stock fetch from its manifest:
+
+```bash
+python3 live/fetch_history.py \
+  --resume-manifest paper_logs/fetch_manifests/example_stock_manifest.json
+```
+
 Fetch crypto bars from IBKR Zero Hash:
 
 ```bash

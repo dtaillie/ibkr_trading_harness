@@ -3,7 +3,7 @@ import json
 import pytest
 
 from live.fetch_crypto_history import load_json_resume_manifest, option_present
-from live.fetch_history import fetch_with_retries
+from live.fetch_history import fetch_with_retries, load_stock_resume_manifest, main as stock_fetch_main
 from live.fetch_manifest import FetchManifest
 
 
@@ -103,6 +103,79 @@ def test_crypto_resume_manifest_extracts_symbols_range_and_done_paths(tmp_path):
     assert resume["out_dir"] == "cache/ibkr_crypto"
     assert resume["done_paths"] == {"cache/btc.parquet", "cache/eth.parquet"}
     assert resume["failed_days_by_symbol"] == {"ETH-USD": ["2026-01-02"]}
+
+
+def test_stock_resume_manifest_extracts_symbols_options_and_done_symbols(tmp_path):
+    path = tmp_path / "stock_manifest.json"
+    path.write_text(
+        json.dumps({
+            "parameters": {
+                "bar_size": "5min",
+                "duration": "1 D",
+                "months": 0,
+                "rth": False,
+                "what_to_show": "TRADES",
+                "crypto_exchange": "ZEROHASH",
+            },
+            "plan": {
+                "duration": "2 D",
+                "months": 0,
+            },
+            "symbols_requested": ["spy", "QQQ", "IWM"],
+            "symbols": {
+                "SPY": {"symbol": "SPY", "status": "ok"},
+                "QQQ": {"symbol": "QQQ", "status": "empty"},
+                "IWM": {"symbol": "IWM", "status": "failed"},
+            },
+            "errors": [
+                {"symbol": "IWM", "message": "temporary HMDS error"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    resume = load_stock_resume_manifest(path)
+
+    assert resume["symbols"] == ["SPY", "QQQ", "IWM"]
+    assert resume["done_symbols"] == {"SPY", "QQQ"}
+    assert resume["failed_symbols"] == {"IWM"}
+    assert resume["bar_size"] == "5min"
+    assert resume["duration"] == "2 D"
+    assert resume["months"] == 0
+    assert resume["rth"] is False
+    assert resume["what_to_show"] == "TRADES"
+    assert resume["crypto_exchange"] == "ZEROHASH"
+
+
+def test_stock_resume_manifest_no_pending_symbols_finishes_without_ibkr(tmp_path):
+    resume_path = tmp_path / "stock_manifest.json"
+    manifest_dir = tmp_path / "fetch_manifests"
+    resume_path.write_text(
+        json.dumps({
+            "parameters": {"bar_size": "5min", "duration": "1 D", "rth": True},
+            "plan": {"duration": "1 D", "months": 0},
+            "symbols_requested": ["SPY", "QQQ"],
+            "symbols": {
+                "SPY": {"symbol": "SPY", "status": "ok"},
+                "QQQ": {"symbol": "QQQ", "status": "empty"},
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    stock_fetch_main([
+        "--resume-manifest", str(resume_path),
+        "--manifest-dir", str(manifest_dir),
+    ])
+
+    manifests = list(manifest_dir.glob("stock_history_*.json"))
+    assert len(manifests) == 1
+    payload = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert payload["status"] == "completed"
+    assert payload["symbols_requested"] == []
+    assert payload["parameters"]["resume_manifest"] == str(resume_path)
+    assert payload["plan"]["resume_skipped_symbols"] == 2
+    assert payload["events"][0]["type"] == "resume_complete"
 
 
 def test_option_present_detects_equals_and_split_forms():

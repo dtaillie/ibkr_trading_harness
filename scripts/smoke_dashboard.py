@@ -418,6 +418,8 @@ def run_smoke(
             "fetch_manifest_detail",
             "filteredFetchManifests",
             "fetchRecoveryCards",
+            "fetchResumeCommand",
+            "live/fetch_history.py --resume-manifest",
             "Symbol Coverage",
             "renderFetchFilterOptions",
             "Fetch output data detail failed",

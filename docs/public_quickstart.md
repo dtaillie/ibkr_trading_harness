@@ -27,6 +27,12 @@ python3 live/fetch_history.py \
 This is data-only. It does not submit orders.
 The command writes a JSON fetch manifest under `paper_logs/fetch_manifests`
 unless `--no-manifest` is passed.
+Resume a failed or partial stock fetch from a manifest:
+
+```bash
+python3 live/fetch_history.py \
+  --resume-manifest paper_logs/fetch_manifests/example_stock_manifest.json
+```
 
 ## 3. Fetch Historical Crypto Data
 

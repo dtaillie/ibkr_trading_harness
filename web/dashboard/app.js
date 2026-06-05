@@ -3347,8 +3347,14 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
 }
 
 function fetchResumeCommand(detail) {
-  if (!detail || !detail.path || detail.kind !== "crypto_history") return "";
-  return `python3 live/fetch_crypto_history.py --resume-manifest ${shellQuote(detail.path)}`;
+  if (!detail || !detail.path) return "";
+  if (detail.kind === "crypto_history") {
+    return `python3 live/fetch_crypto_history.py --resume-manifest ${shellQuote(detail.path)}`;
+  }
+  if (detail.kind === "stock_history") {
+    return `python3 live/fetch_history.py --resume-manifest ${shellQuote(detail.path)}`;
+  }
+  return "";
 }
 
 function fetchJobFilters() {
@@ -5713,7 +5719,7 @@ function init() {
   $("copy-fetch-resume-command").addEventListener("click", () => {
     const command = fetchResumeCommand(state.fetchManifestDetail || {});
     if (!command) {
-      $("last-refresh").textContent = "Select a crypto fetch manifest before copying a resume command";
+      $("last-refresh").textContent = "Select a resumable stock or crypto fetch manifest before copying a resume command";
       return;
     }
     copyText(command).then(() => {

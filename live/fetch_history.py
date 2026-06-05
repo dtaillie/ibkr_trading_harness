@@ -15,6 +15,7 @@ For paper, use 4002 (Gateway) or 7497 (TWS).
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -61,6 +62,48 @@ def display_path(path: Path) -> str:
     return resolved.relative_to(root).as_posix() if resolved.is_relative_to(root) else str(resolved)
 
 
+def option_present(argv: list[str], *names: str) -> bool:
+    return any(arg == name or arg.startswith(f"{name}=") for arg in argv for name in names)
+
+
+def load_stock_resume_manifest(path: Path) -> dict:
+    with path.open(encoding="utf-8") as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError("resume manifest must be a JSON object")
+    parameters = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    symbols_requested = payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else []
+    symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
+    done_symbols = {
+        str(row.get("symbol") or symbol).upper()
+        for symbol, row in symbols_map.items()
+        if isinstance(row, dict) and row.get("status") in {"ok", "empty", "skipped"}
+    }
+    failed_symbols = {
+        str(row.get("symbol") or symbol).upper()
+        for symbol, row in symbols_map.items()
+        if isinstance(row, dict) and row.get("status") in {"failed", "partial"}
+    }
+    for row in payload.get("errors") or []:
+        if isinstance(row, dict) and row.get("symbol"):
+            failed_symbols.add(str(row["symbol"]).upper())
+    symbols = [str(symbol).upper() for symbol in symbols_requested]
+    if not symbols:
+        symbols = sorted(set(done_symbols) | failed_symbols)
+    return {
+        "symbols": symbols,
+        "done_symbols": done_symbols,
+        "failed_symbols": failed_symbols,
+        "bar_size": parameters.get("bar_size"),
+        "duration": plan.get("duration") or parameters.get("duration"),
+        "months": plan.get("months") if plan.get("months") is not None else parameters.get("months"),
+        "rth": parameters.get("rth"),
+        "what_to_show": parameters.get("what_to_show"),
+        "crypto_exchange": parameters.get("crypto_exchange"),
+    }
+
+
 def fetch_with_retries(
     *,
     symbol: str,
@@ -89,14 +132,15 @@ def fetch_with_retries(
                 sleep_fn(retry_delay)
 
 
-def main():
+def main(argv: list[str] | None = None):
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description="Fetch historical bars from IBKR (read-only)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7496,
                         help="7496=TWS live, 4001=Gateway live, 7497=TWS paper, 4002=Gateway paper")
     parser.add_argument("--client-id", type=int, default=99,
                         help="Use a different client ID than the trading runner")
-    parser.add_argument("--symbols", required=True,
+    parser.add_argument("--symbols", default=None,
                         help="Comma-separated tickers: SPY,QQQ,AAPL")
     parser.add_argument("--bar-size", default="5min",
                         choices=list(BAR_SIZES.keys()))
@@ -120,9 +164,47 @@ def main():
                         help="Directory for dashboard-readable JSON fetch manifests.")
     parser.add_argument("--no-manifest", action="store_true",
                         help="Disable JSON fetch manifest writing.")
-    args = parser.parse_args()
+    parser.add_argument("--resume-manifest", type=Path, default=None,
+                        help="JSON stock fetch manifest to resume: uses its symbols/range/options unless overridden.")
+    parser.add_argument("--force", action="store_true",
+                        help="With --resume-manifest, refetch symbols already marked ok/empty/skipped.")
+    args = parser.parse_args(argv)
+
+    resume: dict | None = None
+    if args.resume_manifest:
+        resume = load_stock_resume_manifest(args.resume_manifest)
+        if resume.get("symbols") and not option_present(argv, "--symbols"):
+            args.symbols = ",".join(resume["symbols"])
+        if resume.get("bar_size") and not option_present(argv, "--bar-size"):
+            args.bar_size = str(resume["bar_size"])
+        if resume.get("duration") and not option_present(argv, "--duration"):
+            args.duration = str(resume["duration"])
+        if resume.get("months") not in {None, ""} and not option_present(argv, "--months"):
+            args.months = int(resume["months"] or 0)
+        if resume.get("rth") is not None and not option_present(argv, "--rth", "--no-rth"):
+            args.rth = bool(resume["rth"])
+        if resume.get("what_to_show") and not option_present(argv, "--what-to-show"):
+            args.what_to_show = str(resume["what_to_show"])
+        if resume.get("crypto_exchange") and not option_present(argv, "--crypto-exchange"):
+            args.crypto_exchange = str(resume["crypto_exchange"])
+
+    if not args.symbols:
+        parser.error("--symbols is required unless --resume-manifest supplies symbols")
 
     symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    resume_done_symbols = set(resume.get("done_symbols") or set()) if resume else set()
+    if resume and not args.force:
+        skipped_symbols = [symbol for symbol in symbols if symbol in resume_done_symbols]
+        symbols = [symbol for symbol in symbols if symbol not in resume_done_symbols]
+        if skipped_symbols:
+            log.info(
+                "Resume manifest: skipping %d already-complete symbols (%s)",
+                len(skipped_symbols),
+                ", ".join(skipped_symbols[:8]) + ("..." if len(skipped_symbols) > 8 else ""),
+            )
+    else:
+        skipped_symbols = []
+
     manifest = FetchManifest(
         manifest_dir=args.manifest_dir,
         kind="stock_history",
@@ -137,6 +219,8 @@ def main():
             "pacing_delay": args.pacing_delay,
             "retries": args.retries,
             "retry_delay": args.retry_delay,
+            "resume_manifest": display_path(args.resume_manifest) if args.resume_manifest else None,
+            "force": args.force,
         },
         symbols=symbols,
         enabled=not args.no_manifest,
@@ -147,11 +231,19 @@ def main():
         range_end=None,
         duration=args.duration,
         months=args.months,
+        resume_manifest=display_path(args.resume_manifest) if args.resume_manifest else None,
+        resume_skipped_symbols=len(skipped_symbols),
     )
     manifest_status = "failed"
     failed_symbols = 0
     completed_symbols = 0
     symbol_elapsed_samples: list[float] = []
+
+    if not symbols:
+        log.info("Resume manifest has no pending symbols to fetch.")
+        manifest.event("resume_complete", "No pending symbols after applying resume manifest", skipped_symbols=len(skipped_symbols))
+        manifest.finish("completed")
+        return
 
     ib = IB()
     log.info(f"Connecting to {args.host}:{args.port} (client_id={args.client_id})...")
