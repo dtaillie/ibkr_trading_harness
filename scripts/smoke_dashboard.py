@@ -407,6 +407,7 @@ def run_smoke(
             "renderRuntimeStatus",
             "renderCurrentOrdersAndPositions",
             "renderDataCatalogScanDiagnostics",
+            "jsonDrilldown",
             "root_summaries",
             "currentOpenOrderRows",
             "viewFromHash",

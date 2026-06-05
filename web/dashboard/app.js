@@ -174,6 +174,28 @@ function statusText(value) {
   return `<span class="${statusClass(value)}">${escapeHtml(label)}</span>`;
 }
 
+function objectSummary(value) {
+  if (value === null || value === undefined || value === "") return "none";
+  if (typeof value === "string") return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+  if (Array.isArray(value)) return value.length ? `${numberText(value.length, 0)} item${value.length === 1 ? "" : "s"}` : "none";
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+    if (!entries.length) return "none";
+    return entries.slice(0, 4).map(([key, item]) => `${key}:${text(item)}`).join(" ");
+  }
+  return text(value);
+}
+
+function jsonDrilldown(value, summary = null) {
+  const payload = value === undefined ? null : value;
+  const serialized = typeof payload === "string" ? payload : JSON.stringify(payload ?? {}, null, 2);
+  const label = summary || objectSummary(payload);
+  if (!serialized || serialized === "{}" || serialized === "[]" || serialized === "null") {
+    return `<span class="muted">${escapeHtml(label || "none")}</span>`;
+  }
+  return `<details class="json-drilldown"><summary>${escapeHtml(label || "details")}</summary><pre class="mono">${escapeHtml(serialized)}</pre></details>`;
+}
+
 function qualityBadge(status, warnings = []) {
   const warningList = Array.isArray(warnings) ? warnings : [];
   const suffix = warningList.length ? ` (${warningList.length})` : "";
@@ -3711,7 +3733,7 @@ function renderSupervisors() {
         escapeHtml((supervisor.jobs || []).length),
         escapeHtml(supervisor.generated_at),
         `<span class="${statusClass((supervisor.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((supervisor.freshness || {}).age_seconds))}</span>`,
-        `<span class="mono">${escapeHtml(JSON.stringify(supervisor.job_status_counts || {}, null, 2))}</span>`,
+        jsonDrilldown(supervisor.job_status_counts || {}, countSummary(supervisor.job_status_counts || {})),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 }
@@ -3727,8 +3749,8 @@ function renderRemoteControl() {
     remote.enabled ? statusText(remote.audit_exists ? "ok" : "waiting") : statusText("disabled"),
     escapeHtml(latestLabel),
     `<span class="${statusClass((remote.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((remote.freshness || {}).age_seconds))}</span>`,
-    `<span class="mono">${escapeHtml(JSON.stringify(remote.result_status_counts || {}, null, 2))}</span>`,
-    `<span class="mono">${escapeHtml(JSON.stringify(remote.post_status_counts || {}, null, 2))}</span>`,
+    jsonDrilldown(remote.result_status_counts || {}, countSummary(remote.result_status_counts || {})),
+    jsonDrilldown(remote.post_status_counts || {}, countSummary(remote.post_status_counts || {})),
     escapeHtml(remote.audit_log),
   ]);
 }
@@ -3853,7 +3875,7 @@ function renderRemoteNodeDetail() {
           statusText(item.status),
           statusText(item.gateway_reachable),
           escapeHtml(numberText(item.alert_count, 0)),
-          `<span class="mono">${escapeHtml(JSON.stringify(item.run_status_counts || {}, null, 2))}</span>`,
+          jsonDrilldown(item.run_status_counts || {}, countSummary(item.run_status_counts || {})),
           escapeHtml(remoteLabel),
         ]);
       }).join("")
@@ -3872,8 +3894,8 @@ function renderHistory() {
           statusText(snapshot.status),
           statusText(snapshot.gateway_reachable),
           escapeHtml(snapshot.alert_count),
-          `<span class="mono">${escapeHtml(JSON.stringify(snapshot.run_status_counts || {}, null, 2))}</span>`,
-          `<span class="mono">${escapeHtml(JSON.stringify(snapshot.supervisor_status_counts || {}, null, 2))}</span>`,
+          jsonDrilldown(snapshot.run_status_counts || {}, countSummary(snapshot.run_status_counts || {})),
+          jsonDrilldown(snapshot.supervisor_status_counts || {}, countSummary(snapshot.supervisor_status_counts || {})),
           escapeHtml(remoteLabel),
         ]);
       }).join("")
@@ -3886,7 +3908,7 @@ function renderCommands() {
         escapeHtml(command.command_id),
         escapeHtml(command.node_id),
         escapeHtml(command.action),
-        `<span class="mono">${escapeHtml(JSON.stringify(command.params || {}, null, 2))}</span>`,
+        jsonDrilldown(command.params || {}, objectSummary(command.params || {})),
         statusText(command.status),
         escapeHtml(command.created_at),
         command.status === "pending"
@@ -3903,7 +3925,7 @@ function renderResults() {
         escapeHtml(result.action),
         statusText(result.status),
         escapeHtml(result.received_at),
-        `<span class="mono">${escapeHtml(JSON.stringify(result.result || result.error || {}, null, 2))}</span>`,
+        jsonDrilldown(result.result || result.error || {}, objectSummary(result.result || result.error || {})),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }

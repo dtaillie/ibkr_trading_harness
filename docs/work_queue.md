@@ -264,6 +264,9 @@ strategy-private.
       remains visible
 - Reduce cognitive load:
   - hide developer-only raw JSON/log details behind drilldowns
+    - partial; dense Operations/History JSON cells for status counts, command
+      params, and command results now render as compact expandable drilldowns
+      instead of raw pretty-printed blobs
   - make dense tables secondary to charts and summary cards
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric

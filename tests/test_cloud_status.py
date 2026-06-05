@@ -665,6 +665,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
         assert ".topbar" in css
+        assert ".json-drilldown" in css
     finally:
         server.shutdown()
         server.server_close()

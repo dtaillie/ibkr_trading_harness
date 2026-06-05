@@ -1017,6 +1017,40 @@ tr:last-child td {
   white-space: pre-wrap;
 }
 
+.json-drilldown {
+  max-width: 360px;
+}
+
+.json-drilldown summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  background: var(--soft-panel);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.json-drilldown[open] summary {
+  margin-bottom: 6px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.json-drilldown pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f8faf8;
+}
+
 .command-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
