@@ -674,6 +674,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-changes-note" in html
         assert "overview-timeline-body" in html
         assert "overview-cash" in html
+        assert "overview-latest-bar" in html
+        assert "overview-latest-rejection" in html
         assert "overview-realized-pnl" in html
         assert "overview-unrealized-pnl" in html
         assert "overview-today-return" in html

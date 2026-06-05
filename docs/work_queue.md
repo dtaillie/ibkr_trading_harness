@@ -133,6 +133,9 @@ strategy-private.
   - latest bar time, latest signal time, latest order/fill/rejection
     - partial; latest signal and fill are shown from recent events, latest bar
       and rejection need dedicated telemetry fields
+    - partial; Overview now adds first-viewport Latest Bar and Latest Reject
+      tiles from generic runner market-data timestamps and rejected/canceled
+      order events.
   - next expected decision window
     - partial; Overview shows a Next Check tile when generic telemetry includes
       `next_decision_time`, `next_expected_decision_time`, `next_check_time`, or

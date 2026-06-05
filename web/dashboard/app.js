@@ -1370,6 +1370,14 @@ function renderOverview() {
   const events = runEventRows();
   const latestSignal = events.find((event) => event.type === "decision");
   const latestFill = events.find((event) => event.type === "fill");
+  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const latestBarTime = metricTimestamp(runMetrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
   const statusMeta = payload.generated_at ? `status updated ${shortTimestampAgeLabel(payload.generated_at)}` : "status not published";
   const sourceMeta = sourceMetaLabel(performance, latestAccount);
   const accountMeta = latestAccount.timestamp
@@ -1394,9 +1402,17 @@ function renderOverview() {
     className: statusClass(latestSignal ? "ok" : "warn"),
     meta: latestSignal ? `decision ${shortTimestampAgeLabel(latestSignal.timestamp)}` : "no decision event",
   });
+  setMetricValue("overview-latest-bar", latestBarTime ? timestampAgeLabel(latestBarTime) : "n/a", {
+    className: statusClass(latestBarTime ? "ok" : "warn"),
+    meta: latestBarTime ? `market data ${text(latestBarTime)}` : "runner has not published latest bar time",
+  });
   setMetricValue("overview-latest-fill", latestFill ? text(latestFill.symbol) : "n/a", {
     className: statusClass(latestFill ? "ok" : "warn"),
     meta: latestFill ? `fill ${shortTimestampAgeLabel(latestFill.timestamp)}` : "no fill event",
+  });
+  setMetricValue("overview-latest-rejection", latestRejection ? text(latestRejection.symbol) : "none", {
+    className: statusClass(latestRejection ? "bad" : "ok"),
+    meta: latestRejection ? `${text(latestRejection.status)} ${shortTimestampAgeLabel(latestRejection.timestamp)}` : "no rejected/canceled order event",
   });
   setMetricValue("overview-cash", money(cash), { meta: accountMeta });
   setMetricValue("overview-realized-pnl", money(realizedPnl), {

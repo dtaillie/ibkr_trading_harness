@@ -282,6 +282,8 @@ def run_smoke(
             "overview-changes-note",
             "overview-timeline-body",
             "overview-cash",
+            "overview-latest-bar",
+            "overview-latest-rejection",
             "overview-realized-pnl",
             "overview-unrealized-pnl",
             "overview-today-return",
