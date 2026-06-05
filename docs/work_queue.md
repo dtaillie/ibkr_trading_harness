@@ -652,6 +652,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 
 - Keep the exported public repo as the clean public candidate.
 - Add CI checks around `python3 scripts/public_readiness_audit.py --fail-on-review`.
+  - done in `.github/workflows/ci.yml`; CI runs the public readiness audit,
+    Python compile checks, dashboard JavaScript syntax check, pytest, and
+    default/empty/seeded/accessibility dashboard smokes.
 - Do final manual review before pushing to GitHub.
 - Finish blog post polish.
 - Add runbooks:
