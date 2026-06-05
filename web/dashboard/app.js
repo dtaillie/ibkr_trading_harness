@@ -1023,8 +1023,22 @@ function renderOverview() {
   const performance = latestArtifactPerformance();
   const perf = performance.performance || {};
   const summary = performance.summary || {};
+  const accountRows = performance.account || [];
+  const latestAccount = latestAccountRow(accountRows);
   const equity = perf.final_equity ?? summary.final_equity ?? runMetrics.final_equity;
+  const cash = latestAccount.cash ?? summary.final_cash ?? runMetrics.final_cash;
   const mode = perf.mode ?? summary.mode ?? runMetrics.mode;
+  const todayWindow = performancePeriodWindow(accountRows, "today");
+  const weekWindow = performancePeriodWindow(accountRows, "week");
+  const todayPerf = performanceFromAccountRows(rowsInWindow(accountRows, todayWindow));
+  const weekPerf = performanceFromAccountRows(rowsInWindow(accountRows, weekWindow));
+  const exposurePct = perf.max_gross_exposure_pct ?? summary.max_gross_exposure_pct ?? runMetrics.max_gross_exposure_pct;
+  const nextCheck = firstPresent(
+    runMetrics.next_decision_time,
+    runMetrics.next_expected_decision_time,
+    runMetrics.next_check_time,
+    runMetrics.next_signal_time,
+  );
   const events = runEventRows();
   const latestSignal = events.find((event) => event.type === "decision");
   const latestFill = events.find((event) => event.type === "fill");
@@ -1041,6 +1055,19 @@ function renderOverview() {
   $("overview-latest-fill").textContent = latestFill
     ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
     : "n/a";
+  $("overview-cash").textContent = money(cash);
+  $("overview-today-return").textContent = pctText(todayPerf.total_return_pct);
+  $("overview-today-return").className = statusClass(
+    todayPerf.total_return_pct == null ? "" : todayPerf.total_return_pct >= 0 ? "ok" : "bad",
+  );
+  $("overview-week-return").textContent = pctText(weekPerf.total_return_pct);
+  $("overview-week-return").className = statusClass(
+    weekPerf.total_return_pct == null ? "" : weekPerf.total_return_pct >= 0 ? "ok" : "bad",
+  );
+  $("overview-exposure").textContent = pctText(exposurePct);
+  $("overview-exposure").className = statusClass(exposurePct == null ? "" : exposurePct ? "warn" : "ok");
+  $("overview-next-check").textContent = nextCheck ? text(nextCheck) : "n/a";
+  $("overview-next-check").className = statusClass(nextCheck ? "ok" : "warn");
   renderRuntimeStatus();
   renderOverviewHealth();
   renderOverviewPositions();

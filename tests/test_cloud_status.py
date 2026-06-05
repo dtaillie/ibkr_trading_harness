@@ -562,6 +562,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-change-cards" in html
         assert "overview-changes-note" in html
         assert "overview-timeline-body" in html
+        assert "overview-cash" in html
+        assert "overview-today-return" in html
+        assert "overview-week-return" in html
+        assert "overview-exposure" in html
+        assert "overview-next-check" in html
         assert "performance-drawdown-chart" in html
         assert "performance-daily-return-chart" in html
         assert "performance-calendar-chart" in html

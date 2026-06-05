@@ -65,6 +65,10 @@ strategy-private.
   - clear "no trade today" state with the latest checked signal
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
+  - partial; the Overview hero now shows equity first plus mode, Gateway,
+    latest signal/fill, cash, today return, week return, gross exposure, and
+    next expected check when those generic telemetry/artifact fields are
+    available.
 - Add an explicit "What is running right now?" strip that shows:
   - process heartbeat
   - Gateway/API connection
@@ -100,8 +104,9 @@ strategy-private.
   - gateway/API status
     - done for configured Gateway reachability
   - current equity, cash, open positions, unrealized PnL, realized PnL
-    - partial; current equity and open positions are shown, cash/PnL need richer
-      account telemetry
+    - partial; current equity, cash, exposure, and open positions are shown
+      when account artifacts or telemetry publish them. Realized/unrealized PnL
+      still needs richer account/position telemetry.
   - today's return, week/month return, cumulative paper return
     - partial; cumulative/latest artifact return is available in Performance,
       period-specific live paper summaries are not implemented
@@ -109,7 +114,9 @@ strategy-private.
     - partial; latest signal and fill are shown from recent events, latest bar
       and rejection need dedicated telemetry fields
   - next expected decision window
-    - not started
+    - partial; Overview shows a Next Check tile when generic telemetry includes
+      `next_decision_time`, `next_expected_decision_time`, `next_check_time`, or
+      `next_signal_time`.
   - stale-data, stale-account, rejected-order, risk-limit, and gateway-login
     alerts
     - partial; published alerts and Gateway state are visible, specialized alert
