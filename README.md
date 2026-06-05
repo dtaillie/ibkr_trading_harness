@@ -217,7 +217,8 @@ available. It also shows the active source, mode, latest account timestamp,
 open position count, and decision/order/fill/reject activity before the charts.
 It also supports account-artifact period presets and a fill-derived
 trade table with open/closed rows, win/loss, average win/loss, and profit
-factor. It shows
+factor. Daily run rollups summarize archived account artifacts by UTC day so
+the dashboard can answer how saved runs performed without a live process. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, searchable run history, recent open-order telemetry, managed
 positions, and local disk usage. It can also inspect configured local

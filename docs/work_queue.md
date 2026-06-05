@@ -150,8 +150,12 @@ strategy-private.
   to read.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for
   each day the service was running.
+  - partial; Performance now shows archived account-artifact daily rollups by
+    UTC day with return, equity, orders, fills, rejects, and artifact drilldown
 - Add persistent period summaries so daily/monthly/yearly stats do not depend
   on a currently open process.
+  - partial; daily rollups are persisted from archived workbench artifacts,
+    broader month/year rollup storage remains open
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows

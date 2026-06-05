@@ -21,6 +21,7 @@ const state = {
   draftValidations: { validations: [] },
   configRuns: { runs: [] },
   runComparison: { runs: [], leaders: {} },
+  performanceRollups: { rollups: [], errors: [] },
   runDetail: null,
   configArtifacts: null,
   commands: [],
@@ -771,6 +772,31 @@ function renderPerformance() {
         escapeHtml(runItem.rejections),
       ])).join("")
     : row([`<span class="muted">No saved runs yet</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function renderPerformanceRollups() {
+  const payload = state.performanceRollups || {};
+  const rollups = payload.rollups || [];
+  $("performance-rollups-note").textContent = payload.generated_at
+    ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} total day rows`
+    : "No daily rollups loaded";
+  $("performance-rollups-body").innerHTML = rollups.length
+    ? rollups.map((item) => row([
+        escapeHtml(item.day),
+        escapeHtml(item.draft_id),
+        `<span class="mono">${escapeHtml(item.run_id)}</span>`,
+        escapeHtml(item.mode),
+        `<span class="${Number(item.daily_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.daily_return_pct))}</span>`,
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(numberText(item.snapshot_count, 0)),
+        escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
+        escapeHtml(pctText(item.max_gross_exposure_pct)),
+        item.run_id
+          ? `<button type="button" class="secondary inspect-run-artifacts" data-run-id="${escapeHtml(item.run_id)}">Artifacts</button>`
+          : "",
+      ])).join("")
+    : row([`<span class="muted">No archived account artifacts have daily equity snapshots yet.</span>`, "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function rangeLabel(start, end) {
@@ -2469,6 +2495,7 @@ function renderAll() {
   renderOverviewChanges();
   renderMetrics();
   renderPerformance();
+  renderPerformanceRollups();
   renderWorkbenchStatus();
   renderCleanupPlan();
   renderDiagnostics();
@@ -2520,6 +2547,7 @@ async function refresh() {
   const draftValidations = await fetchJson("/config_draft_validations");
   const configRuns = await fetchJson("/config_draft_runs?limit=20");
   const runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
+  const performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
@@ -2536,6 +2564,7 @@ async function refresh() {
   state.draftValidations = draftValidations || { validations: [] };
   state.configRuns = configRuns || { runs: [] };
   state.runComparison = runComparison || { runs: [], leaders: {} };
+  state.performanceRollups = performanceRollups || { rollups: [], errors: [] };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   state.activityChanges = activityChanges(beforeActivity, activitySnapshot());
@@ -3088,7 +3117,7 @@ function init() {
     });
   });
   $("config-risk-preset").addEventListener("change", applyRiskPreset);
-  for (const id of ["config-drafts-body", "config-runs-body", "comparison-body"]) {
+  for (const id of ["config-drafts-body", "config-runs-body", "comparison-body", "performance-rollups-body"]) {
     $(id).addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;

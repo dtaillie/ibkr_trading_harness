@@ -521,6 +521,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
+        assert ("GET", "/config_draft_daily_rollups") in endpoints
         assert ("POST", "/config_draft/run") in endpoints
     finally:
         server.shutdown()
@@ -1832,6 +1833,77 @@ def test_cloud_status_server_run_comparison_ignores_failed_stale_summary(tmp_pat
         assert good_row["summary_available"] == "True"
         assert failed_row["total_return_pct"] == ""
         assert failed_row["summary_available"] == "False"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_daily_run_rollups(tmp_path):
+    state_dir = tmp_path / "state"
+    artifact_dir = state_dir / "run_artifacts" / "rollup-run"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "summary.json").write_text(
+        json.dumps({"mode": "replay", "final_equity": 10290.0}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "account.jsonl").write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                {"timestamp": "2026-01-02T14:30:00+00:00", "equity": 10000.0, "gross_exposure": 1000.0},
+                {"timestamp": "2026-01-02T21:00:00+00:00", "equity": 10500.0, "gross_exposure": 2000.0},
+                {"timestamp": "2026-01-03T14:30:00+00:00", "equity": 10500.0, "gross_exposure": 1500.0},
+                {"timestamp": "2026-01-03T21:00:00+00:00", "equity": 10290.0, "gross_exposure": 500.0},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / "fills.jsonl").write_text(
+        json.dumps({"timestamp": "2026-01-02T15:00:00+00:00", "symbol": "SPY", "side": "buy"}) + "\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / "orders.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"timestamp": "2026-01-02T15:00:00+00:00", "status": "filled", "symbol": "SPY"}),
+                json.dumps({"timestamp": "2026-01-03T15:00:00+00:00", "status": "rejected", "symbol": "QQQ"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (state_dir / "config_draft_runs.jsonl").write_text(
+        json.dumps({
+            "run_id": "rollup-run",
+            "draft_id": "Daily",
+            "action": "replay",
+            "status": "completed",
+            "returncode": 0,
+            "finished_at": "2026-01-03T21:00:00+00:00",
+            "artifact_path": str(artifact_dir),
+            "summary": {"mode": "replay", "final_equity": 10290.0},
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_draft_daily_rollups?limit=10&run_limit=10", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["total"] == 2
+        by_day = {row["day"]: row for row in payload["rollups"]}
+        assert abs(by_day["2026-01-02"]["daily_return_pct"] - 5.0) < 1e-9
+        assert by_day["2026-01-02"]["fill_count"] == 1
+        assert by_day["2026-01-02"]["order_count"] == 1
+        assert by_day["2026-01-02"]["rejection_count"] == 0
+        assert abs(by_day["2026-01-03"]["daily_return_pct"] - -2.0) < 1e-9
+        assert by_day["2026-01-03"]["rejection_count"] == 1
+        assert by_day["2026-01-03"]["mode"] == "replay"
     finally:
         server.shutdown()
         server.server_close()

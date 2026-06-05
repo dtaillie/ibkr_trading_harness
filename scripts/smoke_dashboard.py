@@ -75,6 +75,8 @@ def run_smoke(
             "performance-trades-body",
             "performance-profit-factor",
             "performance-avg-win-loss",
+            "performance-rollups-note",
+            "performance-rollups-body",
             "comparison-filter-text",
             "current-orders-body",
             "current-positions-grid",
@@ -144,6 +146,8 @@ def run_smoke(
             "calendarReturnHeatmap",
             "buildTradeLedger",
             "performancePeriodWindow",
+            "renderPerformanceRollups",
+            "config_draft_daily_rollups",
             "activityChanges",
             "renderOverviewChanges",
             "renderCurrentOrdersAndPositions",
@@ -196,6 +200,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_storage_audit")
         if ("POST", "/data_compare") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_compare")
+        if ("GET", "/config_draft_daily_rollups") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing config_draft_daily_rollups")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
@@ -203,6 +209,9 @@ def run_smoke(
         fetch_manifests = fetch_json(base_url, "/fetch_manifests?limit=5")
         if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:
             raise RuntimeError("fetch manifest summary is invalid")
+        daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
+        if "rollups" not in daily_rollups or "total" not in daily_rollups:
+            raise RuntimeError("daily rollup summary is invalid")
 
         alignment_count = 0
         compare_count = 0
@@ -245,6 +254,7 @@ def run_smoke(
             "diagnostics_status": diagnostics.get("status"),
             "endpoint_count": endpoint_map.get("count", 0),
             "fetch_manifest_count": fetch_manifests.get("count", 0),
+            "daily_rollup_count": daily_rollups.get("count", 0),
             "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
             "risk_preset_count": len(options.get("risk_presets") or []),
             "draft_validation_count": draft_validations.get("count", 0),

@@ -319,6 +319,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/config_draft_daily_rollups",
+        "category": "runs",
+        "description": "Summarize archived account artifacts by UTC day for current-performance views.",
+        "response": "JSON daily run rollups",
+    },
+    {
+        "method": "GET",
         "path": "/config_draft_runs_export",
         "category": "runs",
         "description": "Download public-safe recent run comparison rows.",
@@ -3443,6 +3450,153 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
     }
 
 
+def parse_artifact_timestamp(raw: Any) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def artifact_utc_day(row: dict[str, Any]) -> str | None:
+    parsed = parse_artifact_timestamp(row.get("timestamp"))
+    return parsed.date().isoformat() if parsed else None
+
+
+def count_artifact_rows_by_day(rows: list[dict[str, Any]], *, rejected_only: bool = False) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        if rejected_only:
+            status = str(row.get("status") or "").lower()
+            if status not in {"rejected", "reject", "cancelled", "canceled"} and not row.get("reason"):
+                continue
+        day = artifact_utc_day(row)
+        if not day:
+            continue
+        counts[day] = counts.get(day, 0) + 1
+    return counts
+
+
+def archived_artifact_path_for_record(state_dir: Path, record: dict[str, Any]) -> Path | None:
+    artifact_path = record.get("artifact_path")
+    if artifact_path:
+        path = Path(str(artifact_path)).resolve()
+    else:
+        run_id = str(record.get("run_id") or "").strip()
+        if not run_id:
+            return None
+        path = config_draft_run_artifact_dir(state_dir, run_id)
+    root = config_draft_run_artifacts_root(state_dir).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("run artifact path is invalid")
+    return path
+
+
+def daily_rollups_for_run_record(
+    state_dir: Path,
+    record: dict[str, Any],
+    *,
+    artifact_limit: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    errors = []
+    try:
+        path = archived_artifact_path_for_record(state_dir, record)
+    except ValueError as exc:
+        return [], [{"run_id": record.get("run_id"), "error": str(exc)}]
+    if path is None or not path.exists() or not path.is_dir():
+        return [], []
+    summary = read_json_file(path / "summary.json") or {}
+    account_rows = read_jsonl_tail(path / "account.jsonl", limit=artifact_limit)
+    fills = read_jsonl_tail(path / "fills.jsonl", limit=artifact_limit)
+    orders = read_jsonl_tail(path / "orders.jsonl", limit=artifact_limit)
+    by_day: dict[str, list[tuple[datetime, dict[str, Any]]]] = {}
+    for row in account_rows:
+        parsed = parse_artifact_timestamp(row.get("timestamp"))
+        equity = finite_float(row.get("equity"))
+        if parsed is None or equity is None:
+            continue
+        by_day.setdefault(parsed.date().isoformat(), []).append((parsed, row))
+    fill_counts = count_artifact_rows_by_day(fills)
+    order_counts = count_artifact_rows_by_day(orders)
+    rejection_counts = count_artifact_rows_by_day(orders, rejected_only=True)
+    rollups = []
+    for day, rows in sorted(by_day.items(), reverse=True):
+        ordered = sorted(rows, key=lambda item: item[0])
+        start_row = ordered[0][1]
+        end_row = ordered[-1][1]
+        start_equity = finite_float(start_row.get("equity"))
+        end_equity = finite_float(end_row.get("equity"))
+        daily_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        gross_values = [finite_float(row.get("gross_exposure")) for _parsed, row in ordered]
+        gross_values = [value for value in gross_values if value is not None]
+        max_gross = max(gross_values) if gross_values else None
+        rollups.append({
+            "day": day,
+            "run_id": record.get("run_id"),
+            "draft_id": record.get("draft_id"),
+            "action": record.get("action"),
+            "status": record.get("status"),
+            "mode": summary.get("mode") or end_row.get("mode"),
+            "artifact_path": str(path),
+            "snapshot_count": len(ordered),
+            "account_start_time": ordered[0][0].isoformat(),
+            "account_end_time": ordered[-1][0].isoformat(),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "daily_return_pct": finite_float(daily_return_pct),
+            "fill_count": fill_counts.get(day, 0),
+            "order_count": order_counts.get(day, 0),
+            "rejection_count": rejection_counts.get(day, 0),
+            "max_gross_exposure": finite_float(max_gross),
+            "max_gross_exposure_pct": (
+                finite_float((max_gross / start_equity) * 100.0)
+                if start_equity and max_gross is not None
+                else None
+            ),
+        })
+    return rollups, errors
+
+
+def build_config_draft_daily_rollups(
+    state_dir: Path,
+    *,
+    limit: int = 100,
+    run_limit: int = 100,
+    artifact_limit: int = 5000,
+) -> dict[str, Any]:
+    runs_payload = list_config_draft_runs(state_dir, limit=run_limit)
+    rows = []
+    errors = []
+    for record in runs_payload["runs"]:
+        run_rows, run_errors = daily_rollups_for_run_record(state_dir, record, artifact_limit=artifact_limit)
+        rows.extend(run_rows)
+        errors.extend(run_errors)
+    rows = sorted(
+        rows,
+        key=lambda row: (str(row.get("day") or ""), str(row.get("account_end_time") or ""), str(row.get("run_id") or "")),
+        reverse=True,
+    )
+    return {
+        "generated_at": utc_now(),
+        "rollups": rows[:limit],
+        "count": min(len(rows), limit),
+        "total": len(rows),
+        "limit": limit,
+        "run_limit": run_limit,
+        "artifact_limit": artifact_limit,
+        "error_count": len(errors),
+        "errors": errors[:25],
+    }
+
+
 def load_config_draft_artifacts(
     state_dir: Path,
     draft_id: str,
@@ -4319,6 +4473,27 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, build_config_draft_run_comparison(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/config_draft_daily_rollups":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                run_limit = parse_int_param(params, "run_limit", default=100, maximum=500)
+                artifact_limit = parse_int_param(params, "artifact_limit", default=5000, maximum=50000)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(
+                self,
+                200,
+                build_config_draft_daily_rollups(
+                    self.state_dir,
+                    limit=limit,
+                    run_limit=run_limit,
+                    artifact_limit=artifact_limit,
+                ),
+            )
             return
         if parsed.path == "/config_draft_runs_export":
             if not self.require_auth():

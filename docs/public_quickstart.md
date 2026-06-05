@@ -191,7 +191,9 @@ account timestamp, open position count, and decision/order/fill/reject activity
 above the charts. Use the Period selector to narrow artifact
 charts and KPIs to today, week, month, 3 months, or all available snapshots.
 When sanitized fills are present, Performance also shows an open/closed trade
-table, win/loss, average win/loss, and profit factor. Data Library shows
+table, win/loss, average win/loss, and profit factor. Daily Run Rollups summarize
+archived account artifacts by UTC day with return, equity, orders, fills,
+rejects, and artifact drilldown. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
