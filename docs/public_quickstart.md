@@ -269,9 +269,11 @@ download normalized close-return paths by symbol and timestamp. Use Find Missing
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Use Jump to Symbol in Data Detail to open the
 catalog's best matching saved file for a ticker without searching the full
-table. Use Copy data_roots YAML when Data Library finds
-suggested roots; paste the copied `dashboard.data_roots` block into an ignored
-local config and remove any paths you do not want scanned. Fetch Jobs shows
+table. Use Symbol Directory to browse the largest discovered symbols and jump
+directly to filter, inspect, compare, or diagnose actions. Use Copy data_roots
+YAML when Data Library finds suggested roots; paste the copied
+`dashboard.data_roots` block into an ignored local config and remove any paths
+you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
 chunks, errors, produced output files, per-symbol progress, and output paths.
 Use Compare from Symbol Browser to preselect matching saved files for a ticker

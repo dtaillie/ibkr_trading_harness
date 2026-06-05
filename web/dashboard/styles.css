@@ -335,6 +335,52 @@ button.secondary {
   font-size: 18px;
 }
 
+.symbol-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.symbol-directory-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.symbol-directory-card strong,
+.symbol-directory-card small {
+  display: block;
+}
+
+.symbol-directory-card strong {
+  margin: 6px 0 4px;
+  font-size: 20px;
+}
+
+.symbol-directory-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.symbol-directory-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(76px, auto));
+  gap: 6px;
+  align-content: start;
+}
+
+.symbol-directory-actions button {
+  min-width: 0;
+}
+
 .builder-form {
   align-items: end;
   padding: 14px;
@@ -1585,7 +1631,8 @@ footer {
   .builder-output,
   .overview-hero,
   .performance-layout,
-  .chart-grid {
+  .chart-grid,
+  .symbol-directory-card {
     display: block;
   }
 
@@ -1620,6 +1667,12 @@ footer {
 
   .page-intro-actions {
     justify-content: flex-start;
+  }
+
+  .symbol-directory-actions {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 12px;
   }
 
   .coverage-row {

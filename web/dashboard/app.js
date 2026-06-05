@@ -2563,6 +2563,66 @@ function renderSymbolBrowser() {
     : `<div class="empty-card"><strong>No scanned symbols</strong><span>Add or configure historical data roots, then refresh the catalog.</span></div>`;
 }
 
+function symbolDirectoryRows(limit = 60) {
+  const rows = [];
+  for (const [symbol, datasets] of symbolBrowserGroups()) {
+    const totalRows = datasets.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+    const ranges = timestampRangeFromDatasets(datasets);
+    const best = datasets[0] || {};
+    rows.push({
+      symbol,
+      best,
+      file_count: datasets.length,
+      row_count: totalRows,
+      assets: Array.from(new Set(datasets.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort(),
+      sources: Array.from(new Set(datasets.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
+      bars: Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
+      qualities: countBy(datasets, "quality_status"),
+      first_day: ranges.start,
+      last_day: ranges.end,
+    });
+  }
+  return rows.sort((left, right) => {
+    if (left.file_count !== right.file_count) return right.file_count - left.file_count;
+    if (left.row_count !== right.row_count) return right.row_count - left.row_count;
+    return left.symbol.localeCompare(right.symbol);
+  }).slice(0, limit);
+}
+
+function renderSymbolDirectory() {
+  if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
+  const groups = symbolBrowserGroups();
+  const rows = symbolDirectoryRows();
+  $("data-symbol-directory-note").textContent = groups.size
+    ? `${numberText(rows.length, 0)} shown / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}; sorted by file count then rows`
+    : "No scanned symbols loaded";
+  $("data-symbol-directory").innerHTML = rows.length
+    ? rows.map((item) => {
+        const symbol = escapeHtml(item.symbol);
+        const bestPath = escapeHtml(text(item.best.path));
+        const canCompare = Number(item.file_count || 0) >= 2;
+        return `
+          <div class="symbol-directory-card">
+            <div>
+              <span class="eyebrow">${escapeHtml(item.assets.join(", ") || "unknown asset")}</span>
+              <strong>${symbol}</strong>
+              <small>${escapeHtml(numberText(item.file_count, 0))} file${item.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(item.row_count, 0))} rows</small>
+              <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")}</small>
+              <small>${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
+              <small>quality ${escapeHtml(countSummary(item.qualities))}</small>
+            </div>
+            <div class="symbol-directory-actions">
+              <button type="button" class="secondary symbol-directory-filter" data-symbol="${symbol}">Filter</button>
+              <button type="button" class="secondary symbol-directory-inspect" data-symbol="${symbol}" data-path="${bestPath}">Inspect</button>
+              <button type="button" class="secondary symbol-directory-compare" data-symbol="${symbol}"${canCompare ? "" : " disabled"}>Compare</button>
+              <button type="button" class="secondary symbol-directory-diagnose" data-symbol="${symbol}">Diagnose</button>
+            </div>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No scanned symbols</strong><span>Configure data roots or run a fetch job, then refresh the catalog.</span></div>`;
+}
+
 function countSummary(counts) {
   const entries = Object.entries(counts || {});
   return entries.length
@@ -2706,6 +2766,7 @@ function renderDataCatalog() {
   renderDataLibrarySummary();
   renderDataHome(filtered);
   renderSymbolBrowser();
+  renderSymbolDirectory();
   $("data-catalog-body").innerHTML = filtered.length
     ? filtered.map((dataset) => row([
         escapeHtml(dataset.symbol),
@@ -2872,6 +2933,38 @@ async function compareSelectedSymbolDatasets() {
   await loadDataCompare();
   $("last-refresh").textContent = `Loaded comparison for ${numberText(matches.length, 0)} ${symbol} datasets`;
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+async function handleSymbolDirectoryAction(target) {
+  const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
+  if (!symbol) return;
+  $("data-symbol-browser-input").value = symbol;
+  renderSymbolBrowser();
+  if (target.classList.contains("symbol-directory-filter")) {
+    $("data-filter-text").value = symbol;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    $("last-refresh").textContent = `Data Library filtered to ${symbol}`;
+    return;
+  }
+  if (target.classList.contains("symbol-directory-inspect")) {
+    const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
+    if (!path) {
+      $("data-symbol-directory-note").innerHTML = `<span class="status-bad">No inspectable file for ${escapeHtml(symbol)}</span>`;
+      return;
+    }
+    await loadDataDetail(path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded ${symbol} data detail`;
+    return;
+  }
+  if (target.classList.contains("symbol-directory-compare")) {
+    await compareSelectedSymbolDatasets();
+    return;
+  }
+  if (target.classList.contains("symbol-directory-diagnose")) {
+    $("data-symbol-input").value = symbol;
+    await diagnoseDataSymbol(new Event("submit"));
+  }
 }
 
 function renderDataLibrarySummary() {
@@ -6962,6 +7055,13 @@ function init() {
     if (!(target instanceof HTMLElement)) return;
     loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-directory").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-symbol]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleSymbolDirectoryAction(target).catch((err) => {
+      $("data-symbol-directory-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("copy-data-path").addEventListener("click", () => {
