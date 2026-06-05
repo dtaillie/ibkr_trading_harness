@@ -847,6 +847,67 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         server.server_close()
 
 
+def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", ())
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "SPY_5min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (data_root / "BTC-USD_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,50000,50100,49900,50050,10",
+                "2026-01-02T14:31:00Z,50050,50200,50000,50100,12",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    from scripts.audit_data_storage import run as run_storage_audit
+
+    assert run_storage_audit([
+        "--data-root",
+        str(data_root),
+        "--catalog-limit",
+        "1",
+        "--scan-limit",
+        "10",
+        "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "warn"
+    assert payload["configured_file_count"] == 2
+    assert payload["catalog_visible_count"] == 1
+    assert payload["hidden_configured_file_count"] == 1
+    assert payload["configured_extension_counts"] == {".csv": 2}
+    assert payload["configured_asset_class_guess_counts"] == {"crypto": 1, "etf": 1}
+    assert payload["configured_bar_size_guess_counts"] == {"1min": 1, "5min": 1}
+
+    assert run_storage_audit([
+        "--data-root",
+        str(data_root),
+        "--catalog-limit",
+        "1",
+        "--scan-limit",
+        "10",
+        "--fail-on-warn",
+    ]) == 2
+    report = capsys.readouterr().out
+    assert "Storage Audit: warn" in report
+    assert "Configured files: 2" in report
+    assert "Recommended next steps:" in report
+
+
 def test_cloud_status_server_symbol_diagnostic_finds_unconfigured_root(tmp_path, monkeypatch):
     configured_root = tmp_path / "configured"
     configured_root.mkdir()

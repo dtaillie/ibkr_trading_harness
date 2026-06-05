@@ -226,6 +226,14 @@ config for one run. If Data Library only shows the public SPY/QQQ examples,
 check the root cards: the dashboard will call out likely local roots that exist
 but are not currently configured. Data roots are scanned locally; the dashboard
 receives coverage summaries and small downsampled previews, not full bar files.
+For the same diagnosis from a terminal, run:
+
+```bash
+python3 scripts/audit_data_storage.py \
+  --config config/cloud_status.example.yaml \
+  --catalog-limit 500
+```
+
 The `dashboard.fetch_manifest_roots` list controls where Fetch Jobs looks for
 JSON fetch manifests. The default fetch commands write to
 `paper_logs/fetch_manifests`; add that root to local dashboard config when you

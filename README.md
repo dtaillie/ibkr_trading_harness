@@ -71,6 +71,14 @@ python3 live/fetch_crypto_history.py \
   --months 1
 ```
 
+Audit which saved CSV/parquet files are visible to the dashboard catalog:
+
+```bash
+python3 scripts/audit_data_storage.py \
+  --data-root examples/data \
+  --catalog-limit 200
+```
+
 Run the example plugin tests:
 
 ```bash

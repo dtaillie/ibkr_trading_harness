@@ -38,6 +38,7 @@ COPY_FILES = [
     "live/plugin_runner.py",
     "ops/systemd/ibgateway-paper.service",
     "ops/systemd/ibgateway-paper.timer",
+    "scripts/audit_data_storage.py",
     "scripts/build_zerohash_crypto_universe.py",
     "scripts/cloud_status_server.py",
     "scripts/command_worker.py",

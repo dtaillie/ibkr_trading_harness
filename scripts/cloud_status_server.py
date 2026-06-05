@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -1085,6 +1085,17 @@ def audit_data_root(
     }
 
 
+def merge_count_maps(rows: Iterable[dict[str, Any]], field: str) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        values = row.get(field)
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            counts[str(key)] += int(value or 0)
+    return dict(sorted(counts.items()))
+
+
 def build_data_storage_audit(
     data_roots: list[Path],
     *,
@@ -1140,6 +1151,14 @@ def build_data_storage_audit(
         "configured_visible_count": configured_visible_count,
         "hidden_configured_file_count": hidden_configured_count,
         "suggested_file_count": suggested_file_count,
+        "extension_counts": merge_count_maps(configured_rows + suggested_rows, "extension_counts"),
+        "asset_class_guess_counts": merge_count_maps(configured_rows + suggested_rows, "asset_class_guess_counts"),
+        "source_guess_counts": merge_count_maps(configured_rows + suggested_rows, "source_guess_counts"),
+        "bar_size_guess_counts": merge_count_maps(configured_rows + suggested_rows, "bar_size_guess_counts"),
+        "configured_extension_counts": merge_count_maps(configured_rows, "extension_counts"),
+        "configured_asset_class_guess_counts": merge_count_maps(configured_rows, "asset_class_guess_counts"),
+        "configured_source_guess_counts": merge_count_maps(configured_rows, "source_guess_counts"),
+        "configured_bar_size_guess_counts": merge_count_maps(configured_rows, "bar_size_guess_counts"),
         "configured_roots": configured_rows,
         "suggested_roots": suggested_rows,
     }

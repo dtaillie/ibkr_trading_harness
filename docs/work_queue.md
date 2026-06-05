@@ -281,9 +281,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - show why a file was skipped
   - include a "show me everything on disk" diagnostic mode with bounded limits
 - Add a backend storage audit command and matching dashboard panel:
-  - partial; dashboard storage-audit endpoint and Data Library panel now compare
-    configured/suggested root files with catalog-visible rows, standalone CLI
-    command remains open
+  - done; `scripts/audit_data_storage.py`, the storage-audit endpoint, and the
+    Data Library panel compare configured/suggested root files with
+    catalog-visible rows
   - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
   - compare files on disk to dashboard-visible catalog rows
   - summarize missing symbols, malformed files, unsupported extensions, and
