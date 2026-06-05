@@ -1045,6 +1045,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert payload["row_count_total"] == 3
         assert payload["size_bytes_total"] > 0
         assert payload["latest_modified_at"]
+        assert payload["datasets"][0]["size_bytes"] > 0
+        assert payload["datasets"][0]["modified_at"]
         assert payload["error_count"] == 1
         assert payload["errors"][0]["root"] == str(data_root.resolve())
         scan = payload["root_summaries"][0]
@@ -1520,6 +1522,8 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["symbol"] == "SPY"
         assert detail["asset_class"] == "etf"
         assert detail["source"] == "file"
+        assert detail["size_bytes"] > 0
+        assert detail["modified_at"]
         assert detail["rows"] == 4
         assert detail["column_map"]["close"] == "close"
         assert detail["preview"][0]["open"] == 100.0

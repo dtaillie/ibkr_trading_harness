@@ -346,6 +346,7 @@ def run_smoke(
             "endpoint-map-body",
             "Page Guide",
             "Inspect Saved Historical Data",
+            "Updated",
             "Public Publishing Boundary",
             "Web UI Runbook",
             "doc-link-grid",

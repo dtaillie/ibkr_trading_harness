@@ -2250,10 +2250,11 @@ function renderDataCatalog() {
         escapeHtml(dataset.source_timezone),
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
+        escapeHtml(timestampAgeLabel(dataset.modified_at)),
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
@@ -2323,7 +2324,7 @@ function renderDataLibrarySummary() {
     ? `${timestampRange.start} -> ${timestampRange.end}`
     : "n/a";
   $("data-date-range-note").textContent = catalog.latest_modified_at
-    ? `Latest file modified ${text(catalog.latest_modified_at)}`
+    ? `Latest file modified ${timestampAgeLabel(catalog.latest_modified_at)}`
     : "No file modification timestamp published.";
   $("data-quality-summary").textContent = badCount || warnCount || parseErrorCount
     ? `${numberText(badCount, 0)} bad / ${numberText(warnCount, 0)} warn`
@@ -2766,6 +2767,8 @@ function renderDataDetail() {
     ["File Path", text(detail.path)],
     ["Asset", text(detail.asset_class)],
     ["Source", text(detail.source)],
+    ["File Size", bytes(detail.size_bytes)],
+    ["Modified", timestampAgeLabel(detail.modified_at)],
     ["Rows", numberText(detail.rows, 0)],
     ["Viewer Rows", `${numberText(viewer.filtered_rows, 0)} filtered / ${numberText(viewer.available_rows, 0)} available`],
     ["Viewer Range", timeRangeLabel(viewer.first_timestamp, viewer.last_timestamp, timezoneMode)],

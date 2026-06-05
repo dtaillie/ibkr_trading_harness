@@ -348,6 +348,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - coverage range table for every symbol
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
   - last updated time and file size
+    - partial; Saved Data rows now show file size plus last-modified age, Data
+      Detail includes file size and modified time, and the summary card labels the
+      latest catalog modification with age.
 - Add a saved-data browser that can start from all scanned symbols, not just
   SPY/QQQ demo files:
   - show total symbols/files found by root
