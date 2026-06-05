@@ -181,7 +181,8 @@ Operations, and Help views. Overview shows the current high-level state;
 health checks, setup checklist items, open positions, and recent
 decision/order/fill events. Performance summarizes the latest run or selected
 artifact with equity, return, drawdown, exposure, an equity curve, drawdown
-curve, and daily return bars when account snapshots are available. Data Library shows
+curve, daily return bars, and a calendar-style daily return heatmap when
+account snapshots are available. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use the coverage grid to see recent date-bin coverage by
 symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,

@@ -462,12 +462,16 @@ function renderPerformance() {
   $("performance-equity-chart").innerHTML = equityChart(source.account || []);
   $("performance-drawdown-chart").innerHTML = drawdownChart(source.account || []);
   $("performance-daily-return-chart").innerHTML = dailyReturnChart(source.account || []);
+  $("performance-calendar-chart").innerHTML = calendarReturnHeatmap(source.account || []);
   $("performance-drawdown-note").textContent = source.account.length
     ? "Computed from account equity snapshots"
     : "Load archived artifacts for drawdown curve";
   $("performance-daily-note").textContent = source.account.length
     ? "Computed from first/last equity by date"
     : "Load archived artifacts for daily bars";
+  $("performance-calendar-note").textContent = source.account.length
+    ? "Green/red daily return cells"
+    : "Load archived artifacts for calendar view";
 
   const runs = ((state.runComparison && state.runComparison.runs) || []).slice(0, 12);
   $("performance-runs-body").innerHTML = runs.length
@@ -631,6 +635,31 @@ function dailyReturnChart(points) {
   }).join("");
   const labels = rows.slice(-3).map((item) => `${item.day} ${pctText(item.value)}`).join(" | ");
   return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="daily return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(labels)}</span>`;
+}
+
+function calendarReturnHeatmap(points) {
+  const rows = dailyReturns(points).sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  if (!rows.length) return `<span class="muted">No daily returns available for calendar view</span>`;
+  const byDay = new Map(rows.map((item) => [item.day, item.value]));
+  const maxAbs = Math.max(0.01, ...rows.map((item) => Math.abs(item.value)));
+  const start = new Date(`${rows[0].day}T00:00:00Z`);
+  const end = new Date(`${rows[rows.length - 1].day}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  const cells = [];
+  for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const day = cursor.toISOString().slice(0, 10);
+    const value = byDay.get(day);
+    let cls = "calendar-cell-empty";
+    let label = `${day} no account return`;
+    if (Number.isFinite(value)) {
+      const intensity = Math.min(4, Math.max(1, Math.ceil((Math.abs(value) / maxAbs) * 4)));
+      cls = value >= 0 ? `calendar-good-${intensity}` : `calendar-bad-${intensity}`;
+      label = `${day} ${pctText(value)}`;
+    }
+    cells.push(`<span class="calendar-cell ${cls}" title="${escapeHtml(label)}"></span>`);
+  }
+  const latest = rows.slice(-5).map((item) => `${item.day} ${pctText(item.value)}`).join(" | ");
+  return `<div class="calendar-scroll"><div class="calendar-heatmap" role="img" aria-label="daily return calendar heatmap">${cells.join("")}</div></div><span class="chart-caption">${escapeHtml(latest)}</span>`;
 }
 
 function scalarLineChart(points, { label, empty, className, valueFormatter }) {

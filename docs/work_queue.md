@@ -100,7 +100,7 @@ strategy-private.
   - daily return bars
     - done for archived run account artifacts
   - calendar heatmap
-    - not started
+    - done for archived run account artifacts
   - intraday equity/PnL chart for today's run when minute bars or account
     snapshots are available
   - open/closed trade table

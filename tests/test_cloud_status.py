@@ -462,6 +462,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-timeline-body" in html
         assert "performance-drawdown-chart" in html
         assert "performance-daily-return-chart" in html
+        assert "performance-calendar-chart" in html
         assert "performance-equity" in html
         assert "Page Guide" in html
         assert "Inspect Saved Historical Data" in html

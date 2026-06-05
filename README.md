@@ -203,7 +203,8 @@ Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,
 and a latest decision/order/fill timeline. Performance shows latest equity,
 return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
-bars when account artifacts are available. It shows
+bars plus a calendar-style daily return heatmap when account artifacts are
+available. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, and local disk usage. It can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
