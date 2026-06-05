@@ -59,6 +59,10 @@ strategy-private.
     view's primary question, current public telemetry/data counts, and two
     navigation actions so users can orient themselves before reading dense
     tables.
+  - partial; the page-intro strip now includes a compact per-view workflow rail
+    with the main four-step path for Overview, Performance, Data Library, Fetch
+    Jobs, Workbench, Runs, Operations, and Help, so users get immediate
+    "what do I do here?" guidance before dense tables.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -352,6 +356,9 @@ strategy-private.
   - partial; Performance now adds a first-screen summary band before detailed
     KPIs and charts, so the selected strategy/source result is visible before
     dense metric context and artifact tables.
+  - partial; every top-level page now starts with compact workflow steps in
+    the shared intro, improving first-screen orientation without adding another
+    static documentation block.
 - Add a small design system for the dashboard:
   - color tokens for cash/equity/gain/loss/warning/neutral states
   - consistent badge styles for modes, health, fills, rejects, and stale data

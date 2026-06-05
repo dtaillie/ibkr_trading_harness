@@ -29,6 +29,9 @@ state-aware: after refresh it points at missing telemetry, disabled or
 unreachable Gateway checks, unreadable data roots, catalog caps, missing fetch
 manifests, and missing Workbench drafts.
 
+Every top-level page also starts with a compact workflow rail. Read it left to
+right for the common path on that page before opening the deeper tables below.
+
 ## Configure Data Roots
 
 The dashboard only scans paths listed in `dashboard.data_roots`. Public example

@@ -133,8 +133,9 @@ body {
 }
 
 .page-intro {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  align-items: start;
   gap: 18px;
   margin: 0 28px 18px;
   padding: 18px 0 20px;
@@ -180,6 +181,49 @@ body {
 
 .page-intro-actions button[hidden] {
   display: none;
+}
+
+.page-intro-steps {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.page-step {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-shadow: var(--surface-shadow);
+}
+
+.page-step span,
+.page-step strong,
+.page-step small {
+  display: block;
+}
+
+.page-step span {
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.page-step strong {
+  margin-top: 5px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.page-step small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 h1,
@@ -1913,6 +1957,20 @@ footer {
 
   .page-intro-actions {
     justify-content: flex-start;
+  }
+
+  .page-intro-steps {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .page-step {
+    flex: 0 0 220px;
+    scroll-snap-align: start;
   }
 
   .symbol-directory-actions {

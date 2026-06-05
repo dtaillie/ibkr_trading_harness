@@ -303,6 +303,7 @@ def run_smoke(
             "page-intro-title",
             "page-intro-primary",
             "page-intro-secondary",
+            "page-intro-steps",
             "data-root-cards",
             "data-home-title",
             "data-home-note",

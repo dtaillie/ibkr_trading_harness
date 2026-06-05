@@ -756,6 +756,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "page-intro" in html
         assert "page-intro-title" in html
         assert "page-intro-primary" in html
+        assert "page-intro-steps" in html
         assert "performance-status-rollups-body" in html
         assert "performance-status-equity-chart" in html
         assert "performance-status-return-chart" in html
