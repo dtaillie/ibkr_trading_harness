@@ -196,6 +196,9 @@ strategy-private.
     from sanitized status-history snapshots, and Performance shows Live/Paper
     Status Rollups without opening archived artifacts. Dedicated runner-owned
     rollup files are still future work.
+  - partial; Performance now also renders Live/Paper Period Rollups for
+    month/year summaries from status-history equity snapshots, with node count,
+    snapshot count, observed sanitized activity, and alerts.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows

@@ -4544,6 +4544,7 @@ def build_period_rollups_from_daily_rows(rows: list[dict[str, Any]]) -> dict[str
                 "label": label,
                 "day_count": len({str(item.get("day")) for item in ordered if item.get("day")}),
                 "run_count": len({str(item.get("run_id")) for item in ordered if item.get("run_id")}),
+                "node_count": len({str(item.get("node_id")) for item in ordered if item.get("node_id")}),
                 "start_equity": start_equity,
                 "end_equity": end_equity,
                 "total_return_pct": finite_float(total_return_pct),

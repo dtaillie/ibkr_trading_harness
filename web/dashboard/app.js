@@ -1575,9 +1575,19 @@ function renderPerformanceRollups() {
 }
 
 function renderStatusEquityRollups() {
-  if (!$("performance-status-rollups-body") || !$("performance-status-rollups-note")) return;
+  if (
+    !$("performance-status-rollups-body")
+    || !$("performance-status-rollups-note")
+    || !$("performance-status-period-rollups-body")
+    || !$("performance-status-period-rollups-note")
+  ) return;
   const payload = state.statusEquityRollups || {};
   const rollups = payload.rollups || [];
+  const periodRollups = payload.period_rollups || {};
+  const periodRows = [
+    ...(periodRollups.month || []).map((item) => ({ ...item, periodLabel: `Month ${item.label}` })),
+    ...(periodRollups.year || []).map((item) => ({ ...item, periodLabel: `Year ${item.label}` })),
+  ];
   $("performance-status-rollups-note").textContent = payload.generated_at
     ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} status-history day rows from ${numberText(payload.history_scanned || 0, 0)} snapshots; O/F/R are max observed sanitized recent-event counts`
     : "No status-history rollups loaded";
@@ -1595,6 +1605,23 @@ function renderStatusEquityRollups() {
         statusText(item.gateway_reachable),
       ])).join("")
     : row([`<span class="muted">No status-history equity snapshots yet. Run the status publisher during paper/live sessions to populate this table.</span>`, "", "", "", "", "", "", "", "", ""]);
+  $("performance-status-period-rollups-note").textContent = payload.generated_at
+    ? `${numberText(periodRows.length, 0)} month/year summaries from status-history equity snapshots`
+    : "No status-history period rollups loaded";
+  $("performance-status-period-rollups-body").innerHTML = periodRows.length
+    ? periodRows.map((item) => row([
+        escapeHtml(item.periodLabel),
+        escapeHtml(rangeLabel(item.first_day, item.last_day)),
+        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(numberText(item.day_count, 0)),
+        escapeHtml(numberText(item.node_count, 0)),
+        escapeHtml(numberText(item.snapshot_count, 0)),
+        escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
+        escapeHtml(numberText(item.alert_count, 0)),
+      ])).join("")
+    : row([`<span class="muted">No status-history month/year summaries yet.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderPerformancePeriodRollups() {

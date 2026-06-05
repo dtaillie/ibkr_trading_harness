@@ -986,6 +986,7 @@ def test_cloud_status_server_serves_status_equity_rollups(tmp_path):
         month = payload["period_rollups"]["month"][0]
         assert month["label"] == "2026-01"
         assert month["day_count"] == 2
+        assert month["node_count"] == 1
         assert abs(month["total_return_pct"] - 1.475) < 1e-9
     finally:
         server.shutdown()
