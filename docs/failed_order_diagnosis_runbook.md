@@ -36,6 +36,8 @@ python3 scripts/summarize_plugin_run.py paper_logs/example_plugin_runner
 - max orders reached
 - quantity, cash quantity, notional, or exposure cap exceeded
 - short sale attempted while shorts are disabled
+- short sale attempted outside `execution.shortable_symbols`
+- short sale exceeded per-symbol or total short-notional caps
 - stale data or missing bar context
 
 Run static validation:
@@ -77,4 +79,3 @@ Keep this evidence locally, not in the public repo:
 4. Run `--validate-only`.
 5. Restart Gateway only if API/session state is suspect.
 6. Restart the runner and watch the next order lifecycle end to end.
-

@@ -126,5 +126,9 @@ its final summary/artifacts.
 - `--validate-only` passes.
 - Risk limits are small and explicit.
 - Allowed symbols, sides, order types, cash/notional, and exposure caps are set.
+- If shorts are allowed, `shortable_symbols` and short-notional caps are set.
+- Simulated-paper cost settings are realistic enough for the asset class:
+  slippage, market impact, commission bps, per-share commission, min
+  commission, and max commission cap.
 - Dashboard shows fresh telemetry.
 - You know how to stop the runner quickly.

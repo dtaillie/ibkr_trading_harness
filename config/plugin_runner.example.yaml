@@ -39,8 +39,16 @@ execution:
   max_quantity: 10
   max_cash_quantity: 100
   max_gross_exposure_pct: 0.05
+  max_short_notional_per_symbol: 100
+  max_total_short_notional: 100
   sim_slippage_bps: 0
+  sim_buy_slippage_bps: 0
+  sim_sell_slippage_bps: 0
+  sim_market_impact_bps_per_10k: 0
   sim_commission_bps: 0
+  sim_commission_per_share: 0
+  sim_min_commission: 0
+  sim_max_commission_pct: 1
 
 control:
   pause_marker: paper_logs/control/example_plugin_runner.pause

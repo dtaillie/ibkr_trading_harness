@@ -44,7 +44,10 @@ This roadmap is broader context; the queue is the current execution order.
 - Extend config validation into versioned schemas with richer per-plugin checks.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow
-  constraints, commission schedules, and slippage models.
+  constraints, commission schedules, and slippage models. The public runner now
+  covers basic shortable/cap checks, side-specific slippage, simple market
+  impact, and commission floors/caps; richer borrow-fee schedules remain future
+  work.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins.

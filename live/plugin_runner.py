@@ -275,6 +275,7 @@ def validate_config(
         errors,
         allowed=SUPPORTED_ORDER_TYPES,
     )
+    validate_string_list(execution_cfg.get("shortable_symbols"), "execution.shortable_symbols", errors)
     validate_bool(execution_cfg.get("allow_short"), "execution.allow_short", errors)
     validate_bool(execution_cfg.get("require_current_price"), "execution.require_current_price", errors)
     validate_bool(execution_cfg.get("allow_quantity_and_cash"), "execution.allow_quantity_and_cash", errors)
@@ -284,8 +285,16 @@ def validate_config(
     validate_nonnegative_float(execution_cfg.get("max_cash_quantity"), "execution.max_cash_quantity", errors, positive=True)
     validate_nonnegative_float(execution_cfg.get("max_notional_per_order"), "execution.max_notional_per_order", errors, positive=True)
     validate_nonnegative_float(execution_cfg.get("max_gross_exposure_pct"), "execution.max_gross_exposure_pct", errors, positive=True)
+    validate_nonnegative_float(execution_cfg.get("max_short_notional_per_symbol"), "execution.max_short_notional_per_symbol", errors, positive=True)
+    validate_nonnegative_float(execution_cfg.get("max_total_short_notional"), "execution.max_total_short_notional", errors, positive=True)
     validate_nonnegative_float(execution_cfg.get("sim_slippage_bps"), "execution.sim_slippage_bps", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_buy_slippage_bps"), "execution.sim_buy_slippage_bps", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_sell_slippage_bps"), "execution.sim_sell_slippage_bps", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_market_impact_bps_per_10k"), "execution.sim_market_impact_bps_per_10k", errors)
     validate_nonnegative_float(execution_cfg.get("sim_commission_bps"), "execution.sim_commission_bps", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_commission_per_share"), "execution.sim_commission_per_share", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_min_commission"), "execution.sim_min_commission", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_max_commission_pct"), "execution.sim_max_commission_pct", errors, positive=True)
 
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
@@ -713,7 +722,33 @@ class SimulatedExecutor:
         self.total_commission = 0.0
         self.allow_short = bool(execution_cfg.get("allow_short", False))
         self.slippage_bps = float(execution_cfg.get("sim_slippage_bps", 0.0))
+        self.buy_slippage_bps = execution_cfg.get("sim_buy_slippage_bps")
+        self.sell_slippage_bps = execution_cfg.get("sim_sell_slippage_bps")
+        self.market_impact_bps_per_10k = float(execution_cfg.get("sim_market_impact_bps_per_10k", 0.0))
         self.commission_bps = float(execution_cfg.get("sim_commission_bps", 0.0))
+        self.commission_per_share = float(execution_cfg.get("sim_commission_per_share", 0.0))
+        self.min_commission = float(execution_cfg.get("sim_min_commission", 0.0))
+        self.max_commission_pct = execution_cfg.get("sim_max_commission_pct")
+
+    def slippage_for(self, *, side: str, requested_notional: float | None) -> float:
+        if side == "buy" and self.buy_slippage_bps is not None:
+            base = float(self.buy_slippage_bps)
+        elif side == "sell" and self.sell_slippage_bps is not None:
+            base = float(self.sell_slippage_bps)
+        else:
+            base = self.slippage_bps
+        notional = max(0.0, float(requested_notional or 0.0))
+        impact = (notional / 10000.0) * self.market_impact_bps_per_10k
+        return base + impact
+
+    def commission_for(self, *, notional: float, quantity: float) -> float:
+        commission = notional * self.commission_bps / 10000.0
+        commission += abs(quantity) * self.commission_per_share
+        if self.min_commission > 0:
+            commission = max(commission, self.min_commission)
+        if self.max_commission_pct is not None:
+            commission = min(commission, notional * float(self.max_commission_pct) / 100.0)
+        return commission
 
     def equity(self, prices: dict[str, float]) -> float:
         return self.cash + sum(qty * prices.get(symbol, 0.0) for symbol, qty in self.positions.items())
@@ -806,11 +841,13 @@ class SimulatedExecutor:
         if side not in {"buy", "sell"}:
             return None, f"unsupported side {intent.side!r}"
 
+        requested_notional = estimate_intent_notional(intent, float(price))
         fill_price = float(price)
+        slippage_bps = self.slippage_for(side=side, requested_notional=requested_notional)
         if side == "buy":
-            fill_price *= 1.0 + self.slippage_bps / 10000.0
+            fill_price *= 1.0 + slippage_bps / 10000.0
         else:
-            fill_price *= 1.0 - self.slippage_bps / 10000.0
+            fill_price *= 1.0 - slippage_bps / 10000.0
 
         if intent.quantity is None:
             if intent.cash_quantity is None:
@@ -822,7 +859,7 @@ class SimulatedExecutor:
             return None, "quantity must be positive"
 
         notional = quantity * fill_price
-        commission = notional * self.commission_bps / 10000.0
+        commission = self.commission_for(notional=notional, quantity=quantity)
         current_qty = self.positions.get(intent.symbol, 0.0)
         delta_qty = quantity if side == "buy" else -quantity
 
@@ -856,6 +893,7 @@ class SimulatedExecutor:
             "quantity": quantity,
             "price": fill_price,
             "commission": commission,
+            "slippage_bps": slippage_bps,
             "realized_pnl": realized,
             "cumulative_realized_pnl": self.realized_pnl,
             "average_cost_after": avg_after,
@@ -999,6 +1037,14 @@ def estimate_intent_notional(intent: OrderIntent, price: float | None) -> float 
     return None
 
 
+def short_notional_by_symbol(positions: dict[str, float], prices: dict[str, float]) -> dict[str, float]:
+    return {
+        symbol: abs(float(qty)) * float(prices.get(symbol, 0.0))
+        for symbol, qty in positions.items()
+        if float(qty) < 0 and prices.get(symbol) is not None
+    }
+
+
 def validate_intent(
     intent: OrderIntent,
     *,
@@ -1066,6 +1112,8 @@ def validate_intent(
         max_cash_quantity = as_float(execution_cfg.get("max_cash_quantity"), field="max_cash_quantity")
         max_notional = as_float(execution_cfg.get("max_notional_per_order"), field="max_notional_per_order")
         max_gross_exposure = as_float(execution_cfg.get("max_gross_exposure_pct"), field="max_gross_exposure_pct")
+        max_short_symbol = as_float(execution_cfg.get("max_short_notional_per_symbol"), field="max_short_notional_per_symbol")
+        max_total_short = as_float(execution_cfg.get("max_total_short_notional"), field="max_total_short_notional")
     except ValueError as exc:
         return str(exc)
 
@@ -1082,6 +1130,24 @@ def validate_intent(
         held_qty = float(positions.get(symbol, 0.0))
         if quantity is not None and quantity > held_qty + 1e-9:
             return f"sell quantity {quantity:.8f} exceeds held quantity {held_qty:.8f}"
+    elif side == "sell" and quantity is not None and price is not None:
+        held_qty = float(positions.get(symbol, 0.0))
+        projected_qty = held_qty - quantity
+        if projected_qty < -1e-9:
+            shortable = execution_cfg.get("shortable_symbols")
+            if shortable is not None:
+                allowed_shorts = {str(item).upper() for item in shortable}
+                if symbol not in allowed_shorts:
+                    return f"symbol {symbol} is not in shortable_symbols"
+            projected_short = abs(projected_qty) * float(price)
+            if max_short_symbol is not None and projected_short > max_short_symbol + 1e-9:
+                return f"projected short notional {projected_short:.2f} exceeds max_short_notional_per_symbol {max_short_symbol:.2f}"
+            if max_total_short is not None:
+                current_shorts = short_notional_by_symbol(positions, prices)
+                current_shorts.pop(symbol, None)
+                projected_total_short = sum(current_shorts.values()) + projected_short
+                if projected_total_short > max_total_short + 1e-9:
+                    return f"projected total short notional {projected_total_short:.2f} exceeds max_total_short_notional {max_total_short:.2f}"
 
     if max_gross_exposure is not None and equity is not None and equity > 0 and notional is not None:
         current_gross = sum(

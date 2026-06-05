@@ -690,8 +690,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   - slippage models
   - partial; simulated-paper fills/account snapshots now track average cost,
     realized PnL, unrealized PnL, total PnL, and total commission using the
-    configured simulated slippage/commission fields. Borrow constraints and
-    richer commission/slippage schedules remain open.
+    configured simulated slippage/commission fields. Simulated execution now
+    also supports shortable-symbol whitelists, per-symbol/total short-notional
+    caps, side-specific slippage, simple size-based market-impact slippage,
+    commission bps, per-share commission, minimum commission, and max
+    commission caps. Borrow-fee accrual schedules and venue-specific cost
+    models remain open.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins.

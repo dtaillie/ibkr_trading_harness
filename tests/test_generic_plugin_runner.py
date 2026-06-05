@@ -285,6 +285,63 @@ def test_simulated_paper_average_cost_includes_opening_commission(tmp_path):
     assert account[-1]["total_commission"] == pytest.approx(1.0)
 
 
+def test_simulated_paper_applies_richer_commission_and_slippage_schedule(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 10, "cash_quantity": None},
+        execution={
+            "sim_buy_slippage_bps": 20,
+            "sim_sell_slippage_bps": 5,
+            "sim_market_impact_bps_per_10k": 2,
+            "sim_commission_bps": 5,
+            "sim_commission_per_share": 0.10,
+            "sim_min_commission": 2.0,
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["slippage_bps"] == pytest.approx(20.2)
+    assert fills[0]["price"] == pytest.approx(100.202)
+    assert fills[0]["commission"] == pytest.approx(2.0)
+    assert result.final_cash == pytest.approx(10000.0 - (10 * 100.202) - 2.0)
+    assert result.total_commission == pytest.approx(2.0)
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[0]["average_costs"]["SPY"] == pytest.approx(100.402)
+
+
+def test_simulated_paper_caps_commission_by_notional_pct(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 10, "cash_quantity": None},
+        execution={
+            "sim_commission_per_share": 10.0,
+            "sim_max_commission_pct": 1.0,
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["commission"] == pytest.approx(10.0)
+    assert result.total_commission == pytest.approx(10.0)
+
+
 def test_runner_holds_order_when_manual_approval_required(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
@@ -600,6 +657,56 @@ def test_runner_rejects_short_sale_when_disabled(tmp_path):
     assert result.rejections == 1
     records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
     assert "exceeds held quantity" in records[-1]["reason"]
+
+
+def test_runner_rejects_symbol_not_in_shortable_universe(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "side": "sell", "quantity": 1, "cash_quantity": None},
+        execution={"allow_short": True, "shortable_symbols": ["QQQ"]},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 1
+    assert result.fills == 0
+    assert result.rejections == 1
+    records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert records[-1]["reason"] == "symbol SPY is not in shortable_symbols"
+
+
+def test_runner_rejects_short_notional_above_symbol_cap(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "side": "sell", "quantity": 10, "cash_quantity": None},
+        execution={
+            "allow_short": True,
+            "shortable_symbols": ["SPY"],
+            "max_short_notional_per_symbol": 500,
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 1
+    assert result.fills == 0
+    assert result.rejections == 1
+    records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert "max_short_notional_per_symbol" in records[-1]["reason"]
 
 
 def test_runner_enforces_max_orders_per_run(tmp_path):

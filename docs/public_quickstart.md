@@ -124,7 +124,11 @@ the public execution path.
 Runner safety checks are configured under `execution`. The generic runner can
 reject intents before execution based on allowed symbols, sides, order types,
 current price availability, max orders per run, max quantity, max cash quantity,
-max notional per order, short-sale permission, and gross-exposure limits.
+max notional per order, short-sale permission, shortable-symbol whitelists,
+short-notional caps, and gross-exposure limits. Simulated-paper mode can model
+fixed/side-specific slippage bps, simple notional-based market impact,
+commission bps, per-share commission, minimum commission, and max commission as
+a percent of notional.
 `--validate-only` checks the static parts of this config before a run starts.
 Private strategy modules or factory functions can also expose
 `validate_config(config, *, full_config=None)` or
