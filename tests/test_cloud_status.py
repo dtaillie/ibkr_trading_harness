@@ -744,6 +744,16 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Position Detail" in html
         assert "runs-triage-note" in html
         assert "runs-triage-cards" in html
+        assert "runs-table-note" in html
+        assert "runs-filter-text" in html
+        assert "runs-filter-status" in html
+        assert "runs-filter-mode" in html
+        assert "runs-filter-sort" in html
+        assert "run-events-note" in html
+        assert "run-events-filter-text" in html
+        assert "run-events-filter-type" in html
+        assert "run-events-filter-status" in html
+        assert "run-events-filter-sort" in html
         assert "Page Guide" in html
         assert "Web UI Runbook" in html
         assert "doc-link-grid" in html

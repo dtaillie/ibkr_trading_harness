@@ -6179,10 +6179,13 @@ function renderWorkbenchArtifacts() {
 
 function renderRuns() {
   const runs = (state.status && state.status.runs) || [];
+  renderRunsFilterOptions(runs);
+  const visibleRuns = sortedRuns(filteredRuns(runs));
   renderCurrentOrdersAndPositions();
   renderRunsTriage();
-  $("runs-body").innerHTML = runs.length
-    ? runs.map((run) => {
+  $("runs-table-note").textContent = `${numberText(visibleRuns.length, 0)} shown / ${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}`;
+  $("runs-body").innerHTML = visibleRuns.length
+    ? visibleRuns.map((run) => {
         const metrics = run.metrics || {};
         return row([
           escapeHtml(run.id),
@@ -6197,7 +6200,79 @@ function renderRuns() {
           `<span class="${statusClass((run.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((run.freshness || {}).age_seconds))}</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No published runs match the current filters.</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderRunsFilterOptions(runs) {
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    if (!select) return;
+    const current = select.value;
+    const options = Array.from(new Set(values.map(text).filter((value) => value !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) select.value = current;
+  };
+  makeOptions("runs-filter-status", runs.map((run) => run.status));
+  makeOptions("runs-filter-mode", runs.map((run) => (run.metrics || {}).mode));
+}
+
+function filteredRuns(runs) {
+  const query = ($("runs-filter-text").value || "").trim().toLowerCase();
+  const status = $("runs-filter-status").value || "";
+  const mode = $("runs-filter-mode").value || "";
+  return (runs || []).filter((run) => {
+    const metrics = run.metrics || {};
+    if (status && text(run.status) !== status) return false;
+    if (mode && text(metrics.mode) !== mode) return false;
+    if (!query) return true;
+    const haystack = [
+      run.id,
+      run.status,
+      metrics.mode,
+      metrics.decisions,
+      metrics.orders,
+      metrics.fills,
+      metrics.rejections,
+      metrics.final_equity,
+      metrics.last_decision_time,
+    ].map(text).join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function runSortMetric(run, sortMode) {
+  const metrics = run.metrics || {};
+  if (sortMode === "age_asc" || sortMode === "age_desc") return Number((run.freshness || {}).age_seconds);
+  if (sortMode === "decisions_desc") return Number(metrics.decisions);
+  if (sortMode === "fills_desc") return Number(metrics.fills);
+  if (sortMode === "rejects_desc") return Number(metrics.rejections);
+  if (sortMode === "equity_desc") return Number(metrics.final_equity);
+  return text(run.id);
+}
+
+function sortedRuns(runs) {
+  const sortMode = $("runs-filter-sort").value || "age_asc";
+  const ascending = sortMode === "age_asc" || sortMode === "id_asc";
+  return (runs || []).map((run, index) => ({
+    run,
+    index,
+    metric: runSortMetric(run, sortMode),
+  })).sort((left, right) => {
+    if (typeof left.metric === "string" || typeof right.metric === "string") {
+      const result = String(left.metric).localeCompare(String(right.metric));
+      return result || left.index - right.index;
+    }
+    const leftFinite = Number.isFinite(left.metric);
+    const rightFinite = Number.isFinite(right.metric);
+    if (!leftFinite && !rightFinite) return left.index - right.index;
+    if (!leftFinite) return 1;
+    if (!rightFinite) return -1;
+    if (left.metric === right.metric) return left.index - right.index;
+    return ascending ? left.metric - right.metric : right.metric - left.metric;
+  }).map((item) => item.run);
 }
 
 function renderRunsTriage() {
@@ -6562,7 +6637,10 @@ function renderOverviewChanges() {
 }
 
 function renderRunEvents() {
-  const events = runEventRows();
+  const allEvents = runEventRows();
+  renderRunEventFilterOptions(allEvents);
+  const events = sortedRunEvents(filteredRunEvents(allEvents));
+  $("run-events-note").textContent = `${numberText(events.length, 0)} shown / ${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"}`;
   $("run-events-body").innerHTML = events.length
     ? events.map((event) => row([
         escapeHtml(event.timestamp),
@@ -6572,7 +6650,59 @@ function renderRunEvents() {
         escapeHtml(event.symbol),
         escapeHtml(event.detail),
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+    : row([`<span class="muted">No recent run events match the current filters.</span>`, "", "", "", "", ""]);
+}
+
+function renderRunEventFilterOptions(events) {
+  const select = $("run-events-filter-status");
+  if (!select) return;
+  const current = select.value;
+  const options = Array.from(new Set((events || []).map((event) => text(event.status)).filter((value) => value !== "n/a"))).sort();
+  select.innerHTML = [
+    `<option value="">All</option>`,
+    ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+  ].join("");
+  if (options.includes(current)) select.value = current;
+}
+
+function filteredRunEvents(events) {
+  const query = ($("run-events-filter-text").value || "").trim().toLowerCase();
+  const type = $("run-events-filter-type").value || "";
+  const status = $("run-events-filter-status").value || "";
+  return (events || []).filter((event) => {
+    if (type && text(event.type) !== type) return false;
+    if (status && text(event.status) !== status) return false;
+    if (!query) return true;
+    const haystack = [
+      event.timestamp,
+      event.run_id,
+      event.type,
+      event.status,
+      event.symbol,
+      event.detail,
+    ].map(text).join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function sortedRunEvents(events) {
+  const sortMode = $("run-events-filter-sort").value || "time_desc";
+  return (events || []).slice().sort((left, right) => {
+    if (sortMode === "time_asc") return String(left.timestamp || "").localeCompare(String(right.timestamp || ""));
+    if (sortMode === "type_asc") {
+      return String(left.type || "").localeCompare(String(right.type || ""))
+        || String(left.timestamp || "").localeCompare(String(right.timestamp || ""));
+    }
+    if (sortMode === "symbol_asc") {
+      return String(left.symbol || "").localeCompare(String(right.symbol || ""))
+        || String(left.timestamp || "").localeCompare(String(right.timestamp || ""));
+    }
+    if (sortMode === "run_asc") {
+      return String(left.run_id || "").localeCompare(String(right.run_id || ""))
+        || String(left.timestamp || "").localeCompare(String(right.timestamp || ""));
+    }
+    return String(right.timestamp || "").localeCompare(String(left.timestamp || ""));
+  });
 }
 
 function renderSupervisors() {
@@ -7892,6 +8022,14 @@ function init() {
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
   $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
   $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
+  $("runs-filter-text").addEventListener("input", renderRuns);
+  $("runs-filter-status").addEventListener("change", renderRuns);
+  $("runs-filter-mode").addEventListener("change", renderRuns);
+  $("runs-filter-sort").addEventListener("change", renderRuns);
+  $("run-events-filter-text").addEventListener("input", renderRunEvents);
+  $("run-events-filter-type").addEventListener("change", renderRunEvents);
+  $("run-events-filter-status").addEventListener("change", renderRunEvents);
+  $("run-events-filter-sort").addEventListener("change", renderRunEvents);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);

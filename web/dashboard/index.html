@@ -1997,6 +1997,37 @@
     <section class="dashboard-section" data-view="runs" hidden>
       <div class="section-head">
         <h2>Runs</h2>
+        <span id="runs-table-note" class="section-note">Current published run telemetry</span>
+      </div>
+      <div class="filter-row">
+        <label>
+          <span>Search</span>
+          <input id="runs-filter-text" type="search" placeholder="Run, mode, status">
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="runs-filter-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Mode</span>
+          <select id="runs-filter-mode">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="runs-filter-sort">
+            <option value="age_asc" selected>Freshest</option>
+            <option value="age_desc">Stalest</option>
+            <option value="decisions_desc">Most decisions</option>
+            <option value="fills_desc">Most fills</option>
+            <option value="rejects_desc">Most rejects</option>
+            <option value="equity_desc">Highest equity</option>
+            <option value="id_asc">Run A-Z</option>
+          </select>
+        </label>
       </div>
       <div class="table-wrap">
         <table>
@@ -2022,6 +2053,38 @@
     <section class="dashboard-section" data-view="runs" hidden>
       <div class="section-head">
         <h2>Recent Run Events</h2>
+        <span id="run-events-note" class="section-note">Latest decisions, orders, and fills</span>
+      </div>
+      <div class="filter-row">
+        <label>
+          <span>Search</span>
+          <input id="run-events-filter-text" type="search" placeholder="Run, symbol, detail">
+        </label>
+        <label>
+          <span>Type</span>
+          <select id="run-events-filter-type">
+            <option value="">All</option>
+            <option value="decision">Decisions</option>
+            <option value="order">Orders</option>
+            <option value="fill">Fills</option>
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="run-events-filter-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="run-events-filter-sort">
+            <option value="time_desc" selected>Newest</option>
+            <option value="time_asc">Oldest</option>
+            <option value="type_asc">Type A-Z</option>
+            <option value="symbol_asc">Symbol A-Z</option>
+            <option value="run_asc">Run A-Z</option>
+          </select>
+        </label>
       </div>
       <div class="table-wrap">
         <table>

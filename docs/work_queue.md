@@ -243,6 +243,9 @@ strategy-private.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows
+    - partial; the Runs page now has client-side search, status/mode filters,
+      and sort controls for current published run telemetry, plus search,
+      type/status filters, and sorting for the recent run-event timeline.
   - session timeline of decisions, orders, fills, rejects, account snapshots
     - partial; Run Artifacts now include a combined sanitized session timeline
       that interleaves decisions, orders, rejected orders, fills, and account
