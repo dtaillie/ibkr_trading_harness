@@ -421,7 +421,9 @@ so retried queue requests cannot ambiguously map later results to older
 commands. The receiver also checks `dashboard.command_scopes` before queueing:
 public examples allow read-only and pause/resume control commands, while
 launcher actions such as `run_supervisor_once` require an explicit server-side
-opt-in.
+opt-in. Hosted configs can also define `dashboard.auth_tokens` so a monitoring
+token can read status and queue only read-only commands while a separate
+operator token can queue pause/resume control commands.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,

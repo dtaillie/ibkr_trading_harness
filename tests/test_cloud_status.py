@@ -911,6 +911,16 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "  state_dir: custom_state",
                 "  dashboard_dir: custom_dashboard",
                 "  auth_token_env: TOKEN_ENV",
+                "  auth_tokens:",
+                "    - token_env: READ_TOKEN_ENV",
+                "      role: monitor",
+                "      allowed_action_classes:",
+                "        - read_only",
+                "    - token_env: CONTROL_TOKEN_ENV",
+                "      role: operator",
+                "      allowed_action_classes:",
+                "        - read_only",
+                "        - control",
                 "  command_rate_limit:",
                 "    enabled: true",
                 "    window_seconds: 12",
@@ -938,6 +948,10 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert settings["state_dir"] == Path("custom_state")
     assert settings["dashboard_dir"] == Path("custom_dashboard")
     assert settings["auth_token_env"] == "TOKEN_ENV"
+    assert [token["role"] for token in settings["auth_tokens"]] == ["monitor", "operator"]
+    assert settings["auth_tokens"][0]["token_env"] == "READ_TOKEN_ENV"
+    assert settings["auth_tokens"][0]["command_scopes"]["allowed_action_classes"] == {"read_only"}
+    assert settings["auth_tokens"][1]["command_scopes"]["allowed_action_classes"] == {"read_only", "control"}
     assert settings["command_rate_limit"] == {"enabled": True, "window_seconds": 12, "max_per_node": 7}
     assert settings["command_scopes"] == {
         "enabled": True,
@@ -3042,6 +3056,81 @@ def test_cloud_status_server_requires_bearer_auth(tmp_path, monkeypatch):
         with request.urlopen(authorized, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["ok"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_applies_per_token_command_scopes(tmp_path, monkeypatch):
+    monkeypatch.setenv("READ_TOKEN", "read-secret")
+    monkeypatch.setenv("CONTROL_TOKEN", "control-secret")
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        auth_tokens=[
+            {"token_env": "READ_TOKEN", "role": "monitor", "allowed_action_classes": ["read_only"]},
+            {"token_env": "CONTROL_TOKEN", "role": "operator", "allowed_action_classes": ["read_only", "control"]},
+        ],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+
+        read_status_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "request_status",
+                "params": {},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer read-secret"},
+            method="POST",
+        )
+        with request.urlopen(read_status_req, timeout=5) as resp:
+            read_payload = json.loads(resp.read().decode("utf-8"))
+        assert read_payload["command"]["action_class"] == "read_only"
+
+        read_control_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "pause_runner",
+                "params": {},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer read-secret"},
+            method="POST",
+        )
+        try:
+            request.urlopen(read_control_req, timeout=5)
+            raise AssertionError("expected token-scope rejection")
+        except error.HTTPError as exc:
+            assert exc.code == 403
+            rejected = json.loads(exc.read().decode("utf-8"))
+        assert rejected["error"] == "command action is outside server scope: pause_runner (control)"
+
+        control_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "pause_runner",
+                "params": {},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": "Bearer control-secret"},
+            method="POST",
+        )
+        with request.urlopen(control_req, timeout=5) as resp:
+            control_payload = json.loads(resp.read().decode("utf-8"))
+        assert control_payload["command"]["action_class"] == "control"
+
+        audit_req = request.Request(
+            f"{base}/command_audit?node_id=test-node",
+            headers={"Authorization": "Bearer control-secret"},
+        )
+        with request.urlopen(audit_req, timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert [event.get("auth_role") for event in audit["events"]] == ["monitor", "monitor", "operator"]
     finally:
         server.shutdown()
         server.server_close()

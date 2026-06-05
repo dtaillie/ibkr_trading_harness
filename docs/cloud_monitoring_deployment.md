@@ -164,6 +164,23 @@ classes by default; `launcher` commands such as `run_supervisor_once` require
 an explicit server-side opt-in through `allowed_action_classes` or
 `allowed_actions`.
 
+For hosted receivers, prefer separate tokens:
+
+```yaml
+dashboard:
+  auth_tokens:
+    - token_env: TRADING_STATUS_READ_TOKEN
+      role: monitor
+      allowed_action_classes: [read_only]
+    - token_env: TRADING_STATUS_CONTROL_TOKEN
+      role: operator
+      allowed_action_classes: [read_only, control]
+```
+
+Both tokens can read dashboard/status endpoints. Only the operator token can
+queue pause/resume control commands, and launcher commands still need explicit
+server and local opt-in.
+
 Run the worker once:
 
 ```bash

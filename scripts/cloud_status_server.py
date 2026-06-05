@@ -963,6 +963,7 @@ def dashboard_server_settings(
         "data_roots": None,
         "fetch_manifest_roots": None,
         "auth_token_env": None,
+        "auth_tokens": [],
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
         "command_scopes": normalize_command_scope_policy({}),
     }
@@ -981,6 +982,8 @@ def dashboard_server_settings(
             settings["dashboard_dir"] = Path(str(dashboard["dashboard_dir"]))
         if dashboard.get("auth_token_env") is not None:
             settings["auth_token_env"] = str(dashboard["auth_token_env"])
+        if dashboard.get("auth_tokens") is not None:
+            settings["auth_tokens"] = normalize_auth_token_configs(dashboard["auth_tokens"])
         if dashboard.get("data_roots") is not None:
             raw_roots = dashboard["data_roots"]
             if not isinstance(raw_roots, list):
@@ -4662,11 +4665,18 @@ def command_rate_limit_path(state_dir: Path) -> Path:
     return state_dir / "command_rate_limits.json"
 
 
-def normalize_command_scope_policy(raw: dict[str, Any] | None) -> dict[str, Any]:
+def normalize_command_scope_policy(
+    raw: dict[str, Any] | None,
+    *,
+    default_allowed_action_classes: Iterable[str] | None = None,
+    default_allowed_actions: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    default_classes = tuple(default_allowed_action_classes or DEFAULT_COMMAND_SCOPE_POLICY["allowed_action_classes"])
+    default_actions = tuple(default_allowed_actions or DEFAULT_COMMAND_SCOPE_POLICY["allowed_actions"])
     policy = {
         "enabled": DEFAULT_COMMAND_SCOPE_POLICY["enabled"],
-        "allowed_action_classes": set(DEFAULT_COMMAND_SCOPE_POLICY["allowed_action_classes"]),
-        "allowed_actions": set(DEFAULT_COMMAND_SCOPE_POLICY["allowed_actions"]),
+        "allowed_action_classes": set(default_classes),
+        "allowed_actions": set(default_actions),
     }
     if not raw:
         return policy
@@ -4704,6 +4714,41 @@ def command_scope_error(action: str, policy: dict[str, Any]) -> str | None:
     if action_class in allowed_classes:
         return None
     return f"command action is outside server scope: {action} ({action_class})"
+
+
+def normalize_auth_token_configs(raw: list[Any] | None) -> list[dict[str, Any]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("dashboard.auth_tokens must be a list")
+    tokens: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"dashboard.auth_tokens[{index}] must be a mapping")
+        token_env = str(item.get("token_env") or "").strip()
+        if not token_env:
+            raise ValueError(f"dashboard.auth_tokens[{index}].token_env is required")
+        scope_raw: dict[str, Any] = {}
+        if item.get("command_scopes") is not None:
+            if not isinstance(item["command_scopes"], dict):
+                raise ValueError(f"dashboard.auth_tokens[{index}].command_scopes must be a mapping")
+            scope_raw.update(item["command_scopes"])
+        if item.get("allowed_action_classes") is not None:
+            scope_raw["allowed_action_classes"] = item["allowed_action_classes"]
+        if item.get("allowed_actions") is not None:
+            scope_raw["allowed_actions"] = item["allowed_actions"]
+        if item.get("enabled") is not None:
+            scope_raw["enabled"] = item["enabled"]
+        tokens.append({
+            "token_env": token_env,
+            "role": str(item.get("role") or token_env).strip(),
+            "command_scopes": normalize_command_scope_policy(
+                scope_raw,
+                default_allowed_action_classes=("read_only",),
+                default_allowed_actions=(),
+            ),
+        })
+    return tokens
 
 
 def load_commands(state_dir: Path) -> list[dict[str, Any]]:
@@ -5055,6 +5100,7 @@ def render_dashboard(payload: dict[str, Any] | None) -> str:
 class StatusHandler(BaseHTTPRequestHandler):
     state_dir = Path("paper_logs/cloud_status_server")
     auth_token_env: str | None = None
+    auth_tokens: list[dict[str, Any]] = []
     dashboard_dir = DEFAULT_DASHBOARD_DIR
     data_roots = list(DEFAULT_DATA_ROOTS)
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
@@ -5066,18 +5112,51 @@ class StatusHandler(BaseHTTPRequestHandler):
             return None
         return os.getenv(self.auth_token_env)
 
-    def require_auth(self) -> bool:
-        if not self.auth_token_env:
-            return True
-        bearer_value = self.auth_token()
-        if not bearer_value:
-            json_response(self, 503, {"error": f"auth token env var is not set: {self.auth_token_env}"})
-            return False
-        expected = f"Bearer {bearer_value}"
-        if self.headers.get("Authorization") == expected:
-            return True
+    def configured_auth_tokens(self) -> list[dict[str, Any]]:
+        configs = []
+        if self.auth_token_env:
+            configs.append({
+                "token_env": self.auth_token_env,
+                "role": "server",
+                "command_scopes": None,
+            })
+        configs.extend(self.auth_tokens)
+        return configs
+
+    def resolve_auth_context(self) -> dict[str, Any] | None:
+        configs = self.configured_auth_tokens()
+        if not configs:
+            return {"role": "anonymous", "token_env": None, "command_scopes": None}
+        available = []
+        missing = []
+        for config in configs:
+            token_env = str(config.get("token_env") or "")
+            token_value = os.getenv(token_env)
+            if token_value:
+                available.append((config, token_value))
+            else:
+                missing.append(token_env)
+        if not available:
+            missing_text = ", ".join(sorted(env for env in missing if env))
+            json_response(self, 503, {"error": f"auth token env var is not set: {missing_text}"})
+            return None
+        auth_header = self.headers.get("Authorization")
+        for config, token_value in available:
+            if auth_header == f"Bearer {token_value}":
+                return {
+                    "role": str(config.get("role") or config.get("token_env") or "token"),
+                    "token_env": str(config.get("token_env") or ""),
+                    "command_scopes": config.get("command_scopes"),
+                }
         json_response(self, 401, {"error": "unauthorized"})
-        return False
+        return None
+
+    def require_auth(self) -> bool:
+        context = self.resolve_auth_context()
+        if context is None:
+            return False
+        self.auth_context = context
+        return True
 
     def do_POST(self) -> None:
         if not self.require_auth():
@@ -5095,12 +5174,27 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             node_id = str(payload.get("node_id") or "").strip() if isinstance(payload, dict) else ""
             action = str(payload.get("action") or "").strip() if isinstance(payload, dict) else ""
+            auth_context = getattr(self, "auth_context", {}) or {}
             if error := command_scope_error(action, self.command_scopes):
                 append_command_audit(
                     self.state_dir,
                     {
                         "event": "queue_rejected",
                         "error": error,
+                        "auth_role": str(auth_context.get("role") or ""),
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
+                json_response(self, 403, {"error": error})
+                return
+            token_scopes = auth_context.get("command_scopes")
+            if token_scopes and (error := command_scope_error(action, token_scopes)):
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "queue_rejected",
+                        "error": error,
+                        "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
                 )
@@ -5112,6 +5206,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     {
                         "event": "queue_rejected",
                         "error": error,
+                        "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
                 )
@@ -5125,6 +5220,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     {
                         "event": "queue_rejected",
                         "error": str(exc),
+                        "auth_role": str(auth_context.get("role") or ""),
                         **sanitized_command_audit_payload(payload),
                     },
                 )
@@ -5134,6 +5230,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self.state_dir,
                 {
                     "event": "command_queued",
+                    "auth_role": str(auth_context.get("role") or ""),
                     **sanitized_command_audit_payload(command),
                 },
             )
@@ -5733,6 +5830,7 @@ def create_server(
     state_dir: Path,
     *,
     auth_token_env: str | None = None,
+    auth_tokens: list[dict[str, Any]] | None = None,
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
@@ -5744,6 +5842,7 @@ def create_server(
 
     Handler.state_dir = state_dir
     Handler.auth_token_env = auth_token_env
+    Handler.auth_tokens = normalize_auth_token_configs(auth_tokens)
     Handler.dashboard_dir = dashboard_dir
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
@@ -5794,6 +5893,7 @@ def main() -> None:
         int(settings["port"]),
         settings["state_dir"],
         auth_token_env=settings["auth_token_env"],
+        auth_tokens=settings["auth_tokens"],
         dashboard_dir=settings["dashboard_dir"],
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],

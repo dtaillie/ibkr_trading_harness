@@ -47,6 +47,16 @@ dashboard:
   port: 8765
   state_dir: paper_logs/cloud_status_server
   auth_token_env: null  # e.g. TRADING_STATUS_TOKEN
+  # Optional per-token roles. If configured, any listed token can authenticate
+  # dashboard/status endpoints, but command queue access is limited by the
+  # token's allowed action classes/actions.
+  # auth_tokens:
+  #   - token_env: TRADING_STATUS_READ_TOKEN
+  #     role: monitor
+  #     allowed_action_classes: [read_only]
+  #   - token_env: TRADING_STATUS_CONTROL_TOKEN
+  #     role: operator
+  #     allowed_action_classes: [read_only, control]
   command_rate_limit:
     enabled: true
     window_seconds: 60

@@ -8,6 +8,14 @@ dashboard:
   port: 8765
   state_dir: paper_logs/cloud_status_server
   auth_token_env: TRADING_STATUS_TOKEN
+  # Optional stronger split for hosted receivers:
+  # auth_tokens:
+  #   - token_env: TRADING_STATUS_READ_TOKEN
+  #     role: monitor
+  #     allowed_action_classes: [read_only]
+  #   - token_env: TRADING_STATUS_CONTROL_TOKEN
+  #     role: operator
+  #     allowed_action_classes: [read_only, control]
   command_rate_limit:
     enabled: true
     window_seconds: 60
