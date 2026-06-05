@@ -330,8 +330,10 @@ compact ok/warn/bad quality summary.
 Use Compare Saved Data to select several catalog-visible datasets and overlay
 their normalized close-return paths over one requested date range. Use Find
 Dataset to filter a large catalog by symbol, source, bar size, quality, or path;
-selected datasets stay visible while filtering. This is offline and only reads
-CSV/parquet files under configured data roots.
+selected datasets stay visible while filtering. Select Shown chooses the
+visible comparison set up to the dashboard's 8-dataset comparison cap, and
+Clear removes the current selection. This is offline and only reads CSV/parquet
+files under configured data roots.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and

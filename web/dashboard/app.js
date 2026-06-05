@@ -10,6 +10,7 @@ const state = {
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
   dataCompare: null,
   dataCompareSelectedPaths: [],
+  dataCompareSelectionCleared: false,
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
@@ -59,6 +60,7 @@ const commandParamNames = {
 };
 
 const $ = (id) => document.getElementById(id);
+const MAX_DATA_COMPARE_DATASETS = 8;
 
 function token() {
   return sessionStorage.getItem("statusToken") || "";
@@ -602,8 +604,17 @@ function selectedCompareDatasets() {
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
-function updateCompareSelectionFromSelect() {
-  state.dataCompareSelectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
+function updateCompareSelectionFromSelect(announce = false) {
+  const selected = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
+  const capped = selected.slice(0, MAX_DATA_COMPARE_DATASETS);
+  state.dataCompareSelectedPaths = capped;
+  state.dataCompareSelectionCleared = capped.length === 0;
+  for (const option of $("data-compare-datasets").options) {
+    option.selected = capped.includes(option.value);
+  }
+  if (announce && selected.length > MAX_DATA_COMPARE_DATASETS) {
+    $("last-refresh").textContent = `Compare selection capped at ${MAX_DATA_COMPARE_DATASETS} datasets`;
+  }
 }
 
 function latestAccountRow(accountRows) {
@@ -3390,15 +3401,40 @@ function renderDataCompareControls() {
   for (const option of select.options) {
     option.selected = previousSelection.has(option.value);
   }
-  if (!previousSelection.size && datasets.length >= 2) {
+  if (!previousSelection.size && !state.dataCompareSelectionCleared && datasets.length >= 2) {
     for (const option of select.options) option.selected = false;
     select.options[0].selected = true;
     select.options[1].selected = true;
   }
   updateCompareSelectionFromSelect();
+  const selectedCount = state.dataCompareSelectedPaths.length;
   $("data-compare-filter-note").textContent = filter
-    ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total; selected files stay visible`
-    : `${numberText(allDatasets.length, 0)} catalog datasets; choose at least two`;
+    ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`
+    : `${numberText(allDatasets.length, 0)} catalog datasets; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`;
+}
+
+function selectShownCompareDatasets() {
+  const select = $("data-compare-datasets");
+  const paths = Array.from(select.options).map((option) => option.value).slice(0, MAX_DATA_COMPARE_DATASETS);
+  state.dataCompareSelectedPaths = paths;
+  state.dataCompareSelectionCleared = paths.length === 0;
+  for (const option of select.options) {
+    option.selected = paths.includes(option.value);
+  }
+  renderDataCompareControls();
+  $("last-refresh").textContent = paths.length
+    ? `Selected ${numberText(paths.length, 0)} shown dataset${paths.length === 1 ? "" : "s"} for comparison`
+    : "No shown datasets to select";
+}
+
+function clearCompareSelection() {
+  state.dataCompareSelectedPaths = [];
+  state.dataCompareSelectionCleared = true;
+  for (const option of $("data-compare-datasets").options) {
+    option.selected = false;
+  }
+  renderDataCompareControls();
+  $("last-refresh").textContent = "Compare selection cleared";
 }
 
 function renderDataCompare() {
@@ -6213,7 +6249,9 @@ function init() {
   });
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-compare-filter").addEventListener("input", renderDataCompareControls);
-  $("data-compare-datasets").addEventListener("change", updateCompareSelectionFromSelect);
+  $("data-compare-datasets").addEventListener("change", () => updateCompareSelectionFromSelect(true));
+  $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
+  $("data-compare-clear").addEventListener("click", clearCompareSelection);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
