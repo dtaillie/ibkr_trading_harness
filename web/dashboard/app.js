@@ -279,6 +279,39 @@ function selectedConfigDatasets() {
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
+function renderConfigDataQuality() {
+  const selected = selectedConfigDatasets();
+  if (!$("config-data-quality-note") || !$("config-data-quality-body")) return;
+  if (!selected.length) {
+    $("config-data-quality-note").innerHTML = `<span class="muted">No datasets selected</span>`;
+    $("config-data-quality-body").innerHTML = row([
+      `<span class="muted">select datasets</span>`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+    return;
+  }
+  const warningRows = selected.filter((dataset) => (
+    dataset.quality_status === "warn" || dataset.quality_status === "bad"
+  ));
+  $("config-data-quality-note").innerHTML = warningRows.length
+    ? `<span class="status-warn">${warningRows.length} suspicious of ${selected.length} selected</span>`
+    : `<span class="status-ok">${selected.length} selected datasets ready</span>`;
+  $("config-data-quality-body").innerHTML = selected.map((dataset) => row([
+    escapeHtml(text(dataset.symbol)),
+    qualityBadge(dataset.quality_status, dataset.quality_warnings),
+    escapeHtml(text(dataset.bar_size)),
+    escapeHtml(numberText(dataset.rows, 0)),
+    escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp)),
+    escapeHtml((dataset.quality_warnings || []).join("; ") || "none"),
+    `<span class="mono">${escapeHtml(dataset.path)}</span>`,
+  ])).join("");
+}
+
 function selectedCompareDatasets() {
   const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
@@ -1974,6 +2007,7 @@ function renderConfigBuilder() {
   for (const [id, value] of Object.entries(defaultFields)) {
     if (!$(`${id}`).value && value !== undefined) $(`${id}`).value = String(value);
   }
+  renderConfigDataQuality();
 
   const draft = state.configDraft;
   if (!draft) {
@@ -2006,7 +2040,7 @@ function renderConfigAlignment(alignment) {
     : "No alignment data";
   const rows = alignment.rows || [];
   const symbolSummary = rows.map((item) => (
-    `${text(item.symbol)} rows=${numberText(item.rows, 0)} ts=${numberText(item.timestamp_count, 0)} step=${interval(item.median_interval_seconds)}`
+    `${text(item.symbol)} quality=${text(item.quality_status)} quality_warnings=${numberText(item.quality_warning_count, 0)} rows=${numberText(item.rows, 0)} ts=${numberText(item.timestamp_count, 0)} step=${interval(item.median_interval_seconds)}`
   )).join("; ");
   const pairs = [
     ["Datasets", numberText(alignment.dataset_count, 0)],
@@ -3288,6 +3322,7 @@ function init() {
   $("data-filter-bar").addEventListener("change", renderDataCatalog);
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
+  $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;

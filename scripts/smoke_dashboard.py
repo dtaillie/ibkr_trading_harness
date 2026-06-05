@@ -113,6 +113,8 @@ def run_smoke(
             "data-filter-source",
             "export-data-catalog-csv",
             "export-workbench-snapshot",
+            "config-data-quality-note",
+            "config-data-quality-body",
             "config-preview-alignment",
             "config-commands",
             "validate-drafts",
@@ -176,6 +178,8 @@ def run_smoke(
             "shellQuote",
             "copyText",
             "risk_presets",
+            "renderConfigDataQuality",
+            "quality_warning_count",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

@@ -1128,6 +1128,16 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
         assert datasets["BAD"]["quality_status"] == "bad"
         assert "no parseable timestamps" in datasets["BAD"]["quality_warnings"]
         assert "no close/last column found" in datasets["BAD"]["quality_warnings"]
+
+        alignment = post_json(
+            base,
+            "/data_alignment",
+            {"datasets": [{"symbol": "WARN", "path": str(data_root / "WARN_1min_sample.csv")}]},
+        )["alignment"]
+        assert alignment["rows"][0]["quality_status"] == "warn"
+        assert alignment["rows"][0]["quality_warning_count"] >= 1
+        assert alignment["warning_count"] >= 1
+        assert any("WARN: data quality warn" in item for item in alignment["warnings"])
     finally:
         server.shutdown()
         server.server_close()

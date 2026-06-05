@@ -1915,6 +1915,7 @@ def pct(value: float | None) -> float | None:
 
 def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
     df, fmt = read_data_file(path)
+    data_summary = summarize_data_file(path, root=path.parent.resolve(), preview_points=2)
     ts_col = timestamp_column(df)
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
     parsed = pd.Series([], dtype="datetime64[ns, UTC]")
@@ -1933,6 +1934,9 @@ def timestamp_summary_for_file(symbol: str, path: Path) -> dict[str, Any]:
         "first_timestamp": valid.iloc[0].isoformat() if not valid.empty else None,
         "last_timestamp": valid.iloc[-1].isoformat() if not valid.empty else None,
         "median_interval_seconds": finite_float(diffs.median()) if not diffs.empty else None,
+        "quality_status": data_summary.get("quality_status"),
+        "quality_warnings": data_summary.get("quality_warnings") or [],
+        "quality_warning_count": data_summary.get("quality_warning_count", 0),
         "_timestamps": valid,
     }
 
@@ -1951,6 +1955,9 @@ def build_data_alignment_for_files(selected: dict[str, tuple[Path, str]]) -> dic
             warnings.append(f"{symbol}: no parseable timestamps")
         elif summary["timestamp_parse_failures"]:
             warnings.append(f"{symbol}: {summary['timestamp_parse_failures']} timestamp parse failures")
+        if summary.get("quality_status") in {"warn", "bad"}:
+            quality_items = summary.get("quality_warnings") or []
+            warnings.append(f"{symbol}: data quality {summary.get('quality_status')} - {'; '.join(quality_items) or 'review file'}")
         timestamp_set = set(timestamps)
         timestamp_sets.append(timestamp_set)
         union_values.update(timestamp_set)
