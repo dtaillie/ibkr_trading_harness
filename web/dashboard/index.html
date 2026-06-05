@@ -552,6 +552,27 @@
       <div id="data-root-cards" class="root-grid"></div>
       <section class="nested-section">
         <div class="section-head">
+          <h2>Symbol Browser</h2>
+          <span id="data-symbol-browser-note" class="section-note">No symbols loaded</span>
+        </div>
+        <div class="symbol-browser">
+          <label class="wide-field">
+            <span>Pick a scanned symbol</span>
+            <input id="data-symbol-browser-input" type="search" list="data-symbol-browser-options" placeholder="Type SPY, NVDA, BTC-USD">
+            <datalist id="data-symbol-browser-options"></datalist>
+          </label>
+          <label>
+            <span>Best file</span>
+            <select id="data-symbol-browser-dataset"></select>
+          </label>
+          <button id="data-symbol-browser-filter" type="button">Filter Table</button>
+          <button id="data-symbol-browser-inspect" class="secondary" type="button">Inspect</button>
+          <button id="data-symbol-browser-diagnose" class="secondary" type="button">Diagnose</button>
+        </div>
+        <div id="data-symbol-browser-matches" class="symbol-match-grid"></div>
+      </section>
+      <section class="nested-section">
+        <div class="section-head">
           <h2>Catalog Scan Diagnostics</h2>
           <span id="data-catalog-scan-note" class="section-note">No catalog scan loaded</span>
         </div>

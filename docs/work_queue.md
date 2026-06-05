@@ -358,6 +358,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - symbol picker that can load every scanned symbol, not just public examples
     - partial; every scanned catalog row can be inspected, richer typeahead
       symbol picking remains open
+    - partial; Data Library now has a catalog-fed Symbol Browser with a
+      typeahead symbol input, best-file selector, one-click table filter,
+      diagnose action, and direct Data Detail inspection for scanned files.
   - gap markers
     - partial; gaps are listed in the detail table, chart markers remain open
   - sampled and full-resolution modes

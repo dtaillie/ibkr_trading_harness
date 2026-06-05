@@ -233,6 +233,53 @@ button.secondary {
   background: var(--panel);
 }
 
+.symbol-browser {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.9fr) repeat(3, auto);
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.symbol-match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.symbol-match-card {
+  display: block;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  text-align: left;
+}
+
+.symbol-match-card:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+.symbol-match-card span,
+.symbol-match-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.symbol-match-card strong {
+  display: block;
+  margin: 7px 0;
+  font-size: 18px;
+}
+
 .builder-form {
   align-items: end;
   padding: 14px;
@@ -1093,6 +1140,7 @@ footer {
   .artifact-grid,
   .data-detail-grid,
   .viewer-controls,
+  .symbol-browser,
   .builder-output,
   .overview-hero,
   .performance-layout,

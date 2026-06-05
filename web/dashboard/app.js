@@ -1703,6 +1703,75 @@ function renderDataFilterOptions(datasets) {
   makeOptions("data-filter-source", (datasets || []).map((item) => item.source));
 }
 
+function symbolBrowserGroups() {
+  const groups = new Map();
+  for (const dataset of (state.dataCatalog.datasets || [])) {
+    const symbol = text(dataset.symbol);
+    if (symbol === "n/a") continue;
+    if (!groups.has(symbol)) groups.set(symbol, []);
+    groups.get(symbol).push(dataset);
+  }
+  for (const rows of groups.values()) {
+    rows.sort((a, b) => {
+      const qualityRank = { ok: 0, warn: 1, bad: 2 };
+      const aQuality = qualityRank[text(a.quality_status)] ?? 3;
+      const bQuality = qualityRank[text(b.quality_status)] ?? 3;
+      if (aQuality !== bQuality) return aQuality - bQuality;
+      const aRows = Number(a.rows || 0);
+      const bRows = Number(b.rows || 0);
+      if (aRows !== bRows) return bRows - aRows;
+      return text(a.path).localeCompare(text(b.path));
+    });
+  }
+  return groups;
+}
+
+function selectedSymbolBrowserSymbol() {
+  return ($("data-symbol-browser-input").value || "").trim().toUpperCase();
+}
+
+function selectedSymbolBrowserDatasets() {
+  const symbol = selectedSymbolBrowserSymbol();
+  if (!symbol) return [];
+  return symbolBrowserGroups().get(symbol) || [];
+}
+
+function renderSymbolBrowser() {
+  const groups = symbolBrowserGroups();
+  const symbols = Array.from(groups.keys()).sort();
+  const input = $("data-symbol-browser-input");
+  const datalist = $("data-symbol-browser-options");
+  const datasetSelect = $("data-symbol-browser-dataset");
+  const previousSymbol = selectedSymbolBrowserSymbol();
+  datalist.innerHTML = symbols.map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
+  if (!previousSymbol && symbols.length) input.value = symbols[0];
+  if (previousSymbol && !groups.has(previousSymbol)) {
+    datasetSelect.innerHTML = "";
+    $("data-symbol-browser-note").innerHTML = `<span class="status-warn">No catalog files match ${escapeHtml(previousSymbol)}</span>`;
+    $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No match</strong><span>Use Diagnose to check unconfigured roots and fetch manifests for this symbol.</span></div>`;
+    return;
+  }
+  const selected = selectedSymbolBrowserDatasets();
+  const datasetOptions = selected.map((dataset) => ({
+    value: dataset.path,
+    label: `${text(dataset.bar_size)} ${text(dataset.source)} ${text(dataset.quality_status)} ${numberText(dataset.rows, 0)} rows`,
+  }));
+  replaceOptions(datasetSelect, datasetOptions);
+  $("data-symbol-browser-note").textContent = symbols.length
+    ? `${numberText(symbols.length, 0)} unique scanned symbols; ${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"} for ${text(selectedSymbolBrowserSymbol())}`
+    : "No scanned symbols loaded";
+  $("data-symbol-browser-matches").innerHTML = selected.length
+    ? selected.slice(0, 6).map((dataset) => `
+        <button type="button" class="symbol-match-card" data-path="${escapeHtml(dataset.path)}">
+          <span>${escapeHtml(text(dataset.symbol))}</span>
+          <strong>${escapeHtml(text(dataset.bar_size))}</strong>
+          <small>${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.asset_class))} / ${escapeHtml(text(dataset.quality_status))}</small>
+          <small>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</small>
+        </button>
+      `).join("")
+    : `<div class="empty-card"><strong>No scanned symbols</strong><span>Add or configure historical data roots, then refresh the catalog.</span></div>`;
+}
+
 function countSummary(counts) {
   const entries = Object.entries(counts || {});
   return entries.length
@@ -1750,6 +1819,7 @@ function renderDataCatalog() {
   const filtered = filteredDataCatalog(datasets);
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
+  renderSymbolBrowser();
   $("data-catalog-body").innerHTML = filtered.length
     ? filtered.map((dataset) => row([
         escapeHtml(dataset.symbol),
@@ -1785,6 +1855,29 @@ function renderDataCatalog() {
   $("data-catalog-errors").innerHTML = errorText
     ? `${escapeHtml(filterLabel)}<br>${errorText}`
     : escapeHtml(filterLabel);
+}
+
+function selectedSymbolBrowserPath() {
+  return $("data-symbol-browser-dataset").value || (selectedSymbolBrowserDatasets()[0] || {}).path || "";
+}
+
+async function inspectSelectedSymbol() {
+  const path = selectedSymbolBrowserPath();
+  if (!path) {
+    $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
+    return;
+  }
+  await loadDataDetail(path, { resetControls: true });
+}
+
+async function diagnoseSelectedSymbol() {
+  const symbol = selectedSymbolBrowserSymbol();
+  if (!symbol) {
+    $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Enter a symbol first</span>`;
+    return;
+  }
+  $("data-symbol-input").value = symbol;
+  await diagnoseDataSymbol(new Event("submit"));
 }
 
 function renderDataLibrarySummary() {
@@ -3927,6 +4020,23 @@ function init() {
       $("last-refresh").textContent = `Storage audit refresh failed: ${err.message}`;
     });
   });
+  $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-browser-filter").addEventListener("click", () => {
+    const symbol = selectedSymbolBrowserSymbol();
+    $("data-filter-text").value = symbol;
+    renderDataCatalog();
+    $("last-refresh").textContent = symbol ? `Catalog filtered to ${symbol}` : "Catalog symbol filter cleared";
+  });
+  $("data-symbol-browser-inspect").addEventListener("click", () => {
+    inspectSelectedSymbol().catch((err) => {
+      $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-browser-diagnose").addEventListener("click", () => {
+    diagnoseSelectedSymbol().catch((err) => {
+      $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
   }
@@ -4082,6 +4192,13 @@ function init() {
         $("last-refresh").textContent = `Data detail failed: ${err.message}`;
       });
     }
+  });
+  $("data-symbol-browser-matches").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".symbol-match-card") : null;
+    if (!(target instanceof HTMLElement)) return;
+    loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
+      $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
   });
   $("copy-data-path").addEventListener("click", () => {
     copyText((state.dataDetail || {}).path || "").then(() => {

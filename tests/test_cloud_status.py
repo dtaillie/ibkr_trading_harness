@@ -548,6 +548,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-scan-body" in html
         assert "data-storage-scan-limit" in html
         assert "data-storage-audit-body" in html
+        assert "data-symbol-browser-input" in html
+        assert "data-symbol-browser-dataset" in html
+        assert "data-symbol-browser-matches" in html
         assert "data-coverage-grid" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
