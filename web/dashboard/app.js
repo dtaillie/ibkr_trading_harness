@@ -2688,53 +2688,91 @@ function replaceOptions(select, options) {
   }
 }
 
+function configFormOptionRows(field, options) {
+  const source = field.options_source || "";
+  if (source === "plugins") {
+    return (options.plugins || []).map((plugin) => ({
+      value: plugin.id,
+      label: `${plugin.label} (${plugin.visibility || plugin.status})`,
+    }));
+  }
+  if (source === "modes") return (options.modes || []).map((mode) => ({ value: mode, label: mode }));
+  if (source === "risk_presets") {
+    return (options.risk_presets || []).map((preset) => ({
+      value: preset.id,
+      label: `${preset.label} - ${preset.description}`,
+    }));
+  }
+  if (source === "datasets") {
+    return (state.dataCatalog.datasets || []).map((dataset) => ({
+      value: dataset.path,
+      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
+    }));
+  }
+  return (field.options || []).map((option) => ({
+    value: option.value ?? option.id ?? option,
+    label: option.label ?? option.value ?? option.id ?? option,
+  }));
+}
+
+function renderConfigFormSchema() {
+  const fields = (state.configOptions && state.configOptions.form_schema) || [];
+  const container = $("config-form-fields");
+  if (!container || container.dataset.rendered === "true" || !fields.length) return;
+  container.innerHTML = fields.map((field) => {
+    const id = escapeHtml(field.id);
+    const label = escapeHtml(field.label || field.name || field.id);
+    const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
+    const cls = [
+      field.kind === "checkbox" ? "checkbox-field" : "",
+      field.wide ? "wide-field" : "",
+    ].filter(Boolean).join(" ");
+    if (field.kind === "select") {
+      const multiple = field.multiple ? " multiple" : "";
+      const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
+      return `<label class="${escapeHtml(cls)}"><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
+    }
+    if (field.kind === "checkbox") {
+      return `<label class="${escapeHtml(cls)}"><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
+    }
+    const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
+    const attrs = [
+      `id="${id}"`,
+      `type="${escapeHtml(type)}"`,
+      field.min !== undefined ? `min="${escapeHtml(String(field.min))}"` : "",
+      field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
+      field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
+    ].filter(Boolean).join(" ");
+    return `<label class="${escapeHtml(cls)}"><span>${label}</span><input ${attrs}>${help}</label>`;
+  }).join("");
+  container.dataset.rendered = "true";
+}
+
 function renderConfigBuilder() {
   const options = state.configOptions || {};
   const defaults = options.defaults || {};
-  const plugins = (options.plugins || []).map((plugin) => ({
-    value: plugin.id,
-    label: `${plugin.label} (${plugin.visibility || plugin.status})`,
-  }));
-  const modes = (options.modes || []).map((mode) => ({ value: mode, label: mode }));
   const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
-  const riskPresets = (options.risk_presets || []).map((preset) => ({
-    value: preset.id,
-    label: `${preset.label} - ${preset.description}`,
-  }));
-  const datasets = (state.dataCatalog.datasets || []).map((dataset) => ({
-    value: dataset.path,
-    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
-  }));
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const draftOptions = drafts.map((draft) => ({
     value: draft.draft_id,
     label: `${draft.draft_id} - ${text(draft.mode)}`,
   }));
-  if (plugins.length) replaceOptions($("config-plugin"), plugins);
-  if (modes.length) replaceOptions($("config-mode"), modes);
+  renderConfigFormSchema();
+  for (const field of options.form_schema || []) {
+    if (field.kind === "select" && $(field.id)) {
+      replaceOptions($(field.id), configFormOptionRows(field, options));
+    }
+  }
   if (runActions.length) replaceOptions($("config-run-action"), runActions);
-  if (riskPresets.length) replaceOptions($("config-risk-preset"), riskPresets);
-  replaceOptions($("config-dataset"), datasets);
   replaceOptions($("config-run-draft"), draftOptions);
 
-  const defaultFields = {
-    "config-name": defaults.name,
-    "config-starting-cash": defaults.starting_cash,
-    "config-history-bars": defaults.history_bars,
-    "config-max-steps": defaults.max_steps,
-    "config-run-max-steps": defaults.max_steps,
-    "config-risk-preset": defaults.risk_preset,
-    "config-max-orders": defaults.max_orders_per_run,
-    "config-max-notional": defaults.max_notional_per_order,
-    "config-max-quantity": defaults.max_quantity,
-    "config-max-cash": defaults.max_cash_quantity,
-    "config-max-exposure": defaults.max_gross_exposure_pct,
-    "config-slippage": defaults.sim_slippage_bps,
-    "config-commission": defaults.sim_commission_bps,
-    "config-run-timeout": defaults.run_timeout_seconds,
-  };
+  const defaultFields = Object.fromEntries((options.form_schema || [])
+    .filter((field) => field.default_key)
+    .map((field) => [field.id, defaults[field.default_key]]));
+  defaultFields["config-run-max-steps"] = defaults.max_steps;
+  defaultFields["config-run-timeout"] = defaults.run_timeout_seconds;
   for (const [id, value] of Object.entries(defaultFields)) {
-    if (!$(`${id}`).value && value !== undefined) $(`${id}`).value = String(value);
+    if ($(id) && !$(id).value && value !== undefined) $(id).value = String(value);
   }
   renderConfigDataQuality();
   renderWorkbenchGuide();

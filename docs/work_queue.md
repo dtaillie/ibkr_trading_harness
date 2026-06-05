@@ -544,6 +544,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     belong in ignored local configs. Loading private plugin registries into the
     public Workbench remains future work.
 - Add schema-driven form rendering after config schemas are reliable.
+  - partial; `config_draft_options` now returns public-safe form field metadata
+    for the core Config Builder fields, and the Workbench renders those
+    controls from schema while preserving existing draft/alignment behavior.
+    Versioned schemas and private plugin registries remain future work.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

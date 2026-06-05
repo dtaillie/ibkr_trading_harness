@@ -643,6 +643,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-plugin-boundary-note" in html
         assert "config-plugin-boundary" in html
         assert "config-form" in html
+        assert "config-form-fields" in html
         assert "config-commands" in html
         assert "endpoint-map-body" in html
 
@@ -1614,6 +1615,12 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
+        field_ids = [field["id"] for field in options["form_schema"]]
+        assert field_ids[:4] == ["config-name", "config-plugin", "config-mode", "config-dataset"]
+        assert "config-risk-preset" in field_ids
+        assert "config-allow-quality-warnings" in field_ids
+        risk_field = next(field for field in options["form_schema"] if field["id"] == "config-risk-preset")
+        assert risk_field["options_source"] == "risk_presets"
         assert [preset["id"] for preset in options["risk_presets"]] == [
             "demo_minimal",
             "costed_demo",

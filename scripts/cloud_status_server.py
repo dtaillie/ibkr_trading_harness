@@ -164,6 +164,27 @@ CONFIG_BUILDER_RISK_PRESETS = (
         },
     },
 )
+CONFIG_BUILDER_FORM_SCHEMA = (
+    {"id": "config-name", "name": "name", "label": "Name", "kind": "text", "default_key": "name", "section": "identity", "help": "Local draft name. The server normalizes it for file-safe output."},
+    {"id": "config-plugin", "name": "plugin_id", "label": "Plugin", "kind": "select", "options_source": "plugins", "section": "identity", "help": "Public examples demonstrate wiring only; private plugins belong in ignored local configs."},
+    {"id": "config-mode", "name": "mode", "label": "Mode", "kind": "select", "options_source": "modes", "section": "identity", "help": "Replay and simulated-paper are public-safe local modes."},
+    {"id": "config-dataset", "name": "datasets", "label": "Datasets", "kind": "select", "options_source": "datasets", "multiple": True, "size": 5, "wide": True, "section": "data", "help": "Choose one or more scanned CSV/parquet files from Data Library."},
+    {"id": "config-start-date", "name": "start", "label": "Start Date", "kind": "date", "section": "data", "help": "Optional replay start date."},
+    {"id": "config-end-date", "name": "end", "label": "End Date", "kind": "date", "section": "data", "help": "Optional replay end date."},
+    {"id": "config-starting-cash", "name": "starting_cash", "label": "Starting Cash", "kind": "number", "min": 1, "step": 100, "default_key": "starting_cash", "section": "account", "help": "Starting cash for replay or simulated-paper accounting."},
+    {"id": "config-history-bars", "name": "history_bars", "label": "History Bars", "kind": "number", "min": 1, "step": 1, "default_key": "history_bars", "section": "account", "help": "Number of prior bars provided to the plugin decision window."},
+    {"id": "config-max-steps", "name": "max_steps", "label": "Max Steps", "kind": "number", "min": 1, "step": 1, "default_key": "max_steps", "section": "account", "help": "Optional cap on replay steps for quick tests."},
+    {"id": "config-risk-preset", "name": "risk_preset", "label": "Risk Preset", "kind": "select", "options_source": "risk_presets", "default_key": "risk_preset", "section": "risk", "help": "Public presets are conservative examples, not recommendations."},
+    {"id": "config-max-orders", "name": "max_orders_per_run", "label": "Max Orders", "kind": "number", "min": 1, "step": 1, "default_key": "max_orders_per_run", "section": "risk", "help": "Maximum order intents allowed in one run."},
+    {"id": "config-max-notional", "name": "max_notional_per_order", "label": "Max Notional", "kind": "number", "min": 1, "step": 1, "default_key": "max_notional_per_order", "section": "risk", "help": "Maximum notional value per order intent."},
+    {"id": "config-max-quantity", "name": "max_quantity", "label": "Max Quantity", "kind": "number", "min": 0.0001, "step": 0.0001, "default_key": "max_quantity", "section": "risk", "help": "Maximum share/unit quantity per order intent."},
+    {"id": "config-max-cash", "name": "max_cash_quantity", "label": "Max Cash Qty", "kind": "number", "min": 1, "step": 1, "default_key": "max_cash_quantity", "section": "risk", "help": "Maximum cash quantity for venues that require cash-sized orders."},
+    {"id": "config-max-exposure", "name": "max_gross_exposure_pct", "label": "Max Exposure", "kind": "number", "min": 0.0001, "step": 0.0001, "default_key": "max_gross_exposure_pct", "section": "risk", "help": "Maximum gross exposure as a fraction of equity."},
+    {"id": "config-slippage", "name": "sim_slippage_bps", "label": "Slippage bps", "kind": "number", "min": 0, "step": 0.1, "default_key": "sim_slippage_bps", "section": "costs", "help": "Simulated slippage in basis points."},
+    {"id": "config-commission", "name": "sim_commission_bps", "label": "Commission bps", "kind": "number", "min": 0, "step": 0.1, "default_key": "sim_commission_bps", "section": "costs", "help": "Simulated commission in basis points."},
+    {"id": "config-save", "name": "save", "label": "Save draft locally", "kind": "checkbox", "section": "output", "help": "Save generated YAML under the local workbench state directory."},
+    {"id": "config-allow-quality-warnings", "name": "allow_quality_warnings", "label": "Allow suspicious data for this draft", "kind": "checkbox", "wide": True, "section": "output", "help": "Requires explicit acknowledgement before using warn/bad datasets."},
+)
 WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
@@ -2802,6 +2823,7 @@ def config_builder_options() -> dict[str, Any]:
         "modes": list(CONFIG_BUILDER_MODES),
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
+        "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA),
         "defaults": {
             "name": "workbench_example",
             "starting_cash": 10000,

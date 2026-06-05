@@ -242,6 +242,7 @@ def run_smoke(
             "nav-data",
             "nav-fetch",
             "performance-equity",
+            "config-form-fields",
             "performance-intraday-chart",
             "performance-intraday-pnl",
             "performance-intraday-return",
@@ -325,9 +326,6 @@ def run_smoke(
             "config-plugin-boundary",
             "config-data-quality-note",
             "config-data-quality-body",
-            "config-start-date",
-            "config-end-date",
-            "config-allow-quality-warnings",
             "config-preview-alignment",
             "config-commands",
             "validate-drafts",
@@ -375,6 +373,7 @@ def run_smoke(
             "Fetch output data detail failed",
             "drawdownChart",
             "intradayPnlChart",
+            "renderConfigFormSchema",
             "dailyReturnChart",
             "calendarReturnHeatmap",
             "buildTradeLedger",
@@ -464,6 +463,10 @@ def run_smoke(
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
+        form_field_ids = {field.get("id") for field in options.get("form_schema") or []}
+        for field_id in ("config-name", "config-plugin", "config-mode", "config-dataset", "config-risk-preset", "config-allow-quality-warnings"):
+            if field_id not in form_field_ids:
+                raise RuntimeError(f"config form schema is missing {field_id}")
         if not all(plugin.get("visibility") and plugin.get("boundary") for plugin in options.get("plugins") or []):
             raise RuntimeError("config plugin boundary metadata is missing")
         if "valid_count" not in draft_validations or "invalid_count" not in draft_validations:

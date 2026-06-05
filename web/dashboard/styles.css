@@ -288,9 +288,21 @@ button.secondary {
   background: var(--panel);
 }
 
+.builder-form-fields {
+  display: contents;
+}
+
 .builder-form input,
 .builder-form select {
   min-width: 120px;
+}
+
+.builder-form small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .wide-field {
