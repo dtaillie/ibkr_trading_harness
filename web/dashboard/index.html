@@ -1664,6 +1664,49 @@
         <span id="remote-node-detail-note" class="section-note">Select a remote node to inspect bounded sanitized status detail</span>
       </div>
       <dl id="remote-node-detail-summary" class="kv wide-kv"></dl>
+      <div class="data-library-summary">
+        <div class="data-library-card">
+          <span class="eyebrow">Snapshots</span>
+          <strong id="remote-detail-snapshot-count">0</strong>
+          <span id="remote-detail-snapshot-note">Select a node</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Latest Activity</span>
+          <strong id="remote-detail-activity-count">0</strong>
+          <span id="remote-detail-activity-note">No activity loaded</span>
+        </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Alerts</span>
+          <strong id="remote-detail-alert-count">0</strong>
+          <span id="remote-detail-alert-note">No alerts loaded</span>
+        </div>
+      </div>
+      <div class="filter-row">
+        <label>
+          <span>Activity</span>
+          <select id="remote-detail-activity-filter">
+            <option value="">All</option>
+            <option value="decision">Decisions</option>
+            <option value="order">Orders</option>
+            <option value="fill">Fills</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Run</th>
+              <th>Type</th>
+              <th>Symbol</th>
+              <th>Status</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="remote-node-activity-body"></tbody>
+        </table>
+      </div>
       <section class="split nested-section">
         <div>
           <div class="section-head">

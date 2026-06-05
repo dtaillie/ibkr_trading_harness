@@ -702,6 +702,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     now provide bounded sanitized latest runs, alerts, and status history for
     a posted node. It intentionally avoids raw local logs or strategy
     diagnostics; richer cloud-side archived artifact/log browsing remains open.
+  - partial; Remote Node Detail now adds snapshot, latest-activity, and alert
+    summary cards plus a combined sanitized recent decisions/orders/fills table
+    with type filtering. Raw logs and full artifact browsing remain out of the
+    hosted view until retention and privacy boundaries are stronger.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

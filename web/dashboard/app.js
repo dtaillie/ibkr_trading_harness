@@ -4102,6 +4102,56 @@ function filteredRemoteNodes(nodes) {
   });
 }
 
+function remoteDetailActivityFilter() {
+  return $("remote-detail-activity-filter") ? $("remote-detail-activity-filter").value || "" : "";
+}
+
+function eventTimestamp(event) {
+  return event.timestamp
+    || event.time
+    || event.submitted_at
+    || event.filled_at
+    || event.decision_time
+    || event.created_at
+    || event.updated_at
+    || "";
+}
+
+function eventSymbol(event) {
+  return event.symbol || event.ticker || event.contract || event.instrument || "";
+}
+
+function eventStatus(event, type) {
+  return event.status || event.action || event.side || type || "";
+}
+
+function eventDetail(event) {
+  const keys = ["reason", "tag", "side", "quantity", "price", "cash_quantity", "signal", "threshold"];
+  const parts = [];
+  for (const key of keys) {
+    if (event[key] !== undefined && event[key] !== null && event[key] !== "") {
+      parts.push(`${key}:${text(event[key])}`);
+    }
+  }
+  return parts.length ? parts.join(" ") : objectSummary(event);
+}
+
+function remoteNodeActivityEvents(runs) {
+  const events = [];
+  for (const runItem of runs || []) {
+    for (const event of runItem.recent_decisions || []) {
+      events.push({ ...event, run_id: runItem.id, type: "decision" });
+    }
+    for (const event of runItem.recent_orders || []) {
+      events.push({ ...event, run_id: runItem.id, type: "order" });
+    }
+    for (const event of runItem.recent_fills || []) {
+      events.push({ ...event, run_id: runItem.id, type: "fill" });
+    }
+  }
+  return events.sort((left, right) => (timestampMillis(eventTimestamp(right)) || 0) - (timestampMillis(eventTimestamp(left)) || 0));
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
@@ -4147,9 +4197,26 @@ function renderRemoteNodeDetail() {
   const runs = detail.runs || [];
   const alerts = detail.alerts || [];
   const history = detail.history || [];
+  const activity = remoteNodeActivityEvents(runs);
+  const activityFilter = remoteDetailActivityFilter();
+  const filteredActivity = activityFilter ? activity.filter((event) => event.type === activityFilter) : activity;
+  const latestActivity = activity[0] || {};
   $("remote-node-detail-note").textContent = detail.node_id
     ? `${text(detail.node_id)} / ${numberText(detail.total, 0)} stored status snapshot${detail.total === 1 ? "" : "s"}`
     : "Select a remote node to inspect bounded sanitized status detail";
+  $("remote-detail-snapshot-count").textContent = numberText(detail.count || 0, 0);
+  $("remote-detail-snapshot-note").textContent = detail.node_id
+    ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored`
+    : "Select a node";
+  $("remote-detail-activity-count").textContent = numberText(filteredActivity.length, 0);
+  $("remote-detail-activity-note").textContent = activity.length
+    ? `${text(latestActivity.type)} ${timestampAgeLabel(eventTimestamp(latestActivity))}`
+    : "No sanitized activity in latest runs";
+  $("remote-detail-alert-count").textContent = numberText(alerts.length, 0);
+  $("remote-detail-alert-count").className = statusClass(alerts.length ? "warn" : detail.node_id ? "ok" : "unknown");
+  $("remote-detail-alert-note").textContent = detail.node_id
+    ? `${numberText(alerts.length, 0)} latest alert${alerts.length === 1 ? "" : "s"}`
+    : "No node selected";
   const pairs = detail.node_id
     ? [
         ["Node", text(detail.node_id)],
@@ -4167,6 +4234,16 @@ function renderRemoteNodeDetail() {
   $("remote-node-detail-summary").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  $("remote-node-activity-body").innerHTML = filteredActivity.length
+    ? filteredActivity.map((event) => row([
+        escapeHtml(eventTimestamp(event)),
+        escapeHtml(text(event.run_id)),
+        statusText(event.type),
+        escapeHtml(text(eventSymbol(event))),
+        statusText(eventStatus(event, event.type)),
+        escapeHtml(eventDetail(event)),
+      ])).join("")
+    : row([`<span class="muted">${activity.length ? "No remote activity matches this filter." : "No sanitized recent decisions, orders, or fills in the latest run summaries."}</span>`, "", "", "", "", ""]);
   $("remote-node-runs-body").innerHTML = runs.length
     ? runs.map((runItem) => row([
         escapeHtml(runItem.id),
@@ -4891,6 +4968,7 @@ function init() {
   $("remote-filter-status").addEventListener("change", renderRemoteNodes);
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
   $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
+  $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);
