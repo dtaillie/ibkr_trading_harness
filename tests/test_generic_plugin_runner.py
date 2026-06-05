@@ -283,6 +283,106 @@ def test_simulated_paper_average_cost_includes_opening_commission(tmp_path):
     assert account[-1]["total_commission"] == pytest.approx(1.0)
 
 
+def test_runner_holds_order_when_manual_approval_required(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 1000},
+        execution={"require_order_approval": True},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.orders == 1
+    assert result.fills == 0
+    assert result.rejections == 0
+    assert result.approval_required_orders == 1
+    assert result.final_cash == pytest.approx(10000.0)
+    assert result.final_positions == {}
+    assert not (output_dir / "fills.jsonl").exists()
+
+    orders = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert orders[-1]["status"] == "approval_required"
+    assert orders[-1]["reason"] == "manual approval required"
+    previews = [json.loads(line) for line in (output_dir / "order_previews.jsonl").read_text().splitlines()]
+    assert previews == [
+        {
+            "approval_required": True,
+            "approval_status": "required",
+            "cash": pytest.approx(10000.0),
+            "cash_quantity": pytest.approx(1000.0),
+            "equity": pytest.approx(10000.0),
+            "estimated_notional": pytest.approx(1000.0),
+            "metadata": {},
+            "mode": "simulated_paper",
+            "order_type": "market",
+            "positions": {},
+            "price": pytest.approx(100.0),
+            "quantity": None,
+            "side": "buy",
+            "status": "preview",
+            "step": 1,
+            "symbol": "SPY",
+            "tag": "fixture_buy_once",
+            "timestamp": "2026-01-02T14:30:00+00:00",
+        }
+    ]
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["approval_required_orders"] == 1
+
+
+def test_runner_executes_approved_order_when_manual_approval_required(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "cash_quantity": 1000},
+        execution={"require_order_approval": True},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper", approve_orders=True)
+
+    assert result.orders == 1
+    assert result.fills == 1
+    assert result.rejections == 0
+    assert result.approval_required_orders == 0
+    assert result.final_cash == pytest.approx(9000.0)
+    previews = [json.loads(line) for line in (output_dir / "order_previews.jsonl").read_text().splitlines()]
+    assert previews[0]["approval_status"] == "approved"
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["symbol"] == "SPY"
+
+
+def test_validate_config_file_rejects_non_bool_manual_approval(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        execution={"require_order_approval": "yes"},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "execution.require_order_approval must be true or false" in str(exc.value)
+
+
 def test_paper_mode_requires_explicit_confirmation(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

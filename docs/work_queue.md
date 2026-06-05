@@ -668,6 +668,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     exported workbench snapshots now carry explicit config/form schema version
     fields. Richer per-plugin validation remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
+  - partial; generic plugin-runner configs can set
+    `execution.require_order_approval: true`, which writes
+    `order_previews.jsonl` and holds simulated-paper/paper orders unless the
+    run is launched with `--approve-orders`. Dashboard performance and
+    artifact summaries surface approval-hold counts. Richer interactive
+    approval flows remain open.
 - Add richer simulated-paper accounting:
   - realized PnL
   - average cost

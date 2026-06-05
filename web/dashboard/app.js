@@ -1293,6 +1293,7 @@ function renderPerformance() {
   const orders = summary.orders ?? (source.orders || []).length;
   const fillCount = summary.fills ?? (source.fills || []).length;
   const rejections = summary.rejections ?? summary.rejects ?? 0;
+  const approvalRequired = summary.approval_required_orders ?? perf.approval_required_orders ?? 0;
   const elapsedDays = periodPerf.elapsed_days ?? (period === "all" ? (perf.elapsed_days ?? summary.elapsed_days) : null);
   const realizedPnl = latestAccount.realized_pnl ?? perf.realized_pnl ?? summary.realized_pnl;
   const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl;
@@ -1309,7 +1310,7 @@ function renderPerformance() {
   $("performance-mode").className = statusClass(mode ? "ok" : "unknown");
   $("performance-latest-account").textContent = text(latestAccount.timestamp);
   $("performance-position-count").textContent = numberText(positionCount, 0);
-  $("performance-activity").textContent = `${numberText(decisions, 0)}D / ${numberText(orders, 0)}O / ${numberText(fillCount, 0)}F / ${numberText(rejections, 0)}R`;
+  $("performance-activity").textContent = `${numberText(decisions, 0)}D / ${numberText(orders, 0)}O / ${numberText(fillCount, 0)}F / ${numberText(rejections, 0)}R / ${numberText(approvalRequired, 0)}A`;
   $("performance-return").textContent = pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null));
   $("performance-drawdown").textContent = pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null));
   $("performance-return-day").textContent = pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null));
@@ -1336,6 +1337,7 @@ function renderPerformance() {
     ["Turnover Basis", `${money(turnover.notional)} filled notional${turnover.pct !== null ? ` / ${money(initialEquity)} initial equity` : "; initial equity unavailable"}`],
     ["Accounting PnL", `Realized ${money(realizedPnl)} / Unrealized ${money(unrealizedPnl)} / Total ${money(totalPnl)}`],
     ["Total Commission", money(totalCommission)],
+    ["Approval Holds", numberText(approvalRequired, 0)],
     ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
     ["Annualized Scale", `Day ${pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null))} / Month ${pctText(periodPerf.return_per_month_pct ?? (period === "all" ? summary.return_per_month_pct : null))} / Year ${pctText(periodPerf.return_per_year_pct ?? (period === "all" ? summary.return_per_year_pct : null))}`],
   ];
@@ -3329,6 +3331,7 @@ function renderWorkbenchArtifacts() {
     ["Orders", text(summary.orders)],
     ["Fills", text(summary.fills)],
     ["Rejections", text(summary.rejections)],
+    ["Approval Holds", text(summary.approval_required_orders)],
     ["Snapshots", text(performance.account_snapshot_count)],
     ["Initial Equity", money(performance.initial_equity)],
     ["Final Cash", money(summary.final_cash)],

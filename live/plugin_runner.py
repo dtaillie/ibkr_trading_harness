@@ -72,6 +72,7 @@ class RunnerResult:
     unrealized_pnl: float | None = None
     total_pnl: float | None = None
     total_commission: float | None = None
+    approval_required_orders: int = 0
 
 
 class ConfigValidationError(ValueError):
@@ -259,6 +260,7 @@ def validate_config(
     validate_bool(execution_cfg.get("allow_short"), "execution.allow_short", errors)
     validate_bool(execution_cfg.get("require_current_price"), "execution.require_current_price", errors)
     validate_bool(execution_cfg.get("allow_quantity_and_cash"), "execution.allow_quantity_and_cash", errors)
+    validate_bool(execution_cfg.get("require_order_approval"), "execution.require_order_approval", errors)
     validate_positive_int(execution_cfg.get("max_orders_per_run"), "execution.max_orders_per_run", errors)
     validate_nonnegative_float(execution_cfg.get("max_quantity"), "execution.max_quantity", errors, positive=True)
     validate_nonnegative_float(execution_cfg.get("max_cash_quantity"), "execution.max_cash_quantity", errors, positive=True)
@@ -914,6 +916,33 @@ def intent_record(intent: OrderIntent, *, status: str, reason: str | None = None
     return record
 
 
+def order_preview_record(
+    intent: OrderIntent,
+    *,
+    now: pd.Timestamp,
+    step: int,
+    mode: str,
+    price: float | None,
+    cash: float | None,
+    equity: float | None,
+    positions: dict[str, float],
+    approval_status: str,
+) -> dict[str, Any]:
+    return {
+        "timestamp": now,
+        "step": step,
+        "mode": mode,
+        "approval_required": True,
+        "approval_status": approval_status,
+        **intent_record(intent, status="preview"),
+        "price": finite_float(price),
+        "estimated_notional": finite_float(estimate_intent_notional(intent, price)),
+        "cash": finite_float(cash),
+        "equity": finite_float(equity),
+        "positions": {symbol: finite_float(qty) for symbol, qty in positions.items()},
+    }
+
+
 def normalize_intent(intent: OrderIntent) -> OrderIntent:
     return OrderIntent(
         symbol=str(intent.symbol).upper(),
@@ -1052,6 +1081,7 @@ def run_from_config(
     output_dir_override: Path | None = None,
     max_steps: int | None = None,
     confirm_paper_orders: bool = False,
+    approve_orders: bool = False,
 ) -> RunnerResult:
     config = validate_config_file(
         config_path,
@@ -1100,6 +1130,7 @@ def run_from_config(
     orders = 0
     fills = 0
     rejections = 0
+    approval_required_orders = 0
     accepted_orders = 0
     final_prices: dict[str, float] = {}
     paper_final_cash: float | None = None
@@ -1236,6 +1267,32 @@ def run_from_config(
 
                 if mode in {"replay", "shadow"}:
                     continue
+
+                require_order_approval = bool(execution_cfg.get("require_order_approval", False))
+                if require_order_approval:
+                    price = final_prices.get(intent.symbol)
+                    approval_status = "approved" if approve_orders else "required"
+                    append_jsonl(output_dir / "order_previews.jsonl", order_preview_record(
+                        intent,
+                        now=now,
+                        step=step,
+                        mode=mode,
+                        price=price,
+                        cash=float(cash) if cash is not None else None,
+                        equity=float(equity) if equity is not None else None,
+                        positions=positions,
+                        approval_status=approval_status,
+                    ))
+                    if not approve_orders:
+                        approval_required_orders += 1
+                        reason = "manual approval required"
+                        append_jsonl(output_dir / "orders.jsonl", {
+                            "timestamp": now,
+                            **intent_record(intent, status="approval_required", reason=reason),
+                        })
+                        log.warning("%s held: %s", intent.symbol, reason)
+                        continue
+
                 accepted_orders += 1
 
                 if mode == "simulated_paper" and simulated is not None:
@@ -1353,14 +1410,16 @@ def run_from_config(
         unrealized_pnl=perf["unrealized_pnl"],
         total_pnl=perf["total_pnl"],
         total_commission=perf["total_commission"],
+        approval_required_orders=approval_required_orders,
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
-        "Run complete: decisions=%d orders=%d fills=%d rejections=%d output_dir=%s",
+        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d output_dir=%s",
         decisions,
         orders,
         fills,
         rejections,
+        approval_required_orders,
         output_dir,
     )
     return result
@@ -1381,6 +1440,11 @@ def main() -> None:
         "--confirm-paper-orders",
         action="store_true",
         help="Required for mode=paper because it submits orders through IBKR.",
+    )
+    parser.add_argument(
+        "--approve-orders",
+        action="store_true",
+        help="Approve orders for configs that set execution.require_order_approval=true.",
     )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args()
@@ -1404,6 +1468,7 @@ def main() -> None:
             output_dir_override=args.output_dir,
             max_steps=args.max_steps,
             confirm_paper_orders=args.confirm_paper_orders,
+            approve_orders=args.approve_orders,
         )
     except Exception as exc:
         log.error("Runner failed: %s", exc)
