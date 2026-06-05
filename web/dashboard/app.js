@@ -1702,6 +1702,7 @@ function renderComparisonFilterOptions(runs) {
 }
 
 function filteredComparisonRuns(runs) {
+  const query = ($("comparison-filter-text").value || "").trim().toLowerCase();
   const status = $("comparison-filter-status").value || "";
   const action = $("comparison-filter-action").value || "";
   const summary = $("comparison-filter-summary").value || "";
@@ -1710,6 +1711,20 @@ function filteredComparisonRuns(runs) {
     if (action && text(run.action) !== action) return false;
     if (summary === "yes" && !run.summary_available) return false;
     if (summary === "no" && run.summary_available) return false;
+    if (query) {
+      const haystack = [
+        run.run_id,
+        run.draft_id,
+        run.action,
+        run.status,
+        run.finished_at,
+        run.total_return_pct,
+        run.max_drawdown_pct,
+        run.fills,
+        run.rejections,
+      ].map(text).join(" ").toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
     return true;
   });
 }
@@ -1893,6 +1908,7 @@ function renderWorkbenchArtifacts() {
 
 function renderRuns() {
   const runs = (state.status && state.status.runs) || [];
+  renderCurrentOrdersAndPositions();
   $("runs-body").innerHTML = runs.length
     ? runs.map((run) => {
         const metrics = run.metrics || {};
@@ -1910,6 +1926,80 @@ function renderRuns() {
         ]);
       }).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function terminalOrderStatus(status) {
+  const value = String(status || "").toLowerCase();
+  return [
+    "filled",
+    "cancelled",
+    "canceled",
+    "rejected",
+    "inactive",
+    "expired",
+    "done",
+  ].includes(value);
+}
+
+function currentOpenOrderRows() {
+  const runs = (state.status && state.status.runs) || [];
+  const orders = [];
+  for (const run of runs) {
+    for (const orderItem of ((run.recent_events || {}).orders || [])) {
+      if (terminalOrderStatus(orderItem.status)) continue;
+      orders.push({
+        run_id: run.id,
+        timestamp: orderItem.timestamp,
+        status: orderItem.status,
+        symbol: orderItem.symbol,
+        side: orderItem.side,
+        order_type: orderItem.order_type,
+        quantity: orderItem.quantity,
+        cash_quantity: orderItem.cash_quantity,
+        reason: orderItem.reason,
+        tag: orderItem.tag,
+      });
+    }
+  }
+  return orders
+    .filter((item) => item.timestamp || item.symbol || item.status)
+    .sort((a, b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")))
+    .slice(0, 20);
+}
+
+function renderCurrentOrdersAndPositions() {
+  const orders = currentOpenOrderRows();
+  $("current-orders-note").textContent = orders.length
+    ? `${numberText(orders.length, 0)} recent non-terminal order event${orders.length === 1 ? "" : "s"}`
+    : "No recent non-terminal order events";
+  $("current-orders-body").innerHTML = orders.length
+    ? orders.map((orderItem) => row([
+        escapeHtml(orderItem.timestamp),
+        escapeHtml(orderItem.run_id),
+        statusText(orderItem.status),
+        escapeHtml(orderItem.symbol),
+        escapeHtml(orderItem.side),
+        escapeHtml(orderItem.order_type),
+        escapeHtml(orderItem.quantity ?? orderItem.cash_quantity ?? ""),
+        escapeHtml([orderItem.reason, orderItem.tag].filter(Boolean).join(" / ")),
+      ])).join("")
+    : row([`<span class="muted">No recent open-order telemetry. Broker open-order state requires runners to publish open orders.</span>`, "", "", "", "", "", "", ""]);
+
+  const source = latestArtifactPerformance();
+  const accountRow = latestAccountRow(source.account || []);
+  const positions = nonzeroPositionsFromSource(source);
+  $("current-positions-note").textContent = source.account && source.account.length
+    ? `Snapshot ${text(accountRow.timestamp)}`
+    : "Latest selected/published summary";
+  $("current-positions-grid").innerHTML = positions.length
+    ? positions.map((position) => `
+        <div class="position-card">
+          <span>${escapeHtml(position.symbol)}</span>
+          <strong>${escapeHtml(numberText(position.quantity, 4))}</strong>
+          <small>${Number.isFinite(position.value) ? escapeHtml(money(position.value)) : "No value published"}</small>
+        </div>
+      `).join("")
+    : `<div class="empty-card"><strong>No managed positions</strong><span>The latest selected or published account state is flat, or no account snapshot has been loaded.</span></div>`;
 }
 
 function runEventRows() {
@@ -2739,6 +2829,7 @@ function init() {
   $("comparison-filter-status").addEventListener("change", renderRunComparison);
   $("comparison-filter-action").addEventListener("change", renderRunComparison);
   $("comparison-filter-summary").addEventListener("change", renderRunComparison);
+  $("comparison-filter-text").addEventListener("input", renderRunComparison);
   $("comparison-sort").addEventListener("change", renderRunComparison);
   $("performance-period").addEventListener("change", renderPerformance);
   $("command-form").addEventListener("submit", (event) => {

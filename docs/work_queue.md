@@ -116,9 +116,15 @@ strategy-private.
     IBKR paper, and live account metrics
 - Add a Runs and Orders page:
   - searchable run history
+    - done for saved run comparison rows
   - session timeline of decisions, orders, fills, rejects, account snapshots
   - current open orders and current managed positions
+    - partial; current managed positions and recent non-terminal order events
+      are visible, broker-native open-order state still depends on runner
+      telemetry
   - drilldown for a run with artifacts, logs, and performance charts
+    - partial; artifacts, logs, and performance charts are inspectable for
+      archived public workbench runs
   - clean distinction between live account state, paper account state, and
     simulated account state
 - Add strategy drilldowns:

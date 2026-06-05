@@ -194,7 +194,9 @@ symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Fetch Jobs shows historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
-Operations shows node health, Gateway reachability,
+Runs shows searchable saved-run comparisons, recent run-event telemetry,
+current managed positions, and recent non-terminal order events when runners
+publish them. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.

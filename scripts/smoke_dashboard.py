@@ -70,6 +70,9 @@ def run_smoke(
             "performance-trades-body",
             "performance-profit-factor",
             "performance-avg-win-loss",
+            "comparison-filter-text",
+            "current-orders-body",
+            "current-positions-grid",
             "overview-health-grid",
             "overview-positions-grid",
             "overview-change-cards",
@@ -125,6 +128,8 @@ def run_smoke(
             "performancePeriodWindow",
             "activityChanges",
             "renderOverviewChanges",
+            "renderCurrentOrdersAndPositions",
+            "currentOpenOrderRows",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]

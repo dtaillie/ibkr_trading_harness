@@ -884,6 +884,10 @@
       </div>
       <div class="filter-row">
         <label>
+          <span>Search</span>
+          <input id="comparison-filter-text" type="search" placeholder="Draft, run, action, status">
+        </label>
+        <label>
           <span>Status</span>
           <select id="comparison-filter-status">
             <option value="">All</option>
@@ -1019,6 +1023,44 @@
           <tbody id="artifact-fills-body"></tbody>
         </table>
       </div>
+    </section>
+
+    <section class="dashboard-section" data-view="runs" hidden>
+      <div class="section-head">
+        <h2>Current Orders And Positions</h2>
+        <span id="current-orders-note" class="section-note">Recent non-terminal order events and latest managed positions</span>
+      </div>
+      <section class="split nested-section">
+        <div>
+          <div class="section-head">
+            <h2>Open Orders</h2>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Run</th>
+                  <th>Status</th>
+                  <th>Symbol</th>
+                  <th>Side</th>
+                  <th>Type</th>
+                  <th>Qty</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="current-orders-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Managed Positions</h2>
+            <span id="current-positions-note" class="section-note">No account snapshot loaded</span>
+          </div>
+          <div id="current-positions-grid" class="position-grid"></div>
+        </div>
+      </section>
     </section>
 
     <section class="dashboard-section" data-view="runs" hidden>
@@ -1264,7 +1306,7 @@
             </div>
             <div class="guide-item">
               <strong>Runs</strong>
-              <span>Use for run comparisons, archived artifacts, run logs, and exported public-safe result tables.</span>
+              <span>Use for searchable run comparisons, current order/position telemetry, archived artifacts, and run logs.</span>
             </div>
             <div class="guide-item">
               <strong>Operations</strong>

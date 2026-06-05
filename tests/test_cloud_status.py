@@ -470,6 +470,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-profit-factor" in html
         assert "performance-avg-win-loss" in html
         assert "performance-equity" in html
+        assert "comparison-filter-text" in html
+        assert "current-orders-body" in html
+        assert "current-positions-grid" in html
         assert "Page Guide" in html
         assert "Inspect Saved Historical Data" in html
         assert "Public Publishing Boundary" in html

@@ -209,7 +209,8 @@ available. It also supports account-artifact period presets and a fill-derived
 trade table with open/closed rows, win/loss, average win/loss, and profit
 factor. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
-artifacts, and local disk usage. It can also inspect configured local
+artifacts, searchable run history, recent open-order telemetry, managed
+positions, and local disk usage. It can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small
 downsampled price previews. It also includes a recent date-bin coverage view
