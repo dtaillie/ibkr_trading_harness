@@ -1392,6 +1392,34 @@
 
     <section class="dashboard-section" data-view="operations" hidden>
       <div class="section-head">
+        <h2>Remote Nodes</h2>
+        <span id="remote-nodes-note" class="section-note">Latest read-only cloud monitoring snapshots by node</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Node</th>
+              <th>Status</th>
+              <th>Heartbeat</th>
+              <th>Gateway</th>
+              <th>Mode</th>
+              <th>Equity</th>
+              <th>Positions</th>
+              <th>Open Orders</th>
+              <th>Activity</th>
+              <th>Latest Account</th>
+              <th>Latest Data</th>
+              <th>Alerts</th>
+            </tr>
+          </thead>
+          <tbody id="remote-nodes-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="dashboard-section" data-view="operations" hidden>
+      <div class="section-head">
         <h2>Supervisors</h2>
       </div>
       <div class="table-wrap">

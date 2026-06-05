@@ -498,6 +498,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime-status-note" in html
         assert "paper-monitor-note" in html
         assert "paper-monitor-guide" in html
+        assert "remote-nodes-note" in html
+        assert "remote-nodes-body" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html
@@ -533,6 +535,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         endpoints = {(item["method"], item["path"]) for item in payload["endpoints"]}
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
+        assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
@@ -611,7 +614,28 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                 "status": "ok",
                 "generated_at": "2026-01-02T14:32:00+00:00",
                 "gateway": {"reachable": True},
-                "runs": [{"id": "run-a", "status": "ok"}, {"id": "run-b", "status": "missing"}],
+                "runs": [
+                    {
+                        "id": "run-a",
+                        "status": "ok",
+                        "metrics": {
+                            "mode": "paper",
+                            "final_equity": 10123.45,
+                            "final_cash": 9123.45,
+                            "final_positions": {"SPY": 2, "QQQ": 0},
+                            "account_end_time": "2026-01-02T14:31:00+00:00",
+                            "latest_data_time": "2026-01-02T14:31:00+00:00",
+                            "last_decision_time": "2026-01-02T14:31:00+00:00",
+                            "rejections": 1,
+                        },
+                        "recent_events": {
+                            "decisions": [{"timestamp": "2026-01-02T14:31:00+00:00"}],
+                            "orders": [{"timestamp": "2026-01-02T14:31:01+00:00", "status": "Submitted"}],
+                            "fills": [{"timestamp": "2026-01-02T14:31:02+00:00"}],
+                        },
+                    },
+                    {"id": "run-b", "status": "missing"},
+                ],
                 "supervisors": [{"id": "sup-a", "status": "ok"}],
                 "remote_control": {
                     "latest_event": {
@@ -641,6 +665,25 @@ def test_cloud_status_server_serves_status_history(tmp_path):
             all_nodes = json.loads(resp.read().decode("utf-8"))
         assert all_nodes["total"] == 3
         assert [row["node_id"] for row in all_nodes["history"]] == ["test-node", "other-node", "test-node"]
+
+        with request.urlopen(f"{base}/remote_nodes?limit=5", timeout=5) as resp:
+            remote_nodes = json.loads(resp.read().decode("utf-8"))
+        assert remote_nodes["total"] == 3
+        assert remote_nodes["count"] == 2
+        by_node = {row["node_id"]: row for row in remote_nodes["nodes"]}
+        assert by_node["test-node"]["status"] == "ok"
+        assert by_node["test-node"]["gateway_reachable"] is True
+        assert by_node["test-node"]["latest_run_id"] == "run-a"
+        assert by_node["test-node"]["mode"] == "paper"
+        assert by_node["test-node"]["final_equity"] == 10123.45
+        assert by_node["test-node"]["cash"] == 9123.45
+        assert by_node["test-node"]["position_count"] == 1
+        assert by_node["test-node"]["open_order_count"] == 1
+        assert by_node["test-node"]["decision_count"] == 1
+        assert by_node["test-node"]["order_count"] == 1
+        assert by_node["test-node"]["fill_count"] == 1
+        assert by_node["test-node"]["rejection_count"] == 1
+        assert by_node["test-node"]["latest_account_time"] == "2026-01-02T14:31:00+00:00"
     finally:
         server.shutdown()
         server.server_close()

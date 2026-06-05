@@ -514,6 +514,10 @@ QQQ show up, treat that as a bug until proven otherwise.
 ## P1: Operations and cloud monitoring
 
 - Add real cloud endpoint support beyond the local mock receiver.
+  - partial; the receiver already accepts authenticated status posts and command
+    polling over HTTP, and now exposes `/remote_nodes` for sanitized latest
+    read-only monitoring summaries by node. Deployment-oriented hosting docs
+    and cloud-provider examples remain open.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity
@@ -521,6 +525,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - open orders
   - recent signals/fills/rejections
   - heartbeat and stale-data status
+  - partial; Operations now has a Remote Nodes table backed by `/remote_nodes`
+    with node heartbeat, Gateway, mode, equity, position count, open-order
+    count, recent decision/order/fill/rejection counts, latest account/data
+    age, and alerts from sanitized status posts.
 - Add alerts:
   - missed heartbeat
   - Gateway login required

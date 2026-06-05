@@ -26,6 +26,7 @@ const state = {
   configArtifacts: null,
   commands: [],
   results: [],
+  remoteNodes: { nodes: [] },
   refreshLoaded: false,
   activityChanges: { items: [], initial: true },
 };
@@ -3084,6 +3085,31 @@ function renderPaperMonitor() {
   )).join("");
 }
 
+function renderRemoteNodes() {
+  if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
+  const payload = state.remoteNodes || {};
+  const nodes = payload.nodes || [];
+  $("remote-nodes-note").textContent = nodes.length
+    ? `${numberText(nodes.length, 0)} monitored node${nodes.length === 1 ? "" : "s"} from ${numberText(payload.total, 0)} status snapshot${payload.total === 1 ? "" : "s"}`
+    : "No remote status snapshots have been received yet";
+  $("remote-nodes-body").innerHTML = nodes.length
+    ? nodes.map((node) => row([
+        escapeHtml(node.node_id),
+        statusText(node.status),
+        escapeHtml(timestampAgeLabel(node.received_at || node.generated_at)),
+        statusText(node.gateway_reachable),
+        escapeHtml(text(node.mode)),
+        escapeHtml(money(node.final_equity)),
+        escapeHtml(numberText(node.position_count, 0)),
+        escapeHtml(numberText(node.open_order_count, 0)),
+        escapeHtml(`${numberText(node.decision_count, 0)}D / ${numberText(node.order_count, 0)}O / ${numberText(node.fill_count, 0)}F / ${numberText(node.rejection_count, 0)}R`),
+        escapeHtml(timestampAgeLabel(node.latest_account_time)),
+        escapeHtml(timestampAgeLabel(node.latest_data_time)),
+        escapeHtml(numberText(node.alert_count, 0)),
+      ])).join("")
+    : row([`<span class="muted">No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
 function renderHistory() {
   $("history-body").innerHTML = state.history.length
     ? state.history.map((snapshot) => {
@@ -3164,6 +3190,7 @@ function renderAll() {
   renderAlerts();
   renderGateway();
   renderPaperMonitor();
+  renderRemoteNodes();
   renderHistory();
   renderCommands();
   renderResults();
@@ -3177,6 +3204,7 @@ async function refresh() {
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
+  const remoteNodes = await fetchJson("/remote_nodes?limit=100");
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
@@ -3195,6 +3223,7 @@ async function refresh() {
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
   state.history = history.history || [];
+  state.remoteNodes = remoteNodes || { nodes: [] };
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
   state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };

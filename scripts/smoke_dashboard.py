@@ -144,6 +144,8 @@ def run_smoke(
             "runtime-status-note",
             "paper-monitor-note",
             "paper-monitor-guide",
+            "remote-nodes-note",
+            "remote-nodes-body",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -214,6 +216,9 @@ def run_smoke(
             "paperMonitorItems",
             "renderPaperMonitor",
             "Order Context",
+            "remote_nodes",
+            "renderRemoteNodes",
+            "No cloud monitoring snapshots yet",
             "status_label",
             "draft.folder",
             "draft.tags",

@@ -184,6 +184,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON history rows",
     },
     {
+        "method": "GET",
+        "path": "/remote_nodes",
+        "category": "telemetry",
+        "description": "Return sanitized latest read-only monitoring summaries by node.",
+        "response": "JSON node summaries",
+    },
+    {
         "method": "POST",
         "path": "/status",
         "category": "telemetry",
@@ -566,6 +573,97 @@ def summarize_status_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "remote_latest_action": latest_remote_result.get("action"),
         "remote_latest_status": latest_remote_result.get("status"),
     }
+
+
+def nonterminal_order_count(recent_events: dict[str, Any]) -> int:
+    orders = recent_events.get("orders") if isinstance(recent_events, dict) else []
+    if not isinstance(orders, list):
+        return 0
+    terminal = {"filled", "cancelled", "canceled", "rejected", "inactive", "api_cancelled"}
+    count = 0
+    for order in orders:
+        if not isinstance(order, dict):
+            continue
+        status = str(order.get("status") or "").strip().lower()
+        if status and status not in terminal:
+            count += 1
+    return count
+
+
+def latest_run_for_status(row: dict[str, Any]) -> dict[str, Any]:
+    runs = row.get("runs") or []
+    if not isinstance(runs, list) or not runs:
+        return {}
+    ordered = sorted(
+        (run for run in runs if isinstance(run, dict)),
+        key=lambda run: str(((run.get("metrics") or {}).get("last_decision_time")) or run.get("generated_at") or ""),
+        reverse=True,
+    )
+    return ordered[0] if ordered else {}
+
+
+def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
+    gateway = row.get("gateway") or {}
+    alerts = row.get("alerts") or []
+    latest_run = latest_run_for_status(row)
+    metrics = latest_run.get("metrics") or {}
+    recent_events = latest_run.get("recent_events") or {}
+    positions = metrics.get("final_positions") or {}
+    position_count = len([qty for qty in positions.values() if finite_float(qty) not in {None, 0.0}]) if isinstance(positions, dict) else None
+    decision_count = len(recent_events.get("decisions") or []) if isinstance(recent_events, dict) else 0
+    order_count = len(recent_events.get("orders") or []) if isinstance(recent_events, dict) else 0
+    fill_count = len(recent_events.get("fills") or []) if isinstance(recent_events, dict) else 0
+    return {
+        "node_id": row.get("node_id"),
+        "status": row.get("status"),
+        "generated_at": row.get("generated_at"),
+        "received_at": row.get("received_at"),
+        "gateway_reachable": gateway.get("reachable"),
+        "alert_count": len(alerts) if isinstance(alerts, list) else 0,
+        "latest_run_id": latest_run.get("id"),
+        "latest_run_status": latest_run.get("status"),
+        "mode": metrics.get("mode"),
+        "final_equity": finite_float(metrics.get("final_equity")),
+        "cash": finite_float(metrics.get("final_cash")),
+        "position_count": position_count,
+        "open_order_count": nonterminal_order_count(recent_events),
+        "decision_count": decision_count,
+        "order_count": order_count,
+        "fill_count": fill_count,
+        "rejection_count": int(metrics.get("rejections") or 0) if metrics.get("rejections") is not None else None,
+        "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
+        "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_market_data_time") or metrics.get("latest_bar_time"),
+        "latest_decision_time": metrics.get("last_decision_time"),
+    }
+
+
+def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
+    path = status_history_path(state_dir)
+    if not path.exists():
+        return {"nodes": [], "count": 0, "total": 0, "limit": limit}
+    latest_by_node: dict[str, dict[str, Any]] = {}
+    total = 0
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            node_id = str(row.get("node_id") or "").strip()
+            if not node_id:
+                continue
+            total += 1
+            latest_by_node[node_id] = summarize_remote_node(row)
+    nodes = sorted(
+        latest_by_node.values(),
+        key=lambda item: str(item.get("received_at") or item.get("generated_at") or ""),
+        reverse=True,
+    )[:limit]
+    return {"nodes": nodes, "count": len(nodes), "total": total, "limit": limit}
 
 
 def load_status_history(state_dir: Path, *, node_id: str | None = None, limit: int = 50) -> dict[str, Any]:
@@ -4467,6 +4565,16 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             payload = load_status_history(self.state_dir, node_id=node_id, limit=limit)
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/remote_nodes":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, load_remote_nodes(self.state_dir, limit=limit))
             return
         if parsed.path == "/commands":
             if not self.require_auth():
