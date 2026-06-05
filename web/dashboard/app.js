@@ -381,6 +381,8 @@ function dataCatalogFilters() {
     text: ($("data-filter-text").value || "").trim().toLowerCase(),
     quality: $("data-filter-quality").value || "",
     bar: $("data-filter-bar").value || "",
+    asset: $("data-filter-asset").value || "",
+    source: $("data-filter-source").value || "",
   };
 }
 
@@ -389,9 +391,13 @@ function filteredDataCatalog(datasets) {
   return (datasets || []).filter((dataset) => {
     if (filters.quality && dataset.quality_status !== filters.quality) return false;
     if (filters.bar && text(dataset.bar_size) !== filters.bar) return false;
+    if (filters.asset && text(dataset.asset_class) !== filters.asset) return false;
+    if (filters.source && text(dataset.source) !== filters.source) return false;
     if (filters.text) {
       const haystack = [
         dataset.symbol,
+        dataset.asset_class,
+        dataset.source,
         dataset.bar_size,
         dataset.path,
         dataset.root,
@@ -404,16 +410,21 @@ function filteredDataCatalog(datasets) {
 }
 
 function renderDataFilterOptions(datasets) {
-  const select = $("data-filter-bar");
-  const current = select.value;
-  const bars = Array.from(new Set((datasets || []).map((item) => text(item.bar_size)).filter((item) => item !== "n/a"))).sort();
-  select.innerHTML = [
-    `<option value="">All</option>`,
-    ...bars.map((bar) => `<option value="${escapeHtml(bar)}">${escapeHtml(bar)}</option>`),
-  ].join("");
-  if (bars.includes(current)) {
-    select.value = current;
-  }
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    const current = select.value;
+    const options = Array.from(new Set(values.map(text).filter((item) => item !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) {
+      select.value = current;
+    }
+  };
+  makeOptions("data-filter-bar", (datasets || []).map((item) => item.bar_size));
+  makeOptions("data-filter-asset", (datasets || []).map((item) => item.asset_class));
+  makeOptions("data-filter-source", (datasets || []).map((item) => item.source));
 }
 
 function countSummary(counts) {
@@ -432,6 +443,8 @@ function renderDataCatalog() {
   $("data-catalog-body").innerHTML = filtered.length
     ? filtered.map((dataset) => row([
         escapeHtml(dataset.symbol),
+        escapeHtml(dataset.asset_class),
+        escapeHtml(dataset.source),
         escapeHtml(dataset.bar_size),
         escapeHtml(dataset.format),
         escapeHtml(dataset.rows),
@@ -445,12 +458,14 @@ function renderDataCatalog() {
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
         `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
     `quality ${countSummary(catalog.quality_counts)}`,
     `bars ${countSummary(catalog.bar_size_counts)}`,
+    `assets ${countSummary(catalog.asset_class_counts)}`,
+    `sources ${countSummary(catalog.source_counts)}`,
     `rows ${numberText(catalog.row_count_total, 0)}`,
     `size ${bytes(catalog.size_bytes_total)}`,
   ].join(" | ");
@@ -633,6 +648,8 @@ function renderDataDetail() {
     ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
     : "No dataset selected";
   const pairs = [
+    ["Asset", text(detail.asset_class)],
+    ["Source", text(detail.source)],
     ["Rows", numberText(detail.rows, 0)],
     ["Range", rangeLabel(coverage.first_timestamp, coverage.last_timestamp)],
     ["Median Step", interval(coverage.median_interval_seconds)],
@@ -1721,6 +1738,8 @@ function init() {
   $("data-filter-text").addEventListener("input", renderDataCatalog);
   $("data-filter-quality").addEventListener("change", renderDataCatalog);
   $("data-filter-bar").addEventListener("change", renderDataCatalog);
+  $("data-filter-asset").addEventListener("change", renderDataCatalog);
+  $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;

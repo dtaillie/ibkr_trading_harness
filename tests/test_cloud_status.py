@@ -497,6 +497,49 @@ def test_cloud_status_server_rejects_invalid_status_history_limit(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    config_path = tmp_path / "cloud_status.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "dashboard:",
+                "  host: 0.0.0.0",
+                "  port: 9999",
+                "  state_dir: custom_state",
+                "  dashboard_dir: custom_dashboard",
+                "  auth_token_env: TOKEN_ENV",
+                "  data_roots:",
+                f"    - {data_root}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    settings = status_server.dashboard_server_settings(config_path)
+
+    assert settings["host"] == "0.0.0.0"
+    assert settings["port"] == 9999
+    assert settings["state_dir"] == Path("custom_state")
+    assert settings["dashboard_dir"] == Path("custom_dashboard")
+    assert settings["auth_token_env"] == "TOKEN_ENV"
+    assert settings["data_roots"] == [data_root]
+
+    override = status_server.dashboard_server_settings(
+        config_path,
+        host="127.0.0.1",
+        port=0,
+        data_roots=[tmp_path / "override"],
+        auth_token_env="OTHER_TOKEN",
+    )
+    assert override["host"] == "127.0.0.1"
+    assert override["port"] == 0
+    assert override["data_roots"] == [tmp_path / "override"]
+    assert override["auth_token_env"] == "OTHER_TOKEN"
+
+
 def test_cloud_status_server_serves_data_catalog(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()
@@ -528,6 +571,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert payload["latest_modified_at"]
         dataset = payload["datasets"][0]
         assert dataset["symbol"] == "SPY"
+        assert dataset["asset_class"] == "etf"
+        assert dataset["source"] == "file"
         assert dataset["bar_size"] == "5min"
         assert dataset["rows"] == 3
         assert dataset["timestamp_column"] == "timestamp"
@@ -548,6 +593,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         exported = list(csv.DictReader(io.StringIO(csv_body)))
         assert len(exported) == 1
         assert exported[0]["symbol"] == "SPY"
+        assert exported[0]["asset_class"] == "etf"
+        assert exported[0]["source"] == "file"
         assert exported[0]["quality_status"] == "ok"
         assert exported[0]["bar_size"] == "5min"
     finally:
@@ -683,6 +730,8 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
 
         assert detail["path"] == str(data_file)
         assert detail["symbol"] == "SPY"
+        assert detail["asset_class"] == "etf"
+        assert detail["source"] == "file"
         assert detail["rows"] == 4
         assert detail["column_map"]["close"] == "close"
         assert detail["coverage"]["median_interval_seconds"] == 300.0
@@ -1235,6 +1284,8 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["schema_version"] == 1
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
+        assert snapshot["data_catalog"]["asset_class_counts"] == {"etf": 1}
+        assert snapshot["data_catalog"]["source_counts"] == {"file": 1}
         assert snapshot["data_catalog"]["datasets"][0]["symbol"] == "SPY"
         assert snapshot["config_options"]["risk_presets"]
         assert snapshot["run_comparison"]["count"] == 0

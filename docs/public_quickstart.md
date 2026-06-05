@@ -158,9 +158,7 @@ Run the local mock receiver/dashboard:
 ```bash
 export TRADING_STATUS_TOKEN='replace-me'
 python3 scripts/cloud_status_server.py \
-  --host 127.0.0.1 \
-  --port 8765 \
-  --data-root examples/data \
+  --config config/cloud_status.example.yaml \
   --auth-token-env TRADING_STATUS_TOKEN
 ```
 
@@ -191,8 +189,12 @@ broker data.
 For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.
-Repeat `--data-root` to include additional local CSV/parquet roots such as a
-private cache directory. If Data Library only shows the public SPY/QQQ examples,
+The `dashboard.data_roots` list in `config/cloud_status.example.yaml` controls
+which CSV/parquet roots are scanned. The public example points only at
+`examples/data`. For a real local setup, copy the config to an ignored local
+file and add roots such as `cache`, `cache/ibkr`, or your historical-data
+directory. You can also repeat `--data-root` on the command line to override the
+config for one run. If Data Library only shows the public SPY/QQQ examples,
 check the root cards: the dashboard will call out likely local roots that exist
 but are not currently configured. Data roots are scanned locally; the dashboard
 receives coverage summaries and small downsampled previews, not full bar files.

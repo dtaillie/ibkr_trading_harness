@@ -76,7 +76,10 @@ QQQ show up, treat that as a bug until proven otherwise.
 
 - Progress: Data Library now shows configured roots, catalog limits, visibility
   warnings, and suggested local roots such as an existing cache directory that
-  contains data but is not currently configured.
+  contains data but is not currently configured. The dashboard server can now
+  load `dashboard.data_roots` from config while CLI `--data-root` values remain
+  available for one-off overrides. Catalog rows now include inferred asset class
+  and source filters.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

@@ -65,6 +65,8 @@ def run_smoke(
             "data-root-cards",
             "data-catalog-limit",
             "data-filter-quality",
+            "data-filter-asset",
+            "data-filter-source",
             "export-data-catalog-csv",
             "export-workbench-snapshot",
             "config-preview-alignment",
@@ -105,8 +107,10 @@ def run_smoke(
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
-        if "quality_status" not in data_catalog_csv.splitlines()[0]:
-            raise RuntimeError("data catalog CSV header is missing quality_status")
+        csv_header = data_catalog_csv.splitlines()[0]
+        for field in ("quality_status", "asset_class", "source"):
+            if field not in csv_header:
+                raise RuntimeError(f"data catalog CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
         if "valid_count" not in draft_validations or "invalid_count" not in draft_validations:

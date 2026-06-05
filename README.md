@@ -111,7 +111,9 @@ Run the local mock receiver/dashboard:
 
 ```bash
 export TRADING_STATUS_TOKEN='replace-me'
-python3 scripts/cloud_status_server.py --host 127.0.0.1 --port 8765
+python3 scripts/cloud_status_server.py \
+  --config config/cloud_status.example.yaml \
+  --auth-token-env TRADING_STATUS_TOKEN
 python3 scripts/publish_status.py \
   --config config/cloud_status.example.yaml \
   --endpoint http://127.0.0.1:8765/status \

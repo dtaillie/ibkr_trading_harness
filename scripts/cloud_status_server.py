@@ -64,6 +64,31 @@ SUGGESTED_DATA_ROOTS = (
     ROOT / "paper_logs" / "crypto_history",
 )
 BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
+ETF_SYMBOLS = {
+    "DIA",
+    "EEM",
+    "EFA",
+    "GLD",
+    "HYG",
+    "IWM",
+    "LQD",
+    "QQQ",
+    "SLV",
+    "SPY",
+    "TLT",
+    "VXX",
+    "XBI",
+    "XLB",
+    "XLC",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLU",
+    "XLV",
+    "XLY",
+}
 CONFIG_BUILDER_PLUGINS = (
     {
         "id": "no_edge_template",
@@ -515,6 +540,70 @@ def parse_data_roots(raw_roots: list[Path] | None) -> list[Path]:
     return out
 
 
+def read_optional_yaml_mapping(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(f"config file does not exist: {path}")
+    with path.open() as f:
+        payload = yaml.safe_load(f) or {}
+    if not isinstance(payload, dict):
+        raise ValueError("config file must be a YAML mapping")
+    return payload
+
+
+def dashboard_server_settings(
+    config_path: Path | None,
+    *,
+    host: str | None = None,
+    port: int | None = None,
+    state_dir: Path | None = None,
+    dashboard_dir: Path | None = None,
+    data_roots: list[Path] | None = None,
+    auth_token_env: str | None = None,
+) -> dict[str, Any]:
+    settings: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": 8765,
+        "state_dir": Path("paper_logs/cloud_status_server"),
+        "dashboard_dir": DEFAULT_DASHBOARD_DIR,
+        "data_roots": None,
+        "auth_token_env": None,
+    }
+    if config_path is not None:
+        config = read_optional_yaml_mapping(config_path)
+        dashboard = config.get("dashboard") or {}
+        if not isinstance(dashboard, dict):
+            raise ValueError("dashboard config must be a mapping")
+        if dashboard.get("host") is not None:
+            settings["host"] = str(dashboard["host"])
+        if dashboard.get("port") is not None:
+            settings["port"] = int(dashboard["port"])
+        if dashboard.get("state_dir") is not None:
+            settings["state_dir"] = Path(str(dashboard["state_dir"]))
+        if dashboard.get("dashboard_dir") is not None:
+            settings["dashboard_dir"] = Path(str(dashboard["dashboard_dir"]))
+        if dashboard.get("auth_token_env") is not None:
+            settings["auth_token_env"] = str(dashboard["auth_token_env"])
+        if dashboard.get("data_roots") is not None:
+            raw_roots = dashboard["data_roots"]
+            if not isinstance(raw_roots, list):
+                raise ValueError("dashboard.data_roots must be a list")
+            settings["data_roots"] = [Path(str(root)) for root in raw_roots]
+
+    if host is not None:
+        settings["host"] = host
+    if port is not None:
+        settings["port"] = port
+    if state_dir is not None:
+        settings["state_dir"] = state_dir
+    if dashboard_dir is not None:
+        settings["dashboard_dir"] = dashboard_dir
+    if data_roots is not None:
+        settings["data_roots"] = data_roots
+    if auth_token_env is not None:
+        settings["auth_token_env"] = auth_token_env
+    return settings
+
+
 def data_file_candidates(data_roots: list[Path], *, limit: int) -> list[Path]:
     files: list[Path] = []
     for root in data_roots:
@@ -547,6 +636,35 @@ def infer_bar_size(path: Path, df: pd.DataFrame) -> str | None:
         if token in lowered:
             return token
     return None
+
+
+def infer_asset_class(path: Path, symbol: str | None) -> str:
+    symbol_text = (symbol or "").upper()
+    lowered = "/".join(part.lower() for part in path.parts)
+    if symbol_text.endswith("-USD") or "crypto" in lowered or "zerohash" in lowered:
+        return "crypto"
+    if symbol_text in ETF_SYMBOLS:
+        return "etf"
+    return "stock" if symbol_text else "unknown"
+
+
+def infer_data_source(path: Path) -> str:
+    lowered = "/".join(part.lower() for part in path.parts)
+    if "examples/data" in lowered:
+        return "example"
+    if "ibkr" in lowered or "interactive" in lowered:
+        return "ibkr"
+    if "schwab" in lowered:
+        return "schwab"
+    if "polygon" in lowered:
+        return "polygon"
+    if "firstrate" in lowered or "first_rate" in lowered:
+        return "firstrate"
+    if "zerohash" in lowered:
+        return "zerohash"
+    if "cache" in lowered:
+        return "cache"
+    return "file"
 
 
 def timestamp_column(df: pd.DataFrame) -> str | None:
@@ -728,15 +846,18 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
             preview.append(item)
 
     stat = path.stat()
+    symbol = infer_symbol(path, df)
     return {
         "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
         "format": fmt,
+        "source": infer_data_source(path),
         "size_bytes": stat.st_size,
         "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
-        "symbol": infer_symbol(path, df),
+        "symbol": symbol,
+        "asset_class": infer_asset_class(path, symbol),
         "bar_size": infer_bar_size(path, df),
         "timestamp_column": ts_col,
         "source_timezone": source_tz,
@@ -784,6 +905,8 @@ def build_data_catalog(
         "error_count": len(errors),
         "quality_counts": count_values(datasets, "quality_status"),
         "bar_size_counts": count_values(datasets, "bar_size"),
+        "asset_class_counts": count_values(datasets, "asset_class"),
+        "source_counts": count_values(datasets, "source"),
         "row_count_total": sum(int(item.get("rows") or 0) for item in datasets),
         "size_bytes_total": sum(int(item.get("size_bytes") or 0) for item in datasets),
         "latest_modified_at": max(modified_values) if modified_values else None,
@@ -796,6 +919,8 @@ DATA_CATALOG_EXPORT_FIELDS = (
     "path",
     "root",
     "symbol",
+    "asset_class",
+    "source",
     "bar_size",
     "format",
     "rows",
@@ -1153,15 +1278,18 @@ def build_data_detail(
             preview.append(item)
 
     stat = path.stat()
+    symbol = infer_symbol(path, df)
     return {
         "path": rel_path,
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
         "format": fmt,
+        "source": infer_data_source(path),
         "size_bytes": stat.st_size,
         "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
-        "symbol": infer_symbol(path, df),
+        "symbol": symbol,
+        "asset_class": infer_asset_class(path, symbol),
         "bar_size": infer_bar_size(path, df),
         "column_map": columns,
         "source_timezone": source_tz,
@@ -1975,6 +2103,8 @@ def build_workbench_snapshot(
             "error_count": catalog["error_count"],
             "quality_counts": catalog["quality_counts"],
             "bar_size_counts": catalog["bar_size_counts"],
+            "asset_class_counts": catalog["asset_class_counts"],
+            "source_counts": catalog["source_counts"],
             "row_count_total": catalog["row_count_total"],
             "size_bytes_total": catalog["size_bytes_total"],
             "latest_modified_at": catalog["latest_modified_at"],
@@ -3284,10 +3414,11 @@ def create_server(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a local telemetry receiver/dashboard")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--state-dir", type=Path, default=Path("paper_logs/cloud_status_server"))
-    parser.add_argument("--dashboard-dir", type=Path, default=DEFAULT_DASHBOARD_DIR)
+    parser.add_argument("--config", type=Path, default=None, help="Optional config with a dashboard section")
+    parser.add_argument("--host", default=None)
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--state-dir", type=Path, default=None)
+    parser.add_argument("--dashboard-dir", type=Path, default=None)
     parser.add_argument(
         "--data-root",
         action="append",
@@ -3297,16 +3428,28 @@ def main() -> None:
     )
     parser.add_argument("--auth-token-env", default=None, help="Optional env var containing bearer token")
     args = parser.parse_args()
+    try:
+        settings = dashboard_server_settings(
+            args.config,
+            host=args.host,
+            port=args.port,
+            state_dir=args.state_dir,
+            dashboard_dir=args.dashboard_dir,
+            data_roots=args.data_root,
+            auth_token_env=args.auth_token_env,
+        )
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
     server = create_server(
-        args.host,
-        args.port,
-        args.state_dir,
-        auth_token_env=args.auth_token_env,
-        dashboard_dir=args.dashboard_dir,
-        data_roots=args.data_root,
+        settings["host"],
+        int(settings["port"]),
+        settings["state_dir"],
+        auth_token_env=settings["auth_token_env"],
+        dashboard_dir=settings["dashboard_dir"],
+        data_roots=settings["data_roots"],
     )
-    print(f"Serving status dashboard at http://{args.host}:{server.server_address[1]}/")
+    print(f"Serving status dashboard at http://{settings['host']}:{server.server_address[1]}/")
     server.serve_forever()
 
 

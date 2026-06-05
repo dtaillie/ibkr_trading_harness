@@ -37,6 +37,15 @@ publish:
   token_env: null  # e.g. TRADING_STATUS_TOKEN
   timeout_seconds: 5.0
 
+dashboard:
+  host: 127.0.0.1
+  port: 8765
+  state_dir: paper_logs/cloud_status_server
+  auth_token_env: null  # e.g. TRADING_STATUS_TOKEN
+  data_roots:
+    - examples/data
+
 notes:
   - Keep real endpoint tokens in environment variables, not config files.
   - This is read-only telemetry. Remote commands are intentionally separate.
+  - Copy this config to an ignored local file to add private cache/history roots.
