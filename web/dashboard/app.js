@@ -3740,6 +3740,22 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
   const missingIntervals = Number(coverage.estimated_missing_intervals || 0);
   const largestGap = Number(coverage.largest_gap_seconds);
   const qualityStatus = text(quality.quality_status || "unknown");
+  const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
+  const viewerCardStatus = viewerStatus === "unavailable" || viewerStatus === "empty_range"
+    ? "bad"
+    : viewerStatus === "sampled"
+      ? "warn"
+      : "ok";
+  const viewerTitle = viewerStatus === "sampled"
+    ? `${numberText(viewer.sampled_points, 0)} sampled`
+    : viewerStatus === "empty_range"
+      ? "Empty Range"
+      : viewerStatus === "unavailable"
+        ? "Unavailable"
+        : `${numberText(viewer.sampled_points, 0)} full`;
+  const viewerNote = viewerStatus === "sampled"
+    ? `${numberText(viewer.points_omitted, 0)} rows omitted from ${numberText(viewer.filtered_rows, 0)} filtered rows.`
+    : `${text(viewer.status_reason || "All filtered rows are plotted.")} ${numberText(viewer.filtered_rows, 0)} filtered / ${numberText(viewer.available_rows, 0)} available.`;
   const replayStatus = qualityStatus === "bad" || duplicateRows > 0
     ? "bad"
     : qualityStatus === "warn" || warnings.length || nullRows > 0 || missingIntervals > 0
@@ -3770,6 +3786,12 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
       title: `${numberText(duplicateRows, 0)} dup / ${numberText(nullRows, 0)} null`,
       label: "Integrity",
       note: "Duplicate timestamps are blockers; nulls require review.",
+    },
+    {
+      status: viewerCardStatus,
+      title: viewerTitle,
+      label: "Viewer",
+      note: viewerNote,
     },
     {
       status: replayStatus,

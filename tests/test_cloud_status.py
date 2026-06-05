@@ -2027,6 +2027,21 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["viewer"]["available_rows"] == 4
         assert detail["viewer"]["filtered_rows"] == 4
         assert detail["viewer"]["sampled"] is False
+        assert detail["viewer"]["sampled_points"] == 4
+        assert detail["viewer"]["points_omitted"] == 0
+        assert detail["viewer"]["status"] == "full"
+        assert detail["viewer"]["status_reason"] == "all filtered rows are plotted"
+
+        with request.urlopen(f"{base}/data_detail?path={data_file}&preview_points=2&gap_limit=5", timeout=5) as resp:
+            sampled = json.loads(resp.read().decode("utf-8"))
+
+        assert sampled["viewer"]["sample_mode"] == "sampled"
+        assert sampled["viewer"]["filtered_rows"] == 4
+        assert sampled["viewer"]["sampled_points"] == 2
+        assert sampled["viewer"]["sampled"] is True
+        assert sampled["viewer"]["points_omitted"] == 2
+        assert sampled["viewer"]["status"] == "sampled"
+        assert "evenly sampled" in sampled["viewer"]["status_reason"]
 
         with request.urlopen(
             f"{base}/data_detail?"

@@ -479,6 +479,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - sampled and full-resolution modes
     - partial; sampled mode is default and full mode is available when the
       selected range fits the bounded point limit
+    - partial; Data Detail now publishes explicit viewer status, omitted point
+      counts, and a Viewer health card so users can tell whether a chart is
+      full, sampled, empty, or unavailable.
   - compare two or more symbols on the same time range
     - partial; Data Library now has a saved-data comparison panel and
       `/data_compare` endpoint for normalized close paths over one date range

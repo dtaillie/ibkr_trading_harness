@@ -4019,6 +4019,9 @@ def build_data_detail(
         "filtered_rows": 0,
         "sampled_points": 0,
         "sampled": False,
+        "points_omitted": 0,
+        "status": "unavailable",
+        "status_reason": "no close column or parseable timestamp column",
         "first_timestamp": None,
         "last_timestamp": None,
         "source_timezone": source_tz,
@@ -4091,6 +4094,16 @@ def build_data_detail(
         sample_indices = list(range(len(scoped))) if sample_mode == "full" else evenly_sample_indices(len(scoped), preview_points)
         viewer["sampled"] = bool(len(scoped) > len(sample_indices))
         viewer["sampled_points"] = int(len(sample_indices))
+        viewer["points_omitted"] = max(0, int(len(scoped)) - int(len(sample_indices)))
+        if scoped.empty:
+            viewer["status"] = "empty_range"
+            viewer["status_reason"] = "no rows match the selected date range"
+        elif viewer["sampled"]:
+            viewer["status"] = "sampled"
+            viewer["status_reason"] = "range exceeds point limit; evenly sampled for display"
+        else:
+            viewer["status"] = "full"
+            viewer["status_reason"] = "all filtered rows are plotted"
         for idx in sample_indices:
             row = scoped.iloc[idx]
             item = {
