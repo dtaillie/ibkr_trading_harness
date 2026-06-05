@@ -295,6 +295,8 @@ publish them. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
+Use Export Status CSV from Performance when you want live/paper status-history
+daily, monthly, and yearly equity rollups outside the dashboard.
 Use Export Snapshot from Workbench State to download a public-safe JSON bundle
 of setup diagnostics, saved-data metadata, config options, and recent run
 summaries.

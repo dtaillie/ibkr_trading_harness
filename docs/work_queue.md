@@ -211,6 +211,9 @@ strategy-private.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.
+  - partial; Performance now exposes `/status_equity_rollups_export` and an
+    Export Status CSV button for offline review of live/paper status-history
+    daily, monthly, and yearly equity rollups.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows

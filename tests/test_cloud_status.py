@@ -678,6 +678,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-avg-win-loss" in html
         assert "performance-turnover" in html
         assert "performance-equity" in html
+        assert "performance-status-rollups-body" in html
+        assert "performance-status-period-rollups-body" in html
+        assert "export-status-rollups-csv" in html
         assert "comparison-filter-text" in html
         assert "runtime-status-grid" in html
         assert "runtime-status-note" in html
@@ -740,6 +743,8 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         endpoints = {(item["method"], item["path"]) for item in payload["endpoints"]}
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
+        assert ("GET", "/status_equity_rollups") in endpoints
+        assert ("GET", "/status_equity_rollups_export") in endpoints
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
@@ -1055,6 +1060,22 @@ def test_cloud_status_server_serves_status_equity_rollups(tmp_path):
         assert month["day_count"] == 2
         assert month["node_count"] == 1
         assert abs(month["total_return_pct"] - 1.475) < 1e-9
+
+        with request.urlopen(f"{base}/status_equity_rollups_export?node_id=paper-node&limit=10&history_limit=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="status_equity_rollups.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert {row["row_type"] for row in rows} == {"daily", "month", "year"}
+        daily_by_day = {row["day"]: row for row in rows if row["row_type"] == "daily"}
+        assert daily_by_day["2026-01-02"]["node_id"] == "paper-node"
+        assert abs(float(daily_by_day["2026-01-02"]["daily_return_pct"]) - 2.5) < 1e-9
+        assert daily_by_day["2026-01-02"]["gateway_reachable"] == "False"
+        period_by_type = {row["row_type"]: row for row in rows if row["row_type"] in {"month", "year"}}
+        assert period_by_type["month"]["label"] == "2026-01"
+        assert period_by_type["month"]["node_count"] == "1"
+        assert period_by_type["year"]["label"] == "2026"
+        assert abs(float(period_by_type["year"]["total_return_pct"]) - 1.475) < 1e-9
     finally:
         server.shutdown()
         server.server_close()

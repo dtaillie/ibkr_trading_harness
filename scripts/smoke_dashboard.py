@@ -401,6 +401,7 @@ def run_smoke(
             "runtime-status-note",
             "Live/Paper Period Rollups",
             "performance-status-period-rollups-body",
+            "export-status-rollups-csv",
             "paper-monitor-note",
             "paper-monitor-guide",
             "remote-nodes-note",
@@ -566,6 +567,7 @@ def run_smoke(
             "remote_nodes_export",
             "remote_node_detail",
             "status_equity_rollups",
+            "status_equity_rollups_export",
             "performance-status-period-rollups-body",
             "filteredRemoteNodes",
             "renderRemoteNodeFilterOptions",
@@ -650,6 +652,8 @@ def run_smoke(
         endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
         if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
+        if ("GET", "/status_equity_rollups_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing status_equity_rollups_export")
         if ("GET", "/remote_nodes_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing remote_nodes_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
@@ -707,6 +711,9 @@ def run_smoke(
         daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
         if "rollups" not in daily_rollups or "total" not in daily_rollups or "period_rollups" not in daily_rollups:
             raise RuntimeError("daily rollup summary is invalid")
+        status_rollups_csv = fetch_text(base_url, "/status_equity_rollups_export?limit=5&history_limit=100")
+        if "row_type,label,day,node_id" not in status_rollups_csv:
+            raise RuntimeError("status equity rollup CSV header is missing")
         scenario_checks = {}
         if scenario == "empty":
             if catalog.get("count") != 0:

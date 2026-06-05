@@ -48,6 +48,8 @@ active, and when the latest decision/account/data timestamps were published.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.
+Use Export Status CSV to download live/paper status-history daily, monthly, and
+yearly equity rollups for offline review.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.

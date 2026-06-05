@@ -285,6 +285,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/status_equity_rollups_export",
+        "category": "telemetry",
+        "description": "Download sanitized status-history daily, monthly, and yearly equity rollups.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/remote_nodes",
         "category": "telemetry",
         "description": "Return sanitized latest read-only monitoring summaries by node.",
@@ -1131,6 +1138,61 @@ def build_status_equity_rollups(
         "history_scanned": scanned,
         "node_id": node_id,
     }
+
+
+STATUS_EQUITY_ROLLUP_EXPORT_FIELDS = (
+    "row_type",
+    "label",
+    "day",
+    "node_id",
+    "mode",
+    "latest_run_id",
+    "latest_run_status",
+    "status",
+    "gateway_reachable",
+    "snapshot_count",
+    "account_start_time",
+    "account_end_time",
+    "first_day",
+    "last_day",
+    "start_equity",
+    "end_equity",
+    "daily_return_pct",
+    "total_return_pct",
+    "day_count",
+    "node_count",
+    "position_count",
+    "open_order_count",
+    "alert_count",
+    "order_count",
+    "fill_count",
+    "rejection_count",
+)
+
+
+def build_status_equity_rollups_csv(
+    state_dir: Path,
+    *,
+    node_id: str = "",
+    limit: int = 100,
+    history_limit: int = 5000,
+) -> str:
+    payload = build_status_equity_rollups(state_dir, node_id=node_id, limit=limit, history_limit=history_limit)
+    rows: list[dict[str, Any]] = []
+    for item in payload.get("rollups") or []:
+        if isinstance(item, dict):
+            rows.append({"row_type": "daily", "label": item.get("day"), **item})
+    period_rollups = payload.get("period_rollups") if isinstance(payload.get("period_rollups"), dict) else {}
+    for row_type in ("month", "year"):
+        for item in period_rollups.get(row_type) or []:
+            if isinstance(item, dict):
+                rows.append({"row_type": row_type, **item})
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=STATUS_EQUITY_ROLLUP_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in STATUS_EQUITY_ROLLUP_EXPORT_FIELDS})
+    return out.getvalue()
 
 
 def parse_limit(params: dict[str, list[str]], *, default: int = 50, maximum: int = 500) -> int:
@@ -6946,6 +7008,29 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             payload = build_status_equity_rollups(self.state_dir, node_id=node_id, limit=limit, history_limit=history_limit)
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/status_equity_rollups_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                history_limit = parse_int_param(params, "history_limit", default=5000, maximum=50000)
+                csv_body = build_status_equity_rollups_csv(
+                    self.state_dir,
+                    node_id=node_id,
+                    limit=limit,
+                    history_limit=history_limit,
+                )
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="status_equity_rollups.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/remote_nodes":
             if not self.require_auth():

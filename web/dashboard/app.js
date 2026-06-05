@@ -6106,6 +6106,20 @@ async function downloadRemoteNodesCsv() {
   $("last-refresh").textContent = `Remote nodes CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadStatusRollupsCsv() {
+  const body = await fetchText("/status_equity_rollups_export?limit=500&history_limit=50000");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "status_equity_rollups.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Status rollups CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
@@ -6543,6 +6557,11 @@ function init() {
   $("export-remote-nodes-csv").addEventListener("click", () => {
     downloadRemoteNodesCsv().catch((err) => {
       $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-status-rollups-csv").addEventListener("click", () => {
+    downloadStatusRollupsCsv().catch((err) => {
+      $("last-refresh").textContent = `Status rollups CSV export failed: ${err.message}`;
     });
   });
   $("export-data-catalog-csv").addEventListener("click", () => {
