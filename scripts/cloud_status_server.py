@@ -1754,6 +1754,7 @@ def audit_data_root(
     scan_limit: int,
 ) -> dict[str, Any]:
     resolved = root.resolve()
+    started = time.perf_counter()
     probe = writable_probe(resolved, expect_dir=True)
     files, capped, errors = data_files_for_root(resolved, scan_limit=scan_limit)
     file_rows = []
@@ -1776,6 +1777,7 @@ def audit_data_root(
             size_bytes += path.stat().st_size
         except OSError:
             continue
+    scan_duration_ms = (time.perf_counter() - started) * 1000.0
     return {
         **probe,
         "display_path": display_path(resolved),
@@ -1784,6 +1786,7 @@ def audit_data_root(
         "root_scope_note": data_root_scope_note(classify_data_root(resolved)),
         "file_count": len(files),
         "scan_limit": scan_limit,
+        "scan_duration_ms": round(scan_duration_ms, 3),
         "scan_capped": capped,
         "size_bytes": size_bytes,
         "catalog_visible_count": visible_count,
@@ -1858,6 +1861,7 @@ def build_data_storage_audit(
         "warning_count": len(warnings),
         "catalog_limit": catalog_limit,
         "scan_limit": scan_limit,
+        "scan_duration_ms_total": round(sum(float(row.get("scan_duration_ms") or 0.0) for row in configured_rows + suggested_rows), 3),
         "catalog_visible_count": len(catalog_paths),
         "catalog_error_count": int(catalog.get("error_count") or 0),
         "configured_file_count": configured_file_count,
@@ -1919,6 +1923,7 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "catalog_visible_count",
     "hidden_file_count",
     "scan_limit",
+    "scan_duration_ms",
     "scan_capped",
     "size_bytes",
     "error_count",

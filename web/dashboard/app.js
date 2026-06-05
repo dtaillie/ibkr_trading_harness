@@ -2857,6 +2857,7 @@ function renderDataStorageAudit() {
     ["Configured Files", numberText(audit.configured_file_count, 0)],
     ["Hidden Configured Files", numberText(audit.hidden_configured_file_count, 0)],
     ["Suggested-root Files", numberText(audit.suggested_file_count, 0)],
+    ["Root Scan Time", `${numberText(audit.scan_duration_ms_total, 3)} ms`],
     ["Warnings", (audit.warnings || []).join("; ") || "none"],
   ];
   $("data-storage-audit-list").innerHTML = pairs.map(([key, value]) => (
@@ -2877,6 +2878,7 @@ function renderDataStorageAudit() {
           `${escapeHtml(numberText(item.file_count, 0))}${item.scan_capped ? " capped" : ""}`,
           escapeHtml(numberText(item.catalog_visible_count, 0)),
           escapeHtml(numberText(item.hidden_file_count, 0)),
+          `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
           escapeHtml(countSummary(item.extension_counts)),
           escapeHtml(countSummary(item.source_guess_counts)),
           hiddenSamples.length
@@ -2884,7 +2886,7 @@ function renderDataStorageAudit() {
             : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderDataCoverage() {

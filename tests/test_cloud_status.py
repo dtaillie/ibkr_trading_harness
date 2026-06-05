@@ -1489,12 +1489,14 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert audit["configured_file_count"] == 2
         assert audit["hidden_configured_file_count"] == 1
         assert audit["suggested_file_count"] == 1
+        assert audit["scan_duration_ms_total"] >= 0
         configured = audit["configured_roots"][0]
         assert configured["display_path"] == str(data_root.resolve())
         assert configured["root_scope"] == "local_path"
         assert configured["root_scope_note"]
         assert configured["catalog_visible_count"] == 1
         assert configured["hidden_file_count"] == 1
+        assert configured["scan_duration_ms"] >= 0
         assert configured["sample_hidden_paths"][0].endswith("_5min_sample.csv")
         suggested = audit["suggested_roots"][0]
         assert suggested["display_path"] == str(suggested_root.resolve())
@@ -1505,6 +1507,7 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
             csv_body = resp.read().decode("utf-8")
             assert resp.headers["Content-Type"].startswith("text/csv")
         assert "scope,path,display_path" in csv_body
+        assert "scan_duration_ms" in csv_body.splitlines()[0]
         assert "configured" in csv_body
         assert "suggested" in csv_body
         assert str(suggested_root.resolve()) in csv_body
@@ -1558,6 +1561,7 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     assert payload["configured_extension_counts"] == {".csv": 2}
     assert payload["configured_asset_class_guess_counts"] == {"crypto": 1, "etf": 1}
     assert payload["configured_bar_size_guess_counts"] == {"1min": 1, "5min": 1}
+    assert payload["scan_duration_ms_total"] >= 0
 
     assert run_storage_audit([
         "--data-root",
@@ -1571,6 +1575,8 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     report = capsys.readouterr().out
     assert "Storage Audit: warn" in report
     assert "Configured files: 2" in report
+    assert "Scan time:" in report
+    assert "scan_ms=" in report
     assert "Recommended next steps:" in report
 
 

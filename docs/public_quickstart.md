@@ -256,7 +256,8 @@ configured data roots, saved-data coverage, root-scan diagnostics, and
 historical previews. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
-comparison for offline review. Use the coverage grid to see recent date-bin
+comparison for offline review; the audit includes per-root scan duration so
+large or slow roots are visible. Use the coverage grid to see recent date-bin
 coverage by symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Use Copy data_roots YAML when Data Library finds

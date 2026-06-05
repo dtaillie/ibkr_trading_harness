@@ -426,6 +426,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; the dashboard now exposes `/data_storage_audit_export` and an
     Export Audit CSV button so root-by-root file counts, hidden-file counts,
     extension/source breakdowns, and suggested roots can be reviewed offline.
+  - partial; Storage Audit rows now carry per-root scan duration and the
+    summary/CLI report include total root scan time, making slow roots visible.
   - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
   - compare files on disk to dashboard-visible catalog rows
   - summarize missing symbols, malformed files, unsupported extensions, and
@@ -520,6 +522,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library now shows catalog scan diagnostics with per-root
       candidate, parsed, parser-error, unsupported-file, cap/reason, and scan
       duration fields. Storage Audit still handles deeper full-root file counts.
+    - partial; Storage Audit now also displays and exports per-root scan
+      duration for the deeper full-root file audit.
   - warning when the catalog result is capped and not all symbols are shown
     - done in the Data Library visibility card
 - Add saved fetch manifests:

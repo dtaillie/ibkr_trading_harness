@@ -50,7 +50,11 @@ def human_report(audit: dict[str, Any]) -> str:
             f"{audit.get('hidden_configured_file_count', 0)} hidden at current limit)"
         ),
         f"Suggested-root files: {audit.get('suggested_file_count', 0)}",
-        f"Catalog limit: {audit.get('catalog_limit', 'n/a')} | Scan limit/root: {audit.get('scan_limit', 'n/a')}",
+        (
+            f"Catalog limit: {audit.get('catalog_limit', 'n/a')} | "
+            f"Scan limit/root: {audit.get('scan_limit', 'n/a')} | "
+            f"Scan time: {audit.get('scan_duration_ms_total', 'n/a')} ms"
+        ),
         f"Extensions: {count_summary(audit.get('extension_counts'))}",
         f"Assets: {count_summary(audit.get('asset_class_guess_counts'))}",
         f"Sources: {count_summary(audit.get('source_guess_counts'))}",
@@ -79,7 +83,8 @@ def human_report(audit: dict[str, Any]) -> str:
             f"files={row.get('file_count', 0)} "
             f"visible={row.get('catalog_visible_count', 0)} "
             f"hidden={row.get('hidden_file_count', 0)} "
-            f"size={format_bytes(row.get('size_bytes'))}"
+            f"size={format_bytes(row.get('size_bytes'))} "
+            f"scan_ms={row.get('scan_duration_ms', 'n/a')}"
             f"{' capped' if row.get('scan_capped') else ''}"
         )
         lines.append(f"  extensions: {count_summary(row.get('extension_counts'))}")
