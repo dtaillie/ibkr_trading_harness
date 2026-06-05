@@ -1002,6 +1002,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     run is launched with `--approve-orders`. Dashboard performance and
     artifact summaries surface approval-hold counts. Richer interactive
     approval flows remain open.
+  - partial; archived/draft run artifact loading now preserves bounded
+    `order_previews.jsonl` rows, sanitizes approval preview details, and the
+    Runs artifact view shows a dedicated Order Previews table for held orders.
 - Add richer simulated-paper accounting:
   - realized PnL
   - average cost

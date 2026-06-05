@@ -257,7 +257,7 @@ MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS = 1000000
 MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
-RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl")
+RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl", "order_previews.jsonl")
 PUBLIC_DECISION_DRILLDOWN_FIELDS = (
     "reason",
     "signal_label",
@@ -5586,6 +5586,27 @@ def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_order_preview_artifact(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "timestamp": row.get("timestamp"),
+        "step": row.get("step"),
+        "mode": row.get("mode"),
+        "approval_required": bool(row.get("approval_required")),
+        "approval_status": row.get("approval_status"),
+        "status": row.get("status"),
+        "symbol": row.get("symbol"),
+        "side": row.get("side"),
+        "order_type": row.get("order_type"),
+        "quantity": row.get("quantity"),
+        "cash_quantity": row.get("cash_quantity"),
+        "price": finite_float(row.get("price")),
+        "estimated_notional": finite_float(row.get("estimated_notional")),
+        "cash": finite_float(row.get("cash")),
+        "equity": finite_float(row.get("equity")),
+        "tag": row.get("tag"),
+    }
+
+
 def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "timestamp": row.get("timestamp"),
@@ -5966,6 +5987,7 @@ def load_config_draft_artifacts(
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
     account_raw = read_jsonl_tail(output_dir / "account.jsonl", limit=limit)
+    previews_raw = read_jsonl_tail(output_dir / "order_previews.jsonl", limit=limit)
     return {
         "draft_id": path.stem,
         "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
@@ -5976,9 +5998,11 @@ def load_config_draft_artifacts(
             "orders": len(orders_raw),
             "fills": len(fills_raw),
             "account": len(account_raw),
+            "order_previews": len(previews_raw),
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
+        "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
         "account": [summarize_account_artifact(row) for row in account_raw],
         "limit": limit,
@@ -6021,6 +6045,7 @@ def load_config_draft_run_artifacts(
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
     account_raw = read_jsonl_tail(path / "account.jsonl", limit=limit)
+    previews_raw = read_jsonl_tail(path / "order_previews.jsonl", limit=limit)
     return {
         "run_id": record.get("run_id"),
         "draft_id": record.get("draft_id"),
@@ -6035,9 +6060,11 @@ def load_config_draft_run_artifacts(
             "orders": len(orders_raw),
             "fills": len(fills_raw),
             "account": len(account_raw),
+            "order_previews": len(previews_raw),
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
+        "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
         "account": [summarize_account_artifact(row) for row in account_raw],
         "limit": limit,

@@ -2763,7 +2763,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["run_id"] == replay["run_id"]
         assert run_artifacts["draft_id"] == "Run_Draft"
         assert run_artifacts["summary"]["mode"] == "replay"
-        assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
+        assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "order_previews": 0, "orders": 0}
         assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in run_artifacts["decisions"][0]
         assert "diagnostics" not in run_artifacts["decisions"][0]
@@ -2793,7 +2793,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
         assert artifacts["summary"]["mode"] == "replay"
-        assert artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
+        assert artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "order_previews": 0, "orders": 0}
         assert artifacts["performance"]["account_snapshot_count"] == 2
         assert artifacts["performance"]["initial_equity"] == 25000.0
         assert artifacts["performance"]["total_return_pct"] == 0.0
@@ -3223,6 +3223,72 @@ def test_cloud_status_server_serves_daily_run_rollups(tmp_path):
         assert month["rejection_count"] == 1
         assert year["label"] == "2026"
         assert abs(year["total_return_pct"] - 2.9) < 1e-9
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
+    state_dir = tmp_path / "state"
+    artifact_dir = state_dir / "run_artifacts" / "approval-run"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "summary.json").write_text(
+        json.dumps({"mode": "simulated_paper", "approval_required_orders": 1, "final_equity": 10000.0}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "order_previews.jsonl").write_text(
+        json.dumps({
+            "timestamp": "2026-01-02T15:00:00+00:00",
+            "step": 4,
+            "mode": "simulated_paper",
+            "approval_required": True,
+            "approval_status": "required",
+            "status": "preview",
+            "symbol": "SPY",
+            "side": "buy",
+            "order_type": "market",
+            "quantity": 3,
+            "cash_quantity": None,
+            "price": 500.25,
+            "estimated_notional": 1500.75,
+            "cash": 9000.0,
+            "equity": 10000.0,
+            "positions": {"SPY": 0},
+            "metadata": {"private_signal": "hidden"},
+            "tag": "approval_test",
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+    (state_dir / "config_draft_runs.jsonl").write_text(
+        json.dumps({
+            "run_id": "approval-run",
+            "draft_id": "Approval",
+            "action": "simulated_paper",
+            "status": "completed",
+            "returncode": 0,
+            "artifact_path": str(artifact_dir),
+            "summary": {"mode": "simulated_paper", "approval_required_orders": 1},
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, state_dir)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_draft_run_artifacts?run_id=approval-run&limit=5", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["counts"]["order_previews"] == 1
+        preview = payload["order_previews"][0]
+        assert preview["approval_status"] == "required"
+        assert preview["symbol"] == "SPY"
+        assert preview["estimated_notional"] == 1500.75
+        assert preview["equity"] == 10000.0
+        assert "metadata" not in preview
+        assert "positions" not in preview
     finally:
         server.shutdown()
         server.server_close()

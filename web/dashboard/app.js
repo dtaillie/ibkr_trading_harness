@@ -6374,6 +6374,25 @@ function renderWorkbenchArtifacts() {
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 
+  const orderPreviews = artifacts.order_previews || [];
+  $("artifact-order-previews-note").textContent = orderPreviews.length
+    ? `${numberText(orderPreviews.length, 0)} preview${orderPreviews.length === 1 ? "" : "s"} loaded from order_previews.jsonl`
+    : "No manual-approval order previews in this artifact";
+  $("artifact-order-previews-body").innerHTML = orderPreviews.length
+    ? orderPreviews.map((preview) => row([
+        escapeHtml(preview.timestamp),
+        statusText(preview.approval_status || (preview.approval_required ? "required" : "preview")),
+        escapeHtml(preview.symbol),
+        escapeHtml(preview.side),
+        escapeHtml(preview.order_type),
+        escapeHtml(numberText(preview.quantity, 4)),
+        escapeHtml(money(preview.cash_quantity)),
+        escapeHtml(money(preview.estimated_notional)),
+        escapeHtml(money(preview.equity)),
+        escapeHtml(preview.tag),
+      ])).join("")
+    : row([`<span class="muted">Order previews appear when execution.require_order_approval holds orders for operator approval.</span>`, "", "", "", "", "", "", "", "", ""]);
+
   const fills = artifacts.fills || [];
   $("artifact-fills-body").innerHTML = fills.length
     ? fills.map((fill) => row([
