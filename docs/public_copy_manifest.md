@@ -9,6 +9,7 @@ pushing this working tree.
 - Generic broker/data adapters after account-specific defaults are removed.
 - Generic plugin runner:
   - `live/plugin_runner.py`
+  - `config/plugin_registry.example.yaml`
 - Generic local supervisor:
   - `scripts/plugin_supervisor.py`
   - `config/plugin_supervisor.example.yaml`

@@ -1063,6 +1063,8 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 f"    - {data_root}",
                 "  fetch_manifest_roots:",
                 f"    - {tmp_path / 'fetch_manifests'}",
+                "  plugin_registry_paths:",
+                f"    - {tmp_path / 'plugin_registry.yaml'}",
             ]
         )
         + "\n",
@@ -1093,6 +1095,7 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     }
     assert settings["data_roots"] == [data_root]
     assert settings["fetch_manifest_roots"] == [tmp_path / "fetch_manifests"]
+    assert settings["plugin_registry_paths"] == [tmp_path / "plugin_registry.yaml"]
 
     override = status_server.dashboard_server_settings(
         config_path,
@@ -1100,12 +1103,14 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
         port=0,
         data_roots=[tmp_path / "override"],
         fetch_manifest_roots=[tmp_path / "manifest_override"],
+        plugin_registry_paths=[tmp_path / "registry_override.yaml"],
         auth_token_env="OTHER_TOKEN",
     )
     assert override["host"] == "127.0.0.1"
     assert override["port"] == 0
     assert override["data_roots"] == [tmp_path / "override"]
     assert override["fetch_manifest_roots"] == [tmp_path / "manifest_override"]
+    assert override["plugin_registry_paths"] == [tmp_path / "registry_override.yaml"]
     assert override["auth_token_env"] == "OTHER_TOKEN"
 
 
@@ -2830,12 +2835,12 @@ def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_pat
         except error.HTTPError as exc:
             assert exc.code == 400
             payload = json.loads(exc.read().decode("utf-8"))
-        assert "workbench drafts can only run public generic no-edge plugins" in payload["error"]
+        assert "workbench drafts can only run configured Workbench plugins" in payload["error"]
 
         with request.urlopen(f"{base}/config_draft_detail?draft_id=Bad", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
         assert detail["validation"]["valid"] is False
-        assert "workbench drafts can only run public generic no-edge plugins" in detail["validation"]["errors"]
+        assert "workbench drafts can only run configured Workbench plugins" in detail["validation"]["errors"]
         assert detail["yaml"] == ""
         assert detail["commands"] == {}
 
@@ -2846,7 +2851,7 @@ def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_pat
         assert validations["invalid_count"] == 1
         assert validations["validations"][0]["draft_id"] == "Bad"
         assert validations["validations"][0]["valid"] is False
-        assert "workbench drafts can only run public generic no-edge plugins" in validations["validations"][0]["errors"]
+        assert "workbench drafts can only run configured Workbench plugins" in validations["validations"][0]["errors"]
     finally:
         server.shutdown()
         server.server_close()
@@ -2878,6 +2883,83 @@ def test_cloud_status_server_config_draft_rejects_unsupported_plugin(tmp_path):
             assert exc.code == 400
             payload = json.loads(exc.read().decode("utf-8"))
         assert payload["error"] == "unsupported plugin_id: unknown"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: local_demo",
+                "    label: Local demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    status: private_local",
+                "    visibility: private_local",
+                "    description: Local metadata only; strategy logic stays outside public configs.",
+                "    boundary: Loaded from an ignored local registry.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        data_roots=[data_root],
+        plugin_registry_paths=[registry],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_options", timeout=5) as resp:
+            options = json.loads(resp.read().decode("utf-8"))
+
+        plugins = {plugin["id"]: plugin for plugin in options["plugins"]}
+        assert set(plugins) == {"no_edge_template", "local_demo"}
+        assert plugins["local_demo"]["visibility"] == "private_local"
+        assert plugins["local_demo"]["status"] == "private_local"
+        assert plugins["local_demo"]["source"] == "local_registry"
+        assert plugins["local_demo"]["source_path"] == str(registry.resolve())
+        assert str(registry.resolve()) in options["plugin_registry_paths"]
+
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "name": "Local Plugin Draft",
+                "plugin_id": "local_demo",
+                "mode": "replay",
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "history_bars": 1,
+                "max_steps": 1,
+                "max_orders_per_run": 1,
+                "max_notional_per_order": 100,
+                "max_quantity": 10,
+                "max_cash_quantity": 100,
+                "max_gross_exposure_pct": 0.05,
+                "allow_quality_warnings": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(draft_req, timeout=5) as resp:
+            draft_payload = json.loads(resp.read().decode("utf-8"))
+
+        draft = draft_payload["draft"]
+        assert draft["plugin"]["id"] == "local_demo"
+        assert draft["validation"]["valid"] is True
+        assert draft["config"]["metadata"]["status"] == "private_local"
+        assert draft["config"]["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
+        assert "Loaded from an ignored local registry." in draft["config"]["notes"]
     finally:
         server.shutdown()
         server.server_close()

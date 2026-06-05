@@ -78,6 +78,11 @@ dashboard:
     - examples/data
   fetch_manifest_roots:
     - paper_logs/fetch_manifests
+  # Optional ignored local registry for private Workbench plugin metadata.
+  # Copy config/plugin_registry.example.yaml to config/plugin_registry_local.yaml
+  # and keep real strategy specs out of public commits.
+  plugin_registry_paths:
+    - config/plugin_registry_local.yaml
 
 notes:
   - Keep real endpoint tokens in environment variables, not config files.

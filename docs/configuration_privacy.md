@@ -11,6 +11,7 @@ client IDs, schedule choices, tuned strategy parameters, or private universes:
 - `config/*.env`
 - `config/*_paper.yaml`
 - `config/strategy_registry.yaml`
+- `config/plugin_registry_local.yaml`
 - `config/*_private.yaml`
 - `config/*_local.yaml`
 - `config/local/`
@@ -21,6 +22,7 @@ Examples are intentionally not ignored:
 - `config/*.env.example`
 - `config/*.example.yaml`
 - `config/strategy_registry.example.yaml`
+- `config/plugin_registry.example.yaml`
 
 Example files must be vanilla templates. They should demonstrate field names,
 execution modes, and operational wiring only. They should not contain tuned
@@ -41,6 +43,11 @@ Use `config/strategy_registry.yaml` for a private high-level local inventory of
 strategies. It should store labels, modes, status, config paths, and service
 commands, not tuned parameters. `scripts/strategy_registry_status.py` can print
 that inventory without opening private strategy config details.
+
+Use `config/plugin_registry_local.yaml` for private Workbench plugin metadata.
+Copy `config/plugin_registry.example.yaml`, replace the placeholder spec with a
+local plugin spec, and keep the copied file ignored. The Workbench can list
+those local plugin labels/statuses without committing private strategy logic.
 
 See `docs/public_copy_manifest.md` for the current include/exclude boundary for
 a future public repo copy.

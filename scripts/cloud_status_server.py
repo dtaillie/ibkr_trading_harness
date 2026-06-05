@@ -76,6 +76,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
 DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
+DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",)
 PUBLIC_DOCS = {
     "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
@@ -1080,6 +1081,15 @@ def parse_fetch_manifest_roots(raw_roots: list[Path] | None) -> list[Path]:
     return out
 
 
+def parse_plugin_registry_paths(raw_paths: list[Path] | None) -> list[Path]:
+    paths = raw_paths if raw_paths is not None else list(DEFAULT_PLUGIN_REGISTRY_PATHS)
+    out = []
+    for raw in paths:
+        path = raw if raw.is_absolute() else ROOT / raw
+        out.append(path.resolve())
+    return out
+
+
 def read_optional_yaml_mapping(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise ValueError(f"config file does not exist: {path}")
@@ -1099,6 +1109,7 @@ def dashboard_server_settings(
     dashboard_dir: Path | None = None,
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
+    plugin_registry_paths: list[Path] | None = None,
     auth_token_env: str | None = None,
 ) -> dict[str, Any]:
     settings: dict[str, Any] = {
@@ -1108,6 +1119,7 @@ def dashboard_server_settings(
         "dashboard_dir": DEFAULT_DASHBOARD_DIR,
         "data_roots": None,
         "fetch_manifest_roots": None,
+        "plugin_registry_paths": None,
         "auth_token_env": None,
         "auth_tokens": [],
         "network_access": {"enabled": False, "allowed_client_networks": [], "trust_x_forwarded_for": False},
@@ -1146,6 +1158,11 @@ def dashboard_server_settings(
             if not isinstance(raw_roots, list):
                 raise ValueError("dashboard.fetch_manifest_roots must be a list")
             settings["fetch_manifest_roots"] = [Path(str(root)) for root in raw_roots]
+        if dashboard.get("plugin_registry_paths") is not None:
+            raw_paths = dashboard["plugin_registry_paths"]
+            if not isinstance(raw_paths, list):
+                raise ValueError("dashboard.plugin_registry_paths must be a list")
+            settings["plugin_registry_paths"] = [Path(str(path)) for path in raw_paths]
         if dashboard.get("command_rate_limit") is not None:
             rate_limit = dashboard["command_rate_limit"]
             if not isinstance(rate_limit, dict):
@@ -1172,6 +1189,8 @@ def dashboard_server_settings(
         settings["data_roots"] = data_roots
     if fetch_manifest_roots is not None:
         settings["fetch_manifest_roots"] = fetch_manifest_roots
+    if plugin_registry_paths is not None:
+        settings["plugin_registry_paths"] = plugin_registry_paths
     if auth_token_env is not None:
         settings["auth_token_env"] = auth_token_env
     return settings
@@ -2699,8 +2718,62 @@ def slugify(value: str) -> str:
     return slug[:80] or "workbench_config"
 
 
-def public_plugin_by_id(plugin_id: str) -> dict[str, str] | None:
-    return next((plugin for plugin in CONFIG_BUILDER_PLUGINS if plugin["id"] == plugin_id), None)
+def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: str | None = None) -> dict[str, Any]:
+    plugin_id = str(row.get("id") or "").strip()
+    spec = str(row.get("spec") or row.get("strategy_plugin") or "").strip()
+    if not plugin_id:
+        raise ValueError("plugin id is required")
+    if not spec or ":" not in spec:
+        raise ValueError(f"plugin {plugin_id} must define spec as module:function")
+    visibility = str(row.get("visibility") or ("public_example" if source == "builtin" else "private_local")).strip()
+    status = str(row.get("status") or ("example_only" if source == "builtin" else "private_local")).strip()
+    label = str(row.get("label") or plugin_id).strip()
+    description = str(row.get("description") or "").strip()
+    boundary = str(row.get("boundary") or "").strip()
+    if not boundary:
+        boundary = (
+            "Public example plugin; not a viable trading strategy."
+            if source == "builtin"
+            else "Loaded from an ignored local plugin registry; keep strategy logic and tuned configs private."
+        )
+    plugin: dict[str, Any] = {
+        "id": plugin_id,
+        "label": label,
+        "spec": spec,
+        "status": status,
+        "visibility": visibility,
+        "description": description,
+        "boundary": boundary,
+        "source": source,
+    }
+    if source_path:
+        plugin["source_path"] = source_path
+    return plugin
+
+
+def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:
+    plugins = [normalize_config_plugin(plugin, source="builtin") for plugin in CONFIG_BUILDER_PLUGINS]
+    seen = {plugin["id"] for plugin in plugins}
+    for path in parse_plugin_registry_paths(plugin_registry_paths):
+        if not path.exists():
+            continue
+        payload = read_optional_yaml_mapping(path)
+        rows = payload.get("plugins") if isinstance(payload.get("plugins"), list) else []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"plugin registry row in {path} must be a mapping")
+            if row.get("enabled") is False:
+                continue
+            plugin = normalize_config_plugin(row, source="local_registry", source_path=str(path))
+            if plugin["id"] in seen:
+                raise ValueError(f"duplicate plugin id in plugin registry: {plugin['id']}")
+            seen.add(plugin["id"])
+            plugins.append(plugin)
+    return plugins
+
+
+def config_plugin_by_id(plugin_id: str, plugins: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next((plugin for plugin in plugins if plugin["id"] == plugin_id), None)
 
 
 def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]:
@@ -3300,10 +3373,17 @@ def number_field(payload: dict[str, Any], key: str, default: float, *, integer: 
     return value
 
 
-def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
+def build_config_draft(
+    payload: dict[str, Any],
+    *,
+    state_dir: Path,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     name = slugify(str(payload.get("name") or "workbench_example"))
     plugin_id = str(payload.get("plugin_id") or "no_edge_template")
-    plugin = public_plugin_by_id(plugin_id)
+    available_plugins = plugins or load_config_builder_plugins()
+    plugin = config_plugin_by_id(plugin_id, available_plugins)
     if plugin is None:
         raise ValueError(f"unsupported plugin_id: {plugin_id}")
     mode = str(payload.get("mode") or "replay").replace("-", "_").lower()
@@ -3363,8 +3443,8 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
 
     config = {
         "description": (
-            "GENERATED EXAMPLE ONLY. Public workbench draft using a no-edge "
-            "strategy plugin. This demonstrates wiring and validation only."
+            "Generated by the public workbench. Public example plugins are "
+            "wiring demonstrations only; local registry plugins remain private."
         ),
         "metadata": metadata,
         "strategy": {
@@ -3403,12 +3483,18 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
         },
         "notes": [
             "Generated by the public workbench.",
-            "Example only; do not trade this configuration.",
-            "Paper mode is intentionally not generated for public example plugins.",
+            "Review plugin visibility, data quality, and risk limits before any paper/live use.",
+            plugin["boundary"],
         ],
     }
     yaml_text = yaml.safe_dump(config, sort_keys=False)
-    errors = validate_runner_config(config, config_path=ROOT / "config" / f"{name}.yaml")
+    errors = validate_workbench_draft_config(
+        config,
+        config_path=ROOT / "config" / f"{name}.yaml",
+        data_roots=data_roots,
+        action="validate",
+        plugins=available_plugins,
+    )
     saved_path = None
     if bool(payload.get("save", False)):
         drafts_dir = state_dir / "config_drafts"
@@ -3433,11 +3519,13 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     }
 
 
-def config_builder_options() -> dict[str, Any]:
+def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> dict[str, Any]:
+    plugins = load_config_builder_plugins(plugin_registry_paths)
     return {
         "config_schema_version": CONFIG_SCHEMA_VERSION,
         "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
-        "plugins": list(CONFIG_BUILDER_PLUGINS),
+        "plugins": plugins,
+        "plugin_registry_paths": [display_path(path) for path in parse_plugin_registry_paths(plugin_registry_paths)],
         "modes": list(CONFIG_BUILDER_MODES),
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
@@ -3572,7 +3660,12 @@ def list_config_drafts(state_dir: Path) -> dict[str, Any]:
     return {"drafts": drafts, "count": len(drafts), "errors": errors, "error_count": len(errors)}
 
 
-def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dict[str, Any]:
+def config_draft_validation_record(
+    path: Path,
+    *,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     stat = path.stat()
     base: dict[str, Any] = {
         "draft_id": path.stem,
@@ -3601,6 +3694,7 @@ def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dic
             config_path=path,
             data_roots=data_roots,
             action="replay",
+            plugins=plugins,
         )
         base.update({
             "mode": runner.get("mode"),
@@ -3620,7 +3714,12 @@ def config_draft_validation_record(path: Path, *, data_roots: list[Path]) -> dic
     return base
 
 
-def build_config_draft_validations(state_dir: Path, *, data_roots: list[Path]) -> dict[str, Any]:
+def build_config_draft_validations(
+    state_dir: Path,
+    *,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     root = config_drafts_dir(state_dir)
     if not root.exists():
         return {
@@ -3631,7 +3730,7 @@ def build_config_draft_validations(state_dir: Path, *, data_roots: list[Path]) -
             "invalid_count": 0,
         }
     rows = [
-        config_draft_validation_record(path, data_roots=data_roots)
+        config_draft_validation_record(path, data_roots=data_roots, plugins=plugins)
         for path in sorted(root.glob("*.yaml"))
     ]
     valid_count = sum(1 for row in rows if row.get("valid"))
@@ -3691,17 +3790,23 @@ def validate_workbench_draft_config(
     config_path: Path,
     data_roots: list[Path],
     action: str,
+    plugins: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     errors = validate_runner_config(config, config_path=config_path)
     metadata = config.get("metadata") or {}
     runner = config.get("runner") or {}
     data = config.get("data") or {}
     spec = metadata.get("strategy_plugin") or metadata.get("plugin")
-    allowed_specs = {plugin["spec"] for plugin in CONFIG_BUILDER_PLUGINS}
-    if spec not in allowed_specs:
-        errors.append("workbench drafts can only run public generic no-edge plugins")
-    if metadata.get("status") != "example_only":
-        errors.append("workbench drafts must be marked metadata.status=example_only")
+    available_plugins = plugins or load_config_builder_plugins()
+    status = metadata.get("status")
+    plugin = next(
+        (item for item in available_plugins if item.get("spec") == spec and item.get("status") == status),
+        None,
+    ) or next((item for item in available_plugins if item.get("spec") == spec), None)
+    if plugin is None:
+        errors.append("workbench drafts can only run configured Workbench plugins")
+    elif metadata.get("status") != plugin.get("status"):
+        errors.append(f"workbench draft metadata.status must match plugin status {plugin.get('status')}")
     mode = str(runner.get("mode", "replay")).replace("-", "_").lower()
     if mode not in CONFIG_BUILDER_MODES:
         errors.append(f"runner.mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
@@ -3719,7 +3824,13 @@ def validate_workbench_draft_config(
     return errors
 
 
-def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list[Path]) -> dict[str, Any]:
+def load_config_draft_detail(
+    state_dir: Path,
+    draft_id: str,
+    *,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     path = config_draft_path(state_dir, draft_id)
     config = read_yaml_mapping(path)
     errors = validate_workbench_draft_config(
@@ -3727,6 +3838,7 @@ def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list
         config_path=path,
         data_roots=data_roots,
         action="replay",
+        plugins=plugins,
     )
     valid = not errors
     alignment: dict[str, Any] = {}
@@ -3750,7 +3862,13 @@ def load_config_draft_detail(state_dir: Path, draft_id: str, *, data_roots: list
     }
 
 
-def load_config_draft_yaml(state_dir: Path, draft_id: str, *, data_roots: list[Path]) -> tuple[str, str]:
+def load_config_draft_yaml(
+    state_dir: Path,
+    draft_id: str,
+    *,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> tuple[str, str]:
     path = config_draft_path(state_dir, draft_id)
     config = read_yaml_mapping(path)
     errors = validate_workbench_draft_config(
@@ -3758,6 +3876,7 @@ def load_config_draft_yaml(state_dir: Path, draft_id: str, *, data_roots: list[P
         config_path=path,
         data_roots=data_roots,
         action="replay",
+        plugins=plugins,
     )
     if errors:
         raise ValueError("; ".join(errors))
@@ -4127,6 +4246,7 @@ def build_workbench_snapshot(
     data_roots: list[Path],
     dashboard_dir: Path,
     fetch_manifest_roots: list[Path],
+    plugin_registry_paths: list[Path] | None = None,
 ) -> dict[str, Any]:
     catalog = build_data_catalog(data_roots, limit=200, preview_points=2)
     dataset_rows = [
@@ -4158,7 +4278,7 @@ def build_workbench_snapshot(
             "datasets": dataset_rows,
         },
         "fetch_manifests": build_fetch_manifests(fetch_manifest_roots, limit=50),
-        "config_options": config_builder_options(),
+        "config_options": config_builder_options(plugin_registry_paths),
         "run_comparison": build_config_draft_run_comparison(state_dir, limit=50),
     }
 
@@ -4786,6 +4906,7 @@ def load_config_draft_artifacts(
     draft_id: str,
     *,
     data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
     limit: int = 100,
 ) -> dict[str, Any]:
     path = config_draft_path(state_dir, draft_id)
@@ -4795,6 +4916,7 @@ def load_config_draft_artifacts(
         config_path=path,
         data_roots=data_roots,
         action="replay",
+        plugins=plugins,
     )
     if errors:
         raise ValueError("; ".join(errors))
@@ -4882,7 +5004,13 @@ def load_config_draft_run_artifacts(
     }
 
 
-def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: list[Path]) -> dict[str, Any]:
+def run_config_draft(
+    payload: dict[str, Any],
+    *,
+    state_dir: Path,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     draft_id = str(payload.get("draft_id") or "").strip()
     if not draft_id:
         raise ValueError("draft_id is required")
@@ -4903,6 +5031,7 @@ def run_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: li
         config_path=path,
         data_roots=data_roots,
         action=action,
+        plugins=plugins,
     )
     if errors:
         raise ValueError("; ".join(errors))
@@ -5801,7 +5930,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
-                result = build_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots)
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                result = build_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots, plugins=plugins)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -5845,7 +5975,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
-                result = run_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots)
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                result = run_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots, plugins=plugins)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -6125,7 +6256,12 @@ class StatusHandler(BaseHTTPRequestHandler):
         if parsed.path == "/config_options":
             if not self.require_auth():
                 return
-            json_response(self, 200, config_builder_options())
+            try:
+                payload = config_builder_options(self.plugin_registry_paths)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/workbench_status":
             if not self.require_auth():
@@ -6155,6 +6291,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 data_roots=self.data_roots,
                 dashboard_dir=self.dashboard_dir,
                 fetch_manifest_roots=self.fetch_manifest_roots,
+                plugin_registry_paths=self.plugin_registry_paths,
             )
             download_text_response(
                 self,
@@ -6177,7 +6314,12 @@ class StatusHandler(BaseHTTPRequestHandler):
         if parsed.path == "/config_draft_validations":
             if not self.require_auth():
                 return
-            payload = build_config_draft_validations(self.state_dir, data_roots=self.data_roots)
+            try:
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                payload = build_config_draft_validations(self.state_dir, data_roots=self.data_roots, plugins=plugins)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
             json_response(self, 200, payload)
             return
         if parsed.path == "/config_draft_detail":
@@ -6188,7 +6330,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": "draft_id is required"})
                 return
             try:
-                payload = load_config_draft_detail(self.state_dir, draft_id, data_roots=self.data_roots)
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                payload = load_config_draft_detail(self.state_dir, draft_id, data_roots=self.data_roots, plugins=plugins)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -6202,7 +6345,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": "draft_id is required"})
                 return
             try:
-                filename, yaml_body = load_config_draft_yaml(self.state_dir, draft_id, data_roots=self.data_roots)
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                filename, yaml_body = load_config_draft_yaml(self.state_dir, draft_id, data_roots=self.data_roots, plugins=plugins)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -6299,6 +6443,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     self.state_dir,
                     draft_id,
                     data_roots=self.data_roots,
+                    plugins=load_config_builder_plugins(self.plugin_registry_paths),
                     limit=limit,
                 )
             except ValueError as exc:
@@ -6380,6 +6525,7 @@ def create_server(
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
+    plugin_registry_paths: list[Path] | None = None,
     command_rate_limit: dict[str, Any] | None = None,
     command_scopes: dict[str, Any] | None = None,
 ) -> ThreadingHTTPServer:
@@ -6393,6 +6539,7 @@ def create_server(
     Handler.dashboard_dir = dashboard_dir
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
+    Handler.plugin_registry_paths = parse_plugin_registry_paths(plugin_registry_paths)
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     Handler.command_scopes = normalize_command_scope_policy(command_scopes)
     return ThreadingHTTPServer((host, port), Handler)
@@ -6419,6 +6566,13 @@ def main() -> None:
         default=None,
         help="Local fetch manifest root to scan for JSON fetch job manifests. Can be repeated.",
     )
+    parser.add_argument(
+        "--plugin-registry",
+        action="append",
+        type=Path,
+        default=None,
+        help="Ignored local plugin registry YAML to expose private plugin metadata in the Workbench. Can be repeated.",
+    )
     parser.add_argument("--auth-token-env", default=None, help="Optional env var containing bearer token")
     args = parser.parse_args()
     try:
@@ -6430,6 +6584,7 @@ def main() -> None:
             dashboard_dir=args.dashboard_dir,
             data_roots=args.data_root,
             fetch_manifest_roots=args.fetch_manifest_root,
+            plugin_registry_paths=args.plugin_registry,
             auth_token_env=args.auth_token_env,
         )
     except (TypeError, ValueError) as exc:
@@ -6445,6 +6600,7 @@ def main() -> None:
         dashboard_dir=settings["dashboard_dir"],
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],
+        plugin_registry_paths=settings["plugin_registry_paths"],
         command_rate_limit=settings["command_rate_limit"],
         command_scopes=settings["command_scopes"],
     )

@@ -555,6 +555,7 @@ function renderConfigPluginBoundary() {
     ["Visibility", text(visibility)],
     ["Status", text(plugin.status)],
     ["Spec", text(plugin.spec)],
+    ["Registry Paths", ((state.configOptions || {}).plugin_registry_paths || []).join("; ") || "none"],
     ["Description", text(plugin.description)],
     ["Boundary", text(plugin.boundary || "Keep private strategy specs in ignored local configs.")],
   ];

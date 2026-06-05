@@ -406,6 +406,7 @@ def run_smoke(
             "config_draft_validations",
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
+            "plugin_registry_paths",
             "workbench_endpoints",
             "command_audit",
             "data_coverage",

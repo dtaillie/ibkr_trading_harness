@@ -640,13 +640,17 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench plugin options now carry visibility/description/boundary
     metadata, the selector labels public examples explicitly, and the UI shows
     that public drafts are for generic example plugins while private strategies
-    belong in ignored local configs. Loading private plugin registries into the
-    public Workbench remains future work.
+    belong in ignored local configs.
+  - partial; the dashboard can now load ignored local plugin registry files
+    such as `config/plugin_registry_local.yaml`, merging private-local plugin
+    metadata into Workbench options while keeping the public repo on sanitized
+    example defaults.
 - Add schema-driven form rendering after config schemas are reliable.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those
     controls from schema while preserving existing draft/alignment behavior.
-    Versioned schemas and private plugin registries remain future work.
+    Versioned schemas and richer private plugin-specific fields remain future
+    work.
   - partial; the generated Config Builder form now groups schema fields into
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields

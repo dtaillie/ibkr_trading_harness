@@ -250,9 +250,11 @@ configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size
 counts, total rows, and local file size. Saved-data coverage and quality
 metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and
-simulated-paper-run example plugin-runner config drafts from saved data. This
-workbench path is deliberately limited to public generic no-edge plugins,
-file-based data under configured data roots, and non-live modes. Drafts can use
+simulated-paper-run plugin-runner config drafts from saved data. Public exports
+ship only generic no-edge example plugins, while local ignored plugin registries
+can expose private plugin metadata to the Workbench without publishing strategy
+logic. The workbench path remains limited to file-based data under configured
+data roots and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths
 rejected before YAML is written. Generated drafts include a data-alignment
 summary for common timestamps, overlap coverage, cadence mismatches, and

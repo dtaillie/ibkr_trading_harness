@@ -93,6 +93,7 @@ CONFIG_FILES = [
     "config/crypto_universe_example.yaml",
     "config/example_universe.yaml",
     "config/ibgateway_paper.env.example",
+    "config/plugin_registry.example.yaml",
     "config/plugin_runner.example.yaml",
     "config/plugin_supervisor.example.yaml",
     "config/stock_paper.example.yaml",

@@ -1,0 +1,13 @@
+description: >
+  EXAMPLE ONLY. Copy this to config/plugin_registry_local.yaml for local
+  private use. Keep real strategy package names, tuned parameters, and private
+  strategy logic out of the public repo.
+
+plugins:
+  - id: local_example_placeholder
+    label: Local example placeholder
+    spec: your_package.example_strategy:create_strategy
+    status: private_local
+    visibility: private_local
+    description: Local metadata only. Replace this in an ignored local copy.
+    boundary: Loaded from an ignored local registry; do not publish real edge.

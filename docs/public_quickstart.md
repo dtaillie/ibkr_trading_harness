@@ -302,10 +302,12 @@ The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
 quality summary without exporting full bar data.
-The Config Builder section can generate and validate example plugin-runner YAML
-from one or more selected saved datasets. It only offers public generic no-edge
-plugins and replay/shadow/simulated-paper modes; it does not submit broker
-orders. Duplicate symbols and duplicate paths are rejected before YAML is saved.
+The Config Builder section can generate and validate plugin-runner YAML from
+one or more selected saved datasets. Public exports offer generic no-edge
+examples by default; local ignored plugin registries can add private plugin
+metadata for your own machine without publishing strategy logic. The Workbench
+uses replay/shadow/simulated-paper modes; it does not submit broker orders.
+Duplicate symbols and duplicate paths are rejected before YAML is saved.
 Risk presets fill example guardrail and simulated-cost fields, but the fields
 remain editable and the presets are not trading recommendations.
 Generated drafts include a Data Alignment section with common timestamp count,
