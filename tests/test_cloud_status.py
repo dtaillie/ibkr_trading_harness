@@ -581,7 +581,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-home-title" in html
         assert "data-home-filtered-count" in html
         assert "data-home-breakdown" in html
+        assert "data-home-shortlist" in html
         assert "data-home-inspect-top" in html
+        assert "help-start-panel" in html
+        assert "Pick the page by the question" in html
         assert "data-symbol-count" in html
         assert "data-file-count" in html
         assert "data-date-range" in html

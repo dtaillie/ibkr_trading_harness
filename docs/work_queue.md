@@ -384,6 +384,9 @@ strategy-private.
       --check-layout` now captures every top-level view at desktop/mobile
       widths against an empty no-status/no-data/no-fetch state, and CI runs it
       beside the seeded screenshot layout gate.
+    - partial; smoke checks now assert the Data Home shortlist and Help Start
+      panel remain present, and screenshot overflow checks cover their card
+      labels so these first-screen guide surfaces do not regress silently.
   - seeded demo-state smoke tests with many symbols, multiple runs, fills,
     rejects, and warnings
     - partial; `scripts/smoke_dashboard.py --scenario seeded` now creates a
