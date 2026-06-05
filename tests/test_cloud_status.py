@@ -505,6 +505,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Public Publishing Boundary" in html
         assert "workbench-guide-note" in html
         assert "workbench-guide" in html
+        assert "config-plugin-boundary-note" in html
+        assert "config-plugin-boundary" in html
         assert "config-form" in html
         assert "config-commands" in html
         assert "endpoint-map-body" in html
@@ -1376,6 +1378,10 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             options = json.loads(resp.read().decode("utf-8"))
         plugin_ids = {plugin["id"] for plugin in options["plugins"]}
         assert plugin_ids == {"no_edge_template"}
+        plugin = options["plugins"][0]
+        assert plugin["visibility"] == "public_example"
+        assert "not a viable trading strategy" in plugin["description"]
+        assert "private plugins" in plugin["boundary"]
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         assert [preset["id"] for preset in options["risk_presets"]] == [
             "demo_minimal",

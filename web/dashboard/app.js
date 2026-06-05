@@ -398,6 +398,31 @@ function renderWorkbenchGuide() {
   )).join("");
 }
 
+function selectedConfigPlugin() {
+  const pluginId = $("config-plugin") ? $("config-plugin").value : "";
+  return ((state.configOptions && state.configOptions.plugins) || []).find((plugin) => plugin.id === pluginId) || {};
+}
+
+function renderConfigPluginBoundary() {
+  if (!$("config-plugin-boundary") || !$("config-plugin-boundary-note")) return;
+  const plugin = selectedConfigPlugin();
+  const visibility = plugin.visibility || plugin.status || "unknown";
+  $("config-plugin-boundary-note").innerHTML = visibility === "public_example"
+    ? `<span class="status-warn">example only</span>`
+    : statusText(visibility);
+  const pairs = [
+    ["Selected Plugin", text(plugin.label || plugin.id)],
+    ["Visibility", text(visibility)],
+    ["Status", text(plugin.status)],
+    ["Spec", text(plugin.spec)],
+    ["Description", text(plugin.description)],
+    ["Boundary", text(plugin.boundary || "Keep private strategy specs in ignored local configs.")],
+  ];
+  $("config-plugin-boundary").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+}
+
 function selectedCompareDatasets() {
   const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
@@ -2155,7 +2180,7 @@ function renderConfigBuilder() {
   const defaults = options.defaults || {};
   const plugins = (options.plugins || []).map((plugin) => ({
     value: plugin.id,
-    label: `${plugin.label} (${plugin.status})`,
+    label: `${plugin.label} (${plugin.visibility || plugin.status})`,
   }));
   const modes = (options.modes || []).map((mode) => ({ value: mode, label: mode }));
   const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
@@ -2200,6 +2225,7 @@ function renderConfigBuilder() {
   }
   renderConfigDataQuality();
   renderWorkbenchGuide();
+  renderConfigPluginBoundary();
 
   const draft = state.configDraft;
   if (!draft) {
@@ -3522,6 +3548,7 @@ function init() {
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
+  $("config-plugin").addEventListener("change", renderConfigPluginBoundary);
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-catalog-limit").addEventListener("change", () => {

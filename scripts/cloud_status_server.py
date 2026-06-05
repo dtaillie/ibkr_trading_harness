@@ -104,6 +104,12 @@ CONFIG_BUILDER_PLUGINS = (
         "label": "No-edge template",
         "spec": "examples.strategies.no_edge_template:create_strategy",
         "status": "example_only",
+        "visibility": "public_example",
+        "description": "Demonstrates plugin wiring only; not a viable trading strategy.",
+        "boundary": (
+            "Public Workbench drafts only list generic example plugins. Point "
+            "ignored local configs at private plugins for real strategy work."
+        ),
     },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")

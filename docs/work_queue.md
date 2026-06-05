@@ -467,6 +467,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     schema-driven step rendering is still separate work.
 - Add clearer separation between public example configs and local private
   strategy configs.
+  - partial; Workbench plugin options now carry visibility/description/boundary
+    metadata, the selector labels public examples explicitly, and the UI shows
+    that public drafts are for generic example plugins while private strategies
+    belong in ignored local configs. Loading private plugin registries into the
+    public Workbench remains future work.
 - Add schema-driven form rendering after config schemas are reliable.
 - Add saved draft folders/tags/status labels.
 - Add safer empty states and validation messages.

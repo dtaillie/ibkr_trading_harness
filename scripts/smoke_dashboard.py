@@ -120,6 +120,8 @@ def run_smoke(
             "export-workbench-snapshot",
             "workbench-guide-note",
             "workbench-guide",
+            "config-plugin-boundary-note",
+            "config-plugin-boundary",
             "config-data-quality-note",
             "config-data-quality-body",
             "config-allow-quality-warnings",
@@ -198,6 +200,8 @@ def run_smoke(
             "fillNotional",
             "renderWorkbenchGuide",
             "latestWorkbenchRunForDraft",
+            "renderConfigPluginBoundary",
+            "selectedConfigPlugin",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:
@@ -227,6 +231,8 @@ def run_smoke(
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
+        if not all(plugin.get("visibility") and plugin.get("boundary") for plugin in options.get("plugins") or []):
+            raise RuntimeError("config plugin boundary metadata is missing")
         if "valid_count" not in draft_validations or "invalid_count" not in draft_validations:
             raise RuntimeError("draft validation summary is missing")
         if diagnostics.get("status") not in {"ok", "warn", "bad"}:
