@@ -337,6 +337,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - compare several symbols over the same window
     - partial; Compare Saved Data overlays normalized close-return paths
   - export/copy the local file path and generated replay command
+    - partial; Data Library rows and Data Detail can copy the local file path,
+      a `--data-root` flag, and a replay-starter command. Fully generated
+      strategy-specific replay commands still come from saved Workbench drafts.
   - flag suspicious files before they are used in a strategy replay
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date

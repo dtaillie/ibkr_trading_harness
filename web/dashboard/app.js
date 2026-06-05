@@ -1284,6 +1284,30 @@ function countSummary(counts) {
     : "none";
 }
 
+function shellQuote(value) {
+  const raw = text(value);
+  return `'${raw.replace(/'/g, "'\\''")}'`;
+}
+
+function dirname(path) {
+  const raw = String(path || "");
+  const normalized = raw.replace(/\/+$/, "");
+  const index = normalized.lastIndexOf("/");
+  if (index <= 0) return index === 0 ? "/" : ".";
+  return normalized.slice(0, index);
+}
+
+function replayStarterCommand(detail) {
+  const path = detail && detail.path;
+  const symbol = detail && detail.symbol;
+  if (!path) return "";
+  return [
+    `# Selected dataset: ${text(symbol)} ${path}`,
+    "# Use Workbench to generate a private/public-safe draft that maps this file, then run:",
+    "python3 live/plugin_runner.py --config <saved_draft.yaml> --mode replay --max-steps 200",
+  ].join("\n");
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -1306,7 +1330,7 @@ function renderDataCatalog() {
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
-        `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
@@ -1617,7 +1641,11 @@ function renderDataDetail() {
   $("data-detail-viewer-note").textContent = detail.path
     ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} UTC view`
     : "Select a dataset to inspect saved history offline.";
+  $("copy-data-path").disabled = !detail.path;
+  $("copy-data-root-flag").disabled = !detail.path;
+  $("copy-data-replay-command").disabled = !detail.path;
   const pairs = [
+    ["File Path", text(detail.path)],
     ["Asset", text(detail.asset_class)],
     ["Source", text(detail.source)],
     ["Rows", numberText(detail.rows, 0)],
@@ -3348,9 +3376,41 @@ function init() {
   }
   $("data-catalog-body").addEventListener("click", (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
-    loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
-      $("last-refresh").textContent = `Data detail failed: ${err.message}`;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.classList.contains("copy-data-path-row")) {
+      copyText(target.dataset.path || "").then(() => {
+        $("last-refresh").textContent = `Dataset path copied: ${new Date().toLocaleString()}`;
+      }).catch((err) => {
+        $("last-refresh").textContent = `Copy failed: ${err.message}`;
+      });
+      return;
+    }
+    if (target.classList.contains("inspect-data")) {
+      loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
+        $("last-refresh").textContent = `Data detail failed: ${err.message}`;
+      });
+    }
+  });
+  $("copy-data-path").addEventListener("click", () => {
+    copyText((state.dataDetail || {}).path || "").then(() => {
+      $("last-refresh").textContent = `Dataset path copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
+  $("copy-data-root-flag").addEventListener("click", () => {
+    const path = (state.dataDetail || {}).path || "";
+    copyText(`--data-root ${shellQuote(dirname(path))}`).then(() => {
+      $("last-refresh").textContent = `Data root flag copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
+  $("copy-data-replay-command").addEventListener("click", () => {
+    copyText(replayStarterCommand(state.dataDetail || {})).then(() => {
+      $("last-refresh").textContent = `Replay starter copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
   $("fetch-manifests-body").addEventListener("click", (event) => {
