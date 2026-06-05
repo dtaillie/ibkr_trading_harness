@@ -570,6 +570,17 @@ function latestWorkbenchRunForDraft(draftId) {
   return runs.find((run) => !draftId || run.draft_id === draftId) || null;
 }
 
+function configGuideStepMetadata() {
+  const steps = (state.configOptions && state.configOptions.guide_steps) || [];
+  return steps.slice().sort((left, right) => {
+    const leftOrder = Number(left.order);
+    const rightOrder = Number(right.order);
+    const leftValue = Number.isFinite(leftOrder) ? leftOrder : 999;
+    const rightValue = Number.isFinite(rightOrder) ? rightOrder : 999;
+    return leftValue - rightValue || text(left.id).localeCompare(text(right.id));
+  });
+}
+
 function renderWorkbenchGuide() {
   if (!$("workbench-guide") || !$("workbench-guide-note")) return;
   const selected = selectedConfigDatasets();
@@ -584,11 +595,11 @@ function renderWorkbenchGuide() {
   const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
   const dateRange = configDateRangePayload();
   const hasDateRange = Boolean(dateRange.start || dateRange.end);
-  const steps = [
+  const stepState = [
     {
       id: "data",
       status: selected.length ? "ok" : "bad",
-      label: "Choose Data",
+      fallbackLabel: "Choose Data",
       detail: selected.length
         ? `${selected.length} selected: ${selected.map((item) => item.symbol).join(", ")}`
         : "Select one or more scanned datasets in the Config Builder.",
@@ -596,7 +607,7 @@ function renderWorkbenchGuide() {
     {
       id: "quality",
       status: !selected.length ? "bad" : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad") ? "warn" : "ok",
-      label: "Review Quality",
+      fallbackLabel: "Review Quality",
       detail: !selected.length
         ? "No selected files to check yet."
         : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad")
@@ -606,7 +617,7 @@ function renderWorkbenchGuide() {
     {
       id: "range",
       status: !selected.length ? "bad" : hasDateRange ? "ok" : "warn",
-      label: "Choose Range",
+      fallbackLabel: "Choose Range",
       detail: !selected.length
         ? "Select data before narrowing the replay window."
         : hasDateRange
@@ -616,7 +627,7 @@ function renderWorkbenchGuide() {
     {
       id: "alignment",
       status: alignment.dataset_count ? (alignmentWarnings ? "warn" : "ok") : "bad",
-      label: "Inspect Alignment",
+      fallbackLabel: "Inspect Alignment",
       detail: alignment.dataset_count
         ? `${numberText(alignment.common_timestamp_count, 0)} common timestamps${alignmentWarnings ? `; ${alignmentWarnings} warning${alignmentWarnings === 1 ? "" : "s"}` : ""}.`
         : "Click Preview Alignment or Generate to verify timestamp overlap.",
@@ -624,7 +635,7 @@ function renderWorkbenchGuide() {
     {
       id: "draft",
       status: draft.yaml ? (draftValid ? "ok" : "warn") : "bad",
-      label: "Generate Draft",
+      fallbackLabel: "Generate Draft",
       detail: draft.yaml
         ? `${text(draft.name || savedDraftId)} ${draftValid ? "is valid" : "needs validation review"}.`
         : "Choose plugin, mode, and risk limits, then generate a draft.",
@@ -632,7 +643,7 @@ function renderWorkbenchGuide() {
     {
       id: "run",
       status: latestRun ? (latestRun.status === "completed" ? "ok" : "warn") : "bad",
-      label: "Run Simulation",
+      fallbackLabel: "Run Simulation",
       detail: latestRun
         ? `${text(latestRun.action)} ${text(latestRun.status)} at ${text(latestRun.finished_at || latestRun.started_at)}.`
         : "Save the draft, then run validate, replay, or simulated paper.",
@@ -640,11 +651,33 @@ function renderWorkbenchGuide() {
     {
       id: "results",
       status: hasArtifacts ? "ok" : "bad",
-      label: "Inspect Results",
+      fallbackLabel: "Inspect Results",
       detail: hasArtifacts
         ? `${text(artifacts.draft_id)} artifacts loaded; Performance and Runs now have charts/detail.`
         : "Open artifacts from a completed run to inspect equity, orders, fills, and logs.",
     },
+  ];
+  const stateById = Object.fromEntries(stepState.map((step) => [step.id, step]));
+  const metadata = configGuideStepMetadata();
+  const schemaIds = new Set(metadata.map((step) => step.id));
+  const steps = [
+    ...(metadata.length ? metadata : stepState).map((step) => {
+      const current = stateById[step.id] || step;
+      return {
+        id: step.id,
+        status: current.status || "bad",
+        label: step.label || current.fallbackLabel || current.label || step.id,
+        detail: current.detail || step.help || "",
+      };
+    }),
+    ...stepState
+      .filter((step) => metadata.length && !schemaIds.has(step.id))
+      .map((step) => ({
+        id: step.id,
+        status: step.status,
+        label: step.fallbackLabel,
+        detail: step.detail,
+      })),
   ];
   const complete = steps.filter((step) => step.status === "ok").length;
   $("workbench-guide-note").textContent = `${complete} of ${steps.length} steps ready`;

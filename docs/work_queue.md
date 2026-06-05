@@ -823,6 +823,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     tracks data selection, data quality, alignment, draft generation,
     validation/run state, and artifact inspection. The form remains static;
     schema-driven step rendering is still separate work.
+  - partial; `/config_options` now exposes `guide_schema_version` and
+    `guide_steps`, and the Workbench guide consumes backend step labels/order
+    while keeping dynamic readiness details in the frontend.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
@@ -852,6 +855,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     `strategy_fields`, the Workbench renders fields for the selected plugin,
     and generated drafts write only those allowlisted values under `strategy`.
     The form schema version was bumped to v2 for this expansion.
+  - partial; Workbench guide step metadata is now schema-driven through
+    `/config_options.guide_steps` and exported workbench snapshots include
+    `guide_schema_version` for downstream UI/schema compatibility checks.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

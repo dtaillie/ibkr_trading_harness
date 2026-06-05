@@ -153,6 +153,7 @@ CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
 CONFIG_FORM_SCHEMA_VERSION = 2
+CONFIG_GUIDE_SCHEMA_VERSION = 1
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
@@ -235,6 +236,15 @@ CONFIG_BUILDER_FORM_SECTIONS = (
     {"id": "risk", "label": "Risk Limits", "help": "Keep generated example runs bounded before validation.", "order": 60},
     {"id": "costs", "label": "Simulated Costs", "help": "Model basic local slippage and commissions.", "order": 70},
     {"id": "output", "label": "Output", "help": "Choose whether to save and whether suspicious data is acknowledged.", "order": 80},
+)
+CONFIG_BUILDER_GUIDE_STEPS = (
+    {"id": "data", "label": "Choose Data", "help": "Select one or more scanned saved datasets.", "order": 10},
+    {"id": "quality", "label": "Review Quality", "help": "Review catalog quality warnings before replay.", "order": 20},
+    {"id": "range", "label": "Choose Range", "help": "Optionally narrow replay to a date window.", "order": 30},
+    {"id": "alignment", "label": "Inspect Alignment", "help": "Preview timestamp overlap across selected files.", "order": 40},
+    {"id": "draft", "label": "Generate Draft", "help": "Generate and validate a public-safe runner config.", "order": 50},
+    {"id": "run", "label": "Run Simulation", "help": "Run validate, replay, or simulated paper from a saved draft.", "order": 60},
+    {"id": "results", "label": "Inspect Results", "help": "Open artifacts in Performance and Runs.", "order": 70},
 )
 WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
 MAX_DRAFT_RUN_STEPS = 500
@@ -4458,6 +4468,7 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
     return {
         "config_schema_version": CONFIG_SCHEMA_VERSION,
         "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
+        "guide_schema_version": CONFIG_GUIDE_SCHEMA_VERSION,
         "plugins": plugins,
         "plugin_registry_paths": [display_path(path) for path in parse_plugin_registry_paths(plugin_registry_paths)],
         "modes": list(CONFIG_BUILDER_MODES),
@@ -4465,6 +4476,7 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
         "broker_adapters": broker_adapter_capabilities(),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
         "form_sections": list(CONFIG_BUILDER_FORM_SECTIONS),
+        "guide_steps": list(CONFIG_BUILDER_GUIDE_STEPS),
         "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA) + plugin_strategy_fields,
         "defaults": {
             "name": "workbench_example",
@@ -5198,6 +5210,7 @@ def build_workbench_snapshot(
         "schema_version": WORKBENCH_SNAPSHOT_SCHEMA_VERSION,
         "config_schema_version": CONFIG_SCHEMA_VERSION,
         "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
+        "guide_schema_version": CONFIG_GUIDE_SCHEMA_VERSION,
         "generated_at": utc_now(),
         "workbench_status": build_workbench_status(state_dir),
         "diagnostics": build_workbench_diagnostics(

@@ -2429,6 +2429,18 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
+        assert options["guide_schema_version"] == 1
+        assert [step["id"] for step in options["guide_steps"]] == [
+            "data",
+            "quality",
+            "range",
+            "alignment",
+            "draft",
+            "run",
+            "results",
+        ]
+        assert options["guide_steps"][0]["label"] == "Choose Data"
+        assert options["guide_steps"][0]["order"] == 10
         assert [section["id"] for section in options["form_sections"]][:4] == [
             "identity",
             "data",
@@ -2988,6 +3000,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["schema_version"] == 1
         assert snapshot["config_schema_version"] == 1
         assert snapshot["form_schema_version"] == 2
+        assert snapshot["guide_schema_version"] == 1
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
         assert snapshot["data_catalog"]["asset_class_counts"] == {"etf": 1}
@@ -2997,6 +3010,8 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file"}
         assert snapshot["config_options"]["config_schema_version"] == 1
         assert snapshot["config_options"]["form_schema_version"] == 2
+        assert snapshot["config_options"]["guide_schema_version"] == 1
+        assert snapshot["config_options"]["guide_steps"][0]["id"] == "data"
         assert snapshot["run_comparison"]["count"] == 0
     finally:
         server.shutdown()
