@@ -737,7 +737,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     audit records for completed/rejected commands
   - partial; receiver now rate-limits command queue requests per node and writes
     sanitized queue/cancel/result audit events to an append-only JSONL file with
-    a bounded `/command_audit` endpoint
+    a bounded `/command_audit` endpoint. Explicit duplicate `command_id` values
+    are rejected before queueing so result handling stays unambiguous
   - remaining gap: server-side role scopes, provider/network-specific hosted
     deployment controls, and stronger tamper-evident remote audit storage
 - Keep initial commands low-risk:

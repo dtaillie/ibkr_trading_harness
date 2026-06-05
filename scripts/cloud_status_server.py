@@ -4761,8 +4761,11 @@ def enqueue_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("params must be a mapping")
     params = normalized_command_params(action, params)
     commands = load_commands(state_dir)
+    command_id = str(payload.get("command_id") or f"cmd-{int(datetime.now(timezone.utc).timestamp() * 1000000)}")
+    if any(command.get("command_id") == command_id for command in commands):
+        raise ValueError(f"command_id already exists: {command_id}")
     command = {
-        "command_id": str(payload.get("command_id") or f"cmd-{int(datetime.now(timezone.utc).timestamp() * 1000000)}"),
+        "command_id": command_id,
         "node_id": node_id,
         "action": action,
         "params": params,

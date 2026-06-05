@@ -405,7 +405,9 @@ The receiver also keeps a sanitized server-side audit at
 `paper_logs/cloud_status_server/command_audit.jsonl` and exposes it through
 `/command_audit`. The example dashboard config rate-limits command queue
 requests per node with `dashboard.command_rate_limit`; rejected queue attempts
-are audited and return HTTP 429.
+are audited and return HTTP 429. Explicit `command_id` values must be unique,
+so retried queue requests cannot ambiguously map later results to older
+commands.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,

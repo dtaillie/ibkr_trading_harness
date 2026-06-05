@@ -2756,6 +2756,46 @@ def test_cloud_status_server_rate_limits_command_queue(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_rejects_duplicate_command_id(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        for expected_code in (200, 400):
+            command_req = request.Request(
+                f"{base}/commands",
+                data=json.dumps({
+                    "command_id": "duplicate-id",
+                    "node_id": "test-node",
+                    "action": "request_status",
+                    "params": {},
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            if expected_code == 200:
+                with request.urlopen(command_req, timeout=5) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                assert payload["command"]["command_id"] == "duplicate-id"
+            else:
+                try:
+                    request.urlopen(command_req, timeout=5)
+                    raise AssertionError("expected duplicate command response")
+                except error.HTTPError as exc:
+                    assert exc.code == 400
+                    payload = json.loads(exc.read().decode("utf-8"))
+                assert payload["error"] == "command_id already exists: duplicate-id"
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert [event["event"] for event in audit["events"]] == ["command_queued", "queue_rejected"]
+        assert audit["events"][1]["command_id"] == "duplicate-id"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_validates_command_params(tmp_path):
     server = create_server("127.0.0.1", 0, tmp_path / "state")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
