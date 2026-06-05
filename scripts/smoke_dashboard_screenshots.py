@@ -126,6 +126,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".section-note",
     ".guide-item strong",
     ".guide-item span",
+    ".config-field-section legend",
+    ".config-field-section p",
     ".help-card strong",
     ".help-card span",
     "button",

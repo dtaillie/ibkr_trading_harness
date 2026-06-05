@@ -293,8 +293,52 @@ button.secondary {
   background: var(--panel);
 }
 
+#config-form {
+  display: grid;
+  align-items: stretch;
+}
+
 .builder-form-fields {
-  display: contents;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.config-field-section {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.config-field-section legend {
+  padding: 0 5px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.config-field-section p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.config-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.config-builder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .builder-form input,
@@ -312,6 +356,7 @@ button.secondary {
 
 .wide-field {
   flex: 1 1 320px;
+  grid-column: 1 / -1;
 }
 
 .wide-field select {

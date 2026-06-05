@@ -3113,36 +3113,73 @@ function configFormOptionRows(field, options) {
   }));
 }
 
+const CONFIG_SECTION_LABELS = {
+  identity: ["Setup", "Name the local draft, choose the plugin, and choose the run mode."],
+  data: ["Data", "Pick scanned files and an optional replay date window."],
+  account: ["Account", "Set starting cash and replay bounds for local accounting."],
+  risk: ["Risk Limits", "Keep generated example runs bounded before validation."],
+  costs: ["Simulated Costs", "Model basic local slippage and commissions."],
+  output: ["Output", "Choose whether to save and whether suspicious data is acknowledged."],
+};
+
+function configSectionTitle(section) {
+  return (CONFIG_SECTION_LABELS[section] || [text(section), ""])[0];
+}
+
+function configSectionHelp(section) {
+  return (CONFIG_SECTION_LABELS[section] || ["", ""])[1];
+}
+
+function renderConfigField(field) {
+  const id = escapeHtml(field.id);
+  const label = escapeHtml(field.label || field.name || field.id);
+  const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
+  const cls = [
+    field.kind === "checkbox" ? "checkbox-field" : "",
+    field.wide ? "wide-field" : "",
+  ].filter(Boolean).join(" ");
+  if (field.kind === "select") {
+    const multiple = field.multiple ? " multiple" : "";
+    const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
+    return `<label class="${escapeHtml(cls)}"><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
+  }
+  if (field.kind === "checkbox") {
+    return `<label class="${escapeHtml(cls)}"><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
+  }
+  const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
+  const attrs = [
+    `id="${id}"`,
+    `type="${escapeHtml(type)}"`,
+    field.min !== undefined ? `min="${escapeHtml(String(field.min))}"` : "",
+    field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
+    field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
+  ].filter(Boolean).join(" ");
+  return `<label class="${escapeHtml(cls)}"><span>${label}</span><input ${attrs}>${help}</label>`;
+}
+
 function renderConfigFormSchema() {
   const fields = (state.configOptions && state.configOptions.form_schema) || [];
   const container = $("config-form-fields");
   if (!container || container.dataset.rendered === "true" || !fields.length) return;
-  container.innerHTML = fields.map((field) => {
-    const id = escapeHtml(field.id);
-    const label = escapeHtml(field.label || field.name || field.id);
-    const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
-    const cls = [
-      field.kind === "checkbox" ? "checkbox-field" : "",
-      field.wide ? "wide-field" : "",
-    ].filter(Boolean).join(" ");
-    if (field.kind === "select") {
-      const multiple = field.multiple ? " multiple" : "";
-      const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
-      return `<label class="${escapeHtml(cls)}"><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
+  const sections = [];
+  for (const field of fields) {
+    const section = field.section || "settings";
+    let group = sections.find((item) => item.section === section);
+    if (!group) {
+      group = { section, fields: [] };
+      sections.push(group);
     }
-    if (field.kind === "checkbox") {
-      return `<label class="${escapeHtml(cls)}"><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
-    }
-    const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
-    const attrs = [
-      `id="${id}"`,
-      `type="${escapeHtml(type)}"`,
-      field.min !== undefined ? `min="${escapeHtml(String(field.min))}"` : "",
-      field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
-      field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
-    ].filter(Boolean).join(" ");
-    return `<label class="${escapeHtml(cls)}"><span>${label}</span><input ${attrs}>${help}</label>`;
-  }).join("");
+    group.fields.push(field);
+  }
+  container.innerHTML = sections.map((group) => `
+    <fieldset id="config-section-${escapeHtml(group.section)}" class="config-field-section">
+      <legend>${escapeHtml(configSectionTitle(group.section))}</legend>
+      <p>${escapeHtml(configSectionHelp(group.section))}</p>
+      <div class="config-field-grid">
+        ${group.fields.map(renderConfigField).join("")}
+      </div>
+    </fieldset>
+  `).join("");
   container.dataset.rendered = "true";
 }
 

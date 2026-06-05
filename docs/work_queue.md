@@ -596,6 +596,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     for the core Config Builder fields, and the Workbench renders those
     controls from schema while preserving existing draft/alignment behavior.
     Versioned schemas and private plugin registries remain future work.
+  - partial; the generated Config Builder form now groups schema fields into
+    guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
+    sections so the Workbench flow is easier to scan without hard-coding fields
+    in the UI.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
