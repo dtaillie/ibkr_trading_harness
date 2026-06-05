@@ -871,6 +871,24 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
         server.server_close()
 
 
+def test_dashboard_screenshot_smoke_prepares_seeded_and_empty_state(tmp_path):
+    from scripts.smoke_dashboard_screenshots import prepare_empty_state, prepare_seed_state
+
+    seed_data_roots, seed_manifest_roots = prepare_seed_state(tmp_path / "seeded")
+    assert len(seed_data_roots) == 1
+    assert len(seed_manifest_roots) == 1
+    assert list(seed_data_roots[0].glob("*.csv"))
+    assert list(seed_manifest_roots[0].glob("*.json"))
+
+    empty_data_roots, empty_manifest_roots = prepare_empty_state(tmp_path / "empty")
+    assert len(empty_data_roots) == 1
+    assert len(empty_manifest_roots) == 1
+    assert empty_data_roots[0].exists()
+    assert empty_manifest_roots[0].exists()
+    assert not list(empty_data_roots[0].iterdir())
+    assert not list(empty_manifest_roots[0].iterdir())
+
+
 def test_cloud_status_server_serves_status_history(tmp_path):
     server = create_server("127.0.0.1", 0, tmp_path / "state")
     thread = threading.Thread(target=server.serve_forever, daemon=True)

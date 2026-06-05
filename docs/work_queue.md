@@ -374,6 +374,10 @@ strategy-private.
     - partial; `scripts/smoke_dashboard.py --scenario empty` now exercises a
       no-data/no-fetch-manifest state, and pytest runs the empty scenario as a
       dashboard endpoint/render contract check.
+    - partial; `scripts/smoke_dashboard_screenshots.py --scenario empty
+      --check-layout` now captures every top-level view at desktop/mobile
+      widths against an empty no-status/no-data/no-fetch state, and CI runs it
+      beside the seeded screenshot layout gate.
   - seeded demo-state smoke tests with many symbols, multiple runs, fills,
     rejects, and warnings
     - partial; `scripts/smoke_dashboard.py --scenario seeded` now creates a

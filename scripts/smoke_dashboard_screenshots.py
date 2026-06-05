@@ -188,6 +188,14 @@ def prepare_seed_state(state_dir: Path) -> tuple[list[Path], list[Path]]:
     return [data_root], [manifest_root]
 
 
+def prepare_empty_state(state_dir: Path) -> tuple[list[Path], list[Path]]:
+    data_root = state_dir / "screenshot_empty_data"
+    manifest_root = state_dir / "screenshot_empty_fetch_manifests"
+    data_root.mkdir(parents=True, exist_ok=True)
+    manifest_root.mkdir(parents=True, exist_ok=True)
+    return [data_root], [manifest_root]
+
+
 def capture_png(
     *,
     chrome: str,
@@ -446,11 +454,15 @@ def run_screenshot_smoke(
     state_dir: Path,
     dashboard_dir: Path,
     out_dir: Path,
+    scenario: str,
     min_bytes: int,
     check_layout_enabled: bool,
     settle_seconds: float,
 ) -> dict:
-    data_roots, fetch_manifest_roots = prepare_seed_state(state_dir)
+    if scenario == "empty":
+        data_roots, fetch_manifest_roots = prepare_empty_state(state_dir)
+    else:
+        data_roots, fetch_manifest_roots = prepare_seed_state(state_dir)
     server = create_server(
         host,
         port,
@@ -463,7 +475,8 @@ def run_screenshot_smoke(
     thread.start()
     try:
         base_url = f"http://{host}:{server.server_address[1]}"
-        post_seed_status(base_url)
+        if scenario == "seeded":
+            post_seed_status(base_url)
         captures = []
         layout_checks = []
         for view in VIEWS:
@@ -498,6 +511,7 @@ def run_screenshot_smoke(
                     })
         return {
             "base_url": base_url,
+            "scenario": scenario,
             "output_dir": str(out_dir),
             "capture_count": len(captures),
             "captures": captures,
@@ -517,6 +531,7 @@ def main() -> None:
     parser.add_argument("--dashboard-dir", type=Path, default=DEFAULT_DASHBOARD_DIR)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--chrome", default=None, help="Chrome/Chromium executable name or path")
+    parser.add_argument("--scenario", choices=("seeded", "empty"), default="seeded", help="Dashboard state to screenshot.")
     parser.add_argument("--min-bytes", type=int, default=2_000)
     parser.add_argument("--check-layout", action="store_true", help="Fail if visible core UI text overflows or the page creates horizontal viewport overflow.")
     parser.add_argument("--settle-seconds", type=float, default=1.5, help="Seconds to wait before running layout checks after navigation.")
@@ -534,6 +549,7 @@ def main() -> None:
                 state_dir=Path(state_tmp),
                 dashboard_dir=args.dashboard_dir,
                 out_dir=out_dir,
+                scenario=args.scenario,
                 min_bytes=args.min_bytes,
                 check_layout_enabled=args.check_layout,
                 settle_seconds=args.settle_seconds,
@@ -547,6 +563,7 @@ def main() -> None:
             state_dir=args.state_dir,
             dashboard_dir=args.dashboard_dir,
             out_dir=out_dir,
+            scenario=args.scenario,
             min_bytes=args.min_bytes,
             check_layout_enabled=args.check_layout,
             settle_seconds=args.settle_seconds,
@@ -556,7 +573,7 @@ def main() -> None:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         layout = f", layout checks={result['layout_check_count']}" if result.get("layout_check_count") else ""
-        print(f"Dashboard screenshot smoke OK: {result['capture_count']} captures{layout} in {result['output_dir']}")
+        print(f"Dashboard screenshot smoke OK: {result['capture_count']} captures{layout} scenario={result['scenario']} in {result['output_dir']}")
 
 
 if __name__ == "__main__":
