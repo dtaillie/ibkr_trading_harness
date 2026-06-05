@@ -476,6 +476,8 @@ def run_smoke(
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
+        if options.get("config_schema_version") != 1 or options.get("form_schema_version") != 1:
+            raise RuntimeError("config options schema versions are missing")
         form_field_ids = {field.get("id") for field in options.get("form_schema") or []}
         for field_id in ("config-name", "config-plugin", "config-mode", "config-dataset", "config-risk-preset", "config-allow-quality-warnings"):
             if field_id not in form_field_ids:
@@ -509,6 +511,8 @@ def run_smoke(
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
             raise RuntimeError("workbench snapshot export is invalid")
+        if snapshot.get("config_schema_version") != 1 or snapshot.get("form_schema_version") != 1:
+            raise RuntimeError("workbench snapshot schema versions are missing")
         fetch_manifests = fetch_json(base_url, "/fetch_manifests?limit=5")
         if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:
             raise RuntimeError("fetch manifest summary is invalid")

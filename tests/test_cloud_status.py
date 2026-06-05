@@ -1658,6 +1658,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         plugin_ids = {plugin["id"] for plugin in options["plugins"]}
         assert plugin_ids == {"no_edge_template"}
         plugin = options["plugins"][0]
+        assert options["config_schema_version"] == 1
+        assert options["form_schema_version"] == 1
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
@@ -1845,6 +1847,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         with request.urlopen(draft_req, timeout=5) as resp:
             draft_payload = json.loads(resp.read().decode("utf-8"))
         assert draft_payload["draft"]["name"] == "Run_Draft"
+        assert draft_payload["draft"]["config"]["metadata"]["config_schema_version"] == 1
         assert draft_payload["draft"]["alignment"]["symbols"] == ["QQQ", "SPY"]
         assert draft_payload["draft"]["alignment"]["common_timestamp_count"] == 3
         assert draft_payload["draft"]["alignment"]["common_coverage_pct"] == 100.0
@@ -2165,12 +2168,16 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
             assert resp.headers["Content-Disposition"] == 'attachment; filename="workbench_snapshot.json"'
             snapshot = json.loads(resp.read().decode("utf-8"))
         assert snapshot["schema_version"] == 1
+        assert snapshot["config_schema_version"] == 1
+        assert snapshot["form_schema_version"] == 1
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
         assert snapshot["data_catalog"]["asset_class_counts"] == {"etf": 1}
         assert snapshot["data_catalog"]["source_counts"] == {"file": 1}
         assert snapshot["data_catalog"]["datasets"][0]["symbol"] == "SPY"
         assert snapshot["config_options"]["risk_presets"]
+        assert snapshot["config_options"]["config_schema_version"] == 1
+        assert snapshot["config_options"]["form_schema_version"] == 1
         assert snapshot["run_comparison"]["count"] == 0
     finally:
         server.shutdown()

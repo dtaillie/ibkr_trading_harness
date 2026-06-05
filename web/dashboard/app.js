@@ -506,6 +506,7 @@ function renderConfigPluginBoundary() {
     : statusText(visibility);
   const pairs = [
     ["Selected Plugin", text(plugin.label || plugin.id)],
+    ["Config Schema", `v${text((state.configOptions || {}).config_schema_version)} / form v${text((state.configOptions || {}).form_schema_version)}`],
     ["Visibility", text(visibility)],
     ["Status", text(plugin.status)],
     ["Spec", text(plugin.spec)],

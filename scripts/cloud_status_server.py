@@ -120,6 +120,9 @@ CONFIG_BUILDER_PLUGINS = (
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
+CONFIG_SCHEMA_VERSION = 1
+CONFIG_FORM_SCHEMA_VERSION = 1
+WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
         "id": "demo_minimal",
@@ -2841,6 +2844,7 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
         data_config["end"] = end_raw
 
     metadata = {
+        "config_schema_version": CONFIG_SCHEMA_VERSION,
         "strategy_plugin": plugin["spec"],
         "status": plugin["status"],
         "risk_preset": risk_preset,
@@ -2925,6 +2929,8 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
 
 def config_builder_options() -> dict[str, Any]:
     return {
+        "config_schema_version": CONFIG_SCHEMA_VERSION,
+        "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
         "plugins": list(CONFIG_BUILDER_PLUGINS),
         "modes": list(CONFIG_BUILDER_MODES),
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
@@ -3622,7 +3628,9 @@ def build_workbench_snapshot(
         for row in catalog["datasets"]
     ]
     return {
-        "schema_version": 1,
+        "schema_version": WORKBENCH_SNAPSHOT_SCHEMA_VERSION,
+        "config_schema_version": CONFIG_SCHEMA_VERSION,
+        "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
         "generated_at": utc_now(),
         "workbench_status": build_workbench_status(state_dir),
         "diagnostics": build_workbench_diagnostics(

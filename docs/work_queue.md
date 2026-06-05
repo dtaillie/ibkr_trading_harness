@@ -649,6 +649,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Extend `live/plugin_runner.py` from one-shot/replay execution into continuous
   market-hours loops where needed.
 - Add versioned config schemas and richer per-plugin validation.
+  - partial; public Workbench config options, generated draft metadata, and
+    exported workbench snapshots now carry explicit config/form schema version
+    fields. Richer per-plugin validation remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting:
   - realized PnL
