@@ -96,3 +96,15 @@ python3 scripts/smoke_dashboard.py
 
 Keep private strategy plugins, tuned configs, account IDs, credentials, local
 runtime logs, and private research outputs out of the public repo.
+
+## Related Runbooks
+
+- `docs/ibkr_gateway_runbook.md`: Gateway startup, API checks, and recovery.
+- `docs/paper_trading_runbook.md`: replay, simulated-paper, broker paper,
+  supervisor startup, monitoring, and shutdown.
+- `docs/market_data_permissions_runbook.md`: IBKR permission, venue, and
+  no-data diagnosis.
+- `docs/service_restart_runbook.md`: service restart order, logs, and duplicate
+  runner checks.
+- `docs/failed_order_diagnosis_runbook.md`: rejected, canceled, missing-fill,
+  and stale-telemetry troubleshooting.

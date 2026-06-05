@@ -387,6 +387,14 @@ Start with dry-run or simulated fills. Paper trading still needs risk limits,
 position checks, stale-data checks, order rejection handling, and a plan for
 Gateway login/2FA interruptions.
 
+Operational runbooks:
+
+- `docs/ibkr_gateway_runbook.md`
+- `docs/paper_trading_runbook.md`
+- `docs/market_data_permissions_runbook.md`
+- `docs/service_restart_runbook.md`
+- `docs/failed_order_diagnosis_runbook.md`
+
 Before publishing or sharing your repo, run:
 
 ```bash

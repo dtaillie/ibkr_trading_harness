@@ -81,3 +81,7 @@ preserves its `.git` directory while replacing the exported working-tree files.
 7. Public/private split: keep strategies and configs private.
 8. Limitations: market-data permissions, rate pacing, slippage, rejected orders,
    Gateway login/2FA, and no performance guarantees.
+
+The public docs include operational runbooks for Gateway startup/recovery,
+paper trading, market-data permissions, service restarts, and failed-order
+diagnosis.

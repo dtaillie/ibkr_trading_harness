@@ -642,11 +642,12 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Do final manual review before pushing to GitHub.
 - Finish blog post polish.
 - Add runbooks:
-  - IBKR Gateway setup and recovery
-  - paper trading startup/shutdown
-  - market-data permission diagnosis
-  - service restart
-  - failed order diagnosis
+  - done in `docs/ibkr_gateway_runbook.md`: IBKR Gateway setup and recovery
+  - done in `docs/paper_trading_runbook.md`: paper trading startup/shutdown
+  - done in `docs/market_data_permissions_runbook.md`: market-data permission
+    diagnosis
+  - done in `docs/service_restart_runbook.md`: service restart
+  - done in `docs/failed_order_diagnosis_runbook.md`: failed order diagnosis
 - Keep private strategy configs, tuned universes, research outputs, account IDs,
   logs, and credentials out of the public repo.
 

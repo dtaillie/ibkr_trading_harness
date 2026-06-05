@@ -694,6 +694,17 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             body = resp.read().decode("utf-8")
             assert resp.headers["Content-Type"].startswith("text/markdown")
         assert "Web UI Runbook" in body
+        for name, expected in {
+            "ibkr_gateway_runbook.md": "IBKR Gateway Runbook",
+            "paper_trading_runbook.md": "Paper Trading Runbook",
+            "market_data_permissions_runbook.md": "Market Data Permissions Runbook",
+            "service_restart_runbook.md": "Service Restart Runbook",
+            "failed_order_diagnosis_runbook.md": "Failed Order Diagnosis Runbook",
+        }.items():
+            with request.urlopen(f"{base}/docs/{name}", timeout=5) as resp:
+                body = resp.read().decode("utf-8")
+                assert resp.headers["Content-Type"].startswith("text/markdown")
+            assert expected in body
 
         for path in ["/docs/../README.md", "/docs/not_allowlisted.md"]:
             try:

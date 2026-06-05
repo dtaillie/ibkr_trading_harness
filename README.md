@@ -313,6 +313,16 @@ endpoint is unavailable. The dashboard command form validates action-specific
 parameters before queueing commands and can cancel pending commands that have
 not yet been polled by the local worker.
 
+## Operational Runbooks
+
+The public docs include focused runbooks for common local operations:
+
+- `docs/ibkr_gateway_runbook.md`
+- `docs/paper_trading_runbook.md`
+- `docs/market_data_permissions_runbook.md`
+- `docs/service_restart_runbook.md`
+- `docs/failed_order_diagnosis_runbook.md`
+
 ## Config Privacy
 
 Commit only example files:

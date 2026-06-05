@@ -62,6 +62,11 @@ PUBLIC_DOCS = {
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
     "configuration_privacy.md": ROOT / "docs" / "configuration_privacy.md",
     "publication_readiness.md": ROOT / "docs" / "publication_readiness.md",
+    "ibkr_gateway_runbook.md": ROOT / "docs" / "ibkr_gateway_runbook.md",
+    "paper_trading_runbook.md": ROOT / "docs" / "paper_trading_runbook.md",
+    "market_data_permissions_runbook.md": ROOT / "docs" / "market_data_permissions_runbook.md",
+    "service_restart_runbook.md": ROOT / "docs" / "service_restart_runbook.md",
+    "failed_order_diagnosis_runbook.md": ROOT / "docs" / "failed_order_diagnosis_runbook.md",
     "work_queue.md": ROOT / "docs" / "work_queue.md",
 }
 SUGGESTED_DATA_ROOTS = (
