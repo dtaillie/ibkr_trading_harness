@@ -31,6 +31,7 @@ COPY_FILES = [
     "docs/market_data_permissions_runbook.md",
     "docs/service_restart_runbook.md",
     "docs/failed_order_diagnosis_runbook.md",
+    "docs/cloud_monitoring_deployment.md",
     "docs/public_framework_roadmap.md",
     "docs/work_queue.md",
     "docs/public_copy_manifest.md",

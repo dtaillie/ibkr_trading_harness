@@ -108,3 +108,5 @@ runtime logs, and private research outputs out of the public repo.
   runner checks.
 - `docs/failed_order_diagnosis_runbook.md`: rejected, canceled, missing-fill,
   and stale-telemetry troubleshooting.
+- `docs/cloud_monitoring_deployment.md`: conservative local-first remote
+  monitoring deployment guidance.

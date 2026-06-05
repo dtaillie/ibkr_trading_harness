@@ -702,6 +702,7 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             "market_data_permissions_runbook.md": "Market Data Permissions Runbook",
             "service_restart_runbook.md": "Service Restart Runbook",
             "failed_order_diagnosis_runbook.md": "Failed Order Diagnosis Runbook",
+            "cloud_monitoring_deployment.md": "Cloud Monitoring Deployment",
         }.items():
             with request.urlopen(f"{base}/docs/{name}", timeout=5) as resp:
                 body = resp.read().decode("utf-8")

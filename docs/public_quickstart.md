@@ -394,6 +394,7 @@ Operational runbooks:
 - `docs/market_data_permissions_runbook.md`
 - `docs/service_restart_runbook.md`
 - `docs/failed_order_diagnosis_runbook.md`
+- `docs/cloud_monitoring_deployment.md`
 
 Before publishing or sharing your repo, run:
 

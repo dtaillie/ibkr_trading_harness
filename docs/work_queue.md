@@ -589,6 +589,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     polling over HTTP, and now exposes `/remote_nodes` for sanitized latest
     read-only monitoring summaries by node. Deployment-oriented hosting docs
     and cloud-provider examples remain open.
+  - partial; `docs/cloud_monitoring_deployment.md` now documents a conservative
+    deployment shape for local-first remote monitoring, private-network access,
+    hosted receiver precautions, command-worker boundaries, and failure modes.
+    Provider-specific examples and hardened internet deployment remain open.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity

@@ -67,6 +67,7 @@ PUBLIC_DOCS = {
     "market_data_permissions_runbook.md": ROOT / "docs" / "market_data_permissions_runbook.md",
     "service_restart_runbook.md": ROOT / "docs" / "service_restart_runbook.md",
     "failed_order_diagnosis_runbook.md": ROOT / "docs" / "failed_order_diagnosis_runbook.md",
+    "cloud_monitoring_deployment.md": ROOT / "docs" / "cloud_monitoring_deployment.md",
     "work_queue.md": ROOT / "docs" / "work_queue.md",
 }
 SUGGESTED_DATA_ROOTS = (
