@@ -362,6 +362,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_gap_summary_export",
+        "category": "data",
+        "description": "Download worst saved-data timestamp and calendar gap rows.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_minute_heatmap",
         "category": "data",
         "description": "Summarize saved-data intraday interval completeness by UTC hour.",
@@ -1958,6 +1965,28 @@ DATA_COVERAGE_EXPORT_FIELDS = (
 )
 
 
+DATA_GAP_SUMMARY_EXPORT_FIELDS = (
+    "row_type",
+    "symbol",
+    "asset_class",
+    "source",
+    "bar_size",
+    "path",
+    "first_timestamp",
+    "last_timestamp",
+    "median_interval_seconds",
+    "largest_gap_seconds",
+    "estimated_missing_intervals",
+    "quality_status",
+    "quality_warning_count",
+    "first_day",
+    "last_day",
+    "date_count",
+    "calendar_day_count",
+    "missing_calendar_days",
+)
+
+
 def compact_csv_value(value: Any) -> Any:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
@@ -2025,6 +2054,25 @@ def build_data_coverage_csv(
                 "date": date_value,
                 "covered": bool(flags[index]) if index < len(flags) else False,
             })
+    return out.getvalue()
+
+
+def build_data_gap_summary_csv(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    top_limit: int = 20,
+) -> str:
+    summary = build_data_gap_summary(data_roots, catalog_limit=catalog_limit, top_limit=top_limit)
+    rows = [
+        *({**row, "row_type": "timestamp_gap"} for row in summary.get("gap_rows", [])),
+        *({**row, "row_type": "calendar_gap"} for row in summary.get("calendar_rows", [])),
+    ]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_GAP_SUMMARY_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_GAP_SUMMARY_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -6667,6 +6715,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_gap_summary_export":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
+                csv_body = build_data_gap_summary_csv(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    top_limit=top_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_gap_summary.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_minute_heatmap":
             if not self.require_auth():

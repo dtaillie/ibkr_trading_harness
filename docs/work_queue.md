@@ -507,6 +507,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       `/data_gap_summary`, showing worst timestamp-gap files, estimated missing
       intervals, largest gaps, and missing calendar-day rows across the current
       bounded catalog scan. A richer minute-level heatmap remains future work.
+    - partial; Data Library now exposes `/data_gap_summary_export` and an
+      Export Gap CSV button for aggregate timestamp-gap and calendar-gap rows.
     - partial; Data Library now has a Minute Coverage Heatmap backed by
       `/data_minute_heatmap`, summarizing expected vs actual intraday intervals
       by UTC hour for bounded catalog rows and listing worst incomplete files.

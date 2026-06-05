@@ -5854,6 +5854,21 @@ async function downloadDataCoverageCsv() {
   $("last-refresh").textContent = `Coverage CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataGapSummaryCsv() {
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const body = await fetchText(`/data_gap_summary_export?catalog_limit=${catalogLimit}&top_limit=100`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_gap_summary.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Gap summary CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataMissingIntervalsCsv() {
   const path = (state.dataDetail || {}).path || "";
   if (!path) {
@@ -6100,6 +6115,11 @@ function init() {
   $("export-data-coverage-csv").addEventListener("click", () => {
     downloadDataCoverageCsv().catch((err) => {
       $("last-refresh").textContent = `Coverage CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-gap-summary-csv").addEventListener("click", () => {
+    downloadDataGapSummaryCsv().catch((err) => {
+      $("last-refresh").textContent = `Gap summary CSV export failed: ${err.message}`;
     });
   });
   $("export-workbench-snapshot").addEventListener("click", () => {

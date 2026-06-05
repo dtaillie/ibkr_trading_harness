@@ -601,6 +601,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-coverage-grid" in html
         assert "export-data-coverage-csv" in html
         assert "data-gap-summary-note" in html
+        assert "export-data-gap-summary-csv" in html
         assert "data-gap-summary-body" in html
         assert "data-calendar-gap-body" in html
         assert "data-minute-heatmap-note" in html
@@ -729,6 +730,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
+        assert ("GET", "/data_gap_summary_export") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
@@ -1390,6 +1392,12 @@ def test_cloud_status_server_serves_data_gap_summary(tmp_path):
         assert payload["gap_rows"][0]["estimated_missing_intervals"] > 0
         assert payload["calendar_rows"][0]["symbol"] == "GAP"
         assert payload["calendar_rows"][0]["missing_calendar_days"] == 1
+        with request.urlopen(f"{base}/data_gap_summary_export?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert {row["row_type"] for row in exported} == {"timestamp_gap", "calendar_gap"}
+        assert exported[0]["symbol"] == "GAP"
     finally:
         server.shutdown()
         server.server_close()

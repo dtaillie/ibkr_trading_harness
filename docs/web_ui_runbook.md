@@ -83,6 +83,9 @@ symbols over one date range.
 Use Export Coverage CSV when you want the Data Library symbol/date coverage
 grid as a downloadable table for offline review.
 
+Use Export Gap CSV when you want aggregate timestamp-gap and missing
+calendar-day rows across the current catalog scan.
+
 ## Replay From Saved Data
 
 1. Inspect the saved dataset and review quality, gaps, nulls, timezone, and
