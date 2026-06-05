@@ -11,6 +11,10 @@
   --warn: #b45309;
   --bad: #b91c1c;
   --good: #047857;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+  --surface-shadow: 0 8px 20px rgba(16, 24, 19, 0.04);
   --shadow: 0 16px 40px rgba(16, 24, 19, 0.08);
 }
 
@@ -52,7 +56,7 @@ body {
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: #ffffff;
   background: var(--ink);
   font-weight: 800;
@@ -85,12 +89,13 @@ body {
   justify-content: flex-start;
   min-height: 38px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 10px;
   color: var(--text);
   background: transparent;
   text-align: left;
   font-weight: 700;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .nav-link:hover,
@@ -173,7 +178,7 @@ select,
 button {
   min-height: 34px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--text);
   font: inherit;
@@ -1210,14 +1215,71 @@ footer {
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 20;
     height: auto;
+    padding: 10px 12px 8px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 24px rgba(16, 24, 19, 0.07);
+    backdrop-filter: blur(12px);
+  }
+
+  .brand-block {
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebar-note {
+    display: none;
   }
 
   .side-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 2px 4px;
+    scroll-padding-left: 2px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .side-nav::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .side-nav::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-pill);
+    background: #cbd8cf;
+  }
+
+  .nav-link {
+    flex: 0 0 auto;
+    min-width: max-content;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: #ffffff;
+    box-shadow: var(--surface-shadow);
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .nav-link.active {
+    color: #ffffff;
+    background: var(--ink);
+    border-color: var(--ink);
+    box-shadow: 0 10px 22px rgba(17, 24, 39, 0.14);
   }
 
   .topbar,
@@ -1274,5 +1336,9 @@ footer {
   select,
   button {
     width: 100%;
+  }
+
+  .side-nav .nav-link {
+    width: auto;
   }
 }

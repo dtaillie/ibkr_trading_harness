@@ -46,6 +46,42 @@ LAYOUT_CHECK_SCRIPT = r"""
     return `${element.tagName.toLowerCase()}${id}${klass}${text ? ` "${text}"` : ""}`;
   };
   const activeView = location.hash.replace(/^#/, "") || "overview";
+  const activeNav = document.querySelector(`.nav-link[data-view-target="${activeView}"]`);
+  if (activeNav && activeNav.getAttribute("aria-current") !== "page") {
+    failures.push({
+      type: "active-nav-aria-current",
+      element: label(activeNav),
+      view: activeView,
+    });
+  }
+  if (window.innerWidth <= 820) {
+    const sideNav = document.querySelector(".side-nav");
+    if (sideNav) {
+      const sideNavStyle = window.getComputedStyle(sideNav);
+      if (sideNavStyle.display !== "flex" || sideNavStyle.overflowX === "visible") {
+        failures.push({
+          type: "mobile-nav-rail",
+          element: label(sideNav),
+          display: sideNavStyle.display,
+          overflowX: sideNavStyle.overflowX,
+          view: activeView,
+        });
+      }
+    }
+    if (activeNav) {
+      const navRect = activeNav.getBoundingClientRect();
+      if (navRect.left < -4 || navRect.right > window.innerWidth + 4) {
+        failures.push({
+          type: "active-nav-offscreen",
+          element: label(activeNav),
+          left: Math.round(navRect.left),
+          right: Math.round(navRect.right),
+          viewport: window.innerWidth,
+          view: activeView,
+        });
+      }
+    }
+  }
   const documentWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
   const viewportOverflow = documentWidth - window.innerWidth;
   if (viewportOverflow > 20) {

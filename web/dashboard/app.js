@@ -205,7 +205,16 @@ function setActiveView(view) {
     section.hidden = section.dataset.view !== targetView;
   }
   for (const button of document.querySelectorAll("[data-view-target]")) {
-    button.classList.toggle("active", button.dataset.viewTarget === targetView);
+    const active = button.dataset.viewTarget === targetView;
+    button.classList.toggle("active", active);
+    if (button.classList.contains("nav-link")) {
+      if (active) {
+        button.setAttribute("aria-current", "page");
+        button.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    }
   }
   sessionStorage.setItem("dashboardView", targetView);
 }
@@ -4463,6 +4472,13 @@ function initToken() {
 }
 
 function init() {
+  const storedView = sessionStorage.getItem("dashboardView") || "overview";
+  setActiveView(window.location.hash ? viewFromHash() : storedView);
+  for (const button of document.querySelectorAll("[data-view-target]")) {
+    button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
+  }
+  window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
+
   initToken();
   updateCommandFields();
   $("command-action").addEventListener("change", updateCommandFields);
@@ -4526,9 +4542,6 @@ function init() {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
-  for (const button of document.querySelectorAll("[data-view-target]")) {
-    button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
-  }
   $("config-preview-alignment").addEventListener("click", () => {
     previewConfigAlignment().catch((err) => {
       $("config-alignment-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -4757,9 +4770,6 @@ function init() {
       $("last-refresh").textContent = `Cancel failed: ${err.message}`;
     });
   });
-  window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
-  const storedView = sessionStorage.getItem("dashboardView") || "overview";
-  setActiveView(window.location.hash ? viewFromHash() : storedView);
   refresh().catch((err) => {
     $("last-refresh").textContent = `Refresh failed: ${err.message}`;
   });

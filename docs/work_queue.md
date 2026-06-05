@@ -258,6 +258,10 @@ strategy-private.
   - consistent chart sizing and empty chart states
   - reusable table toolbar patterns for search, filters, and export/copy actions
   - mobile navigation behavior that keeps the main action visible
+    - partial; mobile dashboard navigation now uses a sticky horizontal tab
+      rail instead of a compressed two-column sidebar, active nav items set
+      `aria-current`, and screenshot layout checks assert the active mobile tab
+      remains visible
 - Reduce cognitive load:
   - hide developer-only raw JSON/log details behind drilldowns
   - make dense tables secondary to charts and summary cards
