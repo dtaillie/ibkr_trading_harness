@@ -1676,6 +1676,30 @@
       </div>
     </section>
 
+    <section class="dashboard-section" data-view="operations" hidden>
+      <div class="section-head">
+        <h2>Command Audit</h2>
+        <span id="command-audit-note" class="section-note">Sanitized queue, cancel, and result events from the receiver</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Audited</th>
+              <th>Event</th>
+              <th>Node</th>
+              <th>ID</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Param Keys</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody id="command-audit-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="split dashboard-section" data-view="operations" hidden>
       <div>
         <div class="section-head">

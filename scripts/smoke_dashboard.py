@@ -356,6 +356,8 @@ def run_smoke(
             "remote-nodes-body",
             "remote-node-detail-note",
             "remote-node-history-body",
+            "command-audit-note",
+            "command-audit-body",
             "diagnostics-note",
             "cleanup-apply",
         ]
@@ -370,6 +372,7 @@ def run_smoke(
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
             "workbench_endpoints",
+            "command_audit",
             "data_coverage",
             "data_gap_summary",
             "data_minute_heatmap",

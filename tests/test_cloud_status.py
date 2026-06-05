@@ -643,6 +643,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-nodes-body" in html
         assert "remote-node-detail-note" in html
         assert "remote-node-history-body" in html
+        assert "command-audit-note" in html
+        assert "command-audit-body" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html
@@ -681,6 +683,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
+        assert ("GET", "/command_audit") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints

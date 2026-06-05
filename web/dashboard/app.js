@@ -31,6 +31,7 @@ const state = {
   performanceBenchmarkDetail: null,
   commands: [],
   results: [],
+  commandAudit: { events: [] },
   remoteNodes: { nodes: [] },
   remoteNodeDetail: null,
   refreshLoaded: false,
@@ -3900,6 +3901,25 @@ function renderResults() {
     : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }
 
+function renderCommandAudit() {
+  const events = (state.commandAudit && state.commandAudit.events) || [];
+  $("command-audit-note").textContent = events.length
+    ? `${events.length} latest sanitized command audit events`
+    : "No command audit events have been recorded yet";
+  $("command-audit-body").innerHTML = events.length
+    ? events.slice(-30).reverse().map((event) => row([
+        escapeHtml(event.audited_at),
+        escapeHtml(event.event),
+        escapeHtml(event.node_id),
+        escapeHtml(event.command_id),
+        escapeHtml(event.action),
+        statusText(event.status || (event.error ? "rejected" : "")),
+        escapeHtml(Array.isArray(event.param_keys) ? event.param_keys.join(", ") : ""),
+        event.error ? `<span class="status-bad">${escapeHtml(event.error)}</span>` : "",
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+}
+
 function renderAll() {
   renderOverview();
   renderOverviewChanges();
@@ -3939,6 +3959,7 @@ function renderAll() {
   renderHistory();
   renderCommands();
   renderResults();
+  renderCommandAudit();
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
 }
 
@@ -3970,6 +3991,7 @@ async function refresh() {
   const performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
   const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
   const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
+  const commandAudit = await fetchJson(`/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`);
   state.history = history.history || [];
   state.remoteNodes = remoteNodes || { nodes: [] };
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
@@ -3990,6 +4012,7 @@ async function refresh() {
   state.performanceRollups = performanceRollups || { rollups: [], errors: [] };
   state.commands = commands.commands || [];
   state.results = results.results || [];
+  state.commandAudit = commandAudit || { events: [] };
   state.activityChanges = activityChanges(beforeActivity, activitySnapshot());
   state.refreshLoaded = true;
   renderAll();
