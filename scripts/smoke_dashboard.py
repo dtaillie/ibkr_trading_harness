@@ -205,6 +205,10 @@ def run_smoke(
             "status_label",
             "draft.folder",
             "draft.tags",
+            "Save a generated draft locally",
+            "No saved drafts yet",
+            "No draft runs yet",
+            "Preview Alignment before generating",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

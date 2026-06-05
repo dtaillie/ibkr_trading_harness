@@ -478,6 +478,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     status label, and tags derived from mode/status/plugin/symbol count, and
     the UI displays them beside validation/output state.
 - Add safer empty states and validation messages.
+  - partial; Workbench draft generation, alignment, saved drafts, draft
+    validation, and run tables now show next-step guidance instead of blank or
+    generic `none` states. Broader seeded empty-state smoke across every page
+    remains part of UI quality gates.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:

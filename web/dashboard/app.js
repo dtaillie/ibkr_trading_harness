@@ -2229,9 +2229,9 @@ function renderConfigBuilder() {
 
   const draft = state.configDraft;
   if (!draft) {
-    $("config-validation").innerHTML = `<span class="muted">No draft generated</span>`;
+    $("config-validation").innerHTML = `<span class="muted">Select datasets, review quality/alignment, then Generate.</span>`;
     $("config-yaml").value = "";
-    $("config-commands").innerHTML = "";
+    $("config-commands").innerHTML = `<dt>Next</dt><dd><span class="muted">Generate a draft to get local validate/replay commands.</span></dd>`;
     renderConfigAlignment(state.alignmentPreview || {});
     return;
   }
@@ -2255,7 +2255,12 @@ function renderConfigAlignment(alignment) {
     ? warnings.length
       ? `<span class="status-warn">${warnings.length} warning${warnings.length === 1 ? "" : "s"}</span>`
       : `<span class="status-ok">aligned</span>`
-    : "No alignment data";
+    : "Select datasets, then preview alignment";
+  if (!alignment.dataset_count) {
+    $("config-alignment").innerHTML = `<dt>Next</dt><dd>Select one or more datasets and click Preview Alignment before generating a runnable draft.</dd>`;
+    renderWorkbenchGuide();
+    return;
+  }
   const rows = alignment.rows || [];
   const symbolSummary = rows.map((item) => (
     `${text(item.symbol)} quality=${text(item.quality_status)} quality_warnings=${numberText(item.quality_warning_count, 0)} rows=${numberText(item.rows, 0)} ts=${numberText(item.timestamp_count, 0)} step=${interval(item.median_interval_seconds)}`
@@ -2311,7 +2316,7 @@ function renderDraftValidations() {
   }
   $("config-draft-validations").innerHTML = rows.length || payload.generated_at
     ? pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd><span class="mono">${escapeHtml(value)}</span></dd>`).join("")
-    : `<dt>Checked</dt><dd><span class="muted">Not checked</span></dd>`;
+    : `<dt>Next</dt><dd><span class="muted">Save a generated draft locally, then click Validate Drafts.</span></dd>`;
 }
 
 function applyRiskPreset() {
@@ -2351,7 +2356,7 @@ function renderWorkbenchRuns() {
         `<span class="mono">${escapeHtml(draft.output_dir)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-draft-detail" data-draft-id="${escapeHtml(draft.draft_id)}">YAML</button><button type="button" class="secondary download-draft-yaml" data-draft-id="${escapeHtml(draft.draft_id)}">Download</button><button type="button" class="secondary inspect-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Artifacts</button><button type="button" class="secondary delete-draft" data-draft-id="${escapeHtml(draft.draft_id)}">Delete</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No saved drafts yet. Select saved data, enable Save draft locally, then Generate.</span>`, "", "", "", "", "", "", "", "", ""]);
 
   const runs = (state.configRuns && state.configRuns.runs) || [];
   $("config-runs-body").innerHTML = runs.length
@@ -2377,7 +2382,7 @@ function renderWorkbenchRuns() {
           }<button type="button" class="secondary inspect-run-log" data-run-id="${escapeHtml(run.run_id)}">Log</button></span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No draft runs yet. Save a valid draft, choose validate/replay/simulated paper, then Run.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
 function comparisonCard(title, run, value) {
@@ -3329,7 +3334,7 @@ async function runConfigDraft(event) {
   event.preventDefault();
   const draftId = $("config-run-draft").value;
   if (!draftId) {
-    $("config-run-status").innerHTML = `<span class="status-bad">Save a draft before running</span>`;
+    $("config-run-status").innerHTML = `<span class="status-bad">Save a generated draft locally before running.</span>`;
     return;
   }
   $("config-run-status").innerHTML = `<span class="status-warn">running</span>`;
