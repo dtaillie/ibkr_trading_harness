@@ -397,11 +397,17 @@ cloud endpoint fails. `scripts/publish_status.py` summarizes that audit file so
 poll failures, command failures, and result-post failures are visible in the
 dashboard.
 
+The example worker config also limits command bursts with
+`worker.max_commands_per_poll`. Commands over that local limit are rejected and
+audited instead of being executed in the same sweep.
+
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,
 `run_supervisor_once`, `pause_runner`, and `resume_runner`. `run_supervisor_once`
 can launch configured local jobs and is only enabled when present in
-`allowed_actions`; remove it for monitoring-only deployments. Pause/resume
+`allowed_actions`; remove it for monitoring-only deployments. The example config
+also requires `paper_logs/control/remote_commands.enabled` before launcher
+actions run, so the local machine must be deliberately armed first. Pause/resume
 writes or removes a local marker file. The generic plugin runner honors
 `control.pause_marker` by recording paused decisions without evaluating the
 strategy or submitting orders.

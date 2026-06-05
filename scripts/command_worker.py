@@ -43,6 +43,19 @@ DEFAULT_ALLOWED_ACTIONS = {
     "resume_runner",
 }
 
+ACTION_CLASSES = {
+    "request_status": "read_only",
+    "supervisor_status": "read_only",
+    "summarize_run": "read_only",
+    "validate_config": "read_only",
+    "validate_supervisor_config": "read_only",
+    "pause_runner": "control",
+    "resume_runner": "control",
+    "run_supervisor_once": "launcher",
+}
+
+DEFAULT_LOCAL_ENABLE_ACTIONS = {"run_supervisor_once"}
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -143,6 +156,45 @@ def supervisor_state_path(supervisor_config_path: Path) -> Path:
     return Path(str(supervisor.get("state_file") or "paper_logs/plugin_supervisor/status.json"))
 
 
+def action_class(action: str) -> str:
+    return ACTION_CLASSES.get(action, "unknown")
+
+
+def safety_marker_path(config: dict[str, Any]) -> Path:
+    safety = config.get("safety") or {}
+    return Path(str(safety.get("local_enable_marker") or "paper_logs/control/remote_commands.enabled"))
+
+
+def local_safety_error(action: str, config: dict[str, Any]) -> str | None:
+    safety = config.get("safety") or {}
+    disabled_actions = set(safety.get("disabled_actions") or [])
+    if action in disabled_actions:
+        return f"action is disabled by local safety config: {action}"
+
+    gated_actions = set(safety.get("actions_requiring_local_enable") or DEFAULT_LOCAL_ENABLE_ACTIONS)
+    if not safety.get("require_local_enable_marker", False) or action not in gated_actions:
+        return None
+
+    marker = safety_marker_path(config)
+    if marker.exists():
+        return None
+    return f"local enable marker is required for {action}: {marker}"
+
+
+def rejected_result(command: dict[str, Any], config: dict[str, Any], error: str) -> dict[str, Any]:
+    action = str(command.get("action") or "")
+    return {
+        "command_id": str(command.get("command_id") or ""),
+        "node_id": str(config.get("node_id") or "local-trader"),
+        "action": action,
+        "action_class": action_class(action),
+        "status": "rejected",
+        "executed_at": utc_now(),
+        "result": {},
+        "error": error,
+    }
+
+
 def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     node_id = str(config.get("node_id") or "local-trader")
     command_id = str(command.get("command_id") or "")
@@ -153,6 +205,7 @@ def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str
         "command_id": command_id,
         "node_id": node_id,
         "action": action,
+        "action_class": action_class(action),
         "status": "completed",
         "executed_at": utc_now(),
         "result": {},
@@ -169,6 +222,10 @@ def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str
     if not isinstance(params, dict):
         result["status"] = "rejected"
         result["error"] = "params must be a mapping"
+        return result
+    if error := local_safety_error(action, config):
+        result["status"] = "rejected"
+        result["error"] = error
         return result
 
     try:
@@ -262,8 +319,15 @@ def poll_once(config: dict[str, Any]) -> list[dict[str, Any]]:
         }
         append_audit(config, {"event": "poll_failed", "result": result})
         return [result]
+    worker = config.get("worker") or {}
+    max_commands = int(worker.get("max_commands_per_poll", 20))
+    if max_commands < 1:
+        max_commands = 1
     for command in commands:
-        result = execute_command(command, config)
+        if len(results) >= max_commands:
+            result = rejected_result(command, config, f"worker command limit exceeded: max_commands_per_poll={max_commands}")
+        else:
+            result = execute_command(command, config)
         audited = dict(result)
         try:
             post_result(config, result)

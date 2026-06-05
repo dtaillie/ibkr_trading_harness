@@ -92,6 +92,12 @@ Do not add broker actions such as live flattening, order submission, changing
 strategy config, or enabling live mode without stronger local confirmations and
 immutable audit logs.
 
+The local worker is the authority boundary. Keep `audit.enabled=true`, set a
+small `worker.max_commands_per_poll`, and require a local enable marker for
+launcher actions such as `run_supervisor_once`. With the example config, the
+worker rejects launcher commands until
+`paper_logs/control/remote_commands.enabled` exists on the trading machine.
+
 Run the worker once:
 
 ```bash
@@ -143,4 +149,3 @@ Keep private:
 - paper/live configs
 - raw runtime logs
 - research outputs
-

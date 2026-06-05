@@ -732,6 +732,11 @@ QQQ show up, treat that as a bug until proven otherwise.
 
 - Add authentication, authorization, audit logging, rate limits, and explicit
   local safety gates before expanding remote commands.
+  - partial; command worker now enforces a local command cap, action risk
+    metadata, explicit local enable markers for launcher actions, and local
+    audit records for completed/rejected commands
+  - remaining gap: server-side role scopes, stronger remote rate limits, and
+    immutable/append-only remote audit storage
 - Keep initial commands low-risk:
   - pause
   - resume

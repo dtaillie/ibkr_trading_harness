@@ -2919,6 +2919,42 @@ def test_command_worker_executes_allowlisted_supervisor_actions(tmp_path):
     assert status_result["result"]["state"]["jobs"][0]["status"] == "ok"
 
 
+def test_command_worker_requires_local_enable_marker_for_gated_actions(tmp_path):
+    marker = tmp_path / "ran.txt"
+    enable_marker = tmp_path / "control" / "remote_commands.enabled"
+    state_file = tmp_path / "supervisor" / "status.json"
+    supervisor_config = tmp_path / "supervisor.yaml"
+    write_supervisor_config(
+        supervisor_config,
+        marker=marker,
+        state_file=state_file,
+        log_dir=tmp_path / "supervisor" / "jobs",
+    )
+    config = {
+        "node_id": "test-node",
+        "allowed_actions": ["run_supervisor_once"],
+        "supervisors": {"example": str(supervisor_config)},
+        "safety": {
+            "require_local_enable_marker": True,
+            "local_enable_marker": str(enable_marker),
+            "actions_requiring_local_enable": ["run_supervisor_once"],
+        },
+    }
+    command = {"command_id": "cmd-1", "action": "run_supervisor_once", "params": {"supervisor_id": "example"}}
+
+    rejected = execute_command(command, config)
+    assert rejected["status"] == "rejected"
+    assert "local enable marker is required" in rejected["error"]
+    assert rejected["action_class"] == "launcher"
+    assert not marker.exists()
+
+    enable_marker.parent.mkdir()
+    enable_marker.write_text("enabled for local test\n")
+    completed = execute_command(command, config)
+    assert completed["status"] == "completed"
+    assert marker.read_text() == "ran\n"
+
+
 def test_command_worker_poll_once_round_trip(tmp_path):
     run_dir = tmp_path / "run"
     audit_log = tmp_path / "audit.jsonl"
@@ -2959,6 +2995,55 @@ def test_command_worker_poll_once_round_trip(tmp_path):
         audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
         assert audit_rows[0]["event"] == "command_result"
         assert audit_rows[0]["result"]["command_id"]
+        with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
+            pending = json.loads(resp.read().decode("utf-8"))
+        assert pending["commands"] == []
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_command_worker_poll_once_rejects_commands_over_local_limit(tmp_path):
+    run_dir = tmp_path / "run"
+    audit_log = tmp_path / "audit.jsonl"
+    write_run(run_dir)
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        for command_id in ("cmd-1", "cmd-2"):
+            command_req = request.Request(
+                f"{base}/commands",
+                data=json.dumps({
+                    "command_id": command_id,
+                    "node_id": "test-node",
+                    "action": "summarize_run",
+                    "params": {"run_id": "example"},
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with request.urlopen(command_req, timeout=5):
+                pass
+
+        results = poll_once({
+            "node_id": "test-node",
+            "server": {
+                "commands_url": f"{base}/commands",
+                "results_url": f"{base}/command_results",
+                "timeout_seconds": 5,
+            },
+            "worker": {"max_commands_per_poll": 1},
+            "allowed_actions": ["summarize_run"],
+            "runs": {"example": str(run_dir)},
+            "audit": {"log_file": str(audit_log)},
+        })
+
+        assert [result["status"] for result in results] == ["completed", "rejected"]
+        assert "worker command limit exceeded" in results[1]["error"]
+        audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
+        assert [row["result"]["status"] for row in audit_rows] == ["completed", "rejected"]
         with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
             pending = json.loads(resp.read().decode("utf-8"))
         assert pending["commands"] == []
