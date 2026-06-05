@@ -461,6 +461,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       quality status and warning counts, and `/config_draft` requires explicit
       `allow_quality_warnings` acknowledgement before generating a runnable
       draft from warn/bad files.
+    - partial; Data Detail now shows a health strip with quality, gap,
+      duplicate/null, and replay-readiness cards for the selected saved file.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

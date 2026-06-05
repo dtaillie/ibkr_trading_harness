@@ -938,6 +938,10 @@ section {
   gap: 12px;
 }
 
+.data-detail-health {
+  margin: 0 0 12px;
+}
+
 .detail-chart-wrap {
   min-height: 230px;
   padding: 14px;

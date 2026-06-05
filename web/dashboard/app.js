@@ -2895,6 +2895,7 @@ function renderDataDetail() {
   $("copy-data-path").disabled = !detail.path;
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
+  $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
   const pairs = [
     ["File Path", text(detail.path)],
     ["Asset", text(detail.asset_class)],
@@ -2943,6 +2944,67 @@ function renderDataDetail() {
         escapeHtml(gap.estimated_missing_intervals),
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", ""]);
+}
+
+function dataDetailHealthCards(detail, timezoneMode = "utc") {
+  if (!detail || !detail.path) {
+    return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Data</strong><small>Choose a saved dataset to see replay-readiness checks.</small></div>`;
+  }
+  const coverage = detail.coverage || {};
+  const quality = detail.quality || {};
+  const viewer = detail.viewer || {};
+  const warnings = quality.quality_warnings || [];
+  const nullCounts = quality.null_counts || {};
+  const nullRows = Object.values(nullCounts).reduce((total, value) => total + (Number(value) || 0), 0);
+  const duplicateRows = Number(coverage.duplicate_timestamps || 0);
+  const missingIntervals = Number(coverage.estimated_missing_intervals || 0);
+  const largestGap = Number(coverage.largest_gap_seconds);
+  const qualityStatus = text(quality.quality_status || "unknown");
+  const replayStatus = qualityStatus === "bad" || duplicateRows > 0
+    ? "bad"
+    : qualityStatus === "warn" || warnings.length || nullRows > 0 || missingIntervals > 0
+      ? "warn"
+      : "ok";
+  const replayNote = replayStatus === "ok"
+    ? "No obvious quality blockers in this bounded detail view."
+    : replayStatus === "warn"
+      ? "Review warnings or gaps before using this range in a replay."
+      : "Fix bad quality or duplicate timestamps before replaying this file.";
+  const gapStatus = missingIntervals > 0 ? "warn" : Number.isFinite(largestGap) && largestGap > 0 ? "ok" : "ok";
+  const integrityStatus = duplicateRows > 0 ? "bad" : nullRows > 0 ? "warn" : "ok";
+  const cards = [
+    {
+      status: qualityStatus,
+      title: text(quality.quality_status || "unknown"),
+      label: "Quality",
+      note: warnings.length ? warnings.slice(0, 2).join("; ") : "No quality warnings reported.",
+    },
+    {
+      status: gapStatus,
+      title: `${numberText(missingIntervals, 0)} missing`,
+      label: "Gaps",
+      note: `Largest ${interval(coverage.largest_gap_seconds)} across ${timeRangeLabel(viewer.first_timestamp, viewer.last_timestamp, timezoneMode)}.`,
+    },
+    {
+      status: integrityStatus,
+      title: `${numberText(duplicateRows, 0)} dup / ${numberText(nullRows, 0)} null`,
+      label: "Integrity",
+      note: "Duplicate timestamps are blockers; nulls require review.",
+    },
+    {
+      status: replayStatus,
+      title: replayStatus === "ok" ? "Ready" : replayStatus === "warn" ? "Review" : "Blocked",
+      label: "Replay Readiness",
+      note: replayNote,
+    },
+  ];
+  return cards.map((card) => `
+    <div class="health-card data-health-card">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderDataCompareControls() {
