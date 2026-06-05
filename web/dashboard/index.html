@@ -225,6 +225,28 @@
           </div>
         </div>
       </div>
+      <div class="performance-kpis">
+        <div class="status-tile">
+          <span>Source</span>
+          <strong id="performance-source">n/a</strong>
+        </div>
+        <div class="status-tile">
+          <span>Mode</span>
+          <strong id="performance-mode">n/a</strong>
+        </div>
+        <div class="status-tile">
+          <span>Latest Account</span>
+          <strong id="performance-latest-account">n/a</strong>
+        </div>
+        <div class="status-tile">
+          <span>Open Positions</span>
+          <strong id="performance-position-count">n/a</strong>
+        </div>
+        <div class="status-tile">
+          <span>Activity</span>
+          <strong id="performance-activity">n/a</strong>
+        </div>
+      </div>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Equity Curve</h2>
@@ -414,6 +436,30 @@
         </div>
       </div>
       <div id="data-root-cards" class="root-grid"></div>
+      <section class="nested-section">
+        <div class="section-head">
+          <h2>Storage Audit</h2>
+          <span id="data-storage-audit-note" class="section-note">No storage audit loaded</span>
+        </div>
+        <dl id="data-storage-audit-list" class="kv wide-kv"></dl>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Scope</th>
+                <th>Root</th>
+                <th>Files</th>
+                <th>Catalog</th>
+                <th>Hidden</th>
+                <th>Extensions</th>
+                <th>Sources</th>
+                <th>Sample Hidden Path</th>
+              </tr>
+            </thead>
+            <tbody id="data-storage-audit-body"></tbody>
+          </table>
+        </div>
+      </section>
       <section class="split nested-section">
         <div>
           <div class="section-head">
@@ -714,6 +760,7 @@
               <th>Rows</th>
               <th>Range</th>
               <th>Path</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="fetch-outputs-body"></tbody>

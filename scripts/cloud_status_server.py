@@ -65,6 +65,7 @@ SUGGESTED_DATA_ROOTS = (
     ROOT / "paper_logs" / "crypto_history",
 )
 BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
+DATA_FILE_SUFFIXES = {".csv", ".parquet"}
 ETF_SYMBOLS = {
     "DIA",
     "EEM",
@@ -209,6 +210,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
         "response": "JSON symbol visibility diagnosis",
+    },
+    {
+        "method": "GET",
+        "path": "/data_storage_audit",
+        "category": "data",
+        "description": "Compare local CSV/parquet files on disk with catalog-visible saved-data rows.",
+        "response": "JSON root-by-root storage audit",
     },
     {
         "method": "GET",
@@ -690,7 +698,7 @@ def data_file_candidates(data_roots: list[Path], *, limit: int) -> list[Path]:
         if not root.exists() or not root.is_dir():
             continue
         for path in sorted(root.rglob("*")):
-            if path.is_file() and path.suffix.lower() in {".csv", ".parquet"}:
+            if path.is_file() and path.suffix.lower() in DATA_FILE_SUFFIXES:
                 files.append(path)
                 if len(files) >= limit:
                     return files
@@ -995,6 +1003,140 @@ def build_data_catalog(
     }
 
 
+def data_files_for_root(root: Path, *, scan_limit: int) -> tuple[list[Path], bool, list[dict[str, str]]]:
+    files: list[Path] = []
+    errors: list[dict[str, str]] = []
+    capped = False
+    if not root.exists() or not root.is_dir():
+        return files, capped, errors
+    try:
+        iterator = root.rglob("*")
+        for path in iterator:
+            try:
+                if not path.is_file() or path.suffix.lower() not in DATA_FILE_SUFFIXES:
+                    continue
+            except OSError as exc:
+                errors.append({"path": display_path(path), "error": str(exc)})
+                continue
+            if len(files) >= scan_limit:
+                capped = True
+                break
+            files.append(path)
+    except OSError as exc:
+        errors.append({"path": display_path(root), "error": str(exc)})
+    return files, capped, errors
+
+
+def audit_data_root(
+    root: Path,
+    *,
+    configured: bool,
+    catalog_paths: set[str],
+    scan_limit: int,
+) -> dict[str, Any]:
+    resolved = root.resolve()
+    probe = writable_probe(resolved, expect_dir=True)
+    files, capped, errors = data_files_for_root(resolved, scan_limit=scan_limit)
+    file_rows = []
+    for path in files:
+        display = display_path(path)
+        symbol = infer_symbol(path, pd.DataFrame())
+        file_rows.append({
+            "path": display,
+            "extension": path.suffix.lower(),
+            "source": infer_data_source(path),
+            "asset_class": infer_asset_class(path, symbol),
+            "bar_size": infer_bar_size(path, pd.DataFrame()),
+            "catalog_visible": display in catalog_paths,
+        })
+    visible_count = sum(1 for row in file_rows if row["catalog_visible"])
+    hidden_rows = [row for row in file_rows if not row["catalog_visible"]]
+    size_bytes = 0
+    for path in files:
+        try:
+            size_bytes += path.stat().st_size
+        except OSError:
+            continue
+    return {
+        **probe,
+        "display_path": display_path(resolved),
+        "configured": configured,
+        "file_count": len(files),
+        "scan_limit": scan_limit,
+        "scan_capped": capped,
+        "size_bytes": size_bytes,
+        "catalog_visible_count": visible_count,
+        "hidden_file_count": len(hidden_rows),
+        "extension_counts": count_values(file_rows, "extension"),
+        "asset_class_guess_counts": count_values(file_rows, "asset_class"),
+        "source_guess_counts": count_values(file_rows, "source"),
+        "bar_size_guess_counts": count_values(file_rows, "bar_size"),
+        "sample_hidden_paths": [row["path"] for row in hidden_rows[:10]],
+        "errors": errors,
+        "error_count": len(errors),
+    }
+
+
+def build_data_storage_audit(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    scan_limit: int = 5000,
+) -> dict[str, Any]:
+    catalog = build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
+    catalog_paths = {str(row.get("path") or "") for row in catalog.get("datasets", [])}
+    configured_rows = [
+        audit_data_root(root, configured=True, catalog_paths=catalog_paths, scan_limit=scan_limit)
+        for root in data_roots
+    ]
+    configured_resolved = {root.resolve() for root in data_roots}
+    suggested_rows = []
+    for root in SUGGESTED_DATA_ROOTS:
+        resolved = root.resolve()
+        if resolved in configured_resolved:
+            continue
+        row = audit_data_root(resolved, configured=False, catalog_paths=catalog_paths, scan_limit=scan_limit)
+        if row["file_count"] or row["error_count"]:
+            suggested_rows.append(row)
+    configured_file_count = sum(int(row.get("file_count") or 0) for row in configured_rows)
+    configured_visible_count = sum(int(row.get("catalog_visible_count") or 0) for row in configured_rows)
+    hidden_configured_count = sum(int(row.get("hidden_file_count") or 0) for row in configured_rows)
+    suggested_file_count = sum(int(row.get("file_count") or 0) for row in suggested_rows)
+    warnings = []
+    if not configured_file_count:
+        warnings.append("No CSV/parquet files were found under configured data roots.")
+    if hidden_configured_count:
+        warnings.append("Some configured-root files are not visible in the current catalog result.")
+    if suggested_file_count:
+        warnings.append("Suggested local roots contain files that are not currently scanned.")
+    if catalog.get("errors"):
+        warnings.append("Some configured-root files failed catalog parsing.")
+    if any(row.get("scan_capped") for row in configured_rows + suggested_rows):
+        warnings.append("The storage audit reached its per-root scan limit.")
+    if not configured_file_count and not suggested_file_count:
+        status = "bad"
+    elif warnings:
+        status = "warn"
+    else:
+        status = "ok"
+    return {
+        "generated_at": utc_now(),
+        "status": status,
+        "warnings": warnings,
+        "warning_count": len(warnings),
+        "catalog_limit": catalog_limit,
+        "scan_limit": scan_limit,
+        "catalog_visible_count": len(catalog_paths),
+        "catalog_error_count": int(catalog.get("error_count") or 0),
+        "configured_file_count": configured_file_count,
+        "configured_visible_count": configured_visible_count,
+        "hidden_configured_file_count": hidden_configured_count,
+        "suggested_file_count": suggested_file_count,
+        "configured_roots": configured_rows,
+        "suggested_roots": suggested_rows,
+    }
+
+
 DATA_CATALOG_EXPORT_FIELDS = (
     "path",
     "root",
@@ -1057,7 +1199,7 @@ def matching_symbol_files(
             continue
         scanned = 0
         for path in root.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in {".csv", ".parquet"}:
+            if not path.is_file() or path.suffix.lower() not in DATA_FILE_SUFFIXES:
                 continue
             scanned += 1
             if path_matches_symbol(path, symbol):
@@ -1499,10 +1641,27 @@ def find_fetch_manifest_path(job_id: str, fetch_manifest_roots: list[Path]) -> P
     raise ValueError(f"fetch manifest not found: {raw}")
 
 
+def annotate_fetch_output(row: dict[str, Any], data_roots: list[Path]) -> dict[str, Any]:
+    out = dict(row)
+    out["data_detail_path"] = None
+    out["data_detail_available"] = False
+    raw_path = str(row.get("path") or "").strip()
+    if not raw_path:
+        return out
+    try:
+        path, rel_path = data_path_allowed(raw_path, data_roots)
+    except ValueError:
+        return out
+    out["data_detail_path"] = rel_path
+    out["data_detail_available"] = path.exists()
+    return out
+
+
 def load_fetch_manifest_detail(
     job_id: str,
     *,
     fetch_manifest_roots: list[Path],
+    data_roots: list[Path] | None = None,
     limit: int = 250,
 ) -> dict[str, Any]:
     path = find_fetch_manifest_path(job_id, fetch_manifest_roots)
@@ -1514,6 +1673,11 @@ def load_fetch_manifest_detail(
     symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
     symbols = list(symbols_map.values())
     summary = summarize_fetch_manifest(path, root=root)
+    annotated_outputs = [
+        annotate_fetch_output(row, data_roots or [])
+        for row in outputs[-limit:]
+        if isinstance(row, dict)
+    ]
     return {
         **summary,
         "schema_version": payload.get("schema_version"),
@@ -1522,7 +1686,7 @@ def load_fetch_manifest_detail(
         "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
         "symbols_requested": payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [],
         "symbols": symbols,
-        "outputs": outputs[-limit:],
+        "outputs": annotated_outputs,
         "errors": errors[-limit:],
         "events": events[-limit:],
         "output_total": len(outputs),
@@ -1545,7 +1709,7 @@ def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]
     candidate = Path(raw_path)
     path = candidate if candidate.is_absolute() else ROOT / candidate
     path = path.resolve()
-    if path.suffix.lower() not in {".csv", ".parquet"}:
+    if path.suffix.lower() not in DATA_FILE_SUFFIXES:
         raise ValueError("data file must be .csv or .parquet")
     if not path.exists():
         raise ValueError(f"data file does not exist: {raw_path}")
@@ -2627,7 +2791,7 @@ def data_file_count(root: Path, *, limit: int = 10_000) -> int:
         return 0
     count = 0
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in {".csv", ".parquet"}:
+        if path.is_file() and path.suffix.lower() in DATA_FILE_SUFFIXES:
             count += 1
             if count >= limit:
                 break
@@ -3845,6 +4009,22 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, payload)
             return
+        if parsed.path == "/data_storage_audit":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                scan_limit = parse_int_param(params, "scan_limit", default=5000, maximum=50000)
+                payload = build_data_storage_audit(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    scan_limit=scan_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
         if parsed.path == "/fetch_manifests":
             if not self.require_auth():
                 return
@@ -3868,6 +4048,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 payload = load_fetch_manifest_detail(
                     job_id,
                     fetch_manifest_roots=self.fetch_manifest_roots,
+                    data_roots=self.data_roots,
                     limit=limit,
                 )
             except (TypeError, ValueError) as exc:

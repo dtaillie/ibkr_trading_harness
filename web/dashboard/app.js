@@ -5,6 +5,7 @@ const state = {
   dataDetail: null,
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
+  dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
@@ -163,8 +164,27 @@ function qualityBadge(status, warnings = []) {
   return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
+function availableViews() {
+  return Array.from(document.querySelectorAll(".dashboard-section"))
+    .map((section) => section.dataset.view)
+    .filter(Boolean);
+}
+
+function normalizeView(view) {
+  const cleaned = String(view || "")
+    .replace(/^#/, "")
+    .replace(/^\//, "")
+    .trim();
+  const views = new Set(availableViews());
+  return views.has(cleaned) ? cleaned : "overview";
+}
+
+function viewFromHash() {
+  return normalizeView(decodeURIComponent(window.location.hash || ""));
+}
+
 function setActiveView(view) {
-  const targetView = view || "overview";
+  const targetView = normalizeView(view || "overview");
   for (const section of document.querySelectorAll(".dashboard-section")) {
     section.hidden = section.dataset.view !== targetView;
   }
@@ -172,6 +192,16 @@ function setActiveView(view) {
     button.classList.toggle("active", button.dataset.viewTarget === targetView);
   }
   sessionStorage.setItem("dashboardView", targetView);
+}
+
+function navigateToView(view) {
+  const targetView = normalizeView(view);
+  const nextHash = `#${targetView}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView(targetView);
 }
 
 function latestTelemetryRun() {
@@ -661,11 +691,24 @@ function renderPerformance() {
   const fills = period === "all" ? (source.fills || []) : rowsInWindow(source.fills || [], window);
   const ledger = buildTradeLedger(fills);
   const equity = periodPerf.final_equity ?? summary.final_equity;
+  const latestAccount = latestAccountRow(accountRows.length ? accountRows : (source.account || []));
+  const mode = perf.mode ?? summary.mode;
+  const positionCount = nonzeroPositionsFromSource(source).length;
+  const decisions = summary.decisions ?? (source.decisions || []).length;
+  const orders = summary.orders ?? (source.orders || []).length;
+  const fillCount = summary.fills ?? (source.fills || []).length;
+  const rejections = summary.rejections ?? summary.rejects ?? 0;
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   $("performance-equity").textContent = money(equity);
   $("performance-context").textContent = accountRows.length
     ? `${numberText(accountRows.length, 0)} account snapshots in selected period.`
     : "Showing latest summarized run; select Artifacts for an equity curve.";
+  $("performance-source").textContent = source.label;
+  $("performance-mode").textContent = text(mode);
+  $("performance-mode").className = statusClass(mode ? "ok" : "unknown");
+  $("performance-latest-account").textContent = text(latestAccount.timestamp);
+  $("performance-position-count").textContent = numberText(positionCount, 0);
+  $("performance-activity").textContent = `${numberText(decisions, 0)}D / ${numberText(orders, 0)}O / ${numberText(fillCount, 0)}F / ${numberText(rejections, 0)}R`;
   $("performance-return").textContent = pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null));
   $("performance-drawdown").textContent = pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null));
   $("performance-return-day").textContent = pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null));
@@ -1067,6 +1110,47 @@ function renderDataLibrarySummary() {
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
 }
 
+function renderDataStorageAudit() {
+  const audit = state.dataStorageAudit || {};
+  const configuredRows = audit.configured_roots || [];
+  const suggestedRows = audit.suggested_roots || [];
+  $("data-storage-audit-note").innerHTML = audit.status
+    ? qualityBadge(audit.status, audit.warnings || [])
+    : "No storage audit loaded";
+  const pairs = [
+    ["Generated", text(audit.generated_at)],
+    ["Catalog Limit", numberText(audit.catalog_limit, 0)],
+    ["Per-root Scan Limit", numberText(audit.scan_limit, 0)],
+    ["Catalog-visible Files", numberText(audit.catalog_visible_count, 0)],
+    ["Configured Files", numberText(audit.configured_file_count, 0)],
+    ["Hidden Configured Files", numberText(audit.hidden_configured_file_count, 0)],
+    ["Suggested-root Files", numberText(audit.suggested_file_count, 0)],
+    ["Warnings", (audit.warnings || []).join("; ") || "none"],
+  ];
+  $("data-storage-audit-list").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  const rows = [
+    ...configuredRows.map((item) => ({ ...item, scope: "configured" })),
+    ...suggestedRows.map((item) => ({ ...item, scope: "suggested" })),
+  ];
+  $("data-storage-audit-body").innerHTML = rows.length
+    ? rows.map((item) => {
+        const scopeClass = item.scope === "configured" ? "status-ok" : "status-warn";
+        return row([
+          `<span class="${scopeClass}">${escapeHtml(item.scope)}</span>`,
+          `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
+          `${escapeHtml(numberText(item.file_count, 0))}${item.scan_capped ? " capped" : ""}`,
+          escapeHtml(numberText(item.catalog_visible_count, 0)),
+          escapeHtml(numberText(item.hidden_file_count, 0)),
+          escapeHtml(countSummary(item.extension_counts)),
+          escapeHtml(countSummary(item.source_guess_counts)),
+          `<span class="mono">${escapeHtml((item.sample_hidden_paths || [])[0] || "none")}</span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", ""]);
+}
+
 function renderDataCoverage() {
   const coverage = state.dataCoverage || {};
   const symbols = coverage.symbols || [];
@@ -1448,8 +1532,11 @@ function renderFetchManifestDetail() {
         escapeHtml(numberText(item.rows, 0)),
         escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
         `<span class="mono">${escapeHtml(item.path)}</span>`,
+        item.data_detail_available
+          ? `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(item.data_detail_path)}">Inspect Data</button>`
+          : `<span class="muted">not in data roots</span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
 }
 
 function replaceOptions(select, options) {
@@ -2304,6 +2391,7 @@ function renderAll() {
   renderDataCatalog();
   renderDataDetail();
   renderDataCoverage();
+  renderDataStorageAudit();
   renderSymbolDiagnostic();
   renderFetchJobs();
   renderFetchManifestDetail();
@@ -2334,6 +2422,7 @@ async function refresh() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
+  const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=5000`);
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
@@ -2349,6 +2438,7 @@ async function refresh() {
   state.history = history.history || [];
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
+  state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
@@ -2810,7 +2900,7 @@ function init() {
     });
   });
   for (const button of document.querySelectorAll("[data-view-target]")) {
-    button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+    button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
   }
   $("config-preview-alignment").addEventListener("click", () => {
     previewConfigAlignment().catch((err) => {
@@ -2933,6 +3023,13 @@ function init() {
       $("last-refresh").textContent = `Fetch manifest detail failed: ${err.message}`;
     });
   });
+  $("fetch-outputs-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
+    loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
+      $("last-refresh").textContent = `Fetch output data detail failed: ${err.message}`;
+    });
+  });
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;
@@ -2940,7 +3037,9 @@ function init() {
       $("last-refresh").textContent = `Cancel failed: ${err.message}`;
     });
   });
-  setActiveView(sessionStorage.getItem("dashboardView") || "overview");
+  window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
+  const storedView = sessionStorage.getItem("dashboardView") || "overview";
+  setActiveView(window.location.hash ? viewFromHash() : storedView);
   refresh().catch((err) => {
     $("last-refresh").textContent = `Refresh failed: ${err.message}`;
   });

@@ -67,6 +67,11 @@ def run_smoke(
             "performance-daily-return-chart",
             "performance-calendar-chart",
             "performance-period",
+            "performance-source",
+            "performance-mode",
+            "performance-latest-account",
+            "performance-position-count",
+            "performance-activity",
             "performance-trades-body",
             "performance-profit-factor",
             "performance-avg-win-loss",
@@ -80,6 +85,8 @@ def run_smoke(
             "overview-timeline-body",
             "data-root-cards",
             "data-catalog-limit",
+            "data-storage-audit-note",
+            "data-storage-audit-body",
             "data-coverage-grid",
             "data-symbol-diagnostic-form",
             "data-symbol-candidates-body",
@@ -87,6 +94,7 @@ def run_smoke(
             "data-detail-viewer-note",
             "fetch-manifests-body",
             "fetch-detail-summary",
+            "fetch-outputs-body",
             "data-filter-quality",
             "data-filter-asset",
             "data-filter-source",
@@ -118,10 +126,13 @@ def run_smoke(
             "config_draft_runs_export",
             "workbench_endpoints",
             "data_coverage",
+            "data_storage_audit",
             "data_symbol_diagnostic",
             "data_detail",
+            "data_detail_available",
             "fetch_manifests",
             "fetch_manifest_detail",
+            "Fetch output data detail failed",
             "drawdownChart",
             "dailyReturnChart",
             "calendarReturnHeatmap",
@@ -131,6 +142,8 @@ def run_smoke(
             "renderOverviewChanges",
             "renderCurrentOrdersAndPositions",
             "currentOpenOrderRows",
+            "viewFromHash",
+            "navigateToView",
             "copy-command",
             "copyText",
             "risk_presets",
@@ -153,6 +166,9 @@ def run_smoke(
         coverage = fetch_json(base_url, "/data_coverage?limit=5&max_symbols=10&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
+        storage_audit = fetch_json(base_url, "/data_storage_audit?catalog_limit=5&scan_limit=100")
+        if "configured_roots" not in storage_audit or "catalog_visible_count" not in storage_audit:
+            raise RuntimeError("data storage audit summary is invalid")
         csv_header = data_catalog_csv.splitlines()[0]
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
@@ -170,6 +186,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
+        if ("GET", "/data_storage_audit") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_storage_audit")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
@@ -201,6 +219,7 @@ def run_smoke(
             "base_url": base_url,
             "catalog_count": catalog.get("count", 0),
             "coverage_symbol_count": coverage.get("count", 0),
+            "storage_audit_status": storage_audit.get("status"),
             "diagnostics_status": diagnostics.get("status"),
             "endpoint_count": endpoint_map.get("count", 0),
             "fetch_manifest_count": fetch_manifests.get("count", 0),

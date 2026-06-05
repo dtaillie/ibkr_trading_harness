@@ -11,6 +11,17 @@ it means clear navigation, clean performance views, obvious empty states, and
 fast answers to "what is running?", "how is it doing?", and "what data do I
 have?".
 
+Near-term priority order:
+
+1. Make the app navigable instead of feeling like one dense status page.
+2. Make the current strategy's live/paper performance visible at a glance.
+3. Make every saved historical dataset discoverable, searchable, and chartable.
+4. Make fetch/data-root failures explain themselves in the UI.
+5. Add in-app help and README guidance so a new user can operate the workbench
+   without reading source code.
+6. Only after the product/data surfaces are trustworthy, resume trading
+   research.
+
 ## P0: Web UI product overhaul
 
 Goal: make the dashboard feel like a modern trading app, closer to Robinhood's
@@ -44,6 +55,23 @@ strategy-private.
   - Fetch Jobs
   - Operations
   - Help
+- Add route-like navigation state so each top-level view can be deep-linked,
+  refreshed, and shared by URL/hash without losing context.
+  - done for top-level dashboard views with URL hash navigation
+- Add a brokerage-style "Strategy Home" view:
+  - active strategy name, mode, and status
+  - portfolio/equity headline first, not log tables
+  - today's PnL/return, recent PnL/return, open exposure, and current risk
+  - clear "no trade today" state with the latest checked signal
+  - open positions and pending orders before archived run tables
+  - one-click drilldown into the source run/session/artifacts
+- Add an explicit "What is running right now?" strip that shows:
+  - process heartbeat
+  - Gateway/API connection
+  - latest market-data timestamp
+  - latest account timestamp
+  - latest decision timestamp
+  - whether the runner is observing, simulating, paper trading, or live trading
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
@@ -93,6 +121,8 @@ strategy-private.
 - Add a Strategy Performance page with charts and summaries:
   - current active strategy selector
   - current strategy snapshot independent of historical run comparison tables
+    - partial; Performance now includes source, mode, latest account timestamp,
+      open positions, and activity counts above artifact comparison tables
   - equity curve
     - done for archived run account artifacts
   - drawdown curve
@@ -114,6 +144,14 @@ strategy-private.
     - done for account-artifact charts and KPIs
   - obvious difference between realized historical backtest, simulated paper,
     IBKR paper, and live account metrics
+- Add a clean "current strategy performance" mode that does not require picking
+  through historical run comparison rows.
+- Add strategy/session comparison only after the current-strategy page is easy
+  to read.
+- Add daily run rollups so the dashboard can answer "how did it do today?" for
+  each day the service was running.
+- Add persistent period summaries so daily/monthly/yearly stats do not depend
+  on a currently open process.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows
@@ -153,6 +191,14 @@ strategy-private.
   - links to the relevant quickstart sections
     - partial; local doc paths are listed, direct served doc links remain open
   - empty states that explain what to do next instead of showing blank tables
+- Add a short web UI README/runbook:
+  - how to start the local dashboard
+  - how to configure data roots
+  - how to find current strategy performance
+  - how to inspect a saved data file
+  - how to diagnose "only SPY/QQQ are visible"
+  - how to distinguish live, paper, simulated paper, shadow, and replay results
+  - what should stay private before publishing
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography
@@ -163,6 +209,17 @@ strategy-private.
   - responsive mobile/tablet views
   - chart-first summaries instead of dense text-first tables
   - avoid nested cards and oversized marketing layout
+- Add a small design system for the dashboard:
+  - color tokens for cash/equity/gain/loss/warning/neutral states
+  - consistent badge styles for modes, health, fills, rejects, and stale data
+  - consistent chart sizing and empty chart states
+  - reusable table toolbar patterns for search, filters, and export/copy actions
+  - mobile navigation behavior that keeps the main action visible
+- Reduce cognitive load:
+  - hide developer-only raw JSON/log details behind drilldowns
+  - make dense tables secondary to charts and summary cards
+  - default every page to the most common question a user has on that page
+  - add "last updated" and source labels beside every derived metric
 - Add UI quality gates:
   - screenshot-smoke every top-level page at desktop and mobile widths
   - empty-state smoke tests for no status, no data roots, no runs, and no saved
@@ -216,6 +273,22 @@ QQQ show up, treat that as a bug until proven otherwise.
   - coverage range table for every symbol
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
   - last updated time and file size
+- Add a saved-data browser that can start from all scanned symbols, not just
+  SPY/QQQ demo files:
+  - show total symbols/files found by root
+  - show which roots are public examples versus private/local caches
+  - show why a root was not scanned
+  - show why a file was skipped
+  - include a "show me everything on disk" diagnostic mode with bounded limits
+- Add a backend storage audit command and matching dashboard panel:
+  - partial; dashboard storage-audit endpoint and Data Library panel now compare
+    configured/suggested root files with catalog-visible rows, standalone CLI
+    command remains open
+  - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
+  - compare files on disk to dashboard-visible catalog rows
+  - summarize missing symbols, malformed files, unsupported extensions, and
+    capped scans
+  - recommend config changes when real cache roots are absent
 - Add historical-data visualization:
   - line/candlestick chart for saved files
     - partial; saved files now have a range-filtered close-price chart,
@@ -241,6 +314,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     relevant
     - partial; source timezone and normalized UTC are shown, local/Eastern
       conversion toggles remain open
+- Add historical-data workflows:
+  - pick any scanned symbol and bar size
+  - inspect a date range without starting a live runner
+  - compare several symbols over the same window
+  - export/copy the local file path and generated replay command
+  - flag suspicious files before they are used in a strategy replay
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol
@@ -275,8 +354,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       manifest resume input is not implemented yet
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
-    - partial; output paths are shown, direct Data Library cross-linking is not
-      implemented yet
+    - partial; output paths under configured data roots now link directly to
+      Data Detail, manifest-driven resume remains open
 
 ## P1: Fetch jobs and backend data reliability
 

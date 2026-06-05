@@ -104,7 +104,7 @@ def write_audit_log(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 
 
-def write_fetch_manifest(path: Path) -> None:
+def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.parquet") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -145,7 +145,7 @@ def write_fetch_manifest(path: Path) -> None:
                         "symbol": "SPY",
                         "status": "ok",
                         "rows": 3,
-                        "path": "cache/ibkr/SPY_5min.parquet",
+                        "path": output_path,
                     }
                 ],
                 "errors": [
@@ -504,6 +504,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
+        assert ("GET", "/data_storage_audit") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
@@ -654,11 +655,27 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
 
 def test_cloud_status_server_serves_fetch_manifests(tmp_path):
     manifest_root = tmp_path / "fetch_manifests"
-    write_fetch_manifest(manifest_root / "stock_history_20260102.json")
+    data_root = tmp_path / "cache" / "ibkr"
+    data_root.mkdir(parents=True)
+    data_file = data_root / "SPY_5min.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00+00:00,100,101,99,100,1000",
+                "2026-01-02T14:35:00+00:00,100,101,99,100.5,1000",
+                "2026-01-02T14:40:00+00:00,100,101,99,101,1000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    write_fetch_manifest(manifest_root / "stock_history_20260102.json", output_path=str(data_file))
     server = create_server(
         "127.0.0.1",
         0,
         tmp_path / "state",
+        data_roots=[data_root],
         fetch_manifest_roots=[manifest_root],
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -688,7 +705,9 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["output_total"] == 1
         assert detail["error_total"] == 1
         assert detail["symbols"][0]["symbol"] in {"QQQ", "SPY"}
-        assert detail["outputs"][0]["path"] == "cache/ibkr/SPY_5min.parquet"
+        assert detail["outputs"][0]["path"] == str(data_file)
+        assert detail["outputs"][0]["data_detail_available"] is True
+        assert detail["outputs"][0]["data_detail_path"] == str(data_file)
         assert detail["errors"][0]["kind"] == "permission"
     finally:
         server.shutdown()
@@ -766,6 +785,51 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["status"] == "visible"
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
+    data_root = tmp_path / "configured"
+    data_root.mkdir()
+    suggested_root = tmp_path / "cache"
+    suggested_root.mkdir()
+    for root, symbol in [(data_root, "SPY"), (data_root, "QQQ"), (suggested_root, "ABC")]:
+        (root / f"{symbol}_5min_sample.csv").write_text(
+            "\n".join(
+                [
+                    "timestamp,open,high,low,close,volume",
+                    "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                    "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", (suggested_root,))
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_storage_audit?catalog_limit=1&scan_limit=10", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+
+        assert audit["status"] == "warn"
+        assert audit["catalog_visible_count"] == 1
+        assert audit["configured_file_count"] == 2
+        assert audit["hidden_configured_file_count"] == 1
+        assert audit["suggested_file_count"] == 1
+        configured = audit["configured_roots"][0]
+        assert configured["display_path"] == str(data_root.resolve())
+        assert configured["catalog_visible_count"] == 1
+        assert configured["hidden_file_count"] == 1
+        assert configured["sample_hidden_paths"][0].endswith("_5min_sample.csv")
+        suggested = audit["suggested_roots"][0]
+        assert suggested["display_path"] == str(suggested_root.resolve())
+        assert suggested["configured"] is False
+        assert suggested["hidden_file_count"] == 1
     finally:
         server.shutdown()
         server.server_close()

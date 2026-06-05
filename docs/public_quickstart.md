@@ -178,22 +178,30 @@ python3 scripts/publish_status.py \
 Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
 workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
+top-level views can also be opened directly with URL hashes such as
+`#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
 health checks, setup checklist items, open positions, and recent
 decision/order/fill events. After a second successful refresh, Overview also
 calls out new recent events, alerts, and terminal fetch-job changes since the
 prior refresh. Performance summarizes the latest run or selected
 artifact with equity, return, drawdown, exposure, an equity curve, drawdown
 curve, daily return bars, and a calendar-style daily return heatmap when
-account snapshots are available. Use the Period selector to narrow artifact
+account snapshots are available. It also shows the active source, mode, latest
+account timestamp, open position count, and decision/order/fill/reject activity
+above the charts. Use the Period selector to narrow artifact
 charts and KPIs to today, week, month, 3 months, or all available snapshots.
 When sanitized fills are present, Performance also shows an open/closed trade
 table, win/loss, average win/loss, and profit factor. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, and
-historical previews. Use the coverage grid to see recent date-bin coverage by
+historical previews. Use Storage Audit to compare CSV/parquet files on disk
+against the catalog-visible rows, including suggested roots that are not
+currently configured. Use the coverage grid to see recent date-bin coverage by
 symbol, and use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Fetch Jobs shows historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
+When a produced output file is under a configured data root, use Inspect Data in
+the output row to open its saved-file detail view without leaving the dashboard.
 Runs shows searchable saved-run comparisons, recent run-event telemetry,
 current managed positions, and recent non-terminal order events when runners
 publish them. Operations shows node health, Gateway reachability,
