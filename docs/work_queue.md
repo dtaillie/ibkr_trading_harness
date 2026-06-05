@@ -258,6 +258,10 @@ strategy-private.
       archived public workbench runs
   - clean distinction between live account state, paper account state, and
     simulated account state
+    - partial; Runs now starts with triage cards for published runs, current
+      open-order telemetry, managed positions, recent events, fills/rejects,
+      loaded artifact detail, and the next inspection action before dense
+      status/run/event tables.
 - Add strategy drilldowns:
   - entry and exit chart markers
   - signal values and thresholds

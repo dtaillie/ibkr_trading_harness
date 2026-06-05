@@ -6026,6 +6026,7 @@ function renderWorkbenchArtifacts() {
 function renderRuns() {
   const runs = (state.status && state.status.runs) || [];
   renderCurrentOrdersAndPositions();
+  renderRunsTriage();
   $("runs-body").innerHTML = runs.length
     ? runs.map((run) => {
         const metrics = run.metrics || {};
@@ -6043,6 +6044,120 @@ function renderRuns() {
         ]);
       }).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderRunsTriage() {
+  if (!$("runs-triage-cards") || !$("runs-triage-note")) return;
+  const runs = (state.status && state.status.runs) || [];
+  const history = state.history || [];
+  const orders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const positions = nonzeroPositionsFromSource(source);
+  const events = runEventRows();
+  const latestRun = runs[0] || null;
+  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const fills = events.filter((event) => event.type === "fill");
+  const rejectedOrders = events.filter((event) => event.type === "order" && eventStatusIsBad(event));
+  const latestEvent = events[0] || null;
+  const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
+  let nextStatus = "bad";
+  let nextTitle = "Start Runner";
+  let nextNote = "No run telemetry is currently published.";
+  if (runs.length) {
+    if (orders.length) {
+      nextStatus = "warn";
+      nextTitle = "Review Orders";
+      nextNote = "Non-terminal order telemetry is present; verify broker/account state.";
+    } else if (rejectedOrders.length) {
+      nextStatus = "bad";
+      nextTitle = "Inspect Rejects";
+      nextNote = "Recent rejected/canceled order events need review before trusting the run.";
+    } else if (positions.length) {
+      nextStatus = "warn";
+      nextTitle = "Review Positions";
+      nextNote = "Managed positions are open; check intended hold and exit context.";
+    } else if (!events.length) {
+      nextStatus = "warn";
+      nextTitle = "Await Events";
+      nextNote = "Run telemetry exists but no recent decisions, orders, or fills were published.";
+    } else {
+      nextStatus = "ok";
+      nextTitle = "Inspect Timeline";
+      nextNote = "Recent run activity is available; use tables below for decisions, orders, fills, and artifacts.";
+    }
+  } else if (history.length) {
+    nextStatus = "warn";
+    nextTitle = "Check Status";
+    nextNote = "Status history exists but no current run list is published.";
+  }
+  const cards = [
+    {
+      status: runs.length ? "ok" : history.length ? "warn" : "bad",
+      title: numberText(runs.length, 0),
+      label: "Published Runs",
+      note: latestRun
+        ? `${text(latestRun.id)} ${text(latestRun.status)} / ${text(latestMetrics.mode)} / age ${age((latestRun.freshness || {}).age_seconds)}.`
+        : history.length
+          ? `${numberText(history.length, 0)} status snapshots, no current run payload.`
+          : "No current runs published.",
+    },
+    {
+      status: orders.length ? "warn" : "ok",
+      title: numberText(orders.length, 0),
+      label: "Open Orders",
+      note: orders.length
+        ? `${text(orders[0].symbol)} ${text(orders[0].side)} ${text(orders[0].status)} is the latest non-terminal order.`
+        : "No recent non-terminal order telemetry.",
+    },
+    {
+      status: positions.length ? "warn" : runs.length ? "ok" : "bad",
+      title: numberText(positions.length, 0),
+      label: "Positions",
+      note: positions.length
+        ? `${positions.slice(0, 3).map((position) => position.symbol).join(", ")}${positions.length > 3 ? "..." : ""} open from selected/current account source.`
+        : "Latest selected/current account source is flat or missing.",
+    },
+    {
+      status: events.length ? rejectedOrders.length ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      title: numberText(events.length, 0),
+      label: "Recent Events",
+      note: latestEvent
+        ? `${text(latestEvent.type)} ${text(latestEvent.status)} ${text(latestEvent.symbol)} at ${text(latestEvent.timestamp)}.`
+        : "No recent decisions, orders, or fills published.",
+    },
+    {
+      status: rejectedOrders.length ? "bad" : fills.length ? "ok" : events.length ? "warn" : "bad",
+      title: `${numberText(fills.length, 0)} fills / ${numberText(rejectedOrders.length, 0)} rejects`,
+      label: "Execution",
+      note: rejectedOrders.length
+        ? "Review rejected or canceled order detail before continuing."
+        : fills.length
+          ? "Recent fills are visible in the run event tables."
+          : "No fill telemetry in the recent event window.",
+    },
+    {
+      status: artifactLoaded ? "ok" : runs.length ? "warn" : "bad",
+      title: artifactLoaded ? "Loaded" : "Not Loaded",
+      label: "Artifact Detail",
+      note: artifactLoaded
+        ? `${text((state.configArtifacts || {}).draft_id)} ${text((state.configArtifacts || {}).run_id || "latest output")} loaded.`
+        : "Open a saved run artifact from Workbench or Performance for full sanitized detail.",
+    },
+    {
+      status: nextStatus,
+      title: nextTitle,
+      label: "Next Action",
+      note: nextNote,
+    },
+  ];
+  $("runs-triage-note").textContent = `${numberText(runs.length, 0)} runs / ${numberText(orders.length, 0)} open orders / ${numberText(positions.length, 0)} positions / ${numberText(events.length, 0)} recent events`;
+  $("runs-triage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function terminalOrderStatus(status) {
