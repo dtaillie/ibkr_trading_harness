@@ -268,6 +268,10 @@ strategy-private.
       telemetry snapshot, and pytest runs that seeded scenario.
   - accessibility pass for labels, focus states, keyboard navigation, and color
     contrast
+    - partial; `scripts/smoke_dashboard_accessibility.py` now checks static
+      dashboard controls/buttons for accessible names, validates top-level nav
+      targets, verifies explicit focus-outline styling, and runs basic color
+      contrast checks against dashboard tokens.
   - no overlapping text in tables, cards, charts, or mobile navigation
 
 ## P0: Data Library and saved-data visibility

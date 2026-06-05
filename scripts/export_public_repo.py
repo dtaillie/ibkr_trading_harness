@@ -48,6 +48,7 @@ COPY_FILES = [
     "scripts/plugin_supervisor.py",
     "scripts/publish_status.py",
     "scripts/public_readiness_audit.py",
+    "scripts/smoke_dashboard_accessibility.py",
     "scripts/smoke_dashboard.py",
     "scripts/smoke_dashboard_screenshots.py",
     "scripts/start_ibgateway_paper.sh",
