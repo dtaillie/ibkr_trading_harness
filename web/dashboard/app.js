@@ -3768,7 +3768,8 @@ async function downloadRunArtifactsJson() {
 }
 
 async function downloadDataCatalogCsv() {
-  const body = await fetchText("/data_catalog_export?limit=500");
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

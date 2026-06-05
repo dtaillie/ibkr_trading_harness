@@ -462,7 +462,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       parser error counts/sample errors and unsupported-file counts
   - catalog limits must be visible and user-adjustable through config
     - partial; Data Library exposes catalog limit controls and scan diagnostics
-      show limit-capped roots
+      show limit-capped roots. The UI now exposes the backend's 1000-row bound,
+      and catalog CSV export uses the selected scan limit instead of a
+      hard-coded smaller export size.
 
 ## P1: Public workbench usability
 
