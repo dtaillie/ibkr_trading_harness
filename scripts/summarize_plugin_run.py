@@ -284,6 +284,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "max_drawdown_pct": summary.get("max_drawdown_pct", performance["max_drawdown_pct"]),
         "account_start_time": summary.get("account_start_time", performance["account_start_time"]),
         "account_end_time": summary.get("account_end_time", performance["account_end_time"]),
+        "latest_data_time": summary.get("latest_data_time") or summary.get("latest_market_data_time"),
         "elapsed_seconds": summary.get("elapsed_seconds", performance["elapsed_seconds"]),
         "elapsed_days": summary.get("elapsed_days", performance["elapsed_days"]),
         "return_per_day_pct": summary.get("return_per_day_pct", performance["return_per_day_pct"]),

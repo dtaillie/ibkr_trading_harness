@@ -55,6 +55,7 @@ class RunnerResult:
     max_drawdown_pct: float | None = None
     account_start_time: str | None = None
     account_end_time: str | None = None
+    latest_data_time: str | None = None
     elapsed_seconds: float | None = None
     elapsed_days: float | None = None
     return_per_day_pct: float | None = None
@@ -467,6 +468,13 @@ def snapshot_at(
             continue
         snapshot[symbol] = scoped.tail(history_bars).copy()
     return snapshot
+
+
+def latest_snapshot_time(snapshot: dict[str, pd.DataFrame]) -> pd.Timestamp | None:
+    latest = [df.index.max() for df in snapshot.values() if not df.empty]
+    if not latest:
+        return None
+    return max(latest)
 
 
 def latest_prices(snapshot: dict[str, pd.DataFrame]) -> dict[str, float]:
@@ -921,6 +929,7 @@ def run_from_config(
     paper_final_cash: float | None = None
     paper_final_positions: dict[str, float] = {}
     account_records: list[dict[str, Any]] = []
+    latest_data_time: str | None = None
     pause_marker = None
     if control_cfg.get("pause_marker") is not None:
         pause_marker = Path(str(control_cfg["pause_marker"]))
@@ -930,6 +939,9 @@ def run_from_config(
             snapshot = snapshot_at(panels, now, history_bars=history_bars)
             if not snapshot:
                 continue
+            snapshot_time = latest_snapshot_time(snapshot)
+            if snapshot_time is not None:
+                latest_data_time = snapshot_time.isoformat()
             final_prices = latest_prices(snapshot)
             if pause_marker is not None and pause_marker.exists():
                 decisions += 1
@@ -1147,6 +1159,7 @@ def run_from_config(
         max_drawdown_pct=perf["max_drawdown_pct"],
         account_start_time=perf["account_start_time"],
         account_end_time=perf["account_end_time"],
+        latest_data_time=latest_data_time,
         elapsed_seconds=perf["elapsed_seconds"],
         elapsed_days=perf["elapsed_days"],
         return_per_day_pct=perf["return_per_day_pct"],

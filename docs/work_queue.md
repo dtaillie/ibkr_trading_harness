@@ -74,8 +74,9 @@ strategy-private.
   - whether the runner is observing, simulating, paper trading, or live trading
   - partial; Overview now has a Runtime Status strip with heartbeat,
     Gateway/API, mode, latest decision, open-order, and latest rejection state.
-    Latest market-data/account timestamps are shown when runners publish those
-    generic fields; missing fields are called out explicitly.
+    Generic plugin runs now publish latest market-data and account timestamps;
+    private/specialized runners still need the same generic fields where
+    missing.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

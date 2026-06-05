@@ -84,6 +84,7 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert result.max_drawdown_pct == pytest.approx(0.0)
     assert result.elapsed_seconds == pytest.approx(600.0)
     assert result.elapsed_days == pytest.approx(600.0 / 86400.0)
+    assert result.latest_data_time == "2026-01-02T14:40:00+00:00"
     assert result.return_per_day_pct == pytest.approx(0.0)
     assert result.return_per_month_pct == pytest.approx(0.0)
     assert result.return_per_year_pct == pytest.approx(0.0)
@@ -97,6 +98,8 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert records[-1]["diagnostics"]["symbols_seen"] == ["SPY"]
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[-1]["equity"] == pytest.approx(10000.0)
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
 
 
 def test_validate_config_file_does_not_create_output_dir(tmp_path):
