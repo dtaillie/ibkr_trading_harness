@@ -233,6 +233,44 @@ def write_fetch_manifest(
     )
 
 
+def test_fetch_manifest_recovery_guidance_classifies_common_failures():
+    permission = status_server.fetch_manifest_recovery_guidance(
+        kind="stock_history",
+        counts={"errors": 1, "failed_symbols": 1, "error_kind_counts": {"permission": 1}},
+        output_visibility_counts={},
+    )
+    assert permission["recovery_status"] == "blocked"
+    assert permission["recovery_action"] == "fix_permissions"
+    assert permission["resume_supported"] is True
+    assert permission["permission_error_count"] == 1
+
+    no_data = status_server.fetch_manifest_recovery_guidance(
+        kind="crypto_history",
+        counts={"errors": 2, "failed_chunks": 2, "error_kind_counts": {"no_data": 2}},
+        output_visibility_counts={},
+    )
+    assert no_data["recovery_status"] == "review"
+    assert no_data["recovery_action"] == "review_no_data"
+    assert no_data["no_data_error_count"] == 2
+
+    retry = status_server.fetch_manifest_recovery_guidance(
+        kind="stock_history",
+        counts={"errors": 1, "failed_symbols": 1, "error_kind_counts": {"connection": 1}},
+        output_visibility_counts={},
+    )
+    assert retry["recovery_status"] == "retry"
+    assert retry["recovery_action"] == "resume_manifest"
+    assert retry["retryable_error_count"] == 1
+
+    hidden_outputs = status_server.fetch_manifest_recovery_guidance(
+        kind="stock_history",
+        counts={"outputs": 2, "errors": 0, "error_kind_counts": {}},
+        output_visibility_counts={"outside_data_roots": 2},
+    )
+    assert hidden_outputs["recovery_status"] == "review"
+    assert hidden_outputs["recovery_action"] == "fix_data_roots"
+
+
 def test_collect_status_from_run_dir(tmp_path):
     run_dir = tmp_path / "run"
     supervisor_state = tmp_path / "supervisor" / "status.json"
@@ -1355,6 +1393,12 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["failed_symbols"] == 1
         assert manifest["rows"] == 3
         assert manifest["error_kind_counts"] == {"permission": 1}
+        assert manifest["recovery_status"] == "blocked"
+        assert manifest["recovery_action"] == "fix_permissions"
+        assert manifest["resume_supported"] is True
+        assert manifest["permission_error_count"] == 1
+        assert manifest["no_data_error_count"] == 0
+        assert manifest["retryable_error_count"] == 0
         assert manifest["retry_events"] == 1
         assert manifest["pacing_wait_events"] == 1
         assert manifest["pacing_wait_seconds"] == 0.35
@@ -1385,6 +1429,9 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert rows[0]["output_visible_count"] == "1"
         assert rows[0]["output_missing_file_count"] == "1"
         assert rows[0]["output_outside_data_roots_count"] == "1"
+        assert rows[0]["recovery_status"] == "blocked"
+        assert rows[0]["recovery_action"] == "fix_permissions"
+        assert rows[0]["permission_error_count"] == "1"
         assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
         assert "visible" in rows[0]["output_visibility_counts"]
         assert "permission" in rows[0]["error_kind_counts"]
@@ -1412,6 +1459,10 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["output_visible_count"] == 1
         assert detail["output_missing_file_count"] == 1
         assert detail["output_outside_data_roots_count"] == 1
+        assert detail["recovery_status"] == "blocked"
+        assert detail["recovery_action"] == "fix_permissions"
+        assert detail["recovery_note"].startswith("Market-data permission errors")
+        assert detail["resume_supported"] is True
         assert detail["errors"][0]["kind"] == "permission"
         assert detail["errors"][0]["attempt_count"] == 2
         assert detail["counts"]["retry_events"] == 1

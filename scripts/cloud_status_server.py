@@ -2331,6 +2331,13 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "latest_eta_seconds",
     "latest_avg_chunk_seconds",
     "latest_avg_symbol_seconds",
+    "recovery_status",
+    "recovery_action",
+    "recovery_note",
+    "resume_supported",
+    "permission_error_count",
+    "no_data_error_count",
+    "retryable_error_count",
     "error_kind_counts",
     "status_counts",
     "output_status_counts",
@@ -3192,6 +3199,72 @@ def read_fetch_manifest(path: Path) -> dict[str, Any]:
     return payload
 
 
+def fetch_manifest_recovery_guidance(
+    *,
+    kind: str | None,
+    counts: dict[str, Any],
+    output_visibility_counts: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    error_kinds = counts.get("error_kind_counts") if isinstance(counts.get("error_kind_counts"), dict) else {}
+    permission_errors = int(error_kinds.get("permission") or 0)
+    no_data_errors = int(error_kinds.get("no_data") or 0)
+    contract_errors = int(error_kinds.get("contract") or 0)
+    connection_errors = int(error_kinds.get("connection") or 0)
+    generic_errors = int(error_kinds.get("error") or 0)
+    retryable_errors = connection_errors + generic_errors
+    failed_symbols = int(counts.get("failed_symbols") or 0)
+    partial_symbols = int(counts.get("partial_symbols") or 0)
+    failed_chunks = int(counts.get("failed_chunks") or 0)
+    errors = int(counts.get("errors") or 0)
+    outputs = int(counts.get("outputs") or 0)
+    visibility = output_visibility_counts or {}
+    visible_outputs = int(visibility.get("visible") or 0)
+    missing_outputs = int(visibility.get("missing_file") or 0)
+    outside_outputs = int(visibility.get("outside_data_roots") or 0)
+    unsupported_outputs = int(visibility.get("unsupported_file") or 0)
+    no_path_outputs = int(visibility.get("no_path") or 0)
+    resume_supported = kind in {"stock_history", "crypto_history"}
+    has_failures = bool(failed_symbols or partial_symbols or failed_chunks or errors)
+
+    if permission_errors:
+        status = "blocked"
+        action = "fix_permissions"
+        note = "Market-data permission errors are present; fix account subscriptions or venue permissions before retrying."
+    elif contract_errors:
+        status = "blocked"
+        action = "fix_contracts"
+        note = "Contract qualification errors are present; review symbols, exchange, currency, and asset type before retrying."
+    elif retryable_errors or (has_failures and resume_supported and not no_data_errors):
+        status = "retry"
+        action = "resume_manifest" if resume_supported else "rerun_manually"
+        note = "Retryable errors are present; use the resume command when available after checking Gateway/API stability."
+    elif no_data_errors:
+        status = "review"
+        action = "review_no_data"
+        note = "No-data responses are present; verify dates, trading session, venue support, and whether the symbols traded in that window."
+    elif outputs and not visible_outputs:
+        status = "review"
+        action = "fix_data_roots"
+        note = "Outputs were recorded but none are inspectable from configured Data Library roots."
+    elif missing_outputs or outside_outputs or unsupported_outputs or no_path_outputs:
+        status = "review"
+        action = "inspect_outputs"
+        note = "Some recorded outputs are missing, outside configured roots, unsupported, or lack paths."
+    else:
+        status = "ready"
+        action = "inspect_outputs" if outputs else "none"
+        note = "No manifest recovery blockers are visible."
+    return {
+        "recovery_status": status,
+        "recovery_action": action,
+        "recovery_note": note,
+        "resume_supported": resume_supported,
+        "permission_error_count": permission_errors,
+        "no_data_error_count": no_data_errors,
+        "retryable_error_count": retryable_errors,
+    }
+
+
 def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
@@ -3214,6 +3287,11 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         if isinstance(row, dict)
     ]
     output_visibility_counts = count_values(annotated_outputs, "data_detail_status")
+    recovery = fetch_manifest_recovery_guidance(
+        kind=str(payload.get("kind") or ""),
+        counts=counts,
+        output_visibility_counts=output_visibility_counts,
+    )
     return {
         "job_id": payload.get("job_id") or path.stem,
         "path": display_path(path),
@@ -3249,6 +3327,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         "latest_eta_seconds": counts.get("latest_eta_seconds"),
         "latest_avg_chunk_seconds": counts.get("latest_avg_chunk_seconds"),
         "latest_avg_symbol_seconds": counts.get("latest_avg_symbol_seconds"),
+        **recovery,
         "error_kind_counts": counts.get("error_kind_counts") or {},
         "status_counts": counts.get("status_counts") or {},
         "output_status_counts": counts.get("output_status_counts") or {},
@@ -3485,7 +3564,7 @@ def load_fetch_manifest_detail(
     events = payload.get("events") if isinstance(payload.get("events"), list) else []
     symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
     symbols = list(symbols_map.values())
-    summary = summarize_fetch_manifest(path, root=root)
+    summary = summarize_fetch_manifest(path, root=root, data_roots=data_roots)
     annotated_all_outputs = [
         annotate_fetch_output(row, data_roots or [])
         for row in outputs

@@ -688,6 +688,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail now includes recovery cards that summarize symbol
       coverage, permission blockers, retry events, pacing waits, and whether a
       selected job is ready to inspect, retry, or fix before resuming.
+    - partial; fetch manifest list/detail/export payloads now expose explicit
+      recovery status/action/note fields, resume support, and permission,
+      no-data, and retryable error counts so recovery triage does not have to
+      infer those states only from raw error-kind maps.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to
@@ -736,6 +740,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now adds first-screen triage cards for manifest-root
       coverage, active/non-terminal jobs, jobs needing review, output
       visibility, and retry/pacing pressure before the dense manifest table.
+    - partial; Fetch detail recovery cards now consume backend recovery
+      status/action guidance, distinguishing permission blockers, contract
+      fixes, retryable failures, no-data review, and data-root visibility
+      fixes.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

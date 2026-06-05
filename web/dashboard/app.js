@@ -5217,6 +5217,7 @@ function renderFetchManifestDetail() {
     ["Data Library Visibility", jsonDrilldown(detail.output_visibility_counts || {}, countSummary(detail.output_visibility_counts || {})), true],
     ["Output Statuses", jsonDrilldown(counts.output_status_counts || {}, countSummary(counts.output_status_counts || {})), true],
     ["Errors", `${escapeHtml(numberText(detail.error_total, 0))} total ${jsonDrilldown(counts.error_kind_counts || {}, countSummary(counts.error_kind_counts || {}))}`, true],
+    ["Recovery", `${text(detail.recovery_status)} / ${text(detail.recovery_action)} - ${text(detail.recovery_note)}`],
     ["Retries", `${numberText(counts.retry_events, 0)} retry events`],
     ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
     ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
@@ -5387,18 +5388,19 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
   const unsupportedOutputs = Number(detail.output_unsupported_file_count || 0);
   const outputTotal = Number(detail.output_total || 0);
   const hasFailures = failedSymbols > 0 || failedChunks > 0 || errors > 0;
-  const recoverStatus = permissionErrors > 0
+  const recoverStatus = detail.recovery_status || (permissionErrors > 0
     ? "bad"
     : hasFailures
       ? "warn"
-      : "ok";
-  const recoverNote = permissionErrors > 0
+      : "ok");
+  const recoveryDisplayStatus = recoverStatus === "blocked" ? "bad" : recoverStatus === "retry" || recoverStatus === "review" ? "warn" : recoverStatus === "ready" ? "ok" : recoverStatus;
+  const recoverNote = detail.recovery_note || (permissionErrors > 0
     ? "Permission failures usually need subscription/account changes before retrying."
     : hasFailures && resumeCommand
       ? "Copy the resume command to retry failed or missing work."
       : hasFailures
         ? "Review errors and rerun with the same inputs after fixing the cause."
-        : "No failed symbols or chunks recorded.";
+        : "No failed symbols or chunks recorded.");
   const coverageStatus = failedSymbols > 0 ? "warn" : successSymbols > 0 ? "ok" : "bad";
   const visibilityStatus = !outputTotal
     ? "bad"
@@ -5420,8 +5422,8 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
       note: `${numberText(emptySymbols, 0)} empty symbols; ${numberText(failedChunks, 0)} failed chunks.`,
     },
     {
-      status: recoverStatus,
-      title: recoverStatus === "ok" ? "Ready" : recoverStatus === "warn" ? "Retry" : "Blocked",
+      status: recoveryDisplayStatus,
+      title: text(detail.recovery_action || (recoveryDisplayStatus === "ok" ? "ready" : recoveryDisplayStatus === "warn" ? "retry" : "blocked")),
       label: "Recovery",
       note: recoverNote,
     },
