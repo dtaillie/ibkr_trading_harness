@@ -1877,22 +1877,48 @@ function compareChart(series, timezoneMode = "utc") {
   return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data comparison">${zeroLine}${polylines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function equityChart(points) {
+function equityChart(points, markers = []) {
   if (!points || points.length < 2) return `<span class="muted">No equity curve available</span>`;
-  const values = points.map((point) => Number(point.equity)).filter((value) => Number.isFinite(value));
+  const rows = (points || []).map((point, index) => ({
+    index,
+    timestamp: point.timestamp,
+    millis: timestampMillis(point.timestamp),
+    equity: Number(point.equity),
+  })).filter((point) => Number.isFinite(point.equity));
+  const values = rows.map((point) => point.equity);
   if (values.length < 2) return `<span class="muted">No equity curve available</span>`;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const width = 720;
   const height = 180;
   const span = max - min || 1;
-  const coords = values.map((value, index) => {
-    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
-    const y = height - ((value - min) / span) * height;
+  const xForIndex = (index) => (values.length === 1 ? 0 : (index / (values.length - 1)) * width);
+  const yForValue = (value) => height - ((value - min) / span) * height;
+  const coords = rows.map((point, index) => {
+    const x = xForIndex(index);
+    const y = yForValue(point.equity);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
+  const rowForMarker = (marker) => {
+    const markerMillis = timestampMillis(marker.timestamp);
+    if (markerMillis === null) return null;
+    return rows.reduce((best, point, index) => {
+      if (point.millis === null) return best;
+      const distance = Math.abs(point.millis - markerMillis);
+      return !best || distance < best.distance ? { point, index, distance } : best;
+    }, null);
+  };
+  const markerElements = (markers || []).slice(0, 40).map((marker) => {
+    const match = rowForMarker(marker);
+    if (!match) return "";
+    const type = String(marker.type || "event").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+    const x = xForIndex(match.index);
+    const y = yForValue(match.point.equity);
+    const label = [marker.type, marker.symbol, marker.label, marker.timestamp].map(text).filter((value) => value !== "n/a").join(" ");
+    return `<circle class="chart-marker marker-${escapeHtml(type)}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"><title>${escapeHtml(label)}</title></circle>`;
+  }).join("");
   const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
-  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline></svg>`;
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline>${markerElements}</svg>`;
 }
 
 function normalizedReturnPoints(rows, valueKey) {
@@ -3770,6 +3796,38 @@ function drilldownMaeMfeText(drilldown) {
   return `${mae} / ${mfe}`;
 }
 
+function artifactChartMarkers(artifacts) {
+  const markers = [];
+  for (const fill of artifacts.fills || []) {
+    markers.push({
+      timestamp: fill.timestamp,
+      type: normalizedFillSide(fill.side) === "sell" ? "exit-fill" : "entry-fill",
+      symbol: fill.symbol,
+      label: `${text(fill.side)} ${numberText(fill.quantity, 4)} @ ${money(fill.price)}`,
+    });
+  }
+  for (const decision of artifacts.decisions || []) {
+    const drilldown = decision.drilldown || {};
+    if (drilldown.entry_marker) {
+      markers.push({
+        timestamp: decision.timestamp,
+        type: "entry-marker",
+        symbol: (decision.symbols || []).slice(0, 3).join(", "),
+        label: text(drilldown.entry_marker),
+      });
+    }
+    if (drilldown.exit_marker) {
+      markers.push({
+        timestamp: decision.timestamp,
+        type: "exit-marker",
+        symbol: (decision.symbols || []).slice(0, 3).join(", "),
+        label: text(drilldown.exit_marker),
+      });
+    }
+  }
+  return markers;
+}
+
 function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
@@ -3808,7 +3866,7 @@ function renderWorkbenchArtifacts() {
     ["Positions", jsonDrilldown(summary.final_positions || {}, objectSummary(summary.final_positions || {})), true],
   ];
   $("artifact-summary").innerHTML = kvRows(pairs);
-  $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || []);
+  $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || [], artifactChartMarkers(artifacts));
   const timeline = artifactSessionRows(artifacts);
   $("artifact-session-body").innerHTML = timeline.length
     ? timeline.map((item) => row([

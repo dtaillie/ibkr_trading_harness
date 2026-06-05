@@ -1146,6 +1146,26 @@ tr:last-child td {
   vector-effect: non-scaling-stroke;
 }
 
+.chart-marker {
+  stroke: var(--bg);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.marker-entry-fill,
+.marker-entry-marker {
+  fill: var(--good);
+}
+
+.marker-exit-fill,
+.marker-exit-marker {
+  fill: var(--bad);
+}
+
+.marker-event {
+  fill: var(--muted);
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: wrap;

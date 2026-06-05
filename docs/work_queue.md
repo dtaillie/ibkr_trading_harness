@@ -228,6 +228,8 @@ strategy-private.
     threshold distance, near-threshold state, expected hold, exit/stop state,
     and MAE/MFE when a plugin publishes those fields. Raw signal and diagnostics
     payloads remain hidden.
+  - partial; Run Artifact equity charts now render public-safe entry/exit
+    markers from sanitized fills and `diagnostics.dashboard` marker labels.
 - Add a Help page and contextual help:
   - first-run checklist
     - done on the Help page
