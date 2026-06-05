@@ -3329,13 +3329,15 @@ function renderDataStorageAudit() {
           escapeHtml(numberText(item.hidden_file_count, 0)),
           `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
           escapeHtml(countSummary(item.extension_counts)),
+          escapeHtml(countSummary(item.asset_class_guess_counts)),
+          escapeHtml(countSummary(item.bar_size_guess_counts)),
           escapeHtml(countSummary(item.source_guess_counts)),
           hiddenSamples.length
             ? hiddenSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
             : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderDataCoverage() {

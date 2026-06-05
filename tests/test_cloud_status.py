@@ -594,6 +594,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "export-data-catalog-scan-csv" in html
         assert "export-data-storage-audit-csv" in html
         assert "data-storage-audit-body" in html
+        assert "<th>Assets</th>" in html
+        assert "<th>Bars</th>" in html
         assert "data-symbol-browser-input" in html
         assert "data-symbol-browser-dataset" in html
         assert "data-symbol-browser-matches" in html
@@ -1716,6 +1718,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert configured["catalog_visible_count"] == 1
         assert configured["hidden_file_count"] == 1
         assert configured["scan_duration_ms"] >= 0
+        assert configured["asset_class_guess_counts"] == {"etf": 2}
+        assert configured["bar_size_guess_counts"] == {"5min": 2}
         assert configured["sample_hidden_paths"][0].endswith("_5min_sample.csv")
         suggested = audit["suggested_roots"][0]
         assert suggested["display_path"] == str(suggested_root.resolve())
@@ -1727,6 +1731,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
             assert resp.headers["Content-Type"].startswith("text/csv")
         assert "scope,path,display_path" in csv_body
         assert "scan_duration_ms" in csv_body.splitlines()[0]
+        assert "asset_class_guess_counts" in csv_body.splitlines()[0]
+        assert "bar_size_guess_counts" in csv_body.splitlines()[0]
         assert "configured" in csv_body
         assert "suggested" in csv_body
         assert str(suggested_root.resolve()) in csv_body

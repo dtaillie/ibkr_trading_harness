@@ -445,6 +445,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Storage Audit rows now carry per-root scan duration and the
     summary/CLI report include total root scan time, making slow roots visible.
   - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
+    - partial; Storage Audit already guesses source, asset class, and bar size
+      per file, and the dashboard table now surfaces asset/bar/source
+      breakdowns per root instead of only extension/source counts.
   - compare files on disk to dashboard-visible catalog rows
   - summarize missing symbols, malformed files, unsupported extensions, and
     capped scans
