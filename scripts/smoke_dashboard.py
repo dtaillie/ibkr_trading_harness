@@ -301,6 +301,7 @@ def run_smoke(
             "data-symbol-browser-input",
             "data-symbol-browser-dataset",
             "data-symbol-browser-matches",
+            "data-filter-symbol-options",
             "data-coverage-grid",
             "data-gap-summary-note",
             "data-gap-summary-body",

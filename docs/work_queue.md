@@ -386,6 +386,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library now has a catalog-fed Symbol Browser with a
       typeahead symbol input, best-file selector, one-click table filter,
       diagnose action, and direct Data Detail inspection for scanned files.
+    - partial; the main Saved Data search input now also uses catalog-fed
+      symbol completion, so users can filter or browse from the same scanned
+      symbol universe
   - gap markers
     - partial; gaps are listed in the detail table, chart markers remain open
     - partial; Data Detail charts now render gap bands/markers over the price

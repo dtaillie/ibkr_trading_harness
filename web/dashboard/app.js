@@ -2005,6 +2005,14 @@ function symbolBrowserGroups() {
   return groups;
 }
 
+function renderCatalogSymbolDatalists(symbols) {
+  const optionsHtml = symbols.map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
+  for (const id of ["data-symbol-browser-options", "data-filter-symbol-options"]) {
+    const datalist = $(id);
+    if (datalist) datalist.innerHTML = optionsHtml;
+  }
+}
+
 function selectedSymbolBrowserSymbol() {
   return ($("data-symbol-browser-input").value || "").trim().toUpperCase();
 }
@@ -2019,10 +2027,9 @@ function renderSymbolBrowser() {
   const groups = symbolBrowserGroups();
   const symbols = Array.from(groups.keys()).sort();
   const input = $("data-symbol-browser-input");
-  const datalist = $("data-symbol-browser-options");
   const datasetSelect = $("data-symbol-browser-dataset");
   const previousSymbol = selectedSymbolBrowserSymbol();
-  datalist.innerHTML = symbols.map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
+  renderCatalogSymbolDatalists(symbols);
   if (!previousSymbol && symbols.length) input.value = symbols[0];
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
