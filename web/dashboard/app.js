@@ -2396,6 +2396,15 @@ function shellQuote(value) {
   return `'${raw.replace(/'/g, "'\\''")}'`;
 }
 
+function csvCell(value) {
+  const raw = value === null || value === undefined ? "" : String(value);
+  return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+}
+
+function csvLine(values) {
+  return values.map(csvCell).join(",");
+}
+
 function dirname(path) {
   const raw = String(path || "");
   const normalized = raw.replace(/\/+$/, "");
@@ -3354,6 +3363,7 @@ function renderDataCompare() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
   const timezoneMode = $("data-compare-timezone").value || "utc";
+  $("export-data-compare-csv").disabled = !series.length;
   $("data-compare-note").innerHTML = comparison.generated_at
     ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
     : "Select two or more datasets to compare normalized close paths.";
@@ -5884,6 +5894,50 @@ async function downloadDataMinuteHeatmapCsv() {
   $("last-refresh").textContent = `Minute heatmap CSV exported: ${new Date().toLocaleString()}`;
 }
 
+function downloadDataCompareCsv() {
+  const comparison = state.dataCompare || {};
+  const series = comparison.series || [];
+  if (!series.length) {
+    $("last-refresh").textContent = "Run a saved-data comparison before exporting CSV";
+    return;
+  }
+  const rows = [[
+    "symbol",
+    "timestamp",
+    "close",
+    "normalized_return_pct",
+    "total_return_pct",
+    "source",
+    "bar_size",
+    "path",
+  ]];
+  for (const item of series) {
+    for (const point of (item.points || [])) {
+      rows.push([
+        item.symbol,
+        point.timestamp,
+        point.close,
+        point.normalized_return_pct,
+        item.total_return_pct,
+        item.source,
+        item.bar_size,
+        item.path,
+      ]);
+    }
+  }
+  const body = `${rows.map(csvLine).join("\n")}\n`;
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_compare.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Comparison CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataMissingIntervalsCsv() {
   const path = (state.dataDetail || {}).path || "";
   if (!path) {
@@ -6142,6 +6196,7 @@ function init() {
       $("last-refresh").textContent = `Minute heatmap CSV export failed: ${err.message}`;
     });
   });
+  $("export-data-compare-csv").addEventListener("click", downloadDataCompareCsv);
   $("export-workbench-snapshot").addEventListener("click", () => {
     downloadWorkbenchSnapshot().catch((err) => {
       $("last-refresh").textContent = `Workbench snapshot export failed: ${err.message}`;

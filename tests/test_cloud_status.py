@@ -617,6 +617,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-missing-intervals-note" in html
         assert "data-missing-intervals-body" in html
         assert "data-compare-timezone" in html
+        assert "export-data-compare-csv" in html
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html

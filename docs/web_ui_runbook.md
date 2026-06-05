@@ -80,6 +80,9 @@ works offline from saved CSV/parquet files and shows:
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range.
 
+Use Export Compare CSV after running Compare Saved Data when you want the
+normalized close-return paths by symbol and timestamp.
+
 Use Export Coverage CSV when you want the Data Library symbol/date coverage
 grid as a downloadable table for offline review.
 

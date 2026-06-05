@@ -339,6 +339,7 @@ def run_smoke(
             "data-compare-datasets",
             "data-compare-readiness",
             "data-compare-timezone",
+            "export-data-compare-csv",
             "data-compare-chart",
             "data-compare-body",
             "fetch-manifests-body",

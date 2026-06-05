@@ -481,6 +481,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data overlays normalized close-return paths and
       now shows overlap, warning, sampling, and comparison-readiness cards so
       users can tell whether the selected files share enough timestamps.
+    - partial; Compare Saved Data can now export the current normalized
+      close-return paths as CSV by symbol and timestamp for offline review.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred
