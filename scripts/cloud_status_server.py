@@ -453,6 +453,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/config_drafts_export",
+        "category": "config",
+        "description": "Download saved public workbench config draft inventory rows.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/config_draft_validations",
         "category": "config",
         "description": "Validate every saved draft against public workbench guardrails.",
@@ -4943,6 +4950,56 @@ RUN_EXPORT_FIELDS = (
 )
 
 
+DRAFT_EXPORT_FIELDS = (
+    "draft_id",
+    "name",
+    "folder",
+    "status",
+    "status_label",
+    "mode",
+    "plugin",
+    "symbol_count",
+    "symbols",
+    "tags",
+    "modified_at",
+    "size_bytes",
+    "valid",
+    "error_count",
+    "errors",
+    "output_dir",
+    "path",
+)
+
+
+def build_config_drafts_csv(
+    state_dir: Path,
+    *,
+    data_roots: list[Path],
+    plugins: list[dict[str, Any]] | None = None,
+) -> str:
+    drafts_payload = list_config_drafts(state_dir)
+    validations_payload = build_config_draft_validations(state_dir, data_roots=data_roots, plugins=plugins)
+    validations = {
+        str(row.get("draft_id")): row
+        for row in validations_payload.get("validations", [])
+        if row.get("draft_id")
+    }
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DRAFT_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for draft in drafts_payload.get("drafts", []):
+        validation = validations.get(str(draft.get("draft_id")), {})
+        row = {
+            **draft,
+            "symbol_count": len(draft.get("symbols") or []),
+            "valid": validation.get("valid"),
+            "error_count": validation.get("error_count"),
+            "errors": validation.get("errors"),
+        }
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in DRAFT_EXPORT_FIELDS})
+    return out.getvalue()
+
+
 def build_config_draft_runs_csv(state_dir: Path, *, limit: int = 200) -> str:
     payload = list_config_draft_runs(state_dir, limit=limit)
     rows = [summarize_config_draft_run_for_comparison(row) for row in payload["runs"]]
@@ -6983,6 +7040,23 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             json_response(self, 200, list_config_drafts(self.state_dir))
+            return
+        if parsed.path == "/config_drafts_export":
+            if not self.require_auth():
+                return
+            try:
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                csv_body = build_config_drafts_csv(self.state_dir, data_roots=self.data_roots, plugins=plugins)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="workbench_drafts.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/config_draft_validations":
             if not self.require_auth():

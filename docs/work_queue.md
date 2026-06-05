@@ -705,6 +705,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
     the UI displays them beside validation/output state.
+  - done for offline inventory; Workbench now has Export Drafts CSV backed by
+    `/config_drafts_export`, including folder, status, mode, plugin, symbols,
+    tags, validation state, output directory, and local YAML path.
 - Add safer empty states and validation messages.
   - partial; Workbench draft generation, alignment, saved drafts, draft
     validation, and run tables now show next-step guidance instead of blank or

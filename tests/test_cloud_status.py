@@ -700,6 +700,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-form-fields" in html
         assert "config-builder-actions" in html
         assert "config-commands" in html
+        assert "export-drafts-csv" in html
         assert "endpoint-map-body" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
@@ -741,6 +742,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("POST", "/data_compare") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
+        assert ("GET", "/config_drafts_export") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
         assert ("GET", "/config_draft_daily_rollups") in endpoints
@@ -2180,6 +2182,20 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert validations["validations"][0]["folder"] == "config_drafts"
         assert validations["validations"][0]["status_label"] == "example_only"
         assert "simulated_paper" in validations["validations"][0]["tags"]
+
+        with request.urlopen(f"{base}/config_drafts_export", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="workbench_drafts.csv"'
+            csv_body = resp.read().decode("utf-8")
+        draft_rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(draft_rows) == 1
+        assert draft_rows[0]["draft_id"] == "Test_Draft"
+        assert draft_rows[0]["folder"] == "config_drafts"
+        assert draft_rows[0]["status_label"] == "example_only"
+        assert draft_rows[0]["valid"] == "True"
+        assert draft_rows[0]["error_count"] == "0"
+        assert "SPY" in draft_rows[0]["symbols"]
+        assert "simulated_paper" in draft_rows[0]["tags"]
 
         bad_delete_req = request.Request(
             f"{base}/config_draft/delete",

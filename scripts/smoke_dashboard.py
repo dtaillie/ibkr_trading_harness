@@ -371,6 +371,7 @@ def run_smoke(
             "config-preview-alignment",
             "config-commands",
             "validate-drafts",
+            "export-drafts-csv",
             "export-runs-csv",
             "export-run-artifacts-json",
             "comparison-filter-summary",
@@ -417,6 +418,7 @@ def run_smoke(
         required_js_tokens = [
             "config_draft_yaml",
             "download-draft-yaml",
+            "config_drafts_export",
             "config_draft_validations",
             "config_draft_run_artifacts_export",
             "config_draft_runs_export",
@@ -543,6 +545,7 @@ def run_smoke(
             "status_label",
             "draft.folder",
             "draft.tags",
+            "downloadDraftsCsv",
             "Save a generated draft locally",
             "No saved drafts yet",
             "No draft runs yet",

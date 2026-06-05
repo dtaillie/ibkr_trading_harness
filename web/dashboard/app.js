@@ -5799,6 +5799,20 @@ async function downloadRunsCsv() {
   $("last-refresh").textContent = `Run CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDraftsCsv() {
+  const body = await fetchText("/config_drafts_export");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "workbench_drafts.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Draft CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadRunArtifactsJson() {
   const runId = state.configArtifacts && state.configArtifacts.run_id;
   if (!runId) {
@@ -6164,6 +6178,11 @@ function init() {
   $("export-runs-csv").addEventListener("click", () => {
     downloadRunsCsv().catch((err) => {
       $("last-refresh").textContent = `Run CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-drafts-csv").addEventListener("click", () => {
+    downloadDraftsCsv().catch((err) => {
+      $("last-refresh").textContent = `Draft CSV export failed: ${err.message}`;
     });
   });
   $("export-run-artifacts-json").addEventListener("click", () => {

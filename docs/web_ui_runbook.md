@@ -104,6 +104,9 @@ rows from the Minute Coverage Heatmap.
 6. Run replay or simulated paper.
 7. Open the result from the Runs or Workbench table and inspect Performance.
 
+Use Export Drafts CSV when you want an offline inventory of saved draft folder,
+status, plugin, symbol, tag, validation, output, and YAML path metadata.
+
 ## Distinguish Result Modes
 
 - `replay`: plugin decisions over saved bars, no order submission.

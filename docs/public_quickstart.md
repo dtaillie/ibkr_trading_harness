@@ -356,6 +356,9 @@ examples.
 Use Validate Drafts to check every saved YAML against the public workbench
 guardrails, then use Download on a saved draft row to download the validated
 example YAML.
+Use Export Drafts CSV to download a saved-draft inventory with folder, status,
+mode, plugin, symbols, tags, validation state, output directory, and local YAML
+path.
 Use Delete on a saved draft row to remove only that saved YAML; run archives and
 workbench output directories are handled separately by Workbench Maintenance.
 Saved drafts can then be validated, replayed, or simulated-paper-run from the
