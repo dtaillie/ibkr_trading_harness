@@ -608,6 +608,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       scan for failed jobs, recent jobs, large pulls, and output paths.
     - partial; Fetch Jobs can copy configured manifest roots as a
       `dashboard.fetch_manifest_roots` YAML block for local dashboard config.
+    - partial; Fetch Jobs now exposes `/fetch_manifests_export` and an Export
+      Jobs CSV button for recent manifest summaries, including status,
+      symbols/chunks, retry/pacing counts, progress/ETA fields, rows, errors,
+      and latest output paths.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

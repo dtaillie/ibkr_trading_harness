@@ -640,6 +640,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-filter-status" in html
         assert "fetch-filter-kind" in html
         assert "fetch-filter-sort" in html
+        assert "export-fetch-manifests-csv" in html
         assert "fetch-events-body" in html
         assert "copy-fetch-roots-yaml" in html
         assert "copy-fetch-resume-command" in html
@@ -751,6 +752,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_storage_audit_export") in endpoints
         assert ("POST", "/data_compare") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
+        assert ("GET", "/fetch_manifests_export") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/config_drafts_export") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
@@ -1233,6 +1235,23 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["pacing_wait_events"] == 1
         assert manifest["pacing_wait_seconds"] == 0.35
         assert manifest["latest_avg_chunk_seconds"] == 0.4
+
+        with request.urlopen(f"{base}/fetch_manifests_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="fetch_manifests.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(rows) == 1
+        assert rows[0]["job_id"] == "stock_history_20260102"
+        assert rows[0]["kind"] == "stock_history"
+        assert rows[0]["status"] == "completed"
+        assert rows[0]["success_symbols"] == "1"
+        assert rows[0]["failed_symbols"] == "1"
+        assert rows[0]["retry_events"] == "1"
+        assert rows[0]["pacing_wait_events"] == "1"
+        assert rows[0]["latest_avg_chunk_seconds"] == "0.4"
+        assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
+        assert "permission" in rows[0]["error_kind_counts"]
 
         with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))

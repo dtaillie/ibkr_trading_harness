@@ -418,6 +418,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/fetch_manifests_export",
+        "category": "data",
+        "description": "Download historical-data fetch job manifest summaries.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/fetch_manifest_detail",
         "category": "data",
         "description": "Inspect one historical-data fetch job manifest.",
@@ -2050,6 +2057,59 @@ DATA_MINUTE_HEATMAP_EXPORT_FIELDS = (
 )
 
 
+FETCH_MANIFEST_EXPORT_FIELDS = (
+    "job_id",
+    "kind",
+    "status",
+    "started_at",
+    "finished_at",
+    "modified_at",
+    "symbols_requested",
+    "tracked_symbols",
+    "success_symbols",
+    "failed_symbols",
+    "partial_symbols",
+    "empty_symbols",
+    "skipped_symbols",
+    "success_chunks",
+    "empty_chunks",
+    "failed_chunks",
+    "pending_chunks",
+    "skipped_existing_chunks",
+    "outputs",
+    "errors",
+    "rows",
+    "retry_events",
+    "pacing_wait_events",
+    "pacing_wait_seconds",
+    "avg_output_elapsed_seconds",
+    "latest_completed_chunks",
+    "latest_remaining_chunks",
+    "latest_completed_symbols",
+    "latest_remaining_symbols",
+    "latest_total_symbols",
+    "latest_eta_seconds",
+    "latest_avg_chunk_seconds",
+    "latest_avg_symbol_seconds",
+    "error_kind_counts",
+    "status_counts",
+    "output_status_counts",
+    "bar_size",
+    "duration",
+    "months",
+    "exchange",
+    "range_start",
+    "range_end",
+    "out_dir",
+    "first_output_path",
+    "latest_output_path",
+    "output_path_sample",
+    "path",
+    "root",
+    "size_bytes",
+)
+
+
 def compact_csv_value(value: Any) -> Any:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
@@ -2933,6 +2993,16 @@ def build_fetch_manifests(
         "status_counts": count_values(manifests, "status"),
         "kind_counts": count_values(manifests, "kind"),
     }
+
+
+def build_fetch_manifests_csv(fetch_manifest_roots: list[Path], *, limit: int = 200) -> str:
+    payload = build_fetch_manifests(fetch_manifest_roots, limit=limit)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=FETCH_MANIFEST_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in payload.get("manifests", []):
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in FETCH_MANIFEST_EXPORT_FIELDS})
+    return out.getvalue()
 
 
 def find_fetch_manifest_path(job_id: str, fetch_manifest_roots: list[Path]) -> Path:
@@ -7028,6 +7098,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/fetch_manifests_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=500)
+                csv_body = build_fetch_manifests_csv(self.fetch_manifest_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="fetch_manifests.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/fetch_manifest_detail":
             if not self.require_auth():

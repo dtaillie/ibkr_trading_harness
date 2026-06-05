@@ -272,8 +272,11 @@ catalog's best matching saved file for a ticker without searching the full
 table. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
-historical-data pull manifests, status
-counts, no-data chunks, errors, produced output files, and per-symbol progress.
+historical-data pull manifests, status counts, retry/pacing summaries, no-data
+chunks, errors, produced output files, per-symbol progress, and output paths.
+Use Export Jobs CSV to download recent fetch-job summaries for offline review
+of failed jobs, progress/ETA fields, pacing waits, retries, rows, and latest
+output paths.
 When a produced output file is under a configured data root, use Inspect Data in
 the output row to open its saved-file detail view without leaving the dashboard.
 Use Show Outputs in Data Library from Fetch Detail to filter saved-data rows to

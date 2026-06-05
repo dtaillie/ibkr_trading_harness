@@ -356,6 +356,7 @@ def run_smoke(
             "fetch-filter-status",
             "fetch-filter-kind",
             "fetch-filter-sort",
+            "export-fetch-manifests-csv",
             "fetch-detail-summary",
             "fetch-recovery-cards",
             "fetch-events-body",
@@ -469,12 +470,14 @@ def run_smoke(
             "dataCompareReadinessCards",
             "Comparison Readiness",
             "fetch_manifests",
+            "fetch_manifests_export",
             "fetch_manifest_detail",
             "filteredFetchManifests",
             "fetchRecoveryCards",
             "fetchOutputVisibilityLabel",
             "output_visibility_counts",
             "fetchResumeCommand",
+            "downloadFetchManifestsCsv",
             "live/fetch_history.py --resume-manifest",
             "Symbol Coverage",
             "Data Visibility",
@@ -637,6 +640,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing fetch_manifests")
+        if ("GET", "/fetch_manifests_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing fetch_manifests_export")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if ("GET", "/data_coverage_export") not in endpoint_paths:
@@ -668,8 +673,11 @@ def run_smoke(
         if snapshot.get("config_schema_version") != 1 or snapshot.get("form_schema_version") != 2:
             raise RuntimeError("workbench snapshot schema versions are missing")
         fetch_manifests = fetch_json(base_url, "/fetch_manifests?limit=5")
+        fetch_manifests_csv = fetch_text(base_url, "/fetch_manifests_export?limit=5")
         if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:
             raise RuntimeError("fetch manifest summary is invalid")
+        if "job_id,kind,status" not in fetch_manifests_csv:
+            raise RuntimeError("fetch manifests CSV header is missing")
         daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
         if "rollups" not in daily_rollups or "total" not in daily_rollups or "period_rollups" not in daily_rollups:
             raise RuntimeError("daily rollup summary is invalid")

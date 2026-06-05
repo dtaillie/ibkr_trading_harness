@@ -5984,6 +5984,20 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadFetchManifestsCsv() {
+  const body = await fetchText("/fetch_manifests_export?limit=500");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "fetch_manifests.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Fetch jobs CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogScanCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const body = await fetchText(`/data_catalog_scan_export?limit=${catalogLimit}`);
@@ -6279,6 +6293,11 @@ function init() {
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
   $("fetch-filter-sort").addEventListener("change", renderFetchJobs);
   $("copy-fetch-roots-yaml").addEventListener("click", copyFetchManifestRootsYaml);
+  $("export-fetch-manifests-csv").addEventListener("click", () => {
+    downloadFetchManifestsCsv().catch((err) => {
+      $("last-refresh").textContent = `Fetch jobs CSV export failed: ${err.message}`;
+    });
+  });
   $("remote-filter-text").addEventListener("input", renderRemoteNodes);
   $("remote-filter-status").addEventListener("change", renderRemoteNodes);
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
