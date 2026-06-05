@@ -755,6 +755,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-form-fields" in html
         assert "config-builder-readiness" in html
         assert "config-builder-actions" in html
+        assert "workbench-triage-note" in html
+        assert "workbench-triage-cards" in html
         assert "config-commands" in html
         assert "export-drafts-csv" in html
         assert "endpoint-map-body" in html

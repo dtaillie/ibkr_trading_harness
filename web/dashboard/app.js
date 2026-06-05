@@ -5271,6 +5271,120 @@ function renderDraftValidations() {
     : `<dt>Next</dt><dd><span class="muted">Save a generated draft locally, then click Validate Drafts.</span></dd>`;
 }
 
+function renderWorkbenchTriage() {
+  if (!$("workbench-triage-cards") || !$("workbench-triage-note")) return;
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const runs = (state.configRuns && state.configRuns.runs) || [];
+  const validations = (state.draftValidations && state.draftValidations.validations) || [];
+  const validationByDraft = draftValidationById();
+  const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
+  const selectedDraft = drafts.find((draft) => draft.draft_id === selectedDraftId) || null;
+  const selectedValidation = selectedDraftId ? validationByDraft[selectedDraftId] : null;
+  const latestRun = latestWorkbenchRunForDraft(selectedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const invalidCount = validations.filter((item) => !item.valid).length;
+  const uncheckedCount = drafts.filter((draft) => !validationByDraft[draft.draft_id]).length;
+  const failedRuns = runs.filter((run) => run.status === "failed" || run.status === "timeout");
+  const completedRuns = runs.filter((run) => run.status === "completed");
+  const selectedHasArtifacts = Boolean(latestRun && latestRun.artifact_path);
+  let nextStatus = "bad";
+  let nextTitle = "Generate";
+  let nextNote = "Select saved data and generate a local draft.";
+  if (selectedDraft) {
+    if (!selectedValidation) {
+      nextStatus = "warn";
+      nextTitle = "Validate";
+      nextNote = `${selectedDraft.draft_id} has not been checked in this session.`;
+    } else if (!selectedValidation.valid) {
+      nextStatus = "bad";
+      nextTitle = "Fix Draft";
+      nextNote = `${selectedDraft.draft_id} has validation errors.`;
+    } else if (!latestRun) {
+      nextStatus = "warn";
+      nextTitle = "Run";
+      nextNote = `${selectedDraft.draft_id} is valid and ready for replay or simulated paper.`;
+    } else if (latestRun.status !== "completed") {
+      nextStatus = "warn";
+      nextTitle = "Inspect Run";
+      nextNote = `${latestRun.run_id || selectedDraft.draft_id} ended with ${text(latestRun.status)}.`;
+    } else if (!selectedHasArtifacts && !artifacts.run_id && !artifacts.draft_id) {
+      nextStatus = "warn";
+      nextTitle = "Open Results";
+      nextNote = "Completed run exists; load artifacts to inspect performance.";
+    } else {
+      nextStatus = "ok";
+      nextTitle = "Review";
+      nextNote = "Artifacts are available for performance, orders, fills, and logs.";
+    }
+  }
+  const cards = [
+    {
+      status: drafts.length ? uncheckedCount ? "warn" : "ok" : "bad",
+      title: numberText(drafts.length, 0),
+      label: "Drafts",
+      note: drafts.length
+        ? `${numberText(uncheckedCount, 0)} unchecked; ${numberText(invalidCount, 0)} invalid.`
+        : "No saved drafts; generate one from the Config Builder.",
+    },
+    {
+      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "bad",
+      title: validations.length ? `${numberText(validations.length - invalidCount, 0)} valid` : "Not Checked",
+      label: "Validation",
+      note: validations.length
+        ? `${numberText(validations.length, 0)} checked at ${text((state.draftValidations || {}).generated_at)}.`
+        : "Click Validate Drafts before running saved configs.",
+    },
+    {
+      status: runs.length ? failedRuns.length ? "warn" : "ok" : "bad",
+      title: numberText(runs.length, 0),
+      label: "Runs",
+      note: runs.length
+        ? `${numberText(completedRuns.length, 0)} completed; ${numberText(failedRuns.length, 0)} need log review.`
+        : "No validate/replay/simulated-paper runs recorded yet.",
+    },
+    {
+      status: selectedDraft ? selectedValidation && !selectedValidation.valid ? "bad" : "ok" : "bad",
+      title: text(selectedDraftId),
+      label: "Selected Draft",
+      note: selectedDraft
+        ? `${text(selectedDraft.status_label || selectedDraft.status)} / ${text(selectedDraft.mode)} / ${text((selectedDraft.symbols || []).join(", "))}.`
+        : "Choose a saved draft in the Run form.",
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      title: latestRun ? text(latestRun.status) : "No Run",
+      label: "Latest",
+      note: latestRun
+        ? `${text(latestRun.action)} finished ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
+        : "Run the selected draft to create comparable artifacts.",
+    },
+    {
+      status: artifacts.run_id || artifacts.draft_id ? "ok" : selectedHasArtifacts ? "warn" : "bad",
+      title: artifacts.run_id || artifacts.draft_id ? "Loaded" : selectedHasArtifacts ? "Available" : "Missing",
+      label: "Artifacts",
+      note: artifacts.run_id || artifacts.draft_id
+        ? `${text(artifacts.draft_id)} ${artifacts.run_id ? `/ ${text(artifacts.run_id)}` : "latest output"} is loaded.`
+        : selectedHasArtifacts
+          ? "Open Artifacts or Results for the selected draft."
+          : "No output artifacts found for the selected draft yet.",
+    },
+    {
+      status: nextStatus,
+      title: nextTitle,
+      label: "Next Action",
+      note: nextNote,
+    },
+  ];
+  $("workbench-triage-note").textContent = `${numberText(drafts.length, 0)} drafts / ${numberText(runs.length, 0)} runs / ${numberText(validations.length, 0)} validations`;
+  $("workbench-triage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function applyRiskPreset() {
   const presetId = $("config-risk-preset").value;
   const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
@@ -5295,6 +5409,7 @@ function renderWorkbenchRuns() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   renderDraftValidations();
   renderWorkbenchGuide();
+  renderWorkbenchTriage();
   $("config-drafts-body").innerHTML = drafts.length
     ? drafts.map((draft) => row([
         escapeHtml(draft.draft_id),
@@ -7403,6 +7518,10 @@ function init() {
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);
   $("config-end-date").addEventListener("change", renderWorkbenchGuide);
+  $("config-run-draft").addEventListener("change", () => {
+    renderWorkbenchGuide();
+    renderWorkbenchTriage();
+  });
   $("config-plugin").addEventListener("change", () => {
     renderConfigPluginBoundary();
     updatePluginStrategyFields();

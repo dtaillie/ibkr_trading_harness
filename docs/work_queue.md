@@ -821,6 +821,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     validation, and run tables now show next-step guidance instead of blank or
     generic `none` states. Broader seeded empty-state smoke across every page
     remains part of UI quality gates.
+  - partial; Workbench Run Draft now has triage cards summarizing saved drafts,
+    validation coverage, failed/completed runs, selected-draft state, loaded
+    artifacts, and the next action before the dense draft/run tables.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:
