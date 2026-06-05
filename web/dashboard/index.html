@@ -204,6 +204,14 @@
         <h2>Strategy Performance</h2>
         <span class="button-pair">
           <label class="inline-control">
+            <span>Source</span>
+            <select id="performance-source-mode">
+              <option value="current" selected>Current</option>
+              <option value="artifact">Loaded artifact</option>
+              <option value="latest_run">Latest saved run</option>
+            </select>
+          </label>
+          <label class="inline-control">
             <span>Period</span>
             <select id="performance-period">
               <option value="all" selected>All</option>

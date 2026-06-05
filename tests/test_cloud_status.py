@@ -570,6 +570,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-drawdown-chart" in html
         assert "performance-daily-return-chart" in html
         assert "performance-calendar-chart" in html
+        assert "performance-source-mode" in html
         assert "performance-period" in html
         assert "performance-trades-body" in html
         assert "performance-profit-factor" in html

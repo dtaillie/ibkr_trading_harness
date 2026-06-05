@@ -165,6 +165,10 @@ strategy-private.
       paper/live state still depends on runner telemetry fields being present.
 - Add a clean "current strategy performance" mode that does not require picking
   through historical run comparison rows.
+  - partial; Strategy Performance now has an explicit Source selector with a
+    Current default, Loaded artifact mode, and Latest saved run mode. Opening
+    artifacts switches to artifact mode, and users can return to Current
+    without clearing the loaded artifact.
 - Add strategy/session comparison only after the current-strategy page is easy
   to read.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for

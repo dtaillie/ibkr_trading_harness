@@ -24,6 +24,7 @@ const state = {
   performanceRollups: { rollups: [], errors: [] },
   runDetail: null,
   configArtifacts: null,
+  performanceSourceMode: "current",
   commands: [],
   results: [],
   remoteNodes: { nodes: [] },
@@ -240,7 +241,21 @@ function latestSummarizedComparisonRun() {
   return runs.find((runItem) => runItem.summary_available) || null;
 }
 
-function latestArtifactPerformance() {
+function emptyPerformanceSource(label = "No run data", sourceType = "none") {
+  return {
+    label,
+    summary: {},
+    performance: {},
+    account: [],
+    fills: [],
+    orders: [],
+    decisions: [],
+    source_type: sourceType,
+    has_data: false,
+  };
+}
+
+function artifactPerformanceSource() {
   const artifacts = state.configArtifacts || {};
   if (artifacts.run_id || artifacts.draft_id) {
     return {
@@ -254,8 +269,13 @@ function latestArtifactPerformance() {
       orders: artifacts.orders || [],
       decisions: artifacts.decisions || [],
       source_type: "archived_artifact",
+      has_data: true,
     };
   }
+  return emptyPerformanceSource("No artifact loaded", "archived_artifact");
+}
+
+function summaryPerformanceSource() {
   const comparison = latestSummarizedComparisonRun();
   if (comparison) {
     return {
@@ -267,8 +287,13 @@ function latestArtifactPerformance() {
       orders: [],
       decisions: [],
       source_type: "run_summary",
+      has_data: true,
     };
   }
+  return emptyPerformanceSource("No saved run summary", "run_summary");
+}
+
+function telemetryPerformanceSource() {
   const telemetryRun = latestTelemetryRun();
   if (telemetryRun) {
     const metrics = telemetryRun.metrics || {};
@@ -281,9 +306,24 @@ function latestArtifactPerformance() {
       orders: [],
       decisions: [],
       source_type: "live_telemetry",
+      has_data: true,
     };
   }
-  return { label: "No run data", summary: {}, performance: {}, account: [], fills: [], orders: [], decisions: [], source_type: "none" };
+  return emptyPerformanceSource("No current telemetry", "live_telemetry");
+}
+
+function currentPerformanceSource() {
+  const telemetry = telemetryPerformanceSource();
+  if (telemetry.source_type === "live_telemetry" && telemetry.label !== "No current telemetry") return telemetry;
+  const summary = summaryPerformanceSource();
+  if (summary.source_type === "run_summary" && summary.label !== "No saved run summary") return summary;
+  return emptyPerformanceSource("No current run data", "current");
+}
+
+function latestArtifactPerformance() {
+  if (state.performanceSourceMode === "artifact") return artifactPerformanceSource();
+  if (state.performanceSourceMode === "latest_run") return summaryPerformanceSource();
+  return currentPerformanceSource();
 }
 
 function selectedConfigDatasets() {
@@ -1188,6 +1228,7 @@ function renderMetrics() {
 }
 
 function renderPerformance() {
+  $("performance-source-mode").value = state.performanceSourceMode || "current";
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
   const summary = source.summary || {};
@@ -1216,6 +1257,7 @@ function renderPerformance() {
     ? `${numberText(accountRows.length, 0)} account snapshots in selected period.`
     : "Showing latest summarized run; select Artifacts for an equity curve.";
   $("performance-source").textContent = source.label;
+  $("performance-source").className = statusClass(source.has_data ? "ok" : "warn");
   $("performance-mode").textContent = text(mode);
   $("performance-mode").className = statusClass(mode ? "ok" : "unknown");
   $("performance-latest-account").textContent = text(latestAccount.timestamp);
@@ -3495,6 +3537,7 @@ async function loadRemoteNodeDetail(nodeId) {
 async function loadConfigArtifacts(draftId, options = {}) {
   const response = await fetchJson(`/config_draft_artifacts?draft_id=${encodeURIComponent(draftId)}&limit=100`);
   state.configArtifacts = response;
+  state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
   renderPerformance();
   renderOverview();
@@ -3556,6 +3599,7 @@ async function deleteConfigDraft(draftId) {
     state.configDraft = null;
     state.alignmentPreview = null;
     state.configArtifacts = null;
+    if (state.performanceSourceMode === "artifact") state.performanceSourceMode = "current";
   }
   renderConfigBuilder();
   renderWorkbenchRuns();
@@ -3576,6 +3620,7 @@ async function validateDrafts() {
 async function loadRunArtifacts(runId, options = {}) {
   const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
   state.configArtifacts = response;
+  state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
   renderPerformance();
   renderOverview();
@@ -3867,6 +3912,11 @@ function init() {
   $("comparison-filter-summary").addEventListener("change", renderRunComparison);
   $("comparison-filter-text").addEventListener("input", renderRunComparison);
   $("comparison-sort").addEventListener("change", renderRunComparison);
+  $("performance-source-mode").addEventListener("change", () => {
+    state.performanceSourceMode = $("performance-source-mode").value || "current";
+    renderPerformance();
+    renderOverview();
+  });
   $("performance-period").addEventListener("change", renderPerformance);
   $("command-form").addEventListener("submit", (event) => {
     queueCommand(event).catch((err) => {

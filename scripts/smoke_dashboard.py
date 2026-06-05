@@ -66,6 +66,7 @@ def run_smoke(
             "performance-drawdown-chart",
             "performance-daily-return-chart",
             "performance-calendar-chart",
+            "performance-source-mode",
             "performance-period",
             "performance-source",
             "performance-mode",
