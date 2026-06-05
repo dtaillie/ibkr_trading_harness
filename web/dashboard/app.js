@@ -3308,7 +3308,7 @@ function renderDataCoverage() {
           <div class="coverage-row">
             <div class="coverage-label">
               <strong>${escapeHtml(item.symbol)}</strong>
-              <small>${escapeHtml((item.bar_sizes || []).join(", ") || "n/a")} / ${escapeHtml((item.sources || []).join(", ") || "n/a")}</small>
+              <small>${escapeHtml((item.bar_sizes || []).join(", ") || "n/a")} / ${escapeHtml((item.sources || []).join(", ") || "n/a")} / ${escapeHtml((item.storage_sessions || []).join(", ") || "n/a")}</small>
             </div>
             <div class="coverage-strip">${cells}</div>
             <small>${escapeHtml(numberText(covered, 0))}/${escapeHtml(numberText(dateBins.length, 0))} recent dates</small>
@@ -3339,7 +3339,7 @@ function renderDataGapSummary() {
   $("data-gap-summary-body").innerHTML = gapRows.length
     ? gapRows.map((item) => row([
         escapeHtml(item.symbol),
-        escapeHtml(text(item.bar_size)),
+        `${escapeHtml(text(item.bar_size))}<br><small>${escapeHtml(text(item.storage_session))}</small>`,
         escapeHtml(numberText(item.estimated_missing_intervals, 0)),
         escapeHtml(interval(item.largest_gap_seconds)),
         qualityBadge(item.quality_status, []),
@@ -3350,7 +3350,7 @@ function renderDataGapSummary() {
   $("data-calendar-gap-body").innerHTML = calendarRows.length
     ? calendarRows.map((item) => row([
         escapeHtml(item.symbol),
-        escapeHtml(text(item.bar_size)),
+        `${escapeHtml(text(item.bar_size))}<br><small>${escapeHtml(text(item.storage_session))}</small>`,
         escapeHtml(numberText(item.missing_calendar_days, 0)),
         `${escapeHtml(numberText(item.date_count, 0))} / ${escapeHtml(numberText(item.calendar_day_count, 0))}`,
         escapeHtml(rangeLabel(item.first_day, item.last_day)),

@@ -2121,6 +2121,7 @@ DATA_COVERAGE_EXPORT_FIELDS = (
     "asset_class",
     "sources",
     "bar_sizes",
+    "storage_sessions",
     "dataset_count",
     "row_count",
     "date_count",
@@ -2137,6 +2138,7 @@ DATA_GAP_SUMMARY_EXPORT_FIELDS = (
     "asset_class",
     "source",
     "bar_size",
+    "storage_session",
     "path",
     "first_timestamp",
     "last_timestamp",
@@ -2342,6 +2344,7 @@ def build_data_coverage_csv(
                 "asset_class": item.get("asset_class"),
                 "sources": compact_csv_value(item.get("sources")),
                 "bar_sizes": compact_csv_value(item.get("bar_sizes")),
+                "storage_sessions": compact_csv_value(item.get("storage_sessions")),
                 "dataset_count": item.get("dataset_count"),
                 "row_count": item.get("row_count"),
                 "date_count": item.get("date_count"),
@@ -2520,6 +2523,7 @@ def build_data_coverage(
                 "asset_class": row.get("asset_class"),
                 "sources": set(),
                 "bar_sizes": set(),
+                "storage_sessions": set(),
                 "dataset_count": 0,
                 "row_count": 0,
                 "dates": set(),
@@ -2533,6 +2537,8 @@ def build_data_coverage(
             item["sources"].add(str(row["source"]))
         if row.get("bar_size"):
             item["bar_sizes"].add(str(row["bar_size"]))
+        if row.get("storage_session"):
+            item["storage_sessions"].add(str(row["storage_session"]))
         item["dates"].update(row.get("dates") or [])
         first = row.get("first_timestamp")
         last = row.get("last_timestamp")
@@ -2551,6 +2557,7 @@ def build_data_coverage(
             "asset_class": item["asset_class"],
             "sources": sorted(item["sources"]),
             "bar_sizes": sorted(item["bar_sizes"]),
+            "storage_sessions": sorted(item["storage_sessions"]),
             "dataset_count": item["dataset_count"],
             "row_count": item["row_count"],
             "date_count": len(dates),
@@ -2607,6 +2614,7 @@ def build_data_gap_summary(
             "asset_class": item.get("asset_class"),
             "source": item.get("source"),
             "bar_size": item.get("bar_size"),
+            "storage_session": item.get("storage_session"),
             "path": item.get("path"),
             "rows": item.get("rows"),
             "first_timestamp": item.get("first_timestamp"),
@@ -2628,6 +2636,7 @@ def build_data_gap_summary(
             "asset_class": row.get("asset_class"),
             "source": row.get("source"),
             "bar_size": row.get("bar_size"),
+            "storage_session": row.get("storage_session"),
             "path": row.get("path"),
             "first_day": row.get("first_day"),
             "last_day": row.get("last_day"),

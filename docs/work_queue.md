@@ -694,7 +694,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - crypto 24/7 files
     - partial; crypto parquet discovery is covered, and minute heatmap
       completeness now carries storage-session metadata with a 24/7 crypto
-      regression test. Calendar-day semantics still need broader fixtures.
+      regression test. Coverage and gap summaries now carry storage-session
+      metadata with a 24/7 crypto calendar-gap fixture; broader multi-session
+      fixture coverage remains open.
   - malformed/skipped files with visible reasons
     - partial; parser failures and unsupported files are covered by catalog
       scan diagnostics, deeper malformed-minute cases remain open

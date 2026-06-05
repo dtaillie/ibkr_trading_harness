@@ -1463,12 +1463,15 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert coverage["count"] == 1
         assert coverage["symbols"][0]["symbol"] == "SPY"
         assert coverage["symbols"][0]["coverage"] == [True]
+        assert coverage["symbols"][0]["storage_sessions"] == ["rth"]
+        assert coverage["datasets"][0]["storage_session"] == "rth"
         assert coverage["date_bins"] == ["2026-01-02"]
         with request.urlopen(f"{base}/data_coverage_export?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
             coverage_csv = resp.read().decode("utf-8")
         coverage_rows = list(csv.DictReader(io.StringIO(coverage_csv)))
         assert coverage_rows[0]["symbol"] == "SPY"
+        assert coverage_rows[0]["storage_sessions"] == "rth"
         assert coverage_rows[0]["date"] == "2026-01-02"
         assert coverage_rows[0]["covered"] == "True"
 
@@ -1514,8 +1517,10 @@ def test_cloud_status_server_serves_data_gap_summary(tmp_path):
         assert payload["total_estimated_missing_intervals"] > 0
         assert payload["largest_gap_seconds"] > 0
         assert payload["gap_rows"][0]["symbol"] == "GAP"
+        assert payload["gap_rows"][0]["storage_session"] == "unknown"
         assert payload["gap_rows"][0]["estimated_missing_intervals"] > 0
         assert payload["calendar_rows"][0]["symbol"] == "GAP"
+        assert payload["calendar_rows"][0]["storage_session"] == "unknown"
         assert payload["calendar_rows"][0]["missing_calendar_days"] == 1
         with request.urlopen(f"{base}/data_gap_summary_export?catalog_limit=5&top_limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1523,6 +1528,67 @@ def test_cloud_status_server_serves_data_gap_summary(tmp_path):
         exported = list(csv.DictReader(io.StringIO(csv_body)))
         assert {row["row_type"] for row in exported} == {"timestamp_gap", "calendar_gap"}
         assert exported[0]["symbol"] == "GAP"
+        assert exported[0]["storage_session"] == "unknown"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_marks_crypto_calendar_gaps_as_24_7(tmp_path):
+    data_root = tmp_path / "data"
+    crypto_root = data_root / "cache" / "zerohash"
+    crypto_root.mkdir(parents=True)
+    (crypto_root / "BTC-USD_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-01T00:00:00Z,100,101,99,100.5,1000",
+                "2026-01-01T00:01:00Z,100.5,101,100,100.75,1100",
+                "2026-01-03T00:00:00Z,100.75,102,100.5,101.25,900",
+                "2026-01-03T00:01:00Z,101.25,102,101,101.5,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_coverage?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
+            coverage = json.loads(resp.read().decode("utf-8"))
+
+        btc = coverage["symbols"][0]
+        assert btc["symbol"] == "BTC-USD"
+        assert btc["asset_class"] == "crypto"
+        assert btc["storage_sessions"] == ["24_7"]
+        assert btc["date_count"] == 2
+        assert coverage["date_bins"] == ["2026-01-01", "2026-01-03"]
+        dataset = coverage["datasets"][0]
+        assert dataset["storage_session"] == "24_7"
+        assert dataset["missing_calendar_days"] == 1
+
+        with request.urlopen(f"{base}/data_coverage_export?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert exported[0]["storage_sessions"] == "24_7"
+
+        with request.urlopen(f"{base}/data_gap_summary?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            summary = json.loads(resp.read().decode("utf-8"))
+
+        calendar = summary["calendar_rows"][0]
+        assert calendar["symbol"] == "BTC-USD"
+        assert calendar["asset_class"] == "crypto"
+        assert calendar["source"] == "zerohash"
+        assert calendar["bar_size"] == "1min"
+        assert calendar["storage_session"] == "24_7"
+        assert calendar["missing_calendar_days"] == 1
+
+        with request.urlopen(f"{base}/data_gap_summary_export?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            gap_exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        calendar_export = next(row for row in gap_exported if row["row_type"] == "calendar_gap")
+        assert calendar_export["symbol"] == "BTC-USD"
+        assert calendar_export["storage_session"] == "24_7"
     finally:
         server.shutdown()
         server.server_close()
