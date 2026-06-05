@@ -12,6 +12,12 @@ dashboard:
     enabled: true
     window_seconds: 60
     max_per_node: 10
+  command_scopes:
+    enabled: true
+    allowed_action_classes:
+      - read_only
+      - control
+    allowed_actions: []
   data_roots:
     - examples/data
   fetch_manifest_roots:

@@ -53,6 +53,23 @@ COMMAND_PARAM_FIELDS = {
     "validate_supervisor_config": ("supervisor_id",),
 }
 
+COMMAND_ACTION_CLASSES = {
+    "pause_runner": "control",
+    "request_status": "read_only",
+    "resume_runner": "control",
+    "run_supervisor_once": "launcher",
+    "summarize_run": "read_only",
+    "supervisor_status": "read_only",
+    "validate_config": "read_only",
+    "validate_supervisor_config": "read_only",
+}
+
+DEFAULT_COMMAND_SCOPE_POLICY = {
+    "enabled": True,
+    "allowed_action_classes": ("read_only", "control"),
+    "allowed_actions": (),
+}
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
@@ -947,6 +964,7 @@ def dashboard_server_settings(
         "fetch_manifest_roots": None,
         "auth_token_env": None,
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
+        "command_scopes": normalize_command_scope_policy({}),
     }
     if config_path is not None:
         config = read_optional_yaml_mapping(config_path)
@@ -981,6 +999,11 @@ def dashboard_server_settings(
                 **settings["command_rate_limit"],
                 **rate_limit,
             }
+        if dashboard.get("command_scopes") is not None:
+            scopes = dashboard["command_scopes"]
+            if not isinstance(scopes, dict):
+                raise ValueError("dashboard.command_scopes must be a mapping")
+            settings["command_scopes"] = normalize_command_scope_policy(scopes)
 
     if host is not None:
         settings["host"] = host
@@ -4639,6 +4662,50 @@ def command_rate_limit_path(state_dir: Path) -> Path:
     return state_dir / "command_rate_limits.json"
 
 
+def normalize_command_scope_policy(raw: dict[str, Any] | None) -> dict[str, Any]:
+    policy = {
+        "enabled": DEFAULT_COMMAND_SCOPE_POLICY["enabled"],
+        "allowed_action_classes": set(DEFAULT_COMMAND_SCOPE_POLICY["allowed_action_classes"]),
+        "allowed_actions": set(DEFAULT_COMMAND_SCOPE_POLICY["allowed_actions"]),
+    }
+    if not raw:
+        return policy
+    if raw.get("enabled") is not None:
+        policy["enabled"] = bool(raw.get("enabled"))
+    if raw.get("allowed_action_classes") is not None:
+        classes = raw["allowed_action_classes"]
+        if not isinstance(classes, (list, tuple, set)):
+            raise ValueError("dashboard.command_scopes.allowed_action_classes must be a list")
+        policy["allowed_action_classes"] = {str(item).strip() for item in classes if str(item).strip()}
+    if raw.get("allowed_actions") is not None:
+        actions = raw["allowed_actions"]
+        if not isinstance(actions, (list, tuple, set)):
+            raise ValueError("dashboard.command_scopes.allowed_actions must be a list")
+        normalized_actions = {str(action).strip() for action in actions if str(action).strip()}
+        unknown = sorted(action for action in normalized_actions if action not in ALLOWED_COMMAND_ACTIONS)
+        if unknown:
+            raise ValueError(f"dashboard.command_scopes.allowed_actions contains unsupported actions: {', '.join(unknown)}")
+        policy["allowed_actions"] = normalized_actions
+    return policy
+
+
+def command_action_class(action: str) -> str:
+    return COMMAND_ACTION_CLASSES.get(action, "unknown")
+
+
+def command_scope_error(action: str, policy: dict[str, Any]) -> str | None:
+    if policy.get("enabled") is False:
+        return None
+    allowed_actions = set(policy.get("allowed_actions") or [])
+    if action in allowed_actions:
+        return None
+    action_class = command_action_class(action)
+    allowed_classes = set(policy.get("allowed_action_classes") or [])
+    if action_class in allowed_classes:
+        return None
+    return f"command action is outside server scope: {action} ({action_class})"
+
+
 def load_commands(state_dir: Path) -> list[dict[str, Any]]:
     path = commands_path(state_dir)
     if not path.exists():
@@ -4657,10 +4724,12 @@ def save_commands(state_dir: Path, commands: list[dict[str, Any]]) -> None:
 
 def sanitized_command_audit_payload(payload: dict[str, Any]) -> dict[str, Any]:
     params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    action = str(payload.get("action") or "")
     return {
         "command_id": str(payload.get("command_id") or ""),
         "node_id": str(payload.get("node_id") or ""),
-        "action": str(payload.get("action") or ""),
+        "action": action,
+        "action_class": str(payload.get("action_class") or command_action_class(action)),
         "status": str(payload.get("status") or ""),
         "param_keys": sorted(str(key) for key in params),
     }
@@ -4768,6 +4837,7 @@ def enqueue_command(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
         "command_id": command_id,
         "node_id": node_id,
         "action": action,
+        "action_class": command_action_class(action),
         "params": params,
         "status": "pending",
         "created_at": utc_now(),
@@ -4989,6 +5059,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     data_roots = list(DEFAULT_DATA_ROOTS)
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
     command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
+    command_scopes: dict[str, Any] = normalize_command_scope_policy({})
 
     def auth_token(self) -> str | None:
         if not self.auth_token_env:
@@ -5023,6 +5094,18 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             node_id = str(payload.get("node_id") or "").strip() if isinstance(payload, dict) else ""
+            action = str(payload.get("action") or "").strip() if isinstance(payload, dict) else ""
+            if error := command_scope_error(action, self.command_scopes):
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "queue_rejected",
+                        "error": error,
+                        **sanitized_command_audit_payload(payload),
+                    },
+                )
+                json_response(self, 403, {"error": error})
+                return
             if error := command_rate_limit_error(self.state_dir, node_id, self.command_rate_limit):
                 append_command_audit(
                     self.state_dir,
@@ -5654,6 +5737,7 @@ def create_server(
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
     command_rate_limit: dict[str, Any] | None = None,
+    command_scopes: dict[str, Any] | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
@@ -5664,6 +5748,7 @@ def create_server(
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
+    Handler.command_scopes = normalize_command_scope_policy(command_scopes)
     return ThreadingHTTPServer((host, port), Handler)
 
 
@@ -5713,6 +5798,7 @@ def main() -> None:
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],
         command_rate_limit=settings["command_rate_limit"],
+        command_scopes=settings["command_scopes"],
     )
     print(f"Serving status dashboard at http://{settings['host']}:{server.server_address[1]}/")
     server.serve_forever()

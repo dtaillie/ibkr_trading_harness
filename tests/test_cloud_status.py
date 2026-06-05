@@ -915,6 +915,12 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "    enabled: true",
                 "    window_seconds: 12",
                 "    max_per_node: 7",
+                "  command_scopes:",
+                "    enabled: true",
+                "    allowed_action_classes:",
+                "      - read_only",
+                "    allowed_actions:",
+                "      - pause_runner",
                 "  data_roots:",
                 f"    - {data_root}",
                 "  fetch_manifest_roots:",
@@ -933,6 +939,11 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert settings["dashboard_dir"] == Path("custom_dashboard")
     assert settings["auth_token_env"] == "TOKEN_ENV"
     assert settings["command_rate_limit"] == {"enabled": True, "window_seconds": 12, "max_per_node": 7}
+    assert settings["command_scopes"] == {
+        "enabled": True,
+        "allowed_action_classes": {"read_only"},
+        "allowed_actions": {"pause_runner"},
+    }
     assert settings["data_roots"] == [data_root]
     assert settings["fetch_manifest_roots"] == [tmp_path / "fetch_manifests"]
 
@@ -2774,6 +2785,73 @@ def test_cloud_status_server_rate_limits_command_queue(tmp_path):
         with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
             audit = json.loads(resp.read().decode("utf-8"))
         assert [event["event"] for event in audit["events"]] == ["command_queued", "queue_rejected"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_rejects_commands_outside_server_scope(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        command_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "run_supervisor_once",
+                "params": {"supervisor_id": "example"},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(command_req, timeout=5)
+            raise AssertionError("expected scope rejection")
+        except error.HTTPError as exc:
+            assert exc.code == 403
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "command action is outside server scope: run_supervisor_once (launcher)"
+
+        with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
+            pending = json.loads(resp.read().decode("utf-8"))
+        assert pending["commands"] == []
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert audit["events"][0]["event"] == "queue_rejected"
+        assert audit["events"][0]["action_class"] == "launcher"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_allows_explicit_launcher_scope(tmp_path):
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        command_scopes={"enabled": True, "allowed_action_classes": ["read_only", "control", "launcher"]},
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        command_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "run_supervisor_once",
+                "params": {"supervisor_id": "example"},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(command_req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["command"]["action_class"] == "launcher"
+        assert payload["command"]["status"] == "pending"
     finally:
         server.shutdown()
         server.server_close()

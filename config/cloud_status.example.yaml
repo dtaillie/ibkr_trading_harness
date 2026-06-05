@@ -51,6 +51,15 @@ dashboard:
     enabled: true
     window_seconds: 60
     max_per_node: 30
+  command_scopes:
+    enabled: true
+    # read_only: request/summarize/validate status commands.
+    # control: pause/resume local runners.
+    # launcher: run configured supervisor jobs; opt in only after review.
+    allowed_action_classes:
+      - read_only
+      - control
+    allowed_actions: []
   data_roots:
     - examples/data
   fetch_manifest_roots:

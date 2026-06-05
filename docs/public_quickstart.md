@@ -387,6 +387,11 @@ curl -X POST http://127.0.0.1:8765/commands \
   -d '{"node_id":"example-local-trader","action":"run_supervisor_once","params":{"supervisor_id":"example_plugin_supervisor"}}'
 ```
 
+That launcher example requires both server-side scope opt-in
+(`dashboard.command_scopes`) and local worker opt-in (`allowed_actions` plus the
+local enable marker). Without those, the receiver or worker rejects it by
+design.
+
 Poll once from the local machine:
 
 ```bash
@@ -413,15 +418,20 @@ The receiver also keeps a sanitized server-side audit at
 requests per node with `dashboard.command_rate_limit`; rejected queue attempts
 are audited and return HTTP 429. Explicit `command_id` values must be unique,
 so retried queue requests cannot ambiguously map later results to older
-commands.
+commands. The receiver also checks `dashboard.command_scopes` before queueing:
+public examples allow read-only and pause/resume control commands, while
+launcher actions such as `run_supervisor_once` require an explicit server-side
+opt-in.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,
 `run_supervisor_once`, `pause_runner`, and `resume_runner`. `run_supervisor_once`
 can launch configured local jobs and is only enabled when present in
-`allowed_actions`; remove it for monitoring-only deployments. The example config
-also requires `paper_logs/control/remote_commands.enabled` before launcher
-actions run, so the local machine must be deliberately armed first. Pause/resume
+`allowed_actions`; remove it for monitoring-only deployments. The dashboard
+receiver must also allow the action class or action through
+`dashboard.command_scopes`. The example config also requires
+`paper_logs/control/remote_commands.enabled` before launcher actions run, so
+the local machine must be deliberately armed first. Pause/resume
 writes or removes a local marker file. The generic plugin runner honors
 `control.pause_marker` by recording paused decisions without evaluating the
 strategy or submitting orders.

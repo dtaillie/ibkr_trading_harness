@@ -777,8 +777,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     are rejected before queueing so result handling stays unambiguous. The
     Operations view now surfaces those sanitized command audit events directly
     in the dashboard
-  - remaining gap: server-side role scopes, provider/network-specific hosted
-    deployment controls, and stronger tamper-evident remote audit storage
+  - partial; server-side command scopes now classify queued actions as
+    read-only, control, or launcher and reject commands outside
+    `dashboard.command_scopes` before they are persisted. Remaining gaps:
+    per-token roles, provider/network-specific hosted deployment controls, and
+    stronger tamper-evident remote audit storage
 - Keep initial commands low-risk:
   - pause
   - resume

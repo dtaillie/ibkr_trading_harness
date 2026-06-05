@@ -158,7 +158,11 @@ worker rejects launcher commands until
 The receiver also records sanitized queue/cancel/result events in
 `paper_logs/cloud_status_server/command_audit.jsonl`, exposes them through
 `/command_audit`, and rate-limits command queue requests per node with
-`dashboard.command_rate_limit`.
+`dashboard.command_rate_limit`. It also applies `dashboard.command_scopes`
+before a command is queued. Public examples allow `read_only` and `control`
+classes by default; `launcher` commands such as `run_supervisor_once` require
+an explicit server-side opt-in through `allowed_action_classes` or
+`allowed_actions`.
 
 Run the worker once:
 
@@ -189,7 +193,8 @@ systemctl --user enable --now algo-trade-command-worker.service
 ```
 
 For monitoring-only deployments, remove `run_supervisor_once` from
-`allowed_actions` and keep the local enable marker absent.
+`allowed_actions`, leave `launcher` out of `dashboard.command_scopes`, and keep
+the local enable marker absent.
 
 ## Service Sketch
 
