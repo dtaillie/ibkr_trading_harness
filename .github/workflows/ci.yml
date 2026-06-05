@@ -41,3 +41,4 @@ jobs:
           python scripts/smoke_dashboard.py --scenario empty
           python scripts/smoke_dashboard.py --scenario seeded
           python scripts/smoke_dashboard_accessibility.py
+          python scripts/smoke_dashboard_screenshots.py --check-layout
