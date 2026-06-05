@@ -1,0 +1,32 @@
+# EXAMPLE ONLY. Hosted receiver/dashboard for sanitized telemetry.
+# Run from the public repo root on a small VPS or private cloud VM.
+#
+# Required environment:
+#   export TRADING_STATUS_TOKEN='replace-with-a-long-random-value'
+#
+# Recommended:
+#   - bind this behind HTTPS, ideally with a private VPN or reverse proxy
+#   - keep broker credentials and private strategy configs off this host
+#   - mount only receiver state, not local trading logs or cache directories
+
+services:
+  status-receiver:
+    image: python:3.11-slim
+    working_dir: /app
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        pip install --no-cache-dir -r requirements.txt &&
+        python scripts/cloud_status_server.py --config config/cloud_status_hosted.example.yaml
+    environment:
+      TRADING_STATUS_TOKEN: ${TRADING_STATUS_TOKEN:?set TRADING_STATUS_TOKEN in the environment}
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ../..:/app:ro
+      - status_receiver_state:/app/paper_logs/cloud_status_server
+    restart: unless-stopped
+
+volumes:
+  status_receiver_state:

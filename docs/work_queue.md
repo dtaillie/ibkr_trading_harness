@@ -652,6 +652,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     deployment shape for local-first remote monitoring, private-network access,
     hosted receiver precautions, command-worker boundaries, and failure modes.
     Provider-specific examples and hardened internet deployment remain open.
+  - partial; public-safe hosted receiver examples now include
+    `config/cloud_status_hosted.example.yaml`,
+    `ops/cloud/status-receiver.compose.example.yaml`, an nginx reverse-proxy
+    template, a local status-publisher timer, and a command-worker service.
+    Fully hardened provider-specific infrastructure remains open.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity

@@ -46,6 +46,11 @@ COPY_FILES = [
     "live/plugin_runner.py",
     "ops/systemd/ibgateway-paper.service",
     "ops/systemd/ibgateway-paper.timer",
+    "ops/systemd/algo-trade-status-publisher.service",
+    "ops/systemd/algo-trade-status-publisher.timer",
+    "ops/systemd/algo-trade-command-worker.service",
+    "ops/cloud/status-receiver.compose.example.yaml",
+    "ops/cloud/nginx-status-receiver.example.conf",
     "scripts/audit_data_storage.py",
     "scripts/build_zerohash_crypto_universe.py",
     "scripts/cloud_status_server.py",
@@ -79,6 +84,7 @@ COPY_FILES = [
 
 CONFIG_FILES = [
     "config/cloud_status.example.yaml",
+    "config/cloud_status_hosted.example.yaml",
     "config/remote_control.example.yaml",
     "config/crypto_paper.example.yaml",
     "config/crypto_universe_example.yaml",

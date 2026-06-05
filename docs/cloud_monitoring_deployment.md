@@ -82,6 +82,64 @@ Minimum checks before exposing it:
 - Logs do not include account IDs, raw strategy signals, or order secrets.
 - Dashboard docs endpoint only serves allowlisted Markdown files.
 
+### Hosted Receiver Example
+
+The public repo includes a provider-neutral Docker Compose example for a small
+receiver host:
+
+```bash
+export TRADING_STATUS_TOKEN='replace-with-a-long-random-value'
+docker compose -f ops/cloud/status-receiver.compose.example.yaml up -d
+```
+
+The compose file starts `scripts/cloud_status_server.py` with
+`config/cloud_status_hosted.example.yaml`, binds the receiver to
+`127.0.0.1:8765` on the host, and stores only receiver state in a named Docker
+volume. Put a private VPN or HTTPS reverse proxy in front of it before using it
+away from localhost.
+
+`ops/cloud/nginx-status-receiver.example.conf` is a minimal reverse-proxy
+template. Replace the example domain and certificate paths, then add your
+normal firewall or source-IP controls. The nginx file is intentionally only a
+template; certificate issuance and host hardening are provider-specific.
+
+Good low-cost provider shapes:
+
+- VPS: install Docker, run the compose file, put nginx or Caddy in front.
+- Fly.io/Render/Railway-style app: run the same Python command, set
+  `TRADING_STATUS_TOKEN`, and attach persistent storage for
+  `paper_logs/cloud_status_server`.
+- Home machine over VPN: skip the hosted receiver and expose the local
+  dashboard only over Tailscale/WireGuard.
+
+Avoid cloud deployment shapes that mount the trading machine's broker config,
+raw `paper_logs`, private strategy plugins, or data cache into the hosted app.
+
+### Local Publisher Service Example
+
+On the trading machine, keep publishing local sanitized status to the hosted
+endpoint. The example user-systemd timer runs once per minute:
+
+```bash
+mkdir -p ~/.config/algo-trade
+cp config/cloud_status.example.yaml ~/.config/algo-trade/cloud_status.yaml
+# Edit the copied config to add private run paths, data roots, and Gateway checks.
+
+cat > ~/.config/algo-trade/status-publisher.env <<'EOF'
+TRADING_STATUS_ENDPOINT=https://status.example.invalid/status
+TRADING_STATUS_TOKEN=replace-with-the-same-long-random-value
+EOF
+chmod 600 ~/.config/algo-trade/status-publisher.env
+
+systemctl --user link "$PWD/ops/systemd/algo-trade-status-publisher.service"
+systemctl --user link "$PWD/ops/systemd/algo-trade-status-publisher.timer"
+systemctl --user enable --now algo-trade-status-publisher.timer
+```
+
+The user-systemd unit reads `~/.config/algo-trade/cloud_status.yaml`, not the
+committed example config, so private run paths and local data roots stay outside
+git.
+
 ## Remote Commands
 
 The public command path is intentionally narrow. Supported examples are
@@ -111,6 +169,27 @@ python3 scripts/command_worker.py \
   --token-env TRADING_STATUS_TOKEN \
   --once
 ```
+
+For a long-running local worker, use the example service only after reviewing
+`config/remote_control.example.yaml` and leaving `audit.enabled=true`:
+
+```bash
+mkdir -p ~/.config/algo-trade
+cp config/remote_control.example.yaml ~/.config/algo-trade/remote_control.yaml
+# Edit server.commands_url and server.results_url to point at your receiver.
+# Remove run_supervisor_once from allowed_actions for monitoring-only setups.
+
+cat > ~/.config/algo-trade/command-worker.env <<'EOF'
+TRADING_STATUS_TOKEN=replace-with-the-same-long-random-value
+EOF
+chmod 600 ~/.config/algo-trade/command-worker.env
+
+systemctl --user link "$PWD/ops/systemd/algo-trade-command-worker.service"
+systemctl --user enable --now algo-trade-command-worker.service
+```
+
+For monitoring-only deployments, remove `run_supervisor_once` from
+`allowed_actions` and keep the local enable marker absent.
 
 ## Service Sketch
 

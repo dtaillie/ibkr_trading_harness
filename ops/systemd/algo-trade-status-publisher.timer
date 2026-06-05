@@ -1,0 +1,12 @@
+[Unit]
+Description=Publish sanitized Algo Trade status every minute
+Documentation=file:%h/git/algo_trade_public/docs/cloud_monitoring_deployment.md
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+Persistent=false
+Unit=algo-trade-status-publisher.service
+
+[Install]
+WantedBy=timers.target

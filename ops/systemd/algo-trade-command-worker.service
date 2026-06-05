@@ -1,0 +1,17 @@
+[Unit]
+Description=Algo Trade safe remote command worker
+Documentation=file:%h/git/algo_trade_public/docs/cloud_monitoring_deployment.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/git/algo_trade_public
+EnvironmentFile=-%h/.config/algo-trade/command-worker.env
+ExecStart=python3 %h/git/algo_trade_public/scripts/command_worker.py --config %h/.config/algo-trade/remote_control.yaml --token-env TRADING_STATUS_TOKEN
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=default.target

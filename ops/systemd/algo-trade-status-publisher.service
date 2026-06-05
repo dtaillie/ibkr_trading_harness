@@ -1,0 +1,15 @@
+[Unit]
+Description=Algo Trade sanitized status publisher
+Documentation=file:%h/git/algo_trade_public/docs/cloud_monitoring_deployment.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/git/algo_trade_public
+EnvironmentFile=-%h/.config/algo-trade/status-publisher.env
+ExecStart=python3 %h/git/algo_trade_public/scripts/publish_status.py --config %h/.config/algo-trade/cloud_status.yaml --endpoint ${TRADING_STATUS_ENDPOINT} --token-env TRADING_STATUS_TOKEN
+TimeoutStartSec=30s
+
+[Install]
+WantedBy=default.target

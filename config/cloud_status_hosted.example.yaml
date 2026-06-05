@@ -1,0 +1,24 @@
+description: >
+  EXAMPLE ONLY. Public-safe hosted receiver config for a small VPS or private
+  cloud app. This host receives sanitized telemetry and serves the dashboard.
+  Keep broker credentials, private strategy configs, and raw logs off this host.
+
+dashboard:
+  host: 0.0.0.0
+  port: 8765
+  state_dir: paper_logs/cloud_status_server
+  auth_token_env: TRADING_STATUS_TOKEN
+  command_rate_limit:
+    enabled: true
+    window_seconds: 60
+    max_per_node: 10
+  data_roots:
+    - examples/data
+  fetch_manifest_roots:
+    - paper_logs/fetch_manifests
+
+notes:
+  - Set TRADING_STATUS_TOKEN in the process environment; do not commit it.
+  - Put HTTPS and authentication-aware network controls in front of this service.
+  - Keep remote command workers on the local trading machine, not in the cloud.
+  - This config intentionally scans only public example data.

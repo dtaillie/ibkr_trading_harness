@@ -255,6 +255,12 @@ broker data.
 For real deployments, add `max_age_seconds` to configured runs, supervisors, or
 remote-control audit settings in `config/cloud_status.example.yaml` copies so
 stale local artifacts raise dashboard alerts.
+For a hosted receiver, use `config/cloud_status_hosted.example.yaml` with
+`ops/cloud/status-receiver.compose.example.yaml` and publish from the trading
+machine with `ops/systemd/algo-trade-status-publisher.timer`. Keep the hosted
+receiver behind HTTPS or a private VPN and keep broker credentials on the local
+machine. See `docs/cloud_monitoring_deployment.md` for the full deployment
+shape.
 The `dashboard.data_roots` list in `config/cloud_status.example.yaml` controls
 which CSV/parquet roots are scanned. The public example points only at
 `examples/data`. For a real local setup, copy the config to an ignored local
