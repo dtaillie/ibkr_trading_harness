@@ -115,6 +115,7 @@ def run_smoke(
             "export-workbench-snapshot",
             "config-data-quality-note",
             "config-data-quality-body",
+            "config-allow-quality-warnings",
             "config-preview-alignment",
             "config-commands",
             "validate-drafts",
@@ -180,6 +181,7 @@ def run_smoke(
             "risk_presets",
             "renderConfigDataQuality",
             "quality_warning_count",
+            "allow_quality_warnings",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]
         if missing_js_tokens:

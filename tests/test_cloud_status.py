@@ -1138,6 +1138,35 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
         assert alignment["rows"][0]["quality_warning_count"] >= 1
         assert alignment["warning_count"] >= 1
         assert any("WARN: data quality warn" in item for item in alignment["warnings"])
+
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "plugin_id": "no_edge_template",
+                "datasets": [{"symbol": "WARN", "path": str(data_root / "WARN_1min_sample.csv")}],
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(draft_req, timeout=5)
+            raise AssertionError("expected data quality acknowledgement response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            error_payload = json.loads(exc.read().decode("utf-8"))
+        assert "selected datasets have data quality warnings: WARN" in error_payload["error"]
+
+        allowed = post_json(
+            base,
+            "/config_draft",
+            {
+                "plugin_id": "no_edge_template",
+                "datasets": [{"symbol": "WARN", "path": str(data_root / "WARN_1min_sample.csv")}],
+                "allow_quality_warnings": True,
+            },
+        )["draft"]
+        assert allowed["alignment"]["rows"][0]["quality_status"] == "warn"
+        assert allowed["alignment"]["warning_count"] >= 1
     finally:
         server.shutdown()
         server.server_close()

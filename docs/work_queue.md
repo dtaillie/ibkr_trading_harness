@@ -341,10 +341,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       a `--data-root` flag, and a replay-starter command. Fully generated
       strategy-specific replay commands still come from saved Workbench drafts.
   - flag suspicious files before they are used in a strategy replay
-    - partial; Config Workbench now shows selected dataset quality before draft
-      generation, and `/data_alignment`/draft alignment payloads include
-      quality status, warning counts, and data-quality warnings. Strategy-level
-      replay gating or explicit user acknowledgement is still open.
+    - done for Workbench-generated drafts; selected dataset quality is visible
+      before draft generation, `/data_alignment`/draft alignment payloads carry
+      quality status and warning counts, and `/config_draft` requires explicit
+      `allow_quality_warnings` acknowledgement before generating a runnable
+      draft from warn/bad files.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

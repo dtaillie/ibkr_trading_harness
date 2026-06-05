@@ -66,7 +66,14 @@ async function fetchJson(url, options = {}) {
     headers: { ...headers(), ...(options.headers || {}) },
   });
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let detail = "";
+    try {
+      const body = await response.clone().json();
+      detail = body && body.error ? String(body.error) : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`);
   }
   return response.json();
 }
@@ -2884,6 +2891,7 @@ async function generateConfigDraft(event) {
     max_gross_exposure_pct: $("config-max-exposure").value,
     sim_slippage_bps: $("config-slippage").value,
     sim_commission_bps: $("config-commission").value,
+    allow_quality_warnings: $("config-allow-quality-warnings").checked,
     save: $("config-save").checked,
   };
   const response = await fetchJson("/config_draft", {

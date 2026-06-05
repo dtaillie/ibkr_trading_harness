@@ -2379,6 +2379,17 @@ def build_config_draft(payload: dict[str, Any], *, state_dir: Path, data_roots: 
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
     data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
     alignment = build_data_alignment_for_files(selected)
+    quality_rows = [
+        row
+        for row in alignment.get("rows", [])
+        if row.get("quality_status") in {"warn", "bad"}
+    ]
+    if quality_rows and not bool(payload.get("allow_quality_warnings", False)):
+        symbols = ", ".join(str(row.get("symbol")) for row in quality_rows)
+        raise ValueError(
+            "selected datasets have data quality warnings: "
+            f"{symbols}; set allow_quality_warnings=true to continue"
+        )
 
     starting_cash = number_field(payload, "starting_cash", 10000)
     history_bars = number_field(payload, "history_bars", 100, integer=True)
