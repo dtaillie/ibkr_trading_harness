@@ -70,18 +70,51 @@ preserves its `.git` directory while replacing the exported working-tree files.
 
 ## Blog Post Outline
 
+The polished draft lives in `docs/blog_public_ibkr_harness_draft.md`. Before
+publishing, read it against the exported public repo and verify it still matches
+the public commands, included files, and current dashboard surfaces.
+
+The draft should cover:
+
 1. Why build a local trading harness instead of putting broker credentials in
    the cloud.
-2. IBKR Gateway setup and paper account mode.
-3. Fetching historical bars and validating timezone/data coverage.
-4. Writing a strategy plugin.
+2. Data-only stock and crypto fetches.
+3. JSON fetch manifests, recovery guidance, and Data Library inspection.
+4. Writing public-safe no-edge examples and private strategy plugins.
 5. Running replay, shadow, simulated-paper, and explicitly confirmed paper
    modes safely.
-6. Operating services and reading status output.
-7. Public/private split: keep strategies and configs private.
-8. Limitations: market-data permissions, rate pacing, slippage, rejected orders,
-   Gateway login/2FA, and no performance guarantees.
+6. Using Workbench to generate, validate, and run local drafts.
+7. Local/remote monitoring without moving trading authority to the cloud.
+8. Public/private export and audit gates.
+9. Limitations: market-data permissions, rate pacing, slippage, rejected
+   orders, Gateway login/2FA, simulated fills, and no performance guarantees.
 
 The public docs include operational runbooks for Gateway startup/recovery,
 paper trading, market-data permissions, service restarts, and failed-order
 diagnosis.
+
+## Final Manual Review Checklist
+
+Use this after exporting the public candidate and before pushing to GitHub:
+
+```bash
+python3 scripts/export_public_repo.py --dest ../algo_trade_public --force
+cd ../algo_trade_public
+python3 scripts/public_readiness_audit.py --fail-on-review
+PYTHONPATH=. pytest -q
+python3 scripts/smoke_dashboard.py --scenario seeded
+python3 scripts/smoke_dashboard.py --scenario empty
+python3 scripts/smoke_dashboard_accessibility.py
+python3 scripts/smoke_dashboard_screenshots.py --check-layout
+python3 scripts/smoke_dashboard_screenshots.py --scenario empty --check-layout
+```
+
+Then manually inspect:
+
+- `README.md` or `README.public.md` for public-safe positioning and commands.
+- `docs/blog_public_ibkr_harness_draft.md` for no private results, tuned
+  strategy details, or account assumptions.
+- `config/*.example.yaml` and `config/*.env.example` for placeholders only.
+- `examples/strategies/` for no-edge example behavior.
+- `web/dashboard/` for public-safe labels and no strategy-specific hard-coding.
+- `docs/work_queue.md` for clear remaining limitations and research deferral.

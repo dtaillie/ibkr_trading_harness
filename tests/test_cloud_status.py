@@ -896,6 +896,7 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             "service_restart_runbook.md": "Service Restart Runbook",
             "failed_order_diagnosis_runbook.md": "Failed Order Diagnosis Runbook",
             "cloud_monitoring_deployment.md": "Cloud Monitoring Deployment",
+            "blog_public_ibkr_harness_draft.md": "Blog Draft: A Local-First IBKR Trading Harness",
         }.items():
             with request.urlopen(f"{base}/docs/{name}", timeout=5) as resp:
                 body = resp.read().decode("utf-8")

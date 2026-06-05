@@ -86,6 +86,7 @@ PUBLIC_DOCS = {
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
     "configuration_privacy.md": ROOT / "docs" / "configuration_privacy.md",
     "publication_readiness.md": ROOT / "docs" / "publication_readiness.md",
+    "blog_public_ibkr_harness_draft.md": ROOT / "docs" / "blog_public_ibkr_harness_draft.md",
     "ibkr_gateway_runbook.md": ROOT / "docs" / "ibkr_gateway_runbook.md",
     "paper_trading_runbook.md": ROOT / "docs" / "paper_trading_runbook.md",
     "market_data_permissions_runbook.md": ROOT / "docs" / "market_data_permissions_runbook.md",

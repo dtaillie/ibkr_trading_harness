@@ -1063,7 +1063,17 @@ QQQ show up, treat that as a bug until proven otherwise.
     Python compile checks, dashboard JavaScript syntax check, pytest, and
     default/empty/seeded/accessibility dashboard smokes.
 - Do final manual review before pushing to GitHub.
+  - partial; `docs/publication_readiness.md` now has a final manual review
+    checklist with export, audit, test, dashboard smoke, screenshot, and
+    manual-inspection steps for README, blog draft, example configs,
+    no-edge examples, dashboard labels, and remaining limitations.
 - Finish blog post polish.
+  - partial; `docs/blog_public_ibkr_harness_draft.md` has been expanded into a
+    public-safe draft covering local-first design, data fetches, manifests,
+    Data Library, private plugin boundaries, replay/simulated-paper/paper
+    modes, Workbench, remote monitoring, export/audit, limitations, and a
+    pre-publish checklist. Final human editing for voice and publication venue
+    remains open.
 - Add runbooks:
   - done in `docs/ibkr_gateway_runbook.md`: IBKR Gateway setup and recovery
   - done in `docs/paper_trading_runbook.md`: paper trading startup/shutdown
