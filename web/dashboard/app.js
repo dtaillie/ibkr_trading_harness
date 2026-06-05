@@ -1631,6 +1631,10 @@ function renderStatusEquityRollups() {
   if (
     !$("performance-status-rollups-body")
     || !$("performance-status-rollups-note")
+    || !$("performance-status-equity-chart")
+    || !$("performance-status-equity-note")
+    || !$("performance-status-return-chart")
+    || !$("performance-status-return-note")
     || !$("performance-status-period-rollups-body")
     || !$("performance-status-period-rollups-note")
   ) return;
@@ -1644,6 +1648,15 @@ function renderStatusEquityRollups() {
   $("performance-status-rollups-note").textContent = payload.generated_at
     ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} status-history day rows from ${numberText(payload.history_scanned || 0, 0)} snapshots; O/F/R are max observed sanitized recent-event counts`
     : "No status-history rollups loaded";
+  const statusNodeCount = new Set(rollups.map((item) => text(item.node_id))).size;
+  $("performance-status-equity-note").textContent = rollups.length
+    ? `${numberText(statusNodeCount, 0)} node${statusNodeCount === 1 ? "" : "s"} with end-of-day equity`
+    : "Run the status publisher during paper/live sessions to populate this chart";
+  $("performance-status-return-note").textContent = rollups.length
+    ? "Daily status-history return bars; hover bars for day/node labels"
+    : "Daily returns need at least one status-history equity day";
+  $("performance-status-equity-chart").innerHTML = statusRollupEquityChart(rollups);
+  $("performance-status-return-chart").innerHTML = statusRollupReturnChart(rollups);
   $("performance-status-rollups-body").innerHTML = rollups.length
     ? rollups.map((item) => row([
         escapeHtml(item.day),
@@ -2204,6 +2217,74 @@ function scalarLineChart(points, { label, empty, className, valueFormatter }) {
   const latest = values[values.length - 1];
   const caption = `${valueFormatter ? valueFormatter(latest) : numberText(latest)} latest`;
   return `<svg class="detail-chart ${className || ""}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)}"><polyline points="${coords}"></polyline></svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
+}
+
+function statusRollupChartRows(rollups, valueKey) {
+  return (rollups || []).map((item) => ({
+    day: item.day,
+    node_id: text(item.node_id),
+    millis: timestampMillis(`${item.day}T00:00:00Z`),
+    value: Number(item[valueKey]),
+  })).filter((item) => item.day && item.millis !== null && Number.isFinite(item.value))
+    .sort((left, right) => (left.millis - right.millis) || left.node_id.localeCompare(right.node_id));
+}
+
+function statusRollupEquityChart(rollups) {
+  const rows = statusRollupChartRows(rollups, "end_equity");
+  if (rows.length < 2) return `<span class="muted">No status-history equity curve available</span>`;
+  const byNode = new Map();
+  for (const item of rows) {
+    if (!byNode.has(item.node_id)) byNode.set(item.node_id, []);
+    byNode.get(item.node_id).push(item);
+  }
+  const drawable = Array.from(byNode.entries()).filter(([, items]) => items.length >= 2);
+  if (!drawable.length) return `<span class="muted">Need at least two status-history equity days for one node.</span>`;
+  const values = rows.map((item) => item.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const minTime = Math.min(...rows.map((item) => item.millis));
+  const maxTime = Math.max(...rows.map((item) => item.millis));
+  const width = 720;
+  const height = 180;
+  const valueSpan = maxValue - minValue || 1;
+  const timeSpan = maxTime - minTime || 1;
+  const colors = ["#00a76f", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be123c", "#4d7c0f"];
+  const lines = drawable.map(([node, items], index) => {
+    const coords = items.map((item) => {
+      const x = ((item.millis - minTime) / timeSpan) * width;
+      const y = height - ((item.value - minValue) / valueSpan) * height;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    return `<polyline points="${coords}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="2"><title>${escapeHtml(node)}</title></polyline>`;
+  }).join("");
+  const legend = drawable.map(([node], index) => (
+    `<span class="legend-item"><span style="background:${colors[index % colors.length]}"></span>${escapeHtml(node)}</span>`
+  )).join("");
+  const latest = rows[rows.length - 1];
+  const caption = `${escapeHtml(latest.day)} ${escapeHtml(latest.node_id)} end equity ${escapeHtml(money(latest.value))}`;
+  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="status-history equity by node">${lines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${caption}</span>`;
+}
+
+function statusRollupReturnChart(rollups) {
+  const rows = statusRollupChartRows(rollups, "daily_return_pct").slice(-60);
+  if (!rows.length) return `<span class="muted">No status-history daily returns available</span>`;
+  const width = 720;
+  const height = 180;
+  const padding = 12;
+  const maxAbs = Math.max(0.01, ...rows.map((item) => Math.abs(item.value)));
+  const barGap = 4;
+  const barWidth = Math.max(3, (width - padding * 2 - barGap * Math.max(0, rows.length - 1)) / rows.length);
+  const axisY = height / 2;
+  const bars = rows.map((item, index) => {
+    const magnitude = (Math.abs(item.value) / maxAbs) * (height / 2 - padding);
+    const x = padding + index * (barWidth + barGap);
+    const y = item.value >= 0 ? axisY - magnitude : axisY;
+    const cls = item.value >= 0 ? "return-bar-good" : "return-bar-bad";
+    const label = `${item.day} ${item.node_id} ${pctText(item.value)}`;
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, magnitude).toFixed(1)}"><title>${escapeHtml(label)}</title></rect>`;
+  }).join("");
+  const labels = rows.slice(-3).map((item) => `${item.day} ${item.node_id} ${pctText(item.value)}`).join(" | ");
+  return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="status-history daily return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(labels)}</span>`;
 }
 
 function dataCatalogFilters() {

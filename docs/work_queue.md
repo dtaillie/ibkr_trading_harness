@@ -214,6 +214,9 @@ strategy-private.
   - partial; Performance now exposes `/status_equity_rollups_export` and an
     Export Status CSV button for offline review of live/paper status-history
     daily, monthly, and yearly equity rollups.
+  - partial; Performance now charts live/paper status-history end-of-day equity
+    by node plus recent daily return bars, making current/published strategy
+    performance readable without opening archived artifacts.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows

@@ -50,6 +50,9 @@ Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.
 Use Export Status CSV to download live/paper status-history daily, monthly, and
 yearly equity rollups for offline review.
+The Live/Paper Status Rollups section also charts end-of-day equity by node and
+recent daily status-history returns, which is the quickest view when the
+strategy is publishing status but no archived artifact is loaded.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
