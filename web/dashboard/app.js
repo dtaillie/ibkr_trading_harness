@@ -1885,6 +1885,7 @@ function renderDataCatalogScanDiagnostics() {
         const reason = item.not_scanned_reason
           || ((item.sample_errors || [])[0] || {}).error
           || (item.scan_capped ? "catalog limit reached" : "none");
+        const sample = (item.sample_skipped_files || [])[0] || {};
         return row([
           `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
           statusText(status),
@@ -1894,9 +1895,12 @@ function renderDataCatalogScanDiagnostics() {
           escapeHtml(numberText(item.unsupported_file_count, 0)),
           `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
           escapeHtml(reason),
+          sample.path
+            ? `<span class="mono">${escapeHtml(sample.path)}</span><br><span class="muted">${escapeHtml(text(sample.reason))}</span>`
+            : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderDataStorageAudit() {

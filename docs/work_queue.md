@@ -328,7 +328,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       public-example/local-cache/private/local-path scope metadata, and Data
       Library root cards plus the Storage Audit table display that scope.
   - show why a root was not scanned
+    - partial; Catalog Scan Diagnostics now includes not-scanned reasons for
+      missing roots, non-directories, catalog-limit caps, and root scan errors.
   - show why a file was skipped
+    - partial; root scan summaries now include bounded skipped-file samples for
+      parser errors and unsupported extensions, and the Data Library table shows
+      a skipped sample path plus reason.
   - include a "show me everything on disk" diagnostic mode with bounded limits
 - Add a backend storage audit command and matching dashboard panel:
   - done; `scripts/audit_data_storage.py`, the storage-audit endpoint, and the

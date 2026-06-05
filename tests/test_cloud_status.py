@@ -966,6 +966,11 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert scan["parsed_count"] == 1
         assert scan["parse_error_count"] == 1
         assert scan["unsupported_file_count"] == 1
+        assert scan["sample_errors"][0]["path"].endswith("BROKEN_5min_sample.parquet")
+        assert scan["sample_unsupported_files"][0]["path"].endswith("notes.txt")
+        assert scan["sample_unsupported_files"][0]["reason"] == "unsupported extension .txt"
+        assert scan["sample_skipped_files"][0]["path"].endswith("BROKEN_5min_sample.parquet")
+        assert scan["sample_skipped_files"][1]["path"].endswith("notes.txt")
         assert scan["scan_duration_ms"] >= 0
         dataset = payload["datasets"][0]
         assert dataset["symbol"] == "SPY"

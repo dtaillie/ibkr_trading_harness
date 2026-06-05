@@ -958,6 +958,7 @@ def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[li
             "scan_capped": False,
             "not_scanned_reason": None,
             "sample_errors": [],
+            "sample_unsupported_files": [],
         }
         root_summaries.append(summary)
         if len(files) >= limit:
@@ -980,6 +981,11 @@ def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[li
                     continue
                 if path.suffix.lower() not in DATA_FILE_SUFFIXES:
                     summary["unsupported_file_count"] += 1
+                    if len(summary["sample_unsupported_files"]) < 5:
+                        summary["sample_unsupported_files"].append({
+                            "path": display_path(path),
+                            "reason": f"unsupported extension {path.suffix.lower() or 'none'}",
+                        })
                     continue
                 if len(files) >= limit:
                     summary["scan_capped"] = True
@@ -1318,6 +1324,22 @@ def build_data_catalog(
     modified_values = [str(item.get("modified_at")) for item in datasets if item.get("modified_at")]
     for row in root_summaries:
         row["skipped_candidate_count"] = max(0, int(row.get("candidate_count") or 0) - int(row.get("parsed_count") or 0) - int(row.get("parse_error_count") or 0))
+        row["sample_skipped_files"] = [
+            *[
+                {
+                    "path": item.get("path"),
+                    "reason": item.get("error") or "parser error",
+                }
+                for item in (row.get("sample_errors") or [])[:5]
+            ],
+            *[
+                {
+                    "path": item.get("path"),
+                    "reason": item.get("reason") or "unsupported file",
+                }
+                for item in (row.get("sample_unsupported_files") or [])[:5]
+            ],
+        ][:5]
     return {
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "root_summaries": root_summaries,
