@@ -461,6 +461,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - validate
   - run
   - inspect results
+  - partial; Workbench now has a visible Simulate From Saved Data guide that
+    tracks data selection, data quality, alignment, draft generation,
+    validation/run state, and artifact inspection. The form remains static;
+    schema-driven step rendering is still separate work.
 - Add clearer separation between public example configs and local private
   strategy configs.
 - Add schema-driven form rendering after config schemas are reliable.
@@ -475,6 +479,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - validate data alignment
   - run replay or simulated paper
   - open the resulting performance page
+  - partial; the Workbench guide now gives this path an explicit step status
+    and points users from saved data through alignment, draft, run, and artifact
+    inspection. Date-range-specific replay controls are still open.
 - Add a guided "paper monitor" path:
   - verify Gateway/API status
   - verify account state freshness

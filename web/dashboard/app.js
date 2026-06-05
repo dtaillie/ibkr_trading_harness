@@ -322,6 +322,82 @@ function renderConfigDataQuality() {
   ])).join("");
 }
 
+function latestWorkbenchRunForDraft(draftId) {
+  const runs = (state.configRuns && state.configRuns.runs) || [];
+  return runs.find((run) => !draftId || run.draft_id === draftId) || null;
+}
+
+function renderWorkbenchGuide() {
+  if (!$("workbench-guide") || !$("workbench-guide-note")) return;
+  const selected = selectedConfigDatasets();
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraftId = draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const alignmentWarnings = Number(alignment.warning_count || 0);
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : Boolean(validation && validation.valid);
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const steps = [
+    {
+      id: "data",
+      status: selected.length ? "ok" : "bad",
+      label: "Choose Data",
+      detail: selected.length
+        ? `${selected.length} selected: ${selected.map((item) => item.symbol).join(", ")}`
+        : "Select one or more scanned datasets in the Config Builder.",
+    },
+    {
+      id: "quality",
+      status: !selected.length ? "bad" : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad") ? "warn" : "ok",
+      label: "Review Quality",
+      detail: !selected.length
+        ? "No selected files to check yet."
+        : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad")
+          ? "One or more selected files has quality warnings; acknowledge only after review."
+          : "Selected files are marked ok by the catalog scanner.",
+    },
+    {
+      id: "alignment",
+      status: alignment.dataset_count ? (alignmentWarnings ? "warn" : "ok") : "bad",
+      label: "Inspect Alignment",
+      detail: alignment.dataset_count
+        ? `${numberText(alignment.common_timestamp_count, 0)} common timestamps${alignmentWarnings ? `; ${alignmentWarnings} warning${alignmentWarnings === 1 ? "" : "s"}` : ""}.`
+        : "Click Preview Alignment or Generate to verify timestamp overlap.",
+    },
+    {
+      id: "draft",
+      status: draft.yaml ? (draftValid ? "ok" : "warn") : "bad",
+      label: "Generate Draft",
+      detail: draft.yaml
+        ? `${text(draft.name || savedDraftId)} ${draftValid ? "is valid" : "needs validation review"}.`
+        : "Choose plugin, mode, and risk limits, then generate a draft.",
+    },
+    {
+      id: "run",
+      status: latestRun ? (latestRun.status === "completed" ? "ok" : "warn") : "bad",
+      label: "Run Simulation",
+      detail: latestRun
+        ? `${text(latestRun.action)} ${text(latestRun.status)} at ${text(latestRun.finished_at || latestRun.started_at)}.`
+        : "Save the draft, then run validate, replay, or simulated paper.",
+    },
+    {
+      id: "results",
+      status: hasArtifacts ? "ok" : "bad",
+      label: "Inspect Results",
+      detail: hasArtifacts
+        ? `${text(artifacts.draft_id)} artifacts loaded; Performance and Runs now have charts/detail.`
+        : "Open artifacts from a completed run to inspect equity, orders, fills, and logs.",
+    },
+  ];
+  const complete = steps.filter((step) => step.status === "ok").length;
+  $("workbench-guide-note").textContent = `${complete} of ${steps.length} steps ready`;
+  $("workbench-guide").innerHTML = steps.map((step) => (
+    `<div class="check-item status-${escapeHtml(step.status)}"><span>${escapeHtml(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div></div>`
+  )).join("");
+}
+
 function selectedCompareDatasets() {
   const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
@@ -2123,6 +2199,7 @@ function renderConfigBuilder() {
     if (!$(`${id}`).value && value !== undefined) $(`${id}`).value = String(value);
   }
   renderConfigDataQuality();
+  renderWorkbenchGuide();
 
   const draft = state.configDraft;
   if (!draft) {
@@ -2170,6 +2247,7 @@ function renderConfigAlignment(alignment) {
   $("config-alignment").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  renderWorkbenchGuide();
 }
 
 function draftValidationById() {
@@ -2233,6 +2311,7 @@ function applyRiskPreset() {
 function renderWorkbenchRuns() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   renderDraftValidations();
+  renderWorkbenchGuide();
   $("config-drafts-body").innerHTML = drafts.length
     ? drafts.map((draft) => row([
         escapeHtml(draft.draft_id),
@@ -3196,6 +3275,7 @@ async function validateDrafts() {
   state.draftValidations = await fetchJson("/config_draft_validations");
   renderDraftValidations();
   renderWorkbenchRuns();
+  renderWorkbenchGuide();
   $("last-refresh").textContent = `Draft validations refreshed: ${new Date().toLocaleString()}`;
 }
 
@@ -3205,6 +3285,7 @@ async function loadRunArtifacts(runId) {
   renderWorkbenchArtifacts();
   renderPerformance();
   renderOverview();
+  renderWorkbenchGuide();
   $("last-refresh").textContent = `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -3245,6 +3326,7 @@ async function runConfigDraft(event) {
   renderRunComparison();
   renderWorkbenchStatus();
   renderCleanupPlan();
+  renderWorkbenchGuide();
   $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
@@ -3439,6 +3521,7 @@ function init() {
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
+  $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-catalog-limit").addEventListener("change", () => {
