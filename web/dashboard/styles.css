@@ -605,6 +605,7 @@ section {
 .health-grid,
 .position-grid,
 .change-grid,
+.action-card-grid,
 .broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -619,6 +620,7 @@ section {
 .health-card,
 .position-card,
 .change-card,
+.action-card,
 .empty-card,
 .broker-capability-card {
   padding: 14px;
@@ -746,6 +748,7 @@ section {
 .health-card span,
 .position-card span,
 .change-card span,
+.action-card span,
 .empty-card span {
   display: block;
   color: var(--muted);
@@ -756,6 +759,7 @@ section {
 .health-card strong,
 .position-card strong,
 .change-card strong,
+.action-card strong,
 .empty-card strong {
   display: block;
   margin-top: 8px;
@@ -766,6 +770,7 @@ section {
 .health-card small,
 .position-card small,
 .change-card small,
+.action-card small,
 .empty-card span {
   display: block;
   margin-top: 7px;
@@ -773,6 +778,25 @@ section {
   font-size: 12px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.action-card-grid {
+  margin: 10px 0 12px;
+}
+
+.action-card.status-bad {
+  border-color: rgba(180, 35, 24, 0.24);
+  background: #fff7f5;
+}
+
+.action-card.status-warn {
+  border-color: rgba(181, 112, 0, 0.26);
+  background: #fffaf0;
+}
+
+.action-card.status-ok {
+  border-color: rgba(31, 122, 76, 0.22);
+  background: #f7fbf8;
 }
 
 .checklist {

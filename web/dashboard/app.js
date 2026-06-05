@@ -3454,6 +3454,7 @@ function renderDataStorageAudit() {
   $("data-storage-audit-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  $("data-storage-audit-actions").innerHTML = dataStorageAuditActions(audit);
   const rows = [
     ...configuredRows.map((item) => ({ ...item, scope: "configured" })),
     ...suggestedRows.map((item) => ({ ...item, scope: "suggested" })),
@@ -3480,6 +3481,86 @@ function renderDataStorageAudit() {
         ]);
       }).join("")
     : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function dataStorageAuditActions(audit = {}) {
+  const configuredRows = audit.configured_roots || [];
+  const suggestedRows = audit.suggested_roots || [];
+  const rows = [...configuredRows, ...suggestedRows];
+  const configuredFiles = Number(audit.configured_file_count || 0);
+  const suggestedFiles = Number(audit.suggested_file_count || 0);
+  const hiddenConfigured = Number(audit.hidden_configured_file_count || 0);
+  const catalogErrors = Number(audit.catalog_error_count || 0);
+  const cappedRows = rows.filter((rowItem) => rowItem.scan_capped);
+  const errorRoots = rows.filter((rowItem) => Number(rowItem.error_count || 0) > 0);
+  const cards = [];
+  if (!audit.generated_at) {
+    cards.push({
+      status: "waiting",
+      title: "Run Audit",
+      note: "Refresh Data Library to scan configured and suggested saved-data roots.",
+    });
+  } else if (!configuredFiles && suggestedFiles) {
+    cards.push({
+      status: "warn",
+      title: "Configure Suggested Root",
+      note: `${numberText(suggestedFiles, 0)} saved file${suggestedFiles === 1 ? "" : "s"} exist in suggested roots. Copy data_roots YAML or start the dashboard with those roots.`,
+    });
+  } else if (!configuredFiles && !suggestedFiles) {
+    cards.push({
+      status: "bad",
+      title: "No Saved Files Found",
+      note: "Fetch historical data or add the cache/history directory that contains CSV/parquet files.",
+    });
+  } else {
+    cards.push({
+      status: "ok",
+      title: "Roots Scanned",
+      note: `${numberText(configuredFiles, 0)} configured file${configuredFiles === 1 ? "" : "s"} and ${numberText(suggestedFiles, 0)} suggested-root file${suggestedFiles === 1 ? "" : "s"} were audited.`,
+    });
+  }
+  if (configuredFiles && suggestedFiles) {
+    cards.push({
+      status: "warn",
+      title: "Add Suggested Roots",
+      note: `${numberText(suggestedFiles, 0)} additional saved file${suggestedFiles === 1 ? "" : "s"} exist outside configured roots.`,
+    });
+  }
+  if (hiddenConfigured) {
+    cards.push({
+      status: "warn",
+      title: "Inspect Hidden Files",
+      note: `${numberText(hiddenConfigured, 0)} configured-root file${hiddenConfigured === 1 ? "" : "s"} did not appear in the bounded catalog result. Raise catalog limit or inspect sample hidden paths.`,
+    });
+  }
+  if (cappedRows.length) {
+    cards.push({
+      status: "warn",
+      title: "Raise Disk Scan Limit",
+      note: `${numberText(cappedRows.length, 0)} root${cappedRows.length === 1 ? "" : "s"} hit the per-root scan limit of ${numberText(audit.scan_limit, 0)} files.`,
+    });
+  }
+  if (catalogErrors || errorRoots.length) {
+    cards.push({
+      status: "bad",
+      title: "Review Parser Errors",
+      note: `${numberText(catalogErrors, 0)} catalog parser error${catalogErrors === 1 ? "" : "s"} and ${numberText(errorRoots.length, 0)} root scan error${errorRoots.length === 1 ? "" : "s"} need review in scan diagnostics or the audit table.`,
+    });
+  }
+  if (audit.status === "ok" && cards.length === 1) {
+    cards.push({
+      status: "ok",
+      title: "Ready To Browse",
+      note: "Use Symbol Directory, Data Detail, or Compare Saved Data to inspect saved files before replay.",
+    });
+  }
+  return cards.slice(0, 5).map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderDataCoverage() {

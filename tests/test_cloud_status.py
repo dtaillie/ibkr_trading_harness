@@ -593,6 +593,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-storage-scan-limit" in html
         assert "export-data-catalog-scan-csv" in html
         assert "export-data-storage-audit-csv" in html
+        assert "data-storage-audit-actions" in html
         assert "data-storage-audit-body" in html
         assert "<th>Assets</th>" in html
         assert "<th>Bars</th>" in html

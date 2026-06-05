@@ -472,6 +472,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - summarize missing symbols, malformed files, unsupported extensions, and
     capped scans
   - recommend config changes when real cache roots are absent
+    - partial; Storage Audit now renders action cards that recommend adding
+      suggested roots, raising scan limits, inspecting hidden configured-root
+      files, or reviewing parser/root scan errors before using the catalog.
 - Add historical-data visualization:
   - line/candlestick chart for saved files
     - partial; saved files now have a range-filtered close-price chart,
