@@ -2617,15 +2617,32 @@ def annotate_fetch_output(row: dict[str, Any], data_roots: list[Path]) -> dict[s
     out = dict(row)
     out["data_detail_path"] = None
     out["data_detail_available"] = False
+    out["data_detail_status"] = "no_path"
+    out["data_detail_reason"] = "output row has no path"
     raw_path = str(row.get("path") or "").strip()
     if not raw_path:
         return out
-    try:
-        path, rel_path = data_path_allowed(raw_path, data_roots)
-    except ValueError:
+    candidate = Path(raw_path)
+    path = candidate if candidate.is_absolute() else ROOT / candidate
+    path = path.resolve()
+    if path.suffix.lower() not in DATA_FILE_SUFFIXES:
+        out["data_detail_status"] = "unsupported_file"
+        out["data_detail_reason"] = "output path is not a supported CSV/parquet data file"
         return out
+    resolved_roots = [root.resolve() for root in data_roots]
+    if not any(path.is_relative_to(root) for root in resolved_roots):
+        out["data_detail_status"] = "outside_data_roots"
+        out["data_detail_reason"] = "data file must be inside a configured data root"
+        return out
+    rel_path = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path)
     out["data_detail_path"] = rel_path
-    out["data_detail_available"] = path.exists()
+    if path.exists():
+        out["data_detail_available"] = True
+        out["data_detail_status"] = "visible"
+        out["data_detail_reason"] = "visible in configured data roots"
+    else:
+        out["data_detail_status"] = "missing_file"
+        out["data_detail_reason"] = "path is under a configured data root but the file is missing"
     return out
 
 
@@ -2645,11 +2662,13 @@ def load_fetch_manifest_detail(
     symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
     symbols = list(symbols_map.values())
     summary = summarize_fetch_manifest(path, root=root)
-    annotated_outputs = [
+    annotated_all_outputs = [
         annotate_fetch_output(row, data_roots or [])
-        for row in outputs[-limit:]
+        for row in outputs
         if isinstance(row, dict)
     ]
+    output_visibility_counts = count_values(annotated_all_outputs, "data_detail_status")
+    annotated_outputs = annotated_all_outputs[-limit:]
     return {
         **summary,
         "schema_version": payload.get("schema_version"),
@@ -2659,6 +2678,12 @@ def load_fetch_manifest_detail(
         "symbols_requested": payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [],
         "symbols": symbols,
         "outputs": annotated_outputs,
+        "output_visibility_counts": output_visibility_counts,
+        "output_visible_count": int(output_visibility_counts.get("visible") or 0),
+        "output_missing_file_count": int(output_visibility_counts.get("missing_file") or 0),
+        "output_outside_data_roots_count": int(output_visibility_counts.get("outside_data_roots") or 0),
+        "output_no_path_count": int(output_visibility_counts.get("no_path") or 0),
+        "output_unsupported_file_count": int(output_visibility_counts.get("unsupported_file") or 0),
         "errors": errors[-limit:],
         "events": events[-limit:],
         "output_total": len(outputs),

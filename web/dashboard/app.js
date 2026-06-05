@@ -3319,6 +3319,7 @@ function renderFetchManifestDetail() {
     ["Bar / Range", `${text(parameters.bar_size)} ${rangeLabel(plan.range_start || parameters.start, plan.range_end || parameters.end || parameters.duration)}`],
     ["Symbols", jsonDrilldown(counts.status_counts || {}, countSummary(counts.status_counts || {})), true],
     ["Outputs", `${numberText(detail.output_total, 0)} total / rows ${numberText(counts.rows, 0)}`],
+    ["Data Library Visibility", jsonDrilldown(detail.output_visibility_counts || {}, countSummary(detail.output_visibility_counts || {})), true],
     ["Output Statuses", jsonDrilldown(counts.output_status_counts || {}, countSummary(counts.output_status_counts || {})), true],
     ["Errors", `${escapeHtml(numberText(detail.error_total, 0))} total ${jsonDrilldown(counts.error_kind_counts || {}, countSummary(counts.error_kind_counts || {}))}`, true],
     ["Retries", `${numberText(counts.retry_events, 0)} retry events`],
@@ -3389,9 +3390,18 @@ function renderFetchManifestDetail() {
         `<span class="mono">${escapeHtml(item.path)}</span>`,
         item.data_detail_available
           ? `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(item.data_detail_path)}">Inspect Data</button>`
-          : `<span class="muted">not in data roots</span>`,
+          : `<span class="muted">${escapeHtml(fetchOutputVisibilityLabel(item))}</span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function fetchOutputVisibilityLabel(item) {
+  if (!item || item.data_detail_available) return "visible";
+  if (item.data_detail_status === "missing_file") return "missing file";
+  if (item.data_detail_status === "outside_data_roots") return "outside data roots";
+  if (item.data_detail_status === "no_path") return "no path";
+  if (item.data_detail_status === "unsupported_file") return "unsupported file";
+  return text(item.data_detail_reason || item.data_detail_status || "not inspectable");
 }
 
 function fetchRecoveryCards(detail, resumeCommand = "") {
@@ -3409,6 +3419,12 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
   const waitSeconds = Number(counts.pacing_wait_seconds || 0);
   const errorKinds = counts.error_kind_counts || {};
   const permissionErrors = Number(errorKinds.permission || 0);
+  const visibleOutputs = Number(detail.output_visible_count || 0);
+  const missingOutputs = Number(detail.output_missing_file_count || 0);
+  const outsideOutputs = Number(detail.output_outside_data_roots_count || 0);
+  const noPathOutputs = Number(detail.output_no_path_count || 0);
+  const unsupportedOutputs = Number(detail.output_unsupported_file_count || 0);
+  const outputTotal = Number(detail.output_total || 0);
   const hasFailures = failedSymbols > 0 || failedChunks > 0 || errors > 0;
   const recoverStatus = permissionErrors > 0
     ? "bad"
@@ -3423,6 +3439,16 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
         ? "Review errors and rerun with the same inputs after fixing the cause."
         : "No failed symbols or chunks recorded.";
   const coverageStatus = failedSymbols > 0 ? "warn" : successSymbols > 0 ? "ok" : "bad";
+  const visibilityStatus = !outputTotal
+    ? "bad"
+    : missingOutputs || outsideOutputs || noPathOutputs || unsupportedOutputs
+      ? "warn"
+      : "ok";
+  const visibilityNote = !outputTotal
+    ? "No output paths are recorded in this manifest."
+    : missingOutputs || outsideOutputs || noPathOutputs || unsupportedOutputs
+      ? `${numberText(missingOutputs, 0)} missing / ${numberText(outsideOutputs, 0)} outside roots / ${numberText(noPathOutputs, 0)} no path / ${numberText(unsupportedOutputs, 0)} unsupported.`
+      : "Every recorded output is inspectable from Data Library.";
   const retryStatus = retryEvents > 0 ? "warn" : "ok";
   const pacingStatus = waits > 0 ? "warn" : "ok";
   const cards = [
@@ -3437,6 +3463,12 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
       title: recoverStatus === "ok" ? "Ready" : recoverStatus === "warn" ? "Retry" : "Blocked",
       label: "Recovery",
       note: recoverNote,
+    },
+    {
+      status: visibilityStatus,
+      title: `${numberText(visibleOutputs, 0)} / ${numberText(outputTotal, 0)}`,
+      label: "Data Visibility",
+      note: visibilityNote,
     },
     {
       status: retryStatus,

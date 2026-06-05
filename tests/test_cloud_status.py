@@ -119,7 +119,12 @@ def post_json(base_url: str, path: str, payload: dict) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.parquet") -> None:
+def write_fetch_manifest(
+    path: Path,
+    *,
+    output_path: str = "cache/ibkr/SPY_5min.parquet",
+    extra_outputs: list[dict] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -164,7 +169,8 @@ def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.
                         "elapsed_seconds": 0.4,
                         "attempt_count": 1,
                     }
-                ],
+                ]
+                + (extra_outputs or []),
                 "errors": [
                     {
                         "timestamp": "2026-01-02T14:31:00+00:00",
@@ -1125,7 +1131,32 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         + "\n",
         encoding="utf-8",
     )
-    write_fetch_manifest(manifest_root / "stock_history_20260102.json", output_path=str(data_file))
+    missing_data_file = data_root / "QQQ_5min.csv"
+    outside_data_file = tmp_path / "outside" / "IWM_5min.csv"
+    write_fetch_manifest(
+        manifest_root / "stock_history_20260102.json",
+        output_path=str(data_file),
+        extra_outputs=[
+            {
+                "timestamp": "2026-01-02T14:31:10+00:00",
+                "symbol": "QQQ",
+                "status": "ok",
+                "rows": 0,
+                "path": str(missing_data_file),
+                "elapsed_seconds": 0.2,
+                "attempt_count": 1,
+            },
+            {
+                "timestamp": "2026-01-02T14:31:20+00:00",
+                "symbol": "IWM",
+                "status": "ok",
+                "rows": 0,
+                "path": str(outside_data_file),
+                "elapsed_seconds": 0.1,
+                "attempt_count": 1,
+            },
+        ],
+    )
     server = create_server(
         "127.0.0.1",
         0,
@@ -1161,13 +1192,26 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
         assert detail["job_id"] == "stock_history_20260102"
-        assert detail["output_total"] == 1
+        assert detail["output_total"] == 3
         assert detail["error_total"] == 1
         assert detail["symbols"][0]["symbol"] in {"QQQ", "SPY"}
         assert detail["outputs"][0]["path"] == str(data_file)
         assert detail["outputs"][0]["data_detail_available"] is True
         assert detail["outputs"][0]["data_detail_path"] == str(data_file)
+        assert detail["outputs"][0]["data_detail_status"] == "visible"
         assert detail["outputs"][0]["elapsed_seconds"] == 0.4
+        assert detail["outputs"][1]["data_detail_available"] is False
+        assert detail["outputs"][1]["data_detail_status"] == "missing_file"
+        assert detail["outputs"][2]["data_detail_available"] is False
+        assert detail["outputs"][2]["data_detail_status"] == "outside_data_roots"
+        assert detail["output_visibility_counts"] == {
+            "missing_file": 1,
+            "outside_data_roots": 1,
+            "visible": 1,
+        }
+        assert detail["output_visible_count"] == 1
+        assert detail["output_missing_file_count"] == 1
+        assert detail["output_outside_data_roots_count"] == 1
         assert detail["errors"][0]["kind"] == "permission"
         assert detail["errors"][0]["attempt_count"] == 2
         assert detail["counts"]["retry_events"] == 1

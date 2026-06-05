@@ -533,6 +533,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to
       Data Detail, manifest-driven resume remains open
+    - partial; Fetch Detail now summarizes output visibility as visible,
+      missing-under-root, outside configured roots, or no-path, and surfaces
+      those counts in recovery cards plus per-output status labels.
 
 ## P1: Fetch jobs and backend data reliability
 
