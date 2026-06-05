@@ -921,6 +921,11 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
                 "      allowed_action_classes:",
                 "        - read_only",
                 "        - control",
+                "  network_access:",
+                "    enabled: true",
+                "    allowed_client_networks:",
+                "      - 127.0.0.1/32",
+                "    trust_x_forwarded_for: true",
                 "  command_rate_limit:",
                 "    enabled: true",
                 "    window_seconds: 12",
@@ -952,6 +957,11 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert settings["auth_tokens"][0]["token_env"] == "READ_TOKEN_ENV"
     assert settings["auth_tokens"][0]["command_scopes"]["allowed_action_classes"] == {"read_only"}
     assert settings["auth_tokens"][1]["command_scopes"]["allowed_action_classes"] == {"read_only", "control"}
+    assert status_server.display_network_access_config(settings["network_access"]) == {
+        "enabled": True,
+        "allowed_client_networks": ["127.0.0.1/32"],
+        "trust_x_forwarded_for": True,
+    }
     assert settings["command_rate_limit"] == {"enabled": True, "window_seconds": 12, "max_per_node": 7}
     assert settings["command_scopes"] == {
         "enabled": True,
@@ -3085,6 +3095,56 @@ def test_cloud_status_server_requires_bearer_auth(tmp_path, monkeypatch):
         with request.urlopen(authorized, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["ok"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_enforces_network_allowlist(tmp_path):
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        network_access={"enabled": True, "allowed_client_networks": ["127.0.0.1/32"]},
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/status", timeout=5) as resp:
+            assert resp.status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_enforces_trusted_forwarded_network_allowlist(tmp_path):
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        network_access={
+            "enabled": True,
+            "allowed_client_networks": ["203.0.113.0/24"],
+            "trust_x_forwarded_for": True,
+        },
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        allowed_req = request.Request(f"{base}/status", headers={"X-Forwarded-For": "203.0.113.10"})
+        with request.urlopen(allowed_req, timeout=5) as resp:
+            assert resp.status == 200
+
+        blocked_req = request.Request(f"{base}/status", headers={"X-Forwarded-For": "198.51.100.10"})
+        try:
+            request.urlopen(blocked_req, timeout=5)
+            raise AssertionError("expected network allowlist rejection")
+        except error.HTTPError as exc:
+            assert exc.code == 403
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "client IP is not allowed: 198.51.100.10"
     finally:
         server.shutdown()
         server.server_close()

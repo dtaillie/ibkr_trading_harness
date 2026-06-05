@@ -57,6 +57,10 @@ dashboard:
   #   - token_env: TRADING_STATUS_CONTROL_TOKEN
   #     role: operator
   #     allowed_action_classes: [read_only, control]
+  network_access:
+    enabled: false
+    allowed_client_networks: []
+    trust_x_forwarded_for: false
   command_rate_limit:
     enabled: true
     window_seconds: 60

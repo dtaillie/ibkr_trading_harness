@@ -8,6 +8,7 @@ import csv
 import hashlib
 import html
 import io
+import ipaddress
 import json
 import math
 import os
@@ -965,6 +966,7 @@ def dashboard_server_settings(
         "fetch_manifest_roots": None,
         "auth_token_env": None,
         "auth_tokens": [],
+        "network_access": {"enabled": False, "allowed_client_networks": [], "trust_x_forwarded_for": False},
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
         "command_scopes": normalize_command_scope_policy({}),
     }
@@ -985,6 +987,11 @@ def dashboard_server_settings(
             settings["auth_token_env"] = str(dashboard["auth_token_env"])
         if dashboard.get("auth_tokens") is not None:
             settings["auth_tokens"] = normalize_auth_token_configs(dashboard["auth_tokens"])
+        if dashboard.get("network_access") is not None:
+            network_access = dashboard["network_access"]
+            if not isinstance(network_access, dict):
+                raise ValueError("dashboard.network_access must be a mapping")
+            settings["network_access"] = normalize_network_access_config(network_access)
         if dashboard.get("data_roots") is not None:
             raw_roots = dashboard["data_roots"]
             if not isinstance(raw_roots, list):
@@ -4752,6 +4759,43 @@ def normalize_auth_token_configs(raw: list[Any] | None) -> list[dict[str, Any]]:
     return tokens
 
 
+def normalize_network_access_config(raw: dict[str, Any] | None) -> dict[str, Any]:
+    config = {
+        "enabled": False,
+        "allowed_client_networks": [],
+        "trust_x_forwarded_for": False,
+    }
+    if not raw:
+        return config
+    if raw.get("enabled") is not None:
+        config["enabled"] = bool(raw.get("enabled"))
+    if raw.get("trust_x_forwarded_for") is not None:
+        config["trust_x_forwarded_for"] = bool(raw.get("trust_x_forwarded_for"))
+    if raw.get("allowed_client_networks") is not None:
+        networks = raw["allowed_client_networks"]
+        if not isinstance(networks, list):
+            raise ValueError("dashboard.network_access.allowed_client_networks must be a list")
+        parsed = []
+        for item in networks:
+            value = str(item).strip()
+            if not value:
+                continue
+            try:
+                parsed.append(ipaddress.ip_network(value, strict=False))
+            except ValueError as exc:
+                raise ValueError(f"invalid dashboard.network_access.allowed_client_networks entry: {value}") from exc
+        config["allowed_client_networks"] = parsed
+    return config
+
+
+def display_network_access_config(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": bool(config.get("enabled")),
+        "allowed_client_networks": [str(item) for item in config.get("allowed_client_networks") or []],
+        "trust_x_forwarded_for": bool(config.get("trust_x_forwarded_for")),
+    }
+
+
 def load_commands(state_dir: Path) -> list[dict[str, Any]]:
     path = commands_path(state_dir)
     if not path.exists():
@@ -5209,6 +5253,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     state_dir = Path("paper_logs/cloud_status_server")
     auth_token_env: str | None = None
     auth_tokens: list[dict[str, Any]] = []
+    network_access: dict[str, Any] = normalize_network_access_config({})
     dashboard_dir = DEFAULT_DASHBOARD_DIR
     data_roots = list(DEFAULT_DATA_ROOTS)
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
@@ -5219,6 +5264,31 @@ class StatusHandler(BaseHTTPRequestHandler):
         if not self.auth_token_env:
             return None
         return os.getenv(self.auth_token_env)
+
+    def client_ip_for_access_check(self) -> str:
+        if self.network_access.get("trust_x_forwarded_for"):
+            forwarded = str(self.headers.get("X-Forwarded-For") or "").split(",", 1)[0].strip()
+            if forwarded:
+                return forwarded
+        return str(self.client_address[0])
+
+    def require_network_access(self) -> bool:
+        if not self.network_access.get("enabled"):
+            return True
+        networks = self.network_access.get("allowed_client_networks") or []
+        if not networks:
+            json_response(self, 403, {"error": "network access is enabled but no client networks are allowed"})
+            return False
+        raw_ip = self.client_ip_for_access_check()
+        try:
+            client_ip = ipaddress.ip_address(raw_ip)
+        except ValueError:
+            json_response(self, 403, {"error": f"client IP is invalid or not allowed: {raw_ip}"})
+            return False
+        if any(client_ip in network for network in networks):
+            return True
+        json_response(self, 403, {"error": f"client IP is not allowed: {raw_ip}"})
+        return False
 
     def configured_auth_tokens(self) -> list[dict[str, Any]]:
         configs = []
@@ -5267,6 +5337,8 @@ class StatusHandler(BaseHTTPRequestHandler):
         return True
 
     def do_POST(self) -> None:
+        if not self.require_network_access():
+            return
         if not self.require_auth():
             return
         if self.path == "/status":
@@ -5453,6 +5525,8 @@ class StatusHandler(BaseHTTPRequestHandler):
             return
 
     def do_GET(self) -> None:
+        if not self.require_network_access():
+            return
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         node_id = params.get("node_id", [None])[0]
@@ -5946,6 +6020,7 @@ def create_server(
     *,
     auth_token_env: str | None = None,
     auth_tokens: list[dict[str, Any]] | None = None,
+    network_access: dict[str, Any] | None = None,
     dashboard_dir: Path = DEFAULT_DASHBOARD_DIR,
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
@@ -5958,6 +6033,7 @@ def create_server(
     Handler.state_dir = state_dir
     Handler.auth_token_env = auth_token_env
     Handler.auth_tokens = normalize_auth_token_configs(auth_tokens)
+    Handler.network_access = normalize_network_access_config(network_access)
     Handler.dashboard_dir = dashboard_dir
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
@@ -6009,6 +6085,7 @@ def main() -> None:
         settings["state_dir"],
         auth_token_env=settings["auth_token_env"],
         auth_tokens=settings["auth_tokens"],
+        network_access=settings["network_access"],
         dashboard_dir=settings["dashboard_dir"],
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],

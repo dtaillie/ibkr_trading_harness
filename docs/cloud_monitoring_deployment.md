@@ -78,6 +78,8 @@ Minimum checks before exposing it:
 - HTTPS only.
 - Bearer-token auth enabled.
 - Firewall restricts source IPs if practical.
+- `dashboard.network_access` restricts direct receiver clients to private VPN,
+  proxy, or known management networks.
 - No broker credentials or private configs on the host.
 - Logs do not include account IDs, raw strategy signals, or order secrets.
 - Dashboard docs endpoint only serves allowlisted Markdown files.
@@ -180,6 +182,23 @@ dashboard:
 Both tokens can read dashboard/status endpoints. Only the operator token can
 queue pause/resume control commands, and launcher commands still need explicit
 server and local opt-in.
+
+Use `dashboard.network_access` as an extra local guard:
+
+```yaml
+dashboard:
+  network_access:
+    enabled: true
+    allowed_client_networks:
+      - 127.0.0.1/32
+      - ::1/128
+      - 100.64.0.0/10   # example Tailscale CGNAT range
+    trust_x_forwarded_for: false
+```
+
+Only set `trust_x_forwarded_for: true` when a trusted reverse proxy overwrites
+that header and direct access to the Python receiver is blocked by firewall or
+private networking.
 
 The server-side command audit is hash-chained. Each appended audit row includes
 `prev_hash` and `record_hash`, and `/command_audit` returns an `integrity`

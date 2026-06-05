@@ -16,6 +16,14 @@ dashboard:
   #   - token_env: TRADING_STATUS_CONTROL_TOKEN
   #     role: operator
   #     allowed_action_classes: [read_only, control]
+  network_access:
+    enabled: true
+    # When using the example compose file behind nginx on the same host, direct
+    # app traffic should come from localhost.
+    allowed_client_networks:
+      - 127.0.0.1/32
+      - ::1/128
+    trust_x_forwarded_for: false
   command_rate_limit:
     enabled: true
     window_seconds: 60

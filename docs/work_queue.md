@@ -657,6 +657,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `ops/cloud/status-receiver.compose.example.yaml`, an nginx reverse-proxy
     template, a local status-publisher timer, and a command-worker service.
     Fully hardened provider-specific infrastructure remains open.
+  - partial; hosted/local receiver configs now support
+    `dashboard.network_access` with CIDR/IP allowlists and optional trusted
+    `X-Forwarded-For` handling, so deployments can restrict direct receiver
+    clients to localhost, VPN, proxy, or management networks. Remaining gap:
+    provider-specific firewall/IaC examples.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity
