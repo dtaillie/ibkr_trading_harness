@@ -414,6 +414,107 @@ function renderPageIntro(view = activeView()) {
   pageIntroAction("page-intro-secondary", content.secondary);
 }
 
+function helpSetupGapItems() {
+  const status = state.status || {};
+  const diagnostics = state.diagnostics || {};
+  const catalog = state.dataCatalog || {};
+  const fetchManifests = state.fetchManifests || {};
+  const drafts = state.configDrafts || {};
+  const runs = status.runs || [];
+  const alerts = status.alerts || [];
+  const gateway = status.gateway || {};
+  const dataRoots = diagnostics.data_roots || [];
+  const activeRoots = dataRoots.filter((root) => root.exists && root.is_dir);
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const datasets = catalog.datasets || [];
+  const cappedRoots = (catalog.root_summaries || []).filter((root) => root.scan_capped);
+  const manifests = fetchManifests.manifests || [];
+  const draftRows = drafts.drafts || [];
+  const statusLoaded = Object.keys(status).length > 0;
+  const gatewayEnabled = Boolean(gateway.enabled);
+  return [
+    {
+      status: statusLoaded ? runs.length ? "ok" : "warn" : "bad",
+      title: statusLoaded ? runs.length ? "Telemetry is publishing" : "Status loaded, no run rows" : "No status snapshot loaded",
+      label: "Overview",
+      note: statusLoaded
+        ? runs.length
+          ? `${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"} visible; ${numberText(alerts.length, 0)} alert${alerts.length === 1 ? "" : "s"}`
+          : "The receiver is reachable, but no runner telemetry is publishing recent run rows."
+        : "Start the status publisher or point the dashboard at a state directory with current status.",
+      href: "#overview",
+    },
+    {
+      status: gatewayEnabled ? gateway.reachable ? "ok" : "bad" : "warn",
+      title: gatewayEnabled ? gateway.reachable ? "Gateway/API check is reachable" : "Gateway/API check is not reachable" : "Gateway check is disabled",
+      label: "Operations",
+      note: gatewayEnabled
+        ? gateway.reachable
+          ? `${text(gateway.host)}:${text(gateway.port)} responded`
+          : text(gateway.error || "Gateway is enabled but not reachable")
+        : "This is fine for offline replay; enable Gateway checks for paper/live monitoring.",
+      href: "#operations",
+    },
+    {
+      status: activeRoots.length ? suggestedRoots.length ? "warn" : "ok" : "bad",
+      title: activeRoots.length ? suggestedRoots.length ? "Data roots work, but extra roots exist" : "Configured data roots are readable" : "No readable data root configured",
+      label: "Data Library",
+      note: activeRoots.length
+        ? `${numberText(activeRoots.length, 0)} active root${activeRoots.length === 1 ? "" : "s"}; ${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} with data`
+        : "Add a local cache/history directory under dashboard.data_roots.",
+      href: "#data",
+    },
+    {
+      status: datasets.length ? cappedRoots.length ? "warn" : "ok" : "bad",
+      title: datasets.length ? cappedRoots.length ? "Saved data is visible but scan is capped" : "Saved data is visible" : "No saved datasets loaded",
+      label: "Data Library",
+      note: datasets.length
+        ? `${numberText(datasets.length, 0)} dataset${datasets.length === 1 ? "" : "s"} loaded; catalog limit ${numberText(catalog.limit || 0, 0)}`
+        : "Fetch data, add data roots, or inspect Storage Audit for roots outside the scan.",
+      href: "#data",
+    },
+    {
+      status: manifests.length ? "ok" : "warn",
+      title: manifests.length ? "Fetch manifests are visible" : "No fetch manifests visible",
+      label: "Fetch Jobs",
+      note: manifests.length
+        ? `${numberText(manifests.length, 0)} latest manifest${manifests.length === 1 ? "" : "s"} loaded`
+        : "Fetch Jobs will stay empty until fetch scripts write manifests under dashboard.fetch_manifest_roots.",
+      href: "#fetch",
+    },
+    {
+      status: draftRows.length ? "ok" : datasets.length ? "warn" : "bad",
+      title: draftRows.length ? "Workbench drafts exist" : datasets.length ? "Ready to create a replay draft" : "Workbench needs saved data first",
+      label: "Workbench",
+      note: draftRows.length
+        ? `${numberText(draftRows.length, 0)} draft${draftRows.length === 1 ? "" : "s"} available for validation/run review`
+        : datasets.length
+          ? "Select scanned data, preview alignment, then generate a public-safe draft."
+          : "Load at least one saved dataset before generating a replay or simulated-paper draft.",
+      href: "#workbench",
+    },
+  ];
+}
+
+function renderHelpSetupGaps() {
+  if (!$("help-setup-gaps") || !$("help-setup-note")) return;
+  const items = helpSetupGapItems();
+  const badCount = items.filter((item) => item.status === "bad").length;
+  const warnCount = items.filter((item) => item.status === "warn").length;
+  $("help-setup-note").textContent = badCount
+    ? `${badCount} setup blocker${badCount === 1 ? "" : "s"} to address first`
+    : warnCount
+      ? `${warnCount} setup warning${warnCount === 1 ? "" : "s"}`
+      : "Core setup surfaces look ready";
+  $("help-setup-gaps").innerHTML = items.map((item) => `
+    <a class="action-card status-${escapeHtml(item.status)}" href="${escapeHtml(item.href)}">
+      <span>${statusText(item.status)}</span>
+      <strong>${escapeHtml(item.title)}</strong>
+      <small>${escapeHtml(item.label)} - ${escapeHtml(item.note)}</small>
+    </a>
+  `).join("");
+}
+
 function latestTelemetryRun() {
   const runs = (state.status && state.status.runs) || [];
   if (!runs.length) return null;
@@ -7521,6 +7622,7 @@ function renderAll() {
   renderCommands();
   renderResults();
   renderCommandAudit();
+  renderHelpSetupGaps();
   renderPageIntro();
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
 }

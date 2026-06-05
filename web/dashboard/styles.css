@@ -870,6 +870,25 @@ section {
   margin: 10px 0 12px;
 }
 
+.action-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.action-card strong,
+.action-card small {
+  display: block;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+
+.action-card small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .action-card.status-bad {
   border-color: rgba(180, 35, 24, 0.24);
   background: #fff7f5;

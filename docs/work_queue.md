@@ -321,6 +321,10 @@ strategy-private.
       routes users to current health, performance, saved data, simulation, run
       drilldowns, and operations diagnostics before dense reference cards.
   - empty states that explain what to do next instead of showing blank tables
+    - partial; Help now has a dynamic Current Setup Gaps panel that reads
+      sanitized dashboard state and links users to the right page for missing
+      telemetry, Gateway/API checks, unreadable data roots, catalog caps,
+      missing fetch manifests, and missing Workbench drafts.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots

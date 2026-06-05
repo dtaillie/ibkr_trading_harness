@@ -24,7 +24,10 @@ such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 
 Open Help when you are not sure where to start. The Start Here panel maps the
 main questions to pages: current health, performance, saved data, simulation,
-run drilldowns, and operations diagnostics.
+run drilldowns, and operations diagnostics. The Current Setup Gaps panel is
+state-aware: after refresh it points at missing telemetry, disabled or
+unreachable Gateway checks, unreadable data roots, catalog caps, missing fetch
+manifests, and missing Workbench drafts.
 
 ## Configure Data Roots
 
