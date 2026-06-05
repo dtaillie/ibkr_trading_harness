@@ -2062,6 +2062,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["config"]["data"]["start"] == "2026-01-02"
         assert draft["config"]["data"]["end"] == "2026-01-02"
         assert draft["config"]["data"]["files"] == {"SPY": str(data_file)}
+        assert draft["config"]["control"]["pause_marker"] == "paper_logs/control/Test_Draft.pause"
+        assert draft["config"]["control"]["stop_marker"] == "paper_logs/control/Test_Draft.stop"
         assert draft["alignment"]["dataset_count"] == 1
         assert draft["alignment"]["symbols"] == ["SPY"]
         assert draft["alignment"]["filter_start"] == "2026-01-02T00:00:00+00:00"

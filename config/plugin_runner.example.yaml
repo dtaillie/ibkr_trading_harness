@@ -65,6 +65,7 @@ execution:
 
 control:
   pause_marker: paper_logs/control/example_plugin_runner.pause
+  stop_marker: paper_logs/control/example_plugin_runner.stop
 
 broker:
   adapter: ibkr

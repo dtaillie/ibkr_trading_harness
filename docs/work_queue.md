@@ -774,8 +774,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     writes loop metadata to summaries. Generic loop configs can now define
     `runner.session` with timezone, local start/end, weekdays, and
     `outside_session: idle`; outside-window loop iterations write visible idle
-    decision artifacts without evaluating the plugin or broker. Richer service
-    lifecycle controls remain open.
+    decision artifacts without evaluating the plugin or broker. Loop configs
+    can also set `control.stop_marker` for a clean operator-requested loop exit
+    before the next data/plugin/broker pass. Richer process supervision remains
+    open.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version

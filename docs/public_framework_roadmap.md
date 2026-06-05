@@ -44,7 +44,9 @@ This roadmap is broader context; the queue is the current execution order.
   - partial; generic loop configs can now set `runner.session` with timezone,
     local start/end, weekdays, and `outside_session: idle` so loop runs publish
     visible idle decisions outside the configured session without evaluating
-    the plugin or broker. Richer service lifecycle controls remain open.
+    the plugin or broker. Loop configs can also set `control.stop_marker` for
+    a clean operator-requested loop exit. Richer process supervision remains
+    open.
 - Extend config validation into versioned schemas with richer per-plugin checks.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow

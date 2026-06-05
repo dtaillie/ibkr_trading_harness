@@ -198,7 +198,9 @@ ignored local config and point each job at private strategy configs. Job
 commands are argv lists, not shell strings. Use `process_mode: blocking` for
 short replay/fetch jobs and `process_mode: managed` for long-running paper or
 shadow processes that should be monitored without blocking other jobs. A
-job-level `pause_marker` lets the safe command worker pause scheduled launches.
+job-level `pause_marker` lets the safe command worker pause scheduled launches;
+`stop_marker` lets looped plugin-runner jobs exit cleanly on their next loop
+check.
 
 ## 8. Cloud Checking Prototype
 
@@ -476,7 +478,8 @@ receiver must also allow the action class or action through
 the local machine must be deliberately armed first. Pause/resume
 writes or removes a local marker file. The generic plugin runner honors
 `control.pause_marker` by recording paused decisions without evaluating the
-strategy or submitting orders.
+strategy or submitting orders. It also honors `control.stop_marker` in loop
+mode by exiting cleanly and writing `stopped_by_control` in `summary.json`.
 The dashboard and server validate action-specific parameters before queueing:
 `summarize_run` needs `run_id`, `validate_config` needs `config_id`, and
 supervisor actions need `supervisor_id`. Pending commands can be canceled from

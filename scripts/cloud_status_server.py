@@ -3504,6 +3504,7 @@ def build_config_draft(
         },
         "control": {
             "pause_marker": f"paper_logs/control/{name}.pause",
+            "stop_marker": f"paper_logs/control/{name}.stop",
         },
         "broker": {
             "host": "127.0.0.1",

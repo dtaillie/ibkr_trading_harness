@@ -101,6 +101,8 @@ class RunnerResult:
     session_enabled: bool = False
     session_idle_iterations: int = 0
     session_status: str | None = None
+    stopped_by_control: bool = False
+    stop_marker: str | None = None
 
 
 class ConfigValidationError(ValueError):
@@ -375,6 +377,8 @@ def validate_config(
         errors.append(str(exc))
     if control_cfg.get("pause_marker") is not None and not str(control_cfg["pause_marker"]).strip():
         errors.append("control.pause_marker must not be empty")
+    if control_cfg.get("stop_marker") is not None and not str(control_cfg["stop_marker"]).strip():
+        errors.append("control.stop_marker must not be empty")
 
     source = str(data_cfg.get("source", "files")).lower()
     try:
@@ -1526,6 +1530,10 @@ def run_from_config(
     pause_marker = None
     if control_cfg.get("pause_marker") is not None:
         pause_marker = Path(str(control_cfg["pause_marker"]))
+    stop_marker = None
+    if control_cfg.get("stop_marker") is not None:
+        stop_marker = Path(str(control_cfg["stop_marker"]))
+    stopped_by_control = False
 
     def process_step(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame]) -> None:
         nonlocal decisions
@@ -1807,6 +1815,10 @@ def run_from_config(
         else:
             step = 0
             while max_loop_iterations is None or loop_iterations < max_loop_iterations:
+                if stop_marker is not None and stop_marker.exists():
+                    stopped_by_control = True
+                    log.info("Loop stopped by control marker: %s", stop_marker)
+                    break
                 loop_iterations += 1
                 panels = load_panels(config.get("data") or {})
                 now = latest_time(panels)
@@ -1892,10 +1904,12 @@ def run_from_config(
         session_enabled=session_cfg is not None,
         session_idle_iterations=session_idle_iterations,
         session_status=latest_session_status,
+        stopped_by_control=stopped_by_control,
+        stop_marker=str(stop_marker) if stop_marker is not None else None,
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
-        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d output_dir=%s",
+        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d stopped_by_control=%s output_dir=%s",
         decisions,
         orders,
         fills,
@@ -1903,6 +1917,7 @@ def run_from_config(
         approval_required_orders,
         loop_iterations,
         session_idle_iterations,
+        stopped_by_control,
         output_dir,
     )
     return result

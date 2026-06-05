@@ -630,6 +630,42 @@ def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):
     assert len(decisions) == 1
 
 
+def test_shadow_loop_stops_cleanly_when_stop_marker_exists(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    stop_marker = tmp_path / "control" / "runner.stop"
+    stop_marker.parent.mkdir()
+    stop_marker.write_text("stop\n")
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 0,
+            "max_loop_iterations": 2,
+        },
+        control={"stop_marker": str(stop_marker)},
+    )
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_enabled is True
+    assert result.loop_iterations == 0
+    assert result.decisions == 0
+    assert result.orders == 0
+    assert result.account_snapshot_count == 0
+    assert result.stopped_by_control is True
+    assert result.stop_marker == str(stop_marker)
+    assert not (output_dir / "decisions.jsonl").exists()
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["stopped_by_control"] is True
+    assert summary["stop_marker"] == str(stop_marker)
+
+
 def test_shadow_loop_records_idle_decision_outside_session(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
@@ -1089,3 +1125,22 @@ def test_runner_honors_pause_marker_before_strategy_evaluation(tmp_path):
     assert not (output_dir / "orders.jsonl").exists()
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[-1]["positions"] == {}
+
+
+def test_validate_config_rejects_empty_stop_marker(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        control={"stop_marker": "   "},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "control.stop_marker must not be empty" in str(exc.value)
