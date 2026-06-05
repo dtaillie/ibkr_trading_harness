@@ -512,8 +512,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       saved-file matches for the typed symbol, loads the normalized comparison
       chart, and jumps to the saved-data comparison workflow.
     - partial; Data Library now has a Symbol Directory that lists the largest
-      scanned symbols by file count/rows and provides direct Filter, Inspect,
-      Compare, and Diagnose actions without needing to know a ticker upfront.
+      scanned symbols by file count/rows, can search and sort the symbol
+      directory, and provides direct Filter, Inspect, Compare, and Diagnose
+      actions without needing to know a ticker upfront.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.

@@ -749,6 +749,32 @@
           <h2>Symbol Directory</h2>
           <span id="data-symbol-directory-note" class="section-note">Top scanned symbols from the current catalog</span>
         </div>
+        <div class="symbol-directory-toolbar">
+          <label class="wide-field">
+            <span>Find Symbol</span>
+            <input id="data-symbol-directory-filter" type="search" list="data-symbol-browser-options" placeholder="Symbol, asset, source, bar, quality">
+          </label>
+          <label>
+            <span>Sort</span>
+            <select id="data-symbol-directory-sort">
+              <option value="files_desc" selected>Most files</option>
+              <option value="rows_desc">Most rows</option>
+              <option value="latest_desc">Latest data</option>
+              <option value="symbol_asc">Symbol A-Z</option>
+              <option value="quality_asc">Best quality</option>
+            </select>
+          </label>
+          <label>
+            <span>Show</span>
+            <select id="data-symbol-directory-limit">
+              <option value="30">30</option>
+              <option value="60" selected>60</option>
+              <option value="120">120</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+          <button id="data-symbol-directory-clear" class="secondary" type="button">Clear</button>
+        </div>
         <div id="data-symbol-directory" class="symbol-directory-grid"></div>
       </section>
       <section class="nested-section">

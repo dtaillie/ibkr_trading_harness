@@ -2563,7 +2563,46 @@ function renderSymbolBrowser() {
     : `<div class="empty-card"><strong>No scanned symbols</strong><span>Add or configure historical data roots, then refresh the catalog.</span></div>`;
 }
 
-function symbolDirectoryRows(limit = 60) {
+function symbolDirectoryControls() {
+  return {
+    filter: (($("data-symbol-directory-filter") || {}).value || "").trim().toLowerCase(),
+    sort: (($("data-symbol-directory-sort") || {}).value || "files_desc"),
+    limit: Number((($("data-symbol-directory-limit") || {}).value || "60")),
+  };
+}
+
+function symbolDirectoryQualityScore(qualities) {
+  const rank = { ok: 0, warn: 1, bad: 2 };
+  const entries = Object.keys(qualities || {});
+  if (!entries.length) return 3;
+  return Math.min(...entries.map((key) => rank[String(key).toLowerCase()] ?? 3));
+}
+
+function symbolDirectorySortValue(item, key) {
+  if (key === "files") return Number(item.file_count || 0);
+  if (key === "rows") return Number(item.row_count || 0);
+  if (key === "latest") return timestampMillis(item.last_day) || 0;
+  if (key === "quality") return symbolDirectoryQualityScore(item.qualities);
+  return String(item.symbol || "").toLowerCase();
+}
+
+function sortSymbolDirectoryRows(rows, sortKey) {
+  const [key, direction] = String(sortKey || "files_desc").split("_");
+  const multiplier = direction === "asc" ? 1 : -1;
+  return (rows || []).slice().sort((left, right) => {
+    const leftValue = symbolDirectorySortValue(left, key);
+    const rightValue = symbolDirectorySortValue(right, key);
+    if (typeof leftValue === "number" && typeof rightValue === "number" && leftValue !== rightValue) {
+      return (leftValue - rightValue) * multiplier;
+    }
+    const primary = String(leftValue).localeCompare(String(rightValue)) * multiplier;
+    if (primary) return primary;
+    return left.symbol.localeCompare(right.symbol);
+  });
+}
+
+function symbolDirectoryRows() {
+  const controls = symbolDirectoryControls();
   const rows = [];
   for (const [symbol, datasets] of symbolBrowserGroups()) {
     const totalRows = datasets.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
@@ -2582,19 +2621,37 @@ function symbolDirectoryRows(limit = 60) {
       last_day: ranges.end,
     });
   }
-  return rows.sort((left, right) => {
-    if (left.file_count !== right.file_count) return right.file_count - left.file_count;
-    if (left.row_count !== right.row_count) return right.row_count - left.row_count;
-    return left.symbol.localeCompare(right.symbol);
-  }).slice(0, limit);
+  const filtered = controls.filter
+    ? rows.filter((item) => {
+        const haystack = [
+          item.symbol,
+          item.assets.join(" "),
+          item.sources.join(" "),
+          item.bars.join(" "),
+          countSummary(item.qualities),
+          item.first_day,
+          item.last_day,
+        ].map(text).join(" ").toLowerCase();
+        return haystack.includes(controls.filter);
+      })
+    : rows;
+  return {
+    rows: sortSymbolDirectoryRows(filtered, controls.sort).slice(0, Math.max(1, Math.min(200, controls.limit || 60))),
+    filtered_count: filtered.length,
+    total_count: rows.length,
+    controls,
+  };
 }
 
 function renderSymbolDirectory() {
   if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
   const groups = symbolBrowserGroups();
-  const rows = symbolDirectoryRows();
+  const directory = symbolDirectoryRows();
+  const rows = directory.rows;
+  const filteredCount = directory.filtered_count;
+  const filterLabel = directory.controls.filter ? ` matching "${directory.controls.filter}"` : "";
   $("data-symbol-directory-note").textContent = groups.size
-    ? `${numberText(rows.length, 0)} shown / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}; sorted by file count then rows`
+    ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}`
     : "No scanned symbols loaded";
   $("data-symbol-directory").innerHTML = rows.length
     ? rows.map((item) => {
@@ -2620,7 +2677,9 @@ function renderSymbolDirectory() {
           </div>
         `;
       }).join("")
-    : `<div class="empty-card"><strong>No scanned symbols</strong><span>Configure data roots or run a fetch job, then refresh the catalog.</span></div>`;
+    : directory.controls.filter
+      ? `<div class="empty-card"><strong>No symbols match</strong><span>Clear the directory filter or search for a different symbol, asset, source, bar size, or quality.</span></div>`
+      : `<div class="empty-card"><strong>No scanned symbols</strong><span>Configure data roots or run a fetch job, then refresh the catalog.</span></div>`;
 }
 
 function countSummary(counts) {
@@ -6816,6 +6875,15 @@ function init() {
     });
   });
   $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-directory-filter").addEventListener("input", renderSymbolDirectory);
+  $("data-symbol-directory-sort").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-limit").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-clear").addEventListener("click", () => {
+    $("data-symbol-directory-filter").value = "";
+    $("data-symbol-directory-sort").value = "files_desc";
+    $("data-symbol-directory-limit").value = "60";
+    renderSymbolDirectory();
+  });
   $("data-symbol-browser-filter").addEventListener("click", () => {
     const symbol = selectedSymbolBrowserSymbol();
     $("data-filter-text").value = symbol;

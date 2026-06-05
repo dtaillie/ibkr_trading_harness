@@ -100,8 +100,9 @@ jumps to the comparison workflow. Copy Compare JSON copies the exact request
 body that the dashboard will send to `/data_compare`.
 
 Use Symbol Directory when you want to browse discovered symbols without already
-knowing the ticker. It lists the largest scanned symbols and provides direct
-Filter, Inspect, Compare, and Diagnose actions for each symbol.
+knowing the ticker. It can search by symbol, asset, source, bar size, quality,
+or date range, sort by files/rows/latest data/symbol/quality, and provides
+direct Filter, Inspect, Compare, and Diagnose actions for each symbol.
 
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.

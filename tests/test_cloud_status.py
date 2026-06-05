@@ -600,6 +600,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-browser-compare" in html
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html
+        assert "data-symbol-directory-filter" in html
+        assert "data-symbol-directory-sort" in html
+        assert "data-symbol-directory-limit" in html
         assert "data-filter-symbol-options" in html
         assert "data-filter-sort" in html
         assert "data-coverage-grid" in html
