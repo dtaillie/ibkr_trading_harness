@@ -1848,6 +1848,7 @@ function renderDataLibrarySummary() {
           <div class="root-card">
             <span>${statusText(status)}</span>
             <strong>${escapeHtml(numberText(root.data_file_count, 0))} files</strong>
+            <small>${escapeHtml(text(root.scope))} - ${escapeHtml(text(root.scope_note))}</small>
             <small class="mono">${escapeHtml(root.display_path || root.path)}</small>
             <small>writable=${escapeHtml(text(root.writable))}</small>
           </div>
@@ -1856,6 +1857,7 @@ function renderDataLibrarySummary() {
         <div class="root-card suggested-root">
           <span class="status-warn">suggested</span>
           <strong>${escapeHtml(numberText(root.data_file_count, 0))} files</strong>
+          <small>${escapeHtml(text(root.scope))} - ${escapeHtml(text(root.scope_note))}</small>
           <small class="mono">${escapeHtml(root.display_path || root.path)}</small>
           <small>Not currently scanned. Start the dashboard with this data root.</small>
         </div>
@@ -1927,6 +1929,7 @@ function renderDataStorageAudit() {
         return row([
           `<span class="${scopeClass}">${escapeHtml(item.scope)}</span>`,
           `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
+          `${escapeHtml(text(item.root_scope))}<br><span class="muted">${escapeHtml(text(item.root_scope_note))}</span>`,
           `${escapeHtml(numberText(item.file_count, 0))}${item.scan_capped ? " capped" : ""}`,
           escapeHtml(numberText(item.catalog_visible_count, 0)),
           escapeHtml(numberText(item.hidden_file_count, 0)),
@@ -1935,7 +1938,7 @@ function renderDataStorageAudit() {
           `<span class="mono">${escapeHtml((item.sample_hidden_paths || [])[0] || "none")}</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderDataCoverage() {

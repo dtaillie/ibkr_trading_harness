@@ -1053,6 +1053,26 @@ def infer_data_source(path: Path) -> str:
     return "file"
 
 
+def classify_data_root(path: Path) -> str:
+    lowered = "/".join(part.lower() for part in path.resolve().parts)
+    if "examples/data" in lowered:
+        return "public_example"
+    if "/private/" in f"/{lowered}/":
+        return "private_local"
+    if any(token in lowered for token in ("cache", "paper_logs", "data")):
+        return "local_cache"
+    return "local_path"
+
+
+def data_root_scope_note(scope: str) -> str:
+    return {
+        "public_example": "Bundled public sample data.",
+        "private_local": "Local/private path; keep out of public commits.",
+        "local_cache": "Local cache or runtime data root.",
+        "local_path": "Local user-configured data root.",
+    }.get(scope, "Local user-configured data root.")
+
+
 def timestamp_column(df: pd.DataFrame) -> str | None:
     lower_map = {str(col).lower(): str(col) for col in df.columns}
     for name in ("timestamp", "datetime", "date", "time"):
@@ -1375,6 +1395,8 @@ def audit_data_root(
         **probe,
         "display_path": display_path(resolved),
         "configured": configured,
+        "root_scope": classify_data_root(resolved),
+        "root_scope_note": data_root_scope_note(classify_data_root(resolved)),
         "file_count": len(files),
         "scan_limit": scan_limit,
         "scan_capped": capped,
@@ -3357,6 +3379,8 @@ def data_root_row(root: Path) -> dict[str, Any]:
     row = writable_probe(root, expect_dir=True)
     row["display_path"] = root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root)
     row["data_file_count"] = data_file_count(root)
+    row["scope"] = classify_data_root(root)
+    row["scope_note"] = data_root_scope_note(row["scope"])
     return row
 
 

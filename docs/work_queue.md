@@ -324,6 +324,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       scanned symbols, catalog-visible files, aggregate row/size counts,
       coverage range, and quality/parser-error state.
   - show which roots are public examples versus private/local caches
+    - partial; diagnostics and storage-audit root rows now expose
+      public-example/local-cache/private/local-path scope metadata, and Data
+      Library root cards plus the Storage Audit table display that scope.
   - show why a root was not scanned
   - show why a file was skipped
   - include a "show me everything on disk" diagnostic mode with bounded limits

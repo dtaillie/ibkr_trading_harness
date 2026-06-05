@@ -860,6 +860,13 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert override["auth_token_env"] == "OTHER_TOKEN"
 
 
+def test_cloud_status_server_classifies_data_root_scope(tmp_path):
+    assert status_server.classify_data_root(status_server.ROOT / "examples" / "data") == "public_example"
+    assert status_server.classify_data_root(tmp_path / "cache" / "ibkr") == "local_cache"
+    assert status_server.classify_data_root(tmp_path / "private" / "history") == "private_local"
+    assert status_server.classify_data_root(tmp_path / "custom_history") == "local_path"
+
+
 def test_cloud_status_server_serves_fetch_manifests(tmp_path):
     manifest_root = tmp_path / "fetch_manifests"
     data_root = tmp_path / "cache" / "ibkr"
@@ -1109,12 +1116,15 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert audit["suggested_file_count"] == 1
         configured = audit["configured_roots"][0]
         assert configured["display_path"] == str(data_root.resolve())
+        assert configured["root_scope"] == "local_path"
+        assert configured["root_scope_note"]
         assert configured["catalog_visible_count"] == 1
         assert configured["hidden_file_count"] == 1
         assert configured["sample_hidden_paths"][0].endswith("_5min_sample.csv")
         suggested = audit["suggested_roots"][0]
         assert suggested["display_path"] == str(suggested_root.resolve())
         assert suggested["configured"] is False
+        assert suggested["root_scope"] == "local_cache"
         assert suggested["hidden_file_count"] == 1
     finally:
         server.shutdown()
@@ -1233,8 +1243,10 @@ def test_cloud_status_server_suggests_unconfigured_data_roots(tmp_path, monkeypa
             diagnostics = json.loads(resp.read().decode("utf-8"))
 
         assert diagnostics["data_roots"][0]["data_file_count"] == 1
+        assert diagnostics["data_roots"][0]["scope"] == "local_path"
         assert diagnostics["suggested_data_roots"][0]["data_file_count"] == 1
         assert diagnostics["suggested_data_roots"][0]["path"] == str(suggested_root.resolve())
+        assert diagnostics["suggested_data_roots"][0]["scope"] == "local_cache"
     finally:
         server.shutdown()
         server.server_close()
@@ -2022,6 +2034,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert diagnostics["state_dir"]["writable"] is True
         assert diagnostics["state_dir"]["exists"] is False
         assert diagnostics["data_roots"][0]["data_file_count"] == 1
+        assert diagnostics["data_roots"][0]["scope"] == "local_cache"
         assert all(asset["exists"] for asset in diagnostics["dashboard_assets"])
 
         with request.urlopen(f"{base}/workbench_snapshot_export", timeout=5) as resp:
