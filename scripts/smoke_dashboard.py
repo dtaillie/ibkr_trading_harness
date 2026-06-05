@@ -93,6 +93,7 @@ def run_smoke(
             "export-data-catalog-csv",
             "export-workbench-snapshot",
             "config-preview-alignment",
+            "config-commands",
             "validate-drafts",
             "export-runs-csv",
             "export-run-artifacts-json",
@@ -130,6 +131,8 @@ def run_smoke(
             "renderOverviewChanges",
             "renderCurrentOrdersAndPositions",
             "currentOpenOrderRows",
+            "copy-command",
+            "copyText",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]

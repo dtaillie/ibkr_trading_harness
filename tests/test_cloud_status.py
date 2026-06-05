@@ -477,6 +477,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Inspect Saved Historical Data" in html
         assert "Public Publishing Boundary" in html
         assert "config-form" in html
+        assert "config-commands" in html
         assert "endpoint-map-body" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:

@@ -1539,7 +1539,7 @@ function renderConfigBuilder() {
   $("config-yaml").value = draft.yaml || "";
   $("config-commands").innerHTML = draft.commands
     ? Object.entries(draft.commands).map(([name, command]) => (
-        `<dt>${escapeHtml(name)}</dt><dd><span class="mono">${escapeHtml(command)}</span></dd>`
+        `<dt>${escapeHtml(name)}</dt><dd><span class="command-line"><span class="mono">${escapeHtml(command)}</span><button type="button" class="secondary copy-command" data-command="${escapeHtml(command)}">Copy</button></span></dd>`
       )).join("")
     : "";
   renderConfigAlignment(draft.alignment || {});
@@ -2701,6 +2701,22 @@ async function downloadWorkbenchSnapshot() {
   $("last-refresh").textContent = `Workbench snapshot exported: ${new Date().toLocaleString()}`;
 }
 
+async function copyText(value) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
 async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
@@ -2855,6 +2871,15 @@ function init() {
   $("config-run-form").addEventListener("submit", (event) => {
     runConfigDraft(event).catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("config-commands").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("copy-command")) return;
+    copyText(target.dataset.command || "").then(() => {
+      $("last-refresh").textContent = `Command copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
   $("config-risk-preset").addEventListener("change", applyRiskPreset);

@@ -233,7 +233,7 @@ rejected before YAML is written. Generated drafts include a data-alignment
 summary for common timestamps, overlap coverage, cadence mismatches, and
 per-symbol timestamp counts; the same alignment summary can be previewed before
 saving a draft. Saved drafts can be reopened for YAML, validation status, data
-alignment, and local command snippets when they still validate as public
+alignment, and copyable local command snippets when they still validate as public
 workbench examples, and the validated YAML can be downloaded from the draft
 table. The draft table includes a bulk validation summary for all saved YAML,
 so unsupported plugins, missing data paths, and non-public example configs are

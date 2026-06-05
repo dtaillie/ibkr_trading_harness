@@ -338,6 +338,7 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add saved draft folders/tags/status labels.
 - Add safer empty states and validation messages.
 - Add a "copy command" affordance for local CLI commands.
+  - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:
   - choose one or more scanned symbols
   - choose a date range

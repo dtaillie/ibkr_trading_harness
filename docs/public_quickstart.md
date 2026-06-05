@@ -241,7 +241,8 @@ overlap coverage, common range, per-symbol timestamp counts, and cadence or
 overlap warnings. You can preview that alignment before saving a draft.
 If you enable "Save draft locally", the YAML is written under the dashboard
 state directory. Saved drafts can be reopened for YAML, validation status, and
-local command snippets when they still validate as public workbench examples.
+copyable local command snippets when they still validate as public workbench
+examples.
 Use Validate Drafts to check every saved YAML against the public workbench
 guardrails, then use Download on a saved draft row to download the validated
 example YAML.
