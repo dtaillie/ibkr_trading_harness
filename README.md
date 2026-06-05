@@ -310,4 +310,5 @@ destination repo's `.git` directory, so history and remotes survive refreshes.
 - `docs/configuration_privacy.md`
 - `docs/publication_readiness.md`
 - `docs/public_framework_roadmap.md`
+- `docs/work_queue.md`
 - `docs/blog_public_ibkr_harness_draft.md`

@@ -26,6 +26,7 @@ COPY_FILES = [
     "docs/public_quickstart.md",
     "docs/publication_readiness.md",
     "docs/public_framework_roadmap.md",
+    "docs/work_queue.md",
     "docs/public_copy_manifest.md",
     "docs/blog_public_ibkr_harness_draft.md",
     "live/__init__.py",

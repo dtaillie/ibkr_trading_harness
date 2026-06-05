@@ -4,6 +4,9 @@ Future usability and productization work for a public version of this project.
 The goal is to publish the reusable trading harness while keeping proprietary
 strategies private.
 
+For the current prioritized implementation queue, see `docs/work_queue.md`.
+This roadmap is broader context; the queue is the current execution order.
+
 ## Public/private split
 
 - Define a public repo boundary that includes data adapters, broker adapters,
