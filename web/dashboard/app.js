@@ -6183,6 +6183,7 @@ function renderRuns() {
   const visibleRuns = sortedRuns(filteredRuns(runs));
   renderCurrentOrdersAndPositions();
   renderRunsTriage();
+  renderRunsAccountBoundary();
   $("runs-table-note").textContent = `${numberText(visibleRuns.length, 0)} shown / ${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}`;
   $("runs-body").innerHTML = visibleRuns.length
     ? visibleRuns.map((run) => {
@@ -6381,6 +6382,115 @@ function renderRunsTriage() {
   ];
   $("runs-triage-note").textContent = `${numberText(runs.length, 0)} runs / ${numberText(orders.length, 0)} open orders / ${numberText(positions.length, 0)} positions / ${numberText(events.length, 0)} recent events`;
   $("runs-triage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
+function accountBoundaryAuthority(mode, source) {
+  const value = String(mode || "").replace("-", "_").toLowerCase();
+  if (value === "live") return ["bad", "Live Orders", "Live account mode; do not treat dashboard controls or results as harmless."];
+  if (value === "paper") return ["warn", "Broker Paper", "Broker paper account mode; orders may be submitted to a paper account."];
+  if (value === "simulated_paper") return ["ok", "Local Sim", "Local simulated-paper state; fills and account values are simulated."];
+  if (value === "shadow") return ["ok", "Observe Only", "Shadow state should log signals without submitting orders."];
+  if (value === "replay") return ["ok", "Historical", "Replay state comes from saved files and archived artifacts."];
+  if (source && source.source_type === "archived_artifact") return ["warn", "Archived", "Mode is missing; inspect artifact metadata before interpreting account state."];
+  return ["bad", "Unknown", "Mode is unavailable; verify the runner source before interpreting account state."];
+}
+
+function renderRunsAccountBoundary() {
+  if (!$("runs-account-boundary-cards") || !$("runs-account-boundary-note")) return;
+  const source = latestArtifactPerformance();
+  const summary = source.summary || {};
+  const perf = source.performance || {};
+  const accountRow = latestAccountRow(source.account || []);
+  const positions = nonzeroPositionsFromSource(source);
+  const mode = perf.mode ?? summary.mode;
+  const authority = accountBoundaryAuthority(mode, source);
+  const runs = (state.status && state.status.runs) || [];
+  const orders = currentOpenOrderRows();
+  const hasAccountSnapshots = Boolean(source.account && source.account.length);
+  const hasTelemetryRuns = runs.length > 0;
+  const sourceStatus = source.has_data
+    ? source.source_type === "live_telemetry" ? "warn" : "ok"
+    : "bad";
+  let nextStatus = "bad";
+  let nextTitle = "Load State";
+  let nextNote = "Publish telemetry or open archived artifacts before trusting account-state tables.";
+  if (source.has_data && !hasAccountSnapshots && source.source_type === "run_summary") {
+    nextStatus = "warn";
+    nextTitle = "Open Artifact";
+    nextNote = "Summary-only runs do not prove current positions or account freshness.";
+  } else if (orders.length) {
+    nextStatus = "warn";
+    nextTitle = "Verify Orders";
+    nextNote = "Non-terminal order telemetry exists; reconcile it with broker/account state.";
+  } else if (source.has_data && String(mode || "").toLowerCase() === "live") {
+    nextStatus = "bad";
+    nextTitle = "Live Caution";
+    nextNote = "Live mode requires stronger operational review before taking action.";
+  } else if (source.has_data) {
+    nextStatus = "ok";
+    nextTitle = "Review Detail";
+    nextNote = "Boundary is clear enough to inspect positions, events, and artifacts below.";
+  }
+  const cards = [
+    {
+      status: sourceStatus,
+      title: text(source.source_type),
+      label: "Selected Source",
+      note: sourceMeaning(source),
+    },
+    {
+      status: authority[0],
+      title: authority[1],
+      label: "Order Authority",
+      note: authority[2],
+    },
+    {
+      status: hasAccountSnapshots ? "ok" : source.has_data ? "warn" : "bad",
+      title: hasAccountSnapshots ? numberText(source.account.length, 0) : "None",
+      label: "Account Snapshots",
+      note: hasAccountSnapshots
+        ? `Latest ${shortTimestampAgeLabel(accountRow.timestamp)} from ${text(source.label)}.`
+        : "No account snapshot rows loaded for this source.",
+    },
+    {
+      status: positions.length ? "warn" : source.has_data ? "ok" : "bad",
+      title: numberText(positions.length, 0),
+      label: "Managed Positions",
+      note: positions.length
+        ? `${positions.slice(0, 4).map((position) => position.symbol).join(", ")}${positions.length > 4 ? "..." : ""} open in selected source.`
+        : "Selected source is flat or lacks position detail.",
+    },
+    {
+      status: hasTelemetryRuns ? "ok" : source.source_type === "archived_artifact" ? "warn" : "bad",
+      title: numberText(runs.length, 0),
+      label: "Current Telemetry",
+      note: hasTelemetryRuns
+        ? `${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"} in current status.`
+        : "No current published run list; archived data may be historical only.",
+    },
+    {
+      status: orders.length ? "warn" : "ok",
+      title: numberText(orders.length, 0),
+      label: "Open-Order Signal",
+      note: orders.length
+        ? "Recent non-terminal order telemetry is visible below."
+        : "No recent non-terminal order telemetry.",
+    },
+    {
+      status: nextStatus,
+      title: nextTitle,
+      label: "Next Action",
+      note: nextNote,
+    },
+  ];
+  $("runs-account-boundary-note").textContent = `${text(source.label)} / ${text(mode)} / ${numberText(positions.length, 0)} positions / ${numberText(orders.length, 0)} open-order events`;
+  $("runs-account-boundary-cards").innerHTML = cards.map((card) => `
     <div class="action-card status-${escapeHtml(card.status)}">
       <span>${statusText(card.status)}</span>
       <strong>${escapeHtml(card.title)}</strong>

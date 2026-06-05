@@ -744,6 +744,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Position Detail" in html
         assert "runs-triage-note" in html
         assert "runs-triage-cards" in html
+        assert "runs-account-boundary-note" in html
+        assert "runs-account-boundary-cards" in html
         assert "runs-table-note" in html
         assert "runs-filter-text" in html
         assert "runs-filter-status" in html

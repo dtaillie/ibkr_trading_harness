@@ -269,6 +269,10 @@ strategy-private.
       open-order telemetry, managed positions, recent events, fills/rejects,
       loaded artifact detail, and the next inspection action before dense
       status/run/event tables.
+    - partial; Runs now has Account State Boundary cards that distinguish
+      selected source type, live/paper/simulated/replay authority, account
+      snapshot freshness, managed positions, current telemetry, open-order
+      signals, and the next verification action.
 - Add strategy drilldowns:
   - entry and exit chart markers
   - signal values and thresholds
