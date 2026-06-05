@@ -179,7 +179,9 @@ Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
 workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 health checks, setup checklist items, open positions, and recent
-decision/order/fill events. Performance summarizes the latest run or selected
+decision/order/fill events. After a second successful refresh, Overview also
+calls out new recent events, alerts, and terminal fetch-job changes since the
+prior refresh. Performance summarizes the latest run or selected
 artifact with equity, return, drawdown, exposure, an equity curve, drawdown
 curve, daily return bars, and a calendar-style daily return heatmap when
 account snapshots are available. Use the Period selector to narrow artifact

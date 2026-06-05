@@ -459,6 +459,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-manifests-body" in html
         assert "overview-health-grid" in html
         assert "overview-positions-grid" in html
+        assert "overview-change-cards" in html
+        assert "overview-changes-note" in html
         assert "overview-timeline-body" in html
         assert "performance-drawdown-chart" in html
         assert "performance-daily-return-chart" in html

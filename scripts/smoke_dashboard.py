@@ -72,6 +72,8 @@ def run_smoke(
             "performance-avg-win-loss",
             "overview-health-grid",
             "overview-positions-grid",
+            "overview-change-cards",
+            "overview-changes-note",
             "overview-timeline-body",
             "data-root-cards",
             "data-catalog-limit",
@@ -121,6 +123,8 @@ def run_smoke(
             "calendarReturnHeatmap",
             "buildTradeLedger",
             "performancePeriodWindow",
+            "activityChanges",
+            "renderOverviewChanges",
             "risk_presets",
         ]
         missing_js_tokens = [token for token in required_js_tokens if token not in js]

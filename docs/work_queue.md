@@ -60,7 +60,7 @@ strategy-private.
       broader action-level guidance still belongs in contextual help
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
-    - not started
+    - done for recent run events, new alerts, and terminal fetch-job changes
 - Build a clean Overview page for the current running strategy state:
   - mode badge: replay, shadow, simulated paper, paper, or live
     - partial; mode is shown from latest artifact or telemetry summary

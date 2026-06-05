@@ -23,6 +23,8 @@ const state = {
   configArtifacts: null,
   commands: [],
   results: [],
+  refreshLoaded: false,
+  activityChanges: { items: [], initial: true },
 };
 
 const commandFields = {
@@ -1952,6 +1954,137 @@ function runEventRows() {
     .slice(0, 30);
 }
 
+function eventActivityKey(event) {
+  return [
+    event.type,
+    event.run_id,
+    event.timestamp,
+    event.status,
+    event.symbol,
+    event.detail,
+  ].map(text).join("|");
+}
+
+function fetchActivityKey(item) {
+  return text(item.job_id || item.path || `${item.started_at}-${item.kind}-${item.bar_size}`);
+}
+
+function alertActivityKey(item) {
+  return [item.status, item.severity, item.category, item.message, item.detail].map(text).join("|");
+}
+
+function terminalFetchStatus(status) {
+  const value = String(status || "").toLowerCase();
+  return [
+    "complete",
+    "completed",
+    "done",
+    "success",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+  ].includes(value);
+}
+
+function activitySnapshot() {
+  const events = runEventRows();
+  const fetches = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const alerts = (state.status && state.status.alerts) || [];
+  return {
+    eventKeys: new Set(events.map(eventActivityKey)),
+    fetchByKey: new Map(fetches.map((item) => [fetchActivityKey(item), item])),
+    alertKeys: new Set(alerts.map(alertActivityKey)),
+    counts: {
+      events: events.length,
+      fetches: fetches.length,
+      alerts: alerts.length,
+    },
+  };
+}
+
+function eventChangeCard(event) {
+  const status = event.type === "fill"
+    ? "ok"
+    : String(event.status || "").toLowerCase().includes("reject") || String(event.status || "").toLowerCase().includes("cancel")
+      ? "bad"
+      : event.type === "order" ? "warn" : "ok";
+  const label = event.type === "fill"
+    ? `Fill ${text(event.symbol)}`
+    : event.type === "order"
+      ? `Order ${text(event.symbol)}`
+      : `Decision ${text(event.run_id)}`;
+  return {
+    status,
+    title: label,
+    detail: `${text(event.timestamp)} - ${text(event.detail)}`,
+  };
+}
+
+function activityChanges(before, after) {
+  if (!before) {
+    return {
+      initial: true,
+      items: [{
+        status: "ok",
+        title: "Initial snapshot loaded",
+        detail: `${numberText(after.counts.events, 0)} events / ${numberText(after.counts.fetches, 0)} fetch jobs / ${numberText(after.counts.alerts, 0)} alerts`,
+      }],
+    };
+  }
+  const items = [];
+  for (const event of runEventRows()) {
+    if (!before.eventKeys.has(eventActivityKey(event))) {
+      items.push(eventChangeCard(event));
+    }
+  }
+  for (const [key, item] of after.fetchByKey.entries()) {
+    const previous = before.fetchByKey.get(key);
+    const status = text(item.status);
+    if (!previous && terminalFetchStatus(status)) {
+      items.push({
+        status: status.toLowerCase().includes("fail") || status.toLowerCase().includes("error") ? "bad" : "ok",
+        title: `Fetch ${status}`,
+        detail: `${text(item.kind)} ${text(item.bar_size)} rows=${numberText(item.rows, 0)} errors=${numberText(item.errors, 0)}`,
+      });
+    } else if (previous && text(previous.status) !== status && terminalFetchStatus(status)) {
+      items.push({
+        status: status.toLowerCase().includes("fail") || status.toLowerCase().includes("error") ? "bad" : "ok",
+        title: `Fetch changed to ${status}`,
+        detail: `${text(item.kind)} ${text(item.bar_size)} rows=${numberText(item.rows, 0)} errors=${numberText(item.errors, 0)}`,
+      });
+    }
+  }
+  const alerts = (state.status && state.status.alerts) || [];
+  for (const alert of alerts) {
+    if (!before.alertKeys.has(alertActivityKey(alert))) {
+      items.push({
+        status: "bad",
+        title: text(alert.category || alert.status || alert.severity || "Alert"),
+        detail: text(alert.message || alert.detail || JSON.stringify(alert)),
+      });
+    }
+  }
+  return { initial: false, items: items.slice(0, 12) };
+}
+
+function renderOverviewChanges() {
+  const changes = state.activityChanges || { items: [], initial: true };
+  const items = changes.items || [];
+  $("overview-changes-note").textContent = changes.initial
+    ? "Current refresh baseline"
+    : items.length ? `${numberText(items.length, 0)} change${items.length === 1 ? "" : "s"} since prior refresh` : "No new activity since prior refresh";
+  $("overview-change-cards").innerHTML = items.length
+    ? items.map((item) => `
+        <div class="change-card">
+          <span>${statusText(item.status)}</span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.detail)}</small>
+        </div>
+      `).join("")
+    : `<div class="empty-card"><strong>No new activity</strong><span>No new recent signals, orders, fills, alerts, or completed fetch jobs since the previous refresh.</span></div>`;
+}
+
 function renderRunEvents() {
   const events = runEventRows();
   $("run-events-body").innerHTML = events.length
@@ -2071,6 +2204,7 @@ function renderResults() {
 
 function renderAll() {
   renderOverview();
+  renderOverviewChanges();
   renderMetrics();
   renderPerformance();
   renderWorkbenchStatus();
@@ -2102,6 +2236,7 @@ function renderAll() {
 
 async function refresh() {
   const node = $("command-node").value || (state.status && state.status.node_id) || "";
+  const beforeActivity = state.refreshLoaded ? activitySnapshot() : null;
   const status = await fetchJson("/status");
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
@@ -2136,6 +2271,8 @@ async function refresh() {
   state.runComparison = runComparison || { runs: [], leaders: {} };
   state.commands = commands.commands || [];
   state.results = results.results || [];
+  state.activityChanges = activityChanges(beforeActivity, activitySnapshot());
+  state.refreshLoaded = true;
   renderAll();
 }
 

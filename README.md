@@ -201,7 +201,8 @@ stores the latest status and serves a small workbench dashboard from
 dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
 Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,
-and a latest decision/order/fill timeline. Performance shows latest equity,
+new-activity cues since the prior refresh, and a latest decision/order/fill
+timeline. Performance shows latest equity,
 return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
 bars plus a calendar-style daily return heatmap when account artifacts are
 available. It also supports account-artifact period presets and a fill-derived
