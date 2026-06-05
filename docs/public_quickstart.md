@@ -104,6 +104,11 @@ python3 live/plugin_runner.py \
   --confirm-paper-orders
 ```
 
+Paper mode also checks broker safety before connecting. Use
+`broker.account_mode: paper` with a paper API port such as Gateway `4002` or
+TWS `7497`; known live ports are refused unless both the config and CLI use the
+explicit live-port override.
+
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
 `paper`, reloads the latest data each interval, skips duplicate latest bars by

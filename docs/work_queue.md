@@ -700,6 +700,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   file-based simulation, or future broker integrations without changing
   strategy plugins.
 - Add stronger paper/live gates to prevent accidental live orders.
+  - partial; generic paper mode now requires `--confirm-paper-orders`, rejects
+    `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,
+    `7496`) unless both config and CLI explicitly opt in. More broker-native
+    account verification and live-mode enablement gates remain open.
 
 ## P2: Publication readiness
 

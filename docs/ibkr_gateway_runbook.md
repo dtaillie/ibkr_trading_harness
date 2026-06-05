@@ -12,8 +12,13 @@ git.
 4. Confirm the API port:
    - paper Gateway usually listens on `4002`
    - live Gateway usually listens on `4001`
-   - TWS commonly uses different ports
+   - paper TWS commonly listens on `7497`
+   - live TWS commonly listens on `7496`
 5. Confirm API access is enabled in Gateway/TWS settings.
+
+The generic paper runner treats `4001` and `7496` as live-port hazards and
+refuses them unless both config and CLI explicitly opt in. Prefer `4002` for
+paper Gateway.
 
 Quick TCP check:
 
@@ -81,4 +86,3 @@ python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --valid
   session reset.
 - Market data requests fail after API connection: this is usually a market-data
   permission or contract/venue issue, not a Gateway startup issue.
-

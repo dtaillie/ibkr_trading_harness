@@ -64,7 +64,9 @@ This roadmap is broader context; the queue is the current execution order.
 - Add fetch-job manifests with status, ETA, failure counts, retry counts, and
   resumability.
 - Add consistent paper/live mode gates so a strategy cannot accidentally submit
-  live orders when configured for paper or shadow mode.
+  live orders when configured for paper or shadow mode. The generic paper
+  runner now refuses known live IBKR ports without dual opt-in; broker-native
+  account verification remains future work.
 - Add replay mode that can run a live strategy against stored historical bars for
   deterministic debugging.
 - Keep run summaries time-aware: account telemetry should report elapsed

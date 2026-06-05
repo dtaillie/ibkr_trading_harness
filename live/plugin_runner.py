@@ -38,6 +38,8 @@ log = logging.getLogger(__name__)
 
 VALID_MODES = {"replay", "shadow", "simulated_paper", "paper"}
 SUPPORTED_ORDER_TYPES = {"market"}
+KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
+KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
 
 
 @dataclass(frozen=True)
@@ -298,8 +300,12 @@ def validate_config(
 
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
+    validate_bool(broker_cfg.get("allow_live_broker_port_for_paper"), "broker.allow_live_broker_port_for_paper", errors)
     if broker_cfg.get("host") is not None and not str(broker_cfg["host"]).strip():
         errors.append("broker.host must not be empty")
+    account_mode = broker_cfg.get("account_mode")
+    if account_mode is not None and str(account_mode).lower().replace("-", "_") not in {"paper", "live"}:
+        errors.append("broker.account_mode must be paper or live")
 
     return errors
 
@@ -324,6 +330,29 @@ def validate_config_file(
     if errors:
         raise ConfigValidationError(errors)
     return config
+
+
+def paper_broker_safety_errors(
+    broker_cfg: dict[str, Any],
+    *,
+    allow_live_broker_port: bool = False,
+) -> list[str]:
+    errors: list[str] = []
+    account_mode = str(broker_cfg.get("account_mode", "paper")).lower().replace("-", "_")
+    if account_mode != "paper":
+        errors.append("paper mode requires broker.account_mode: paper")
+    port = int(broker_cfg.get("port", 4002))
+    config_allows_live_port = bool(broker_cfg.get("allow_live_broker_port_for_paper", False))
+    if port in KNOWN_IBKR_LIVE_PORTS and not (config_allows_live_port and allow_live_broker_port):
+        errors.append(
+            "paper mode refuses known live IBKR ports "
+            f"{sorted(KNOWN_IBKR_LIVE_PORTS)}; use a paper port "
+            f"{sorted(KNOWN_IBKR_PAPER_PORTS)} or set broker.allow_live_broker_port_for_paper "
+            "and pass --allow-live-broker-port"
+        )
+    if port not in KNOWN_IBKR_PAPER_PORTS and port not in KNOWN_IBKR_LIVE_PORTS and broker_cfg.get("account_mode") is None:
+        errors.append("non-standard broker.port requires explicit broker.account_mode: paper")
+    return errors
 
 
 def jsonable(value: Any) -> Any:
@@ -1170,6 +1199,7 @@ def run_from_config(
     max_steps: int | None = None,
     confirm_paper_orders: bool = False,
     approve_orders: bool = False,
+    allow_live_broker_port: bool = False,
     loop: bool | None = None,
     loop_interval_seconds: float | None = None,
     max_loop_iterations: int | None = None,
@@ -1187,6 +1217,13 @@ def run_from_config(
     mode = normalize_mode(mode_override or str(runner_cfg.get("mode", "replay")))
     if mode == "paper" and not confirm_paper_orders:
         raise ValueError("paper mode requires --confirm-paper-orders")
+    if mode == "paper":
+        paper_safety_errors = paper_broker_safety_errors(
+            config.get("broker") or {},
+            allow_live_broker_port=allow_live_broker_port,
+        )
+        if paper_safety_errors:
+            raise ValueError("paper broker safety gate failed:\n" + "\n".join(f"- {err}" for err in paper_safety_errors))
     loop_enabled = bool(loop) if loop is not None else bool(runner_cfg.get("loop", False))
     loop_interval = (
         float(loop_interval_seconds)
@@ -1591,6 +1628,11 @@ def main() -> None:
         help="Required for mode=paper because it submits orders through IBKR.",
     )
     parser.add_argument(
+        "--allow-live-broker-port",
+        action="store_true",
+        help="Additional opt-in required if a paper config intentionally uses a known live IBKR port.",
+    )
+    parser.add_argument(
         "--approve-orders",
         action="store_true",
         help="Approve orders for configs that set execution.require_order_approval=true.",
@@ -1637,6 +1679,7 @@ def main() -> None:
             max_steps=args.max_steps,
             confirm_paper_orders=args.confirm_paper_orders,
             approve_orders=args.approve_orders,
+            allow_live_broker_port=args.allow_live_broker_port,
             loop=args.loop if args.loop else None,
             loop_interval_seconds=args.loop_interval_seconds,
             max_loop_iterations=args.max_loop_iterations,

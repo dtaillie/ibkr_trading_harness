@@ -57,6 +57,8 @@ broker:
   host: 127.0.0.1
   port: 4002
   client_id: 301
+  account_mode: paper
+  allow_live_broker_port_for_paper: false
 
 notes:
   - Example only; do not trade this.

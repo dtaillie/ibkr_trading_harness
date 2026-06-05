@@ -51,6 +51,7 @@ python3 live/plugin_runner.py \
 ## Common Broker Rejections
 
 - wrong account mode or port
+- paper runner refused a known live API port or `broker.account_mode: live`
 - market-data permission or contract issue
 - unsupported order type, time in force, or quantity style for the venue
 - crypto order requiring cash quantity

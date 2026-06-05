@@ -50,6 +50,14 @@ python3 live/plugin_runner.py \
   --confirm-paper-orders
 ```
 
+The generic runner also checks broker safety before connecting. In `paper`
+mode, set `broker.account_mode: paper` and use a paper API port such as Gateway
+`4002` or TWS `7497`. Known live ports such as Gateway `4001` and TWS `7496`
+are refused unless both the config sets
+`broker.allow_live_broker_port_for_paper: true` and the command passes
+`--allow-live-broker-port`. That override is for unusual local routing only,
+not routine paper trading.
+
 Run a continuous shadow monitor when you want the generic runner to keep
 reloading latest bars and evaluating the plugin:
 
@@ -122,6 +130,7 @@ its final summary/artifacts.
 
 - Gateway is logged in and API port is reachable.
 - Account is paper, not live.
+- Broker config has `account_mode: paper` and a paper API port.
 - Config is ignored locally and points at the intended plugin.
 - `--validate-only` passes.
 - Risk limits are small and explicit.

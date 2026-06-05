@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from live.plugin_runner import ConfigValidationError, run_from_config, validate_config_file
+from live.plugin_runner import ConfigValidationError, paper_broker_safety_errors, run_from_config, validate_config_file
 
 
 def write_sample_bars(path: Path) -> None:
@@ -34,6 +34,7 @@ def write_config(
     data: dict | None = None,
     execution: dict | None = None,
     control: dict | None = None,
+    broker: dict | None = None,
 ) -> None:
     path.write_text(
         yaml.safe_dump(
@@ -60,6 +61,7 @@ def write_config(
                     **(execution or {}),
                 },
                 "control": control or {},
+                "broker": broker or {},
             },
             sort_keys=False,
         )
@@ -574,6 +576,92 @@ def test_paper_mode_requires_explicit_confirmation(tmp_path):
 
     with pytest.raises(ValueError, match="confirm-paper-orders"):
         run_from_config(config_path, mode_override="paper")
+
+
+def test_paper_mode_rejects_live_account_mode_before_broker_connect(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"account_mode": "live", "port": 4002},
+    )
+
+    with pytest.raises(ValueError, match="broker.account_mode: paper"):
+        run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert not output_dir.exists()
+
+
+def test_paper_mode_rejects_known_live_ibkr_port_without_dual_opt_in(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"account_mode": "paper", "port": 4001},
+    )
+
+    with pytest.raises(ValueError, match="known live IBKR ports"):
+        run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert not output_dir.exists()
+
+
+def test_paper_mode_live_port_requires_config_and_cli_opt_in(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"account_mode": "paper", "port": 4001, "allow_live_broker_port_for_paper": True},
+    )
+
+    with pytest.raises(ValueError, match="known live IBKR ports"):
+        run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert not output_dir.exists()
+
+
+def test_paper_broker_safety_allows_live_port_only_with_dual_opt_in():
+    errors = paper_broker_safety_errors(
+        {"account_mode": "paper", "port": 4001, "allow_live_broker_port_for_paper": True},
+        allow_live_broker_port=True,
+    )
+
+    assert errors == []
+
+
+def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"account_mode": "demo"},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "broker.account_mode must be paper or live" in str(exc.value)
+    assert not output_dir.exists()
 
 
 def test_validate_config_file_reports_missing_data_file(tmp_path):
