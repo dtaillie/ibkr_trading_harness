@@ -586,6 +586,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-gap-summary-note" in html
         assert "data-gap-summary-body" in html
         assert "data-calendar-gap-body" in html
+        assert "data-minute-heatmap-note" in html
+        assert "data-minute-heatmap-grid" in html
+        assert "data-minute-heatmap-body" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
@@ -1540,6 +1543,50 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert filtered["price_stats"]["start_close"] == 101.0
         assert filtered["price_stats"]["end_close"] == 102.0
         assert len(filtered["preview"]) == 2
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_data_minute_heatmap(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY_5min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.0,1000",
+                "2026-01-02T14:35:00Z,100,102,99,101.0,1100",
+                "2026-01-02T14:50:00Z,101,103,100,102.0,1200",
+                "2026-01-02T14:55:00Z,102,104,101,103.0,1300",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_minute_heatmap?catalog_limit=10&top_limit=5", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["status"] == "warn"
+        assert payload["dataset_count"] == 1
+        assert payload["total_estimated_missing_intervals"] == 2
+        assert payload["overall_completeness_pct"] == 66.66666666666666
+        row0 = payload["rows"][0]
+        assert row0["symbol"] == "SPY"
+        assert row0["bar_size"] == "5min"
+        assert row0["median_interval_seconds"] == 300.0
+        assert row0["estimated_missing_intervals"] == 2
+        hour14 = next(hour for hour in row0["hours"] if hour["hour_utc"] == 14)
+        assert hour14["actual_intervals"] == 4
+        assert hour14["estimated_missing_intervals"] == 2
+        assert hour14["expected_intervals"] == 6
+        assert row0["worst_hours"][0]["hour_utc"] == 14
     finally:
         server.shutdown()
         server.server_close()

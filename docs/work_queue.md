@@ -426,6 +426,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       `/data_gap_summary`, showing worst timestamp-gap files, estimated missing
       intervals, largest gaps, and missing calendar-day rows across the current
       bounded catalog scan. A richer minute-level heatmap remains future work.
+    - partial; Data Library now has a Minute Coverage Heatmap backed by
+      `/data_minute_heatmap`, summarizing expected vs actual intraday intervals
+      by UTC hour for bounded catalog rows and listing worst incomplete files.
+      Full date-by-minute drilldowns remain future work.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues

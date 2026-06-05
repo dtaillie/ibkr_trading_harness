@@ -6,6 +6,7 @@ const state = {
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
   dataGapSummary: { gap_rows: [], calendar_rows: [] },
+  dataMinuteHeatmap: { rows: [], errors: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
   dataCompare: null,
   symbolDiagnostic: null,
@@ -2362,6 +2363,69 @@ function renderDataGapSummary() {
     : row([`<span class="muted">No missing calendar-day gaps in the current catalog scan.</span>`, "", "", "", "", ""]);
 }
 
+function heatmapCellClass(hour) {
+  const expected = Number(hour.expected_intervals || 0);
+  if (!expected) return "empty";
+  const completeness = Number(hour.completeness_pct);
+  if (!Number.isFinite(completeness)) return "empty";
+  if (completeness >= 99.5) return "good";
+  if (completeness >= 95) return "warn-light";
+  if (completeness >= 80) return "warn";
+  return "bad";
+}
+
+function renderDataMinuteHeatmap() {
+  const summary = state.dataMinuteHeatmap || {};
+  const rows = summary.rows || [];
+  $("data-minute-heatmap-note").innerHTML = summary.generated_at
+    ? qualityBadge(summary.status, summary.warnings || [])
+    : "No minute heatmap loaded";
+  const pairs = [
+    ["Datasets", numberText(summary.dataset_count, 0)],
+    ["Overall Completeness", pctText(summary.overall_completeness_pct)],
+    ["Expected Intervals", numberText(summary.total_expected_intervals, 0)],
+    ["Missing Intervals", numberText(summary.total_estimated_missing_intervals, 0)],
+    ["Parser Errors", numberText(summary.error_count, 0)],
+  ];
+  $("data-minute-heatmap-list").innerHTML = pairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+  $("data-minute-heatmap-grid").innerHTML = rows.length
+    ? rows.slice(0, 20).map((item) => {
+        const cells = (item.hours || []).map((hour) => {
+          const label = `${String(hour.hour_utc).padStart(2, "0")}:00 UTC completeness ${pctText(hour.completeness_pct)}, missing ${numberText(hour.estimated_missing_intervals, 0)} of ${numberText(hour.expected_intervals, 0)}`;
+          return `<span class="coverage-cell heatmap-${heatmapCellClass(hour)}" title="${escapeHtml(label)}"></span>`;
+        }).join("");
+        return `
+          <div class="coverage-row minute-heatmap-row">
+            <div class="coverage-label">
+              <strong>${escapeHtml(item.symbol)}</strong>
+              <small>${escapeHtml(text(item.bar_size))} / ${escapeHtml(text(item.source))}</small>
+            </div>
+            <div class="coverage-strip minute-heatmap-strip">${cells}</div>
+            <small>${escapeHtml(pctText(item.completeness_pct))} complete</small>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No interval heatmap yet</strong><span>No parseable multi-row saved datasets are visible under configured roots.</span></div>`;
+  $("data-minute-heatmap-body").innerHTML = rows.length
+    ? rows.slice(0, 20).map((item) => {
+        const worst = (item.worst_hours || []).map((hour) => (
+          `${String(hour.hour_utc).padStart(2, "0")}:00 ${pctText(hour.completeness_pct)} (${numberText(hour.estimated_missing_intervals, 0)} missing)`
+        )).join("; ") || "none";
+        return row([
+          escapeHtml(item.symbol),
+          escapeHtml(text(item.bar_size)),
+          escapeHtml(pctText(item.completeness_pct)),
+          escapeHtml(numberText(item.estimated_missing_intervals, 0)),
+          escapeHtml(interval(item.median_interval_seconds)),
+          escapeHtml(worst),
+          `<span class="mono">${escapeHtml(item.path)}</span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">No intraday interval gaps in the current catalog scan.</span>`, "", "", "", "", "", ""]);
+}
+
 function renderSymbolDiagnostic() {
   const diagnostic = state.symbolDiagnostic || {};
   $("data-symbol-diagnostic-status").innerHTML = diagnostic.status
@@ -3822,6 +3886,7 @@ function renderAll() {
   renderDataCompare();
   renderDataCoverage();
   renderDataGapSummary();
+  renderDataMinuteHeatmap();
   renderDataStorageAudit();
   renderSymbolDiagnostic();
   renderFetchJobs();
@@ -3859,6 +3924,7 @@ async function refresh() {
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
   const dataGapSummary = await fetchJson(`/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`);
+  const dataMinuteHeatmap = await fetchJson(`/data_minute_heatmap?catalog_limit=${catalogLimit}&top_limit=20`);
   const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
@@ -3878,6 +3944,7 @@ async function refresh() {
   state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
   state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
   state.dataGapSummary = dataGapSummary || { gap_rows: [], calendar_rows: [] };
+  state.dataMinuteHeatmap = dataMinuteHeatmap || { rows: [], errors: [] };
   state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};

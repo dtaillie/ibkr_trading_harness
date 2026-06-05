@@ -658,6 +658,30 @@ section {
   background: #edf1ed;
 }
 
+.coverage-cell.heatmap-good {
+  background: var(--good);
+}
+
+.coverage-cell.heatmap-warn-light {
+  background: #f3d88c;
+}
+
+.coverage-cell.heatmap-warn {
+  background: var(--warn);
+}
+
+.coverage-cell.heatmap-bad {
+  background: var(--bad);
+}
+
+.coverage-cell.heatmap-empty {
+  background: #edf1ed;
+}
+
+.minute-heatmap-strip {
+  grid-auto-columns: minmax(6px, 1fr);
+}
+
 .help-card strong {
   display: block;
   margin-bottom: 10px;

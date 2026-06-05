@@ -278,6 +278,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_minute_heatmap",
+        "category": "data",
+        "description": "Summarize saved-data intraday interval completeness by UTC hour.",
+        "response": "JSON hourly missing-interval heatmap rows",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_diagnostic",
         "category": "data",
         "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
@@ -1846,6 +1853,138 @@ def build_data_gap_summary(
         "files_with_missing_calendar_days": len(calendar_rows),
         "gap_rows": gap_rows[:top_limit],
         "calendar_rows": calendar_rows[:top_limit],
+    }
+
+
+def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
+    df, fmt = read_timestamp_frame(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else df.index
+    parsed = pd.Series(parse_datetime_utc(raw_ts)).dropna().sort_values()
+    if parsed.empty:
+        raise ValueError("no parseable timestamps")
+    ordered = parsed.drop_duplicates().sort_values()
+    if len(ordered) < 2:
+        raise ValueError("not enough timestamps for interval completeness")
+    diffs = ordered.diff().dropna().dt.total_seconds()
+    positive_diffs = diffs[diffs > 0]
+    if positive_diffs.empty:
+        raise ValueError("not enough positive timestamp intervals")
+    median_interval = finite_float(positive_diffs.median())
+    if median_interval is None or median_interval <= 0:
+        raise ValueError("invalid median timestamp interval")
+
+    actual_by_hour: Counter[int] = Counter(int(ts.hour) for ts in ordered)
+    missing_by_hour: Counter[int] = Counter()
+    previous = ordered.iloc[0]
+    step = pd.Timedelta(seconds=median_interval)
+    for current in ordered.iloc[1:]:
+        gap_seconds = float((current - previous).total_seconds())
+        if gap_seconds > median_interval * 1.5:
+            missing = max(0, round(gap_seconds / median_interval) - 1)
+            for index in range(1, missing + 1):
+                estimated_ts = previous + step * index
+                if estimated_ts >= current:
+                    break
+                missing_by_hour[int(estimated_ts.hour)] += 1
+        previous = current
+
+    hours = []
+    total_actual = 0
+    total_missing = 0
+    for hour in range(24):
+        actual = int(actual_by_hour.get(hour, 0))
+        missing = int(missing_by_hour.get(hour, 0))
+        expected = actual + missing
+        total_actual += actual
+        total_missing += missing
+        completeness = (actual / expected * 100.0) if expected else None
+        hours.append({
+            "hour_utc": hour,
+            "actual_intervals": actual,
+            "estimated_missing_intervals": missing,
+            "expected_intervals": expected,
+            "completeness_pct": finite_float(completeness),
+        })
+
+    worst_hours = sorted(
+        [hour for hour in hours if int(hour["expected_intervals"] or 0) > 0],
+        key=lambda row: (
+            float(row["completeness_pct"] if row["completeness_pct"] is not None else 100.0),
+            -int(row["estimated_missing_intervals"] or 0),
+            int(row["hour_utc"] or 0),
+        ),
+    )[:4]
+    expected_total = total_actual + total_missing
+    completeness_total = (total_actual / expected_total * 100.0) if expected_total else None
+    symbol = infer_symbol(path, df)
+    return {
+        "path": display_path(path),
+        "root": display_path(root),
+        "symbol": symbol,
+        "asset_class": infer_asset_class(path, symbol),
+        "source": infer_data_source(path),
+        "bar_size": infer_bar_size(path, df),
+        "format": fmt,
+        "rows": int(len(df)),
+        "first_timestamp": ordered.iloc[0].isoformat(),
+        "last_timestamp": ordered.iloc[-1].isoformat(),
+        "median_interval_seconds": median_interval,
+        "actual_intervals": total_actual,
+        "expected_intervals": expected_total,
+        "estimated_missing_intervals": total_missing,
+        "completeness_pct": finite_float(completeness_total),
+        "hours": hours,
+        "worst_hours": worst_hours,
+    }
+
+
+def build_data_minute_heatmap(
+    data_roots: list[Path],
+    *,
+    catalog_limit: int = 200,
+    top_limit: int = 20,
+) -> dict[str, Any]:
+    if top_limit < 1 or top_limit > 100:
+        raise ValueError("top_limit must be between 1 and 100")
+    rows = []
+    errors = []
+    for path in data_file_candidates(data_roots, limit=catalog_limit):
+        root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+        try:
+            rows.append(interval_heatmap_for_data_file(path, root=root))
+        except Exception as exc:
+            errors.append({"path": display_path(path), "error": str(exc)})
+
+    rows.sort(key=lambda row: (
+        float(row["completeness_pct"] if row.get("completeness_pct") is not None else 100.0),
+        -int(row.get("estimated_missing_intervals") or 0),
+        str(row.get("symbol") or ""),
+    ))
+    total_expected = sum(int(row.get("expected_intervals") or 0) for row in rows)
+    total_missing = sum(int(row.get("estimated_missing_intervals") or 0) for row in rows)
+    completeness = ((total_expected - total_missing) / total_expected * 100.0) if total_expected else None
+    warnings = []
+    if total_missing:
+        warnings.append(f"{total_missing} estimated missing intraday intervals")
+    if errors:
+        warnings.append(f"{len(errors)} files failed interval heatmap parsing")
+    status = "bad" if errors and not rows else "warn" if warnings else "ok"
+    return {
+        "generated_at": utc_now(),
+        "status": status,
+        "warnings": warnings,
+        "warning_count": len(warnings),
+        "roots": [display_path(root) for root in data_roots],
+        "catalog_limit": catalog_limit,
+        "top_limit": top_limit,
+        "dataset_count": len(rows),
+        "error_count": len(errors),
+        "total_expected_intervals": total_expected,
+        "total_estimated_missing_intervals": total_missing,
+        "overall_completeness_pct": finite_float(completeness),
+        "rows": rows[:top_limit],
+        "errors": errors[:top_limit],
     }
 
 
@@ -4980,6 +5119,22 @@ class StatusHandler(BaseHTTPRequestHandler):
                 catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
                 top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
                 payload = build_data_gap_summary(
+                    self.data_roots,
+                    catalog_limit=catalog_limit,
+                    top_limit=top_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_minute_heatmap":
+            if not self.require_auth():
+                return
+            try:
+                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
+                payload = build_data_minute_heatmap(
                     self.data_roots,
                     catalog_limit=catalog_limit,
                     top_limit=top_limit,
