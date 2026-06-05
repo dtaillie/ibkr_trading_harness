@@ -606,6 +606,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-metric-context" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
+        assert "fetch-filter-text" in html
+        assert "fetch-filter-status" in html
+        assert "fetch-filter-kind" in html
+        assert "fetch-filter-sort" in html
         assert "fetch-events-body" in html
         assert "copy-fetch-resume-command" in html
         assert "overview-health-grid" in html

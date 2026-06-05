@@ -500,6 +500,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - active/completed jobs
     - completed jobs are visible; active jobs appear when the manifest is being
       updated during a running fetch
+    - partial; Fetch Jobs now has client-side search, status/kind filters, and
+      sort controls so long completed/active manifest histories are easier to
+      scan for failed jobs, recent jobs, large pulls, and output paths.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

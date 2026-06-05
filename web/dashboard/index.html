@@ -1046,6 +1046,35 @@
         </div>
       </div>
       <div id="fetch-root-cards" class="root-grid"></div>
+      <div class="filter-row">
+        <label>
+          <span>Search</span>
+          <input id="fetch-filter-text" type="search" placeholder="Job, symbol, output, or error">
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="fetch-filter-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Kind</span>
+          <select id="fetch-filter-kind">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="fetch-filter-sort">
+            <option value="started_desc" selected>Newest started</option>
+            <option value="finished_desc">Newest finished</option>
+            <option value="errors_desc">Most errors</option>
+            <option value="rows_desc">Most rows</option>
+            <option value="symbols_desc">Most symbols</option>
+            <option value="kind_asc">Kind A-Z</option>
+          </select>
+        </label>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>

@@ -2882,10 +2882,12 @@ function renderDataCompare() {
 function renderFetchJobs() {
   const payload = state.fetchManifests || {};
   const manifests = payload.manifests || [];
+  const filteredManifests = filteredFetchManifests(manifests);
   const roots = payload.roots || [];
   const rowsTotal = manifests.reduce((sum, item) => sum + Number(item.rows || 0), 0);
+  renderFetchFilterOptions(manifests);
   $("fetch-jobs-note").textContent = payload.generated_at
-    ? `${numberText(manifests.length, 0)} shown / ${numberText(payload.total || manifests.length, 0)} total`
+    ? `${numberText(filteredManifests.length, 0)} shown / ${numberText(payload.total || manifests.length, 0)} total`
     : "No fetch manifests loaded";
   $("fetch-job-count").textContent = numberText(manifests.length, 0);
   $("fetch-job-status-summary").textContent = countSummary(payload.status_counts);
@@ -2923,7 +2925,7 @@ function renderFetchJobs() {
     "",
     "",
   ]));
-  const manifestRows = manifests.map((item) => {
+  const manifestRows = filteredManifests.map((item) => {
     const symbolSummary = [
       `ok ${numberText(item.success_symbols, 0)}`,
       `empty ${numberText(item.empty_symbols, 0)}`,
@@ -2962,7 +2964,7 @@ function renderFetchJobs() {
   });
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
-    : row([`<span class="muted">No fetch manifests yet. Run a fetch command to create one.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderFetchManifestDetail() {
@@ -3062,6 +3064,72 @@ function renderFetchManifestDetail() {
 function fetchResumeCommand(detail) {
   if (!detail || !detail.path || detail.kind !== "crypto_history") return "";
   return `python3 live/fetch_crypto_history.py --resume-manifest ${shellQuote(detail.path)}`;
+}
+
+function fetchJobFilters() {
+  return {
+    text: ($("fetch-filter-text").value || "").trim().toLowerCase(),
+    status: $("fetch-filter-status").value || "",
+    kind: $("fetch-filter-kind").value || "",
+    sort: $("fetch-filter-sort").value || "started_desc",
+  };
+}
+
+function renderFetchFilterOptions(manifests) {
+  const makeOptions = (id, values) => {
+    const current = $(id).value || "";
+    const unique = Array.from(new Set((values || []).map(text).filter((value) => value && value !== "n/a"))).sort();
+    $(id).innerHTML = `<option value="">All</option>${unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+    if (unique.includes(current)) $(id).value = current;
+  };
+  makeOptions("fetch-filter-status", (manifests || []).map((item) => item.status));
+  makeOptions("fetch-filter-kind", (manifests || []).map((item) => item.kind));
+}
+
+function fetchManifestSortValue(item, key) {
+  if (key === "started") return timestampMillis(item.started_at) || 0;
+  if (key === "finished") return timestampMillis(item.finished_at) || 0;
+  if (key === "errors") return Number(item.errors || 0);
+  if (key === "rows") return Number(item.rows || 0);
+  if (key === "symbols") return Number(item.symbols_requested || item.success_symbols || 0);
+  return String(item.kind || item.job_id || "").toLowerCase();
+}
+
+function filteredFetchManifests(manifests) {
+  const filters = fetchJobFilters();
+  const filtered = (manifests || []).filter((item) => {
+    if (filters.status && text(item.status) !== filters.status) return false;
+    if (filters.kind && text(item.kind) !== filters.kind) return false;
+    if (filters.text) {
+      const haystack = [
+        item.job_id,
+        item.kind,
+        item.status,
+        item.started_at,
+        item.finished_at,
+        item.latest_output_path,
+        item.first_output_path,
+        item.out_dir,
+        item.error_sample,
+        ...(item.symbols || []),
+        ...(item.symbols_requested_list || []),
+      ].map(text).join(" ").toLowerCase();
+      if (!haystack.includes(filters.text)) return false;
+    }
+    return true;
+  });
+  const [key, direction] = String(filters.sort || "started_desc").split("_");
+  const multiplier = direction === "asc" ? 1 : -1;
+  return filtered.slice().sort((left, right) => {
+    const leftValue = fetchManifestSortValue(left, key);
+    const rightValue = fetchManifestSortValue(right, key);
+    if (typeof leftValue === "number" && typeof rightValue === "number" && leftValue !== rightValue) {
+      return (leftValue - rightValue) * multiplier;
+    }
+    const primary = String(leftValue).localeCompare(String(rightValue)) * multiplier;
+    if (primary) return primary;
+    return String(left.job_id || "").localeCompare(String(right.job_id || ""));
+  });
 }
 
 function replaceOptions(select, options) {
@@ -4730,6 +4798,10 @@ function init() {
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
+  $("fetch-filter-text").addEventListener("input", renderFetchJobs);
+  $("fetch-filter-status").addEventListener("change", renderFetchJobs);
+  $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
+  $("fetch-filter-sort").addEventListener("change", renderFetchJobs);
   $("config-dataset").addEventListener("change", renderConfigDataQuality);
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);
