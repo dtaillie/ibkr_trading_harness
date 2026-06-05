@@ -12,6 +12,7 @@ const state = {
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
+  manifestPathFilter: null,
   workbenchStatus: {},
   cleanupPlan: {},
   diagnostics: {},
@@ -2227,7 +2228,9 @@ function sortDataCatalogRows(datasets, sortKey) {
 
 function filteredDataCatalog(datasets) {
   const filters = dataCatalogFilters();
+  const manifestPaths = manifestPathFilterPaths();
   const filtered = (datasets || []).filter((dataset) => {
+    if (manifestPaths.size && !manifestPaths.has(text(dataset.path))) return false;
     if (filters.quality && dataset.quality_status !== filters.quality) return false;
     if (filters.bar && text(dataset.bar_size) !== filters.bar) return false;
     if (filters.asset && text(dataset.asset_class) !== filters.asset) return false;
@@ -2401,6 +2404,19 @@ function dirname(path) {
   return normalized.slice(0, index);
 }
 
+function manifestPathFilterPaths() {
+  return new Set(((state.manifestPathFilter || {}).paths || []).map(text).filter((value) => value !== "n/a"));
+}
+
+function fetchVisibleOutputPaths(detail = state.fetchManifestDetail || {}) {
+  const paths = new Set();
+  for (const item of (detail.outputs || [])) {
+    if (!item.data_detail_available || !item.data_detail_path) continue;
+    paths.add(text(item.data_detail_path));
+  }
+  return Array.from(paths).sort();
+}
+
 function replayStarterCommand(detail) {
   const path = detail && detail.path;
   const symbol = detail && detail.symbol;
@@ -2469,6 +2485,9 @@ function dataFilterSummary() {
   if (filters.bar) labels.push(`bar ${filters.bar}`);
   if (filters.asset) labels.push(`asset ${filters.asset}`);
   if (filters.source) labels.push(`source ${filters.source}`);
+  if (state.manifestPathFilter && (state.manifestPathFilter.paths || []).length) {
+    labels.push(`fetch outputs ${numberText((state.manifestPathFilter.paths || []).length, 0)}`);
+  }
   if (filters.sort && filters.sort !== "modified_desc") labels.push(`sort ${filters.sort.replace("_", " ")}`);
   return labels;
 }
@@ -3446,10 +3465,12 @@ function renderFetchJobs() {
 function renderFetchManifestDetail() {
   const detail = state.fetchManifestDetail || {};
   const resumeCommand = fetchResumeCommand(detail);
+  const visibleOutputPaths = fetchVisibleOutputPaths(detail);
   $("fetch-detail-title").textContent = detail.job_id
     ? `${text(detail.job_id)} - ${text(detail.status)}`
     : "No fetch job selected";
   $("copy-fetch-resume-command").disabled = !resumeCommand;
+  $("show-fetch-outputs-data").disabled = !visibleOutputPaths.length;
   const counts = detail.counts || {};
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
@@ -3537,6 +3558,28 @@ function renderFetchManifestDetail() {
           : `<span class="muted">${escapeHtml(fetchOutputVisibilityLabel(item))}</span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function applyFetchOutputDataFilter() {
+  const detail = state.fetchManifestDetail || {};
+  const paths = fetchVisibleOutputPaths(detail);
+  if (!paths.length) {
+    $("last-refresh").textContent = "Selected fetch has no Data Library-visible outputs";
+    return;
+  }
+  state.manifestPathFilter = {
+    job_id: detail.job_id || "selected fetch",
+    paths,
+  };
+  $("data-filter-text").value = "";
+  $("data-filter-quality").value = "";
+  $("data-filter-bar").value = "";
+  $("data-filter-asset").value = "";
+  $("data-filter-source").value = "";
+  $("data-filter-sort").value = "modified_desc";
+  navigateToView("data");
+  renderDataCatalog();
+  $("last-refresh").textContent = `Data Library filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
 
 function fetchOutputVisibilityLabel(item) {
@@ -5834,6 +5877,7 @@ function init() {
     $("data-filter-asset").value = "";
     $("data-filter-source").value = "";
     $("data-filter-sort").value = "modified_desc";
+    state.manifestPathFilter = null;
     renderDataCatalog();
     $("last-refresh").textContent = "Data Library filters cleared";
   });
@@ -6122,6 +6166,7 @@ function init() {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
+  $("show-fetch-outputs-data").addEventListener("click", applyFetchOutputDataFilter);
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;

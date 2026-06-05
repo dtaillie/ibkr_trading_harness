@@ -262,6 +262,8 @@ fetch errors, or absent. Fetch Jobs shows historical-data pull manifests, status
 counts, no-data chunks, errors, produced output files, and per-symbol progress.
 When a produced output file is under a configured data root, use Inspect Data in
 the output row to open its saved-file detail view without leaving the dashboard.
+Use Show Outputs in Data Library from Fetch Detail to filter saved-data rows to
+the files produced by the selected fetch job.
 Runs shows searchable saved-run comparisons, recent run-event telemetry,
 current managed positions, and recent non-terminal order events when runners
 publish them. Operations shows node health, Gateway reachability,
