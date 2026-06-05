@@ -2543,6 +2543,8 @@ function renderFetchJobs() {
     const etaSummary = [
       item.latest_eta_seconds !== undefined && item.latest_eta_seconds !== null ? `eta ${interval(item.latest_eta_seconds)}` : "",
       item.latest_avg_chunk_seconds !== undefined && item.latest_avg_chunk_seconds !== null ? `avg ${interval(item.latest_avg_chunk_seconds)}` : "",
+      item.latest_avg_symbol_seconds !== undefined && item.latest_avg_symbol_seconds !== null ? `sym avg ${interval(item.latest_avg_symbol_seconds)}` : "",
+      item.latest_completed_symbols !== undefined && item.latest_completed_symbols !== null ? `symbols ${numberText(item.latest_completed_symbols, 0)}/${numberText(item.latest_total_symbols || item.symbols_requested, 0)}` : "",
       item.retry_events ? `retries ${numberText(item.retry_events, 0)}` : "",
       item.pacing_wait_events ? `waits ${numberText(item.pacing_wait_events, 0)}` : "",
     ].filter(Boolean).join(" / ") || "n/a";
@@ -2592,6 +2594,8 @@ function renderFetchManifestDetail() {
     ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
     ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
     ["Avg Chunk", counts.latest_avg_chunk_seconds !== null && counts.latest_avg_chunk_seconds !== undefined ? interval(counts.latest_avg_chunk_seconds) : "n/a"],
+    ["Symbol Progress", counts.latest_completed_symbols !== null && counts.latest_completed_symbols !== undefined ? `${numberText(counts.latest_completed_symbols, 0)} / ${numberText(counts.latest_total_symbols || counts.requested_symbols, 0)}` : "n/a"],
+    ["Avg Symbol", counts.latest_avg_symbol_seconds !== null && counts.latest_avg_symbol_seconds !== undefined ? interval(counts.latest_avg_symbol_seconds) : "n/a"],
     ["Resume", resumeCommand || "n/a"],
     ["Output Dir", text(parameters.out_dir)],
     ["Manifest", text(detail.path)],

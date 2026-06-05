@@ -298,8 +298,12 @@ class FetchManifest:
             ),
             "latest_completed_chunks": progress.get("completed_chunks"),
             "latest_remaining_chunks": progress.get("remaining_chunks"),
+            "latest_completed_symbols": progress.get("completed_symbols"),
+            "latest_remaining_symbols": progress.get("remaining_symbols"),
+            "latest_total_symbols": progress.get("total_symbols"),
             "latest_eta_seconds": progress.get("eta_seconds"),
             "latest_avg_chunk_seconds": progress.get("rolling_avg_chunk_seconds"),
+            "latest_avg_symbol_seconds": progress.get("rolling_avg_symbol_seconds"),
         }
 
     def finish(self, status: str | None = None) -> None:

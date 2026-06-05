@@ -471,12 +471,18 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; the shared fetch manifest now counts retry events and the
       crypto fetcher records bounded per-attempt retry events with delay,
       attempt, symbol, and day context.
+    - partial; the stock fetcher now supports optional per-symbol retries,
+      records retry events, records output/error attempt counts, and keeps
+      default retry behavior unchanged unless `--retries` is set.
   - pacing waits
     - partial; configured pacing delay is persisted, actual wait events are not
       summarized yet
     - partial; crypto fetch manifests now record actual pacing wait events and
       the dashboard summarizes total wait count/seconds plus retry/pacing
       event rows in Fetch Detail.
+    - partial; the stock fetcher now supports optional `--pacing-delay` between
+      symbol requests and records those actual wait events in the JSON
+      manifest.
   - current output path
     - done for manifest outputs and latest output path
 - Standardize historical storage:

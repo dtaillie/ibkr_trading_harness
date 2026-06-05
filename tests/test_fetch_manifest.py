@@ -1,6 +1,9 @@
 import json
 
+import pytest
+
 from live.fetch_crypto_history import load_json_resume_manifest, option_present
+from live.fetch_history import fetch_with_retries
 from live.fetch_manifest import FetchManifest
 
 
@@ -25,7 +28,11 @@ def test_fetch_manifest_records_retry_pacing_and_progress(tmp_path):
         completed_chunks=1,
         pending_chunks=3,
         remaining_chunks=2,
+        completed_symbols=1,
+        remaining_symbols=0,
+        total_symbols=1,
         rolling_avg_chunk_seconds=0.4,
+        rolling_avg_symbol_seconds=0.5,
         eta_seconds=0.8,
         eta="0s",
     )
@@ -49,7 +56,11 @@ def test_fetch_manifest_records_retry_pacing_and_progress(tmp_path):
     assert counts["avg_output_elapsed_seconds"] == 0.4
     assert counts["latest_completed_chunks"] == 1
     assert counts["latest_remaining_chunks"] == 2
+    assert counts["latest_completed_symbols"] == 1
+    assert counts["latest_remaining_symbols"] == 0
+    assert counts["latest_total_symbols"] == 1
     assert counts["latest_eta_seconds"] == 0.8
+    assert counts["latest_avg_symbol_seconds"] == 0.5
     assert payload["outputs"][0]["attempt_count"] == 2
     assert payload["events"][0]["type"] == "retry"
 
@@ -98,3 +109,57 @@ def test_option_present_detects_equals_and_split_forms():
     assert option_present(["--bar-size", "1min"], "--bar-size")
     assert option_present(["--bar-size=1min"], "--bar-size")
     assert not option_present(["--bar", "1min"], "--bar-size")
+
+
+def test_stock_fetch_retry_helper_records_retry_events(tmp_path):
+    manifest = FetchManifest(
+        manifest_dir=tmp_path,
+        kind="stock_history",
+        parameters={"bar_size": "5min"},
+        symbols=["SPY"],
+    )
+    attempts = {"count": 0}
+
+    def flaky_fetch():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("temporary HMDS error")
+        return ["bar"]
+
+    result, attempt_count = fetch_with_retries(
+        symbol="SPY",
+        operation=flaky_fetch,
+        manifest=manifest,
+        max_retries=1,
+        retry_delay=0,
+        sleep_fn=lambda _seconds: None,
+    )
+
+    assert result == ["bar"]
+    assert attempt_count == 2
+    payload = json.loads(manifest.path.read_text(encoding="utf-8"))
+    assert payload["counts"]["retry_events"] == 1
+    assert payload["events"][0]["symbol"] == "SPY"
+    assert payload["events"][0]["attempt"] == 1
+
+
+def test_stock_fetch_retry_helper_raises_after_retry_budget(tmp_path):
+    manifest = FetchManifest(
+        manifest_dir=tmp_path,
+        kind="stock_history",
+        parameters={"bar_size": "5min"},
+        symbols=["SPY"],
+    )
+
+    with pytest.raises(RuntimeError, match="still broken"):
+        fetch_with_retries(
+            symbol="SPY",
+            operation=lambda: (_ for _ in ()).throw(RuntimeError("still broken")),
+            manifest=manifest,
+            max_retries=0,
+            retry_delay=0,
+            sleep_fn=lambda _seconds: None,
+        )
+
+    payload = json.loads(manifest.path.read_text(encoding="utf-8"))
+    assert payload["counts"]["retry_events"] == 0

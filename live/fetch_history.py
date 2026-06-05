@@ -61,6 +61,34 @@ def display_path(path: Path) -> str:
     return resolved.relative_to(root).as_posix() if resolved.is_relative_to(root) else str(resolved)
 
 
+def fetch_with_retries(
+    *,
+    symbol: str,
+    operation,
+    manifest: FetchManifest,
+    max_retries: int,
+    retry_delay: float,
+    sleep_fn=time.sleep,
+):
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            return operation(), attempts
+        except Exception as exc:
+            if attempts > max_retries:
+                raise
+            manifest.retry(
+                symbol,
+                str(exc),
+                attempt=attempts,
+                max_retries=max_retries,
+                delay_seconds=retry_delay,
+            )
+            if retry_delay > 0:
+                sleep_fn(retry_delay)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Fetch historical bars from IBKR (read-only)")
     parser.add_argument("--host", default="127.0.0.1")
@@ -82,6 +110,12 @@ def main():
                         help="IBKR historical data type override, e.g. TRADES, MIDPOINT, BID, ASK, BID_ASK, AGGTRADES.")
     parser.add_argument("--crypto-exchange", default=None,
                         help="IBKR crypto venue override for *-USD symbols, e.g. ZEROHASH or PAXOS.")
+    parser.add_argument("--pacing-delay", type=float, default=0.0,
+                        help="Optional seconds to wait between symbol requests.")
+    parser.add_argument("--retries", type=int, default=0,
+                        help="Retry failed symbol fetches this many times before recording an error.")
+    parser.add_argument("--retry-delay", type=float, default=5.0,
+                        help="Seconds to wait between retry attempts.")
     parser.add_argument("--manifest-dir", type=Path, default=DEFAULT_FETCH_MANIFEST_DIR,
                         help="Directory for dashboard-readable JSON fetch manifests.")
     parser.add_argument("--no-manifest", action="store_true",
@@ -100,11 +134,24 @@ def main():
             "what_to_show": args.what_to_show,
             "crypto_exchange": args.crypto_exchange,
             "cache_dir": display_path(CACHE_DIR),
+            "pacing_delay": args.pacing_delay,
+            "retries": args.retries,
+            "retry_delay": args.retry_delay,
         },
         symbols=symbols,
         enabled=not args.no_manifest,
     )
+    manifest.set_plan(
+        symbols_total=len(symbols),
+        range_start=None,
+        range_end=None,
+        duration=args.duration,
+        months=args.months,
+    )
     manifest_status = "failed"
+    failed_symbols = 0
+    completed_symbols = 0
+    symbol_elapsed_samples: list[float] = []
 
     ib = IB()
     log.info(f"Connecting to {args.host}:{args.port} (client_id={args.client_id})...")
@@ -117,43 +164,98 @@ def main():
         log.info(f"Connected. Account: {ib.managedAccounts()}")
         manifest.event("connected", "Connected to IBKR historical data API")
 
-        for symbol in symbols:
+        for index, symbol in enumerate(symbols, start=1):
             manifest.symbol(symbol, "running")
             symbol_fetch_started = time.time()
             if args.months > 0:
                 log.info(f"Fetching {symbol} {args.bar_size} bars for {args.months} months (chunked)...")
                 try:
-                    bars = fetch_ibkr_bars_chunked(
-                        ib, symbol,
-                        bar_size=args.bar_size,
-                        months=args.months,
-                        use_rth=args.rth,
-                        use_cache=False,
+                    bars, attempts = fetch_with_retries(
+                        symbol=symbol,
+                        operation=lambda: fetch_ibkr_bars_chunked(
+                            ib, symbol,
+                            bar_size=args.bar_size,
+                            months=args.months,
+                            use_rth=args.rth,
+                            use_cache=False,
+                        ),
+                        manifest=manifest,
+                        max_retries=max(0, args.retries),
+                        retry_delay=max(0.0, args.retry_delay),
                     )
                 except Exception as e:
                     message = str(e)
+                    elapsed_seconds = time.time() - symbol_fetch_started
                     log.warning(f"  {symbol}: failed — {message}")
-                    manifest.error(symbol, message, kind=infer_error_kind(message))
+                    failed_symbols += 1
+                    manifest.error(
+                        symbol,
+                        message,
+                        kind=infer_error_kind(message),
+                        elapsed_seconds=elapsed_seconds,
+                        attempt_count=max(1, args.retries + 1),
+                    )
                     manifest.symbol(symbol, "failed", message=message)
+                    completed_symbols += 1
+                    symbol_elapsed_samples.append(elapsed_seconds)
+                    avg_elapsed = sum(symbol_elapsed_samples[-5:]) / len(symbol_elapsed_samples[-5:])
+                    manifest.set_progress(
+                        completed_symbols=completed_symbols,
+                        remaining_symbols=max(0, len(symbols) - completed_symbols),
+                        total_symbols=len(symbols),
+                        rolling_avg_symbol_seconds=avg_elapsed,
+                        eta_seconds=avg_elapsed * max(0, len(symbols) - completed_symbols),
+                    )
+                    if args.pacing_delay > 0 and index < len(symbols):
+                        manifest.pacing_wait(args.pacing_delay, reason="post historical data request", symbol=symbol)
+                        time.sleep(args.pacing_delay)
                     continue
             else:
                 log.info(f"Fetching {symbol} {args.bar_size} bars for {args.duration}...")
                 try:
-                    bars = fetch_ibkr_bars(
-                        ib, symbol,
-                        duration=args.duration,
-                        bar_size=args.bar_size,
-                        use_rth=args.rth,
-                        use_cache=False,
-                        what_to_show=args.what_to_show,
-                        crypto_exchange=args.crypto_exchange,
+                    bars, attempts = fetch_with_retries(
+                        symbol=symbol,
+                        operation=lambda: fetch_ibkr_bars(
+                            ib, symbol,
+                            duration=args.duration,
+                            bar_size=args.bar_size,
+                            use_rth=args.rth,
+                            use_cache=False,
+                            what_to_show=args.what_to_show,
+                            crypto_exchange=args.crypto_exchange,
+                        ),
+                        manifest=manifest,
+                        max_retries=max(0, args.retries),
+                        retry_delay=max(0.0, args.retry_delay),
                     )
                 except Exception as e:
                     message = str(e)
+                    elapsed_seconds = time.time() - symbol_fetch_started
                     log.warning(f"  {symbol}: failed — {message}")
-                    manifest.error(symbol, message, kind=infer_error_kind(message))
+                    failed_symbols += 1
+                    manifest.error(
+                        symbol,
+                        message,
+                        kind=infer_error_kind(message),
+                        elapsed_seconds=elapsed_seconds,
+                        attempt_count=max(1, args.retries + 1),
+                    )
                     manifest.symbol(symbol, "failed", message=message)
+                    completed_symbols += 1
+                    symbol_elapsed_samples.append(elapsed_seconds)
+                    avg_elapsed = sum(symbol_elapsed_samples[-5:]) / len(symbol_elapsed_samples[-5:])
+                    manifest.set_progress(
+                        completed_symbols=completed_symbols,
+                        remaining_symbols=max(0, len(symbols) - completed_symbols),
+                        total_symbols=len(symbols),
+                        rolling_avg_symbol_seconds=avg_elapsed,
+                        eta_seconds=avg_elapsed * max(0, len(symbols) - completed_symbols),
+                    )
+                    if args.pacing_delay > 0 and index < len(symbols):
+                        manifest.pacing_wait(args.pacing_delay, reason="post historical data request", symbol=symbol)
+                        time.sleep(args.pacing_delay)
                     continue
+            elapsed_seconds = time.time() - symbol_fetch_started
             if bars:
                 log.info(f"  {symbol}: {len(bars)} bars cached "
                          f"({bars[0].timestamp} → {bars[-1].timestamp})")
@@ -171,6 +273,8 @@ def main():
                         rows=rows,
                         first_timestamp=first_ts,
                         last_timestamp=last_ts,
+                        elapsed_seconds=elapsed_seconds,
+                        attempt_count=attempts,
                     )
                 if not cache_outputs:
                     manifest.output(
@@ -180,6 +284,8 @@ def main():
                         first_timestamp=bars[0].timestamp,
                         last_timestamp=bars[-1].timestamp,
                         message="No matching cache file found after fetch",
+                        elapsed_seconds=elapsed_seconds,
+                        attempt_count=attempts,
                     )
                 manifest.symbol(
                     symbol,
@@ -190,9 +296,36 @@ def main():
                 )
             else:
                 log.warning(f"  {symbol}: no bars returned")
-                manifest.error(symbol, "no bars returned", kind="no_data")
+                manifest.error(
+                    symbol,
+                    "no bars returned",
+                    kind="no_data",
+                    elapsed_seconds=elapsed_seconds,
+                    attempt_count=attempts,
+                )
                 manifest.symbol(symbol, "empty", bars=0, message="no bars returned")
-        manifest_status = None
+            completed_symbols += 1
+            symbol_elapsed_samples.append(elapsed_seconds)
+            avg_elapsed = sum(symbol_elapsed_samples[-5:]) / len(symbol_elapsed_samples[-5:])
+            manifest.set_progress(
+                completed_symbols=completed_symbols,
+                remaining_symbols=max(0, len(symbols) - completed_symbols),
+                total_symbols=len(symbols),
+                rolling_avg_symbol_seconds=avg_elapsed,
+                eta_seconds=avg_elapsed * max(0, len(symbols) - completed_symbols),
+            )
+            log.info(
+                "Symbol complete [%d/%d] %s: elapsed=%.2fs eta=%.2fs",
+                completed_symbols,
+                len(symbols),
+                symbol,
+                elapsed_seconds,
+                avg_elapsed * max(0, len(symbols) - completed_symbols),
+            )
+            if args.pacing_delay > 0 and index < len(symbols):
+                manifest.pacing_wait(args.pacing_delay, reason="post historical data request", symbol=symbol)
+                time.sleep(args.pacing_delay)
+        manifest_status = "partial" if failed_symbols else None
     finally:
         manifest.finish(manifest_status)
         ib.disconnect()
