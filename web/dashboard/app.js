@@ -2373,6 +2373,8 @@ function renderDataCatalog() {
         escapeHtml(dataset.asset_class),
         escapeHtml(dataset.source),
         escapeHtml(dataset.bar_size),
+        escapeHtml(dataset.storage_session),
+        escapeHtml(dataset.adjustment_status),
         escapeHtml(dataset.format),
         escapeHtml(dataset.rows),
         escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp)),
@@ -2386,7 +2388,7 @@ function renderDataCatalog() {
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
@@ -2394,6 +2396,7 @@ function renderDataCatalog() {
     `bars ${countSummary(catalog.bar_size_counts)}`,
     `assets ${countSummary(catalog.asset_class_counts)}`,
     `sources ${countSummary(catalog.source_counts)}`,
+    `sessions ${countSummary(catalog.storage_session_counts)}`,
     `rows ${numberText(catalog.row_count_total, 0)}`,
     `size ${bytes(catalog.size_bytes_total)}`,
   ].join(" | ");
@@ -2900,6 +2903,9 @@ function renderDataDetail() {
     ["File Path", text(detail.path)],
     ["Asset", text(detail.asset_class)],
     ["Source", text(detail.source)],
+    ["Canonical Symbol", text(detail.canonical_symbol)],
+    ["Session", text(detail.storage_session)],
+    ["Adjustment", text(detail.adjustment_status)],
     ["File Size", bytes(detail.size_bytes)],
     ["Modified", timestampAgeLabel(detail.modified_at)],
     ["Rows", numberText(detail.rows, 0)],

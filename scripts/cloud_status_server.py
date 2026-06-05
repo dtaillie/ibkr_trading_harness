@@ -1281,6 +1281,8 @@ def infer_data_source(path: Path) -> str:
     lowered = "/".join(part.lower() for part in path.parts)
     if "examples/data" in lowered:
         return "example"
+    if "zerohash" in lowered:
+        return "zerohash"
     if "ibkr" in lowered or "interactive" in lowered:
         return "ibkr"
     if "schwab" in lowered:
@@ -1289,11 +1291,70 @@ def infer_data_source(path: Path) -> str:
         return "polygon"
     if "firstrate" in lowered or "first_rate" in lowered:
         return "firstrate"
-    if "zerohash" in lowered:
-        return "zerohash"
     if "cache" in lowered:
         return "cache"
     return "file"
+
+
+def canonical_symbol(symbol: str | None, asset_class: str) -> str | None:
+    if not symbol:
+        return None
+    cleaned = symbol.upper().replace("_", "-")
+    if asset_class == "crypto" and "-" not in cleaned:
+        return f"{cleaned}-USD"
+    return cleaned
+
+
+def single_metadata_value(df: pd.DataFrame, *names: str) -> str | None:
+    lower_map = {str(col).lower().replace("_", " "): str(col) for col in df.columns}
+    for name in names:
+        column = lower_map.get(name.lower().replace("_", " "))
+        if not column:
+            continue
+        values = [str(value).strip() for value in df[column].dropna().unique()[:2]]
+        if len(values) == 1 and values[0]:
+            return values[0]
+    return None
+
+
+def infer_storage_session(path: Path, df: pd.DataFrame, asset_class: str) -> str:
+    explicit = single_metadata_value(df, "session", "trading_session", "rth")
+    if explicit is not None:
+        lowered = explicit.lower()
+        if lowered in {"true", "1", "rth", "regular", "regular_hours"}:
+            return "rth"
+        if lowered in {"false", "0", "extended", "all", "all_hours", "eth"}:
+            return "extended"
+        if lowered in {"24_7", "24/7", "crypto"}:
+            return "24_7"
+        return explicit
+    if asset_class == "crypto":
+        return "24_7"
+    lowered_path = "/".join(part.lower() for part in path.parts)
+    if "rthtrue" in lowered_path or "rth_true" in lowered_path:
+        return "rth"
+    if "rthfalse" in lowered_path or "rth_false" in lowered_path:
+        return "extended"
+    return "unknown"
+
+
+def infer_adjustment_status(path: Path, df: pd.DataFrame, asset_class: str) -> str:
+    explicit = single_metadata_value(df, "adjustment", "adjusted", "price_adjustment")
+    if explicit is not None:
+        lowered = explicit.lower()
+        if lowered in {"true", "1", "adjusted", "split_adjusted", "split/dividend_adjusted"}:
+            return "adjusted"
+        if lowered in {"false", "0", "raw", "unadjusted"}:
+            return "raw"
+        return explicit
+    lowered_cols = {str(col).lower().replace("_", " ") for col in df.columns}
+    if any(name in lowered_cols for name in {"adj close", "adjusted close", "split factor", "dividend"}):
+        return "adjusted"
+    if asset_class == "crypto":
+        return "not_applicable"
+    if infer_data_source(path) == "ibkr":
+        return "raw"
+    return "unknown"
 
 
 def classify_data_root(path: Path) -> str:
@@ -1496,6 +1557,7 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
 
     stat = path.stat()
     symbol = infer_symbol(path, df)
+    asset_class = infer_asset_class(path, symbol)
     return {
         "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
@@ -1506,8 +1568,11 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
         "symbol": symbol,
-        "asset_class": infer_asset_class(path, symbol),
+        "canonical_symbol": canonical_symbol(symbol, asset_class),
+        "asset_class": asset_class,
         "bar_size": infer_bar_size(path, df),
+        "storage_session": infer_storage_session(path, df, asset_class),
+        "adjustment_status": infer_adjustment_status(path, df, asset_class),
         "timestamp_column": ts_col,
         "source_timezone": source_tz,
         "normalized_timezone": "UTC" if source_tz else None,
@@ -1588,6 +1653,8 @@ def build_data_catalog(
         "bar_size_counts": count_values(datasets, "bar_size"),
         "asset_class_counts": count_values(datasets, "asset_class"),
         "source_counts": count_values(datasets, "source"),
+        "storage_session_counts": count_values(datasets, "storage_session"),
+        "adjustment_status_counts": count_values(datasets, "adjustment_status"),
         "row_count_total": sum(int(item.get("rows") or 0) for item in datasets),
         "size_bytes_total": sum(int(item.get("size_bytes") or 0) for item in datasets),
         "latest_modified_at": max(modified_values) if modified_values else None,
@@ -1755,9 +1822,12 @@ DATA_CATALOG_EXPORT_FIELDS = (
     "path",
     "root",
     "symbol",
+    "canonical_symbol",
     "asset_class",
     "source",
     "bar_size",
+    "storage_session",
+    "adjustment_status",
     "format",
     "rows",
     "first_timestamp",
@@ -3076,6 +3146,7 @@ def build_data_detail(
 
     stat = path.stat()
     symbol = infer_symbol(path, df)
+    asset_class = infer_asset_class(path, symbol)
     return {
         "path": rel_path,
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
@@ -3086,8 +3157,11 @@ def build_data_detail(
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
         "symbol": symbol,
-        "asset_class": infer_asset_class(path, symbol),
+        "canonical_symbol": canonical_symbol(symbol, asset_class),
+        "asset_class": asset_class,
         "bar_size": infer_bar_size(path, df),
+        "storage_session": infer_storage_session(path, df, asset_class),
+        "adjustment_status": infer_adjustment_status(path, df, asset_class),
         "column_map": columns,
         "source_timezone": source_tz,
         "normalized_timezone": "UTC" if source_tz else None,

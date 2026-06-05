@@ -1178,7 +1178,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
 def test_cloud_status_server_serves_data_catalog(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()
-    (data_root / "SPY_5min_sample.csv").write_text(
+    (data_root / "SPY_5min_1D_now_TRADES_SMART_rthTrue.csv").write_text(
         "\n".join(
             [
                 "timestamp,open,high,low,close,volume",
@@ -1223,9 +1223,14 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert scan["scan_duration_ms"] >= 0
         dataset = payload["datasets"][0]
         assert dataset["symbol"] == "SPY"
+        assert dataset["canonical_symbol"] == "SPY"
         assert dataset["asset_class"] == "etf"
         assert dataset["source"] == "file"
         assert dataset["bar_size"] == "5min"
+        assert dataset["storage_session"] == "rth"
+        assert dataset["adjustment_status"] == "unknown"
+        assert payload["storage_session_counts"] == {"rth": 1}
+        assert payload["adjustment_status_counts"] == {"unknown": 1}
         assert dataset["rows"] == 3
         assert dataset["timestamp_column"] == "timestamp"
         assert dataset["source_timezone"] == "offset-aware"
@@ -1249,6 +1254,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["source"] == "file"
         assert exported[0]["quality_status"] == "ok"
         assert exported[0]["bar_size"] == "5min"
+        assert exported[0]["storage_session"] == "rth"
+        assert exported[0]["adjustment_status"] == "unknown"
 
         with request.urlopen(f"{base}/data_coverage?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
             coverage = json.loads(resp.read().decode("utf-8"))
@@ -1365,6 +1372,9 @@ def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
         assert btc["asset_class"] == "crypto"
         assert btc["source"] == "zerohash"
         assert btc["bar_size"] == "1min"
+        assert btc["canonical_symbol"] == "BTC-USD"
+        assert btc["storage_session"] == "24_7"
+        assert btc["adjustment_status"] == "not_applicable"
 
         with request.urlopen(f"{base}/data_catalog?limit=50&preview_points=2", timeout=10) as resp:
             capped = json.loads(resp.read().decode("utf-8"))
@@ -1681,8 +1691,11 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
 
         assert detail["path"] == str(data_file)
         assert detail["symbol"] == "SPY"
+        assert detail["canonical_symbol"] == "SPY"
         assert detail["asset_class"] == "etf"
         assert detail["source"] == "file"
+        assert detail["storage_session"] == "unknown"
+        assert detail["adjustment_status"] == "unknown"
         assert detail["size_bytes"] > 0
         assert detail["modified_at"]
         assert detail["rows"] == 4

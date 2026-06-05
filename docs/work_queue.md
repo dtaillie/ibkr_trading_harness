@@ -371,6 +371,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   - quality filter
   - coverage range table for every symbol
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
+    - partial; Data Library rows now expose inferred storage session and
+      adjustment metadata alongside source timezone.
   - last updated time and file size
     - partial; Saved Data rows now show file size plus last-modified age, Data
       Detail includes file size and modified time, and the summary card labels the
@@ -569,6 +571,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - UTC-normalized timestamp storage with source timezone metadata
   - adjustment metadata for stocks
   - clear distinction between RTH, extended hours, and 24/7 crypto
+    - partial; Data Catalog and Data Detail now expose inferred canonical
+      symbol, storage session (`rth`, extended, `24_7`, unknown), and
+      adjustment status metadata, with catalog CSV export fields for the same
+      values.
 - Add resumability:
   - skip chunks already present
   - retry failed chunks
