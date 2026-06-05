@@ -73,6 +73,8 @@ strategy-private.
     latest signal/fill, cash, today return, week return, gross exposure, and
     next expected check when those generic telemetry/artifact fields are
     available.
+  - partial; Overview now includes a Current Orders section above archived run
+    tables, backed by recent non-terminal public-safe order telemetry.
 - Add an explicit "What is running right now?" strip that shows:
   - process heartbeat
   - Gateway/API connection
@@ -236,6 +238,8 @@ strategy-private.
     - partial; current managed positions and recent non-terminal order events
       are visible, broker-native open-order state still depends on runner
       telemetry
+    - partial; the Overview page now surfaces the same recent non-terminal
+      order telemetry before users drill into Runs and Orders.
   - drilldown for a run with artifacts, logs, and performance charts
     - partial; artifacts, logs, and performance charts are inspectable for
       archived public workbench runs

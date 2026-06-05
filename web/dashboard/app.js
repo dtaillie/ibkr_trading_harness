@@ -1441,6 +1441,7 @@ function renderOverview() {
   });
   renderRuntimeStatus();
   renderOverviewHealth();
+  renderOverviewOrders();
   renderOverviewPositions();
   renderOverviewTimeline();
 }
@@ -1507,6 +1508,24 @@ function renderOverviewPositions() {
         </div>
       `).join("")
     : `<div class="empty-card"><strong>No open positions</strong><span>The latest selected or published run is flat, or no account snapshot has been loaded.</span></div>`;
+}
+
+function renderOverviewOrders() {
+  const orders = currentOpenOrderRows().slice(0, 5);
+  $("overview-orders-note").textContent = orders.length
+    ? `${numberText(orders.length, 0)} current non-terminal order event${orders.length === 1 ? "" : "s"}`
+    : "No current non-terminal order telemetry";
+  $("overview-orders-body").innerHTML = orders.length
+    ? orders.map((orderItem) => row([
+        escapeHtml(orderItem.timestamp),
+        escapeHtml(orderItem.run_id),
+        statusText(orderItem.status),
+        escapeHtml(orderItem.symbol),
+        escapeHtml(orderItem.side),
+        escapeHtml(orderItem.quantity ?? orderItem.cash_quantity ?? ""),
+        escapeHtml([orderItem.reason, orderItem.tag].filter(Boolean).join(" / ")),
+      ])).join("")
+    : row([`<span class="muted">No current open-order telemetry. Broker-native open orders require runners to publish open-order state.</span>`, "", "", "", "", "", ""]);
 }
 
 function renderOverviewTimeline() {

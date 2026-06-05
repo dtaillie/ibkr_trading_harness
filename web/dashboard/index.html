@@ -191,6 +191,29 @@
       <div id="overview-health-grid" class="health-grid"></div>
     </section>
 
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
+        <h2>Current Orders</h2>
+        <span id="overview-orders-note" class="section-note">Waiting for order telemetry</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Run</th>
+              <th>Status</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="overview-orders-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="split dashboard-section" data-view="overview">
       <div>
         <div class="section-head">
