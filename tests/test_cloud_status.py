@@ -666,6 +666,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
             css = resp.read().decode("utf-8")
         assert ".topbar" in css
         assert ".json-drilldown" in css
+        assert ".metric-source" in css
     finally:
         server.shutdown()
         server.server_close()

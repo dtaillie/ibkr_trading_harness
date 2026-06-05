@@ -272,6 +272,9 @@ strategy-private.
   - make dense tables secondary to charts and summary cards
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
+    - partial; Overview and Performance cards now show compact source/freshness
+      metadata for live telemetry, run summaries, account snapshots, selected
+      windows, and fills-derived trade metrics
 - Add UI quality gates:
   - screenshot-smoke every top-level page at desktop and mobile widths
     - partial; `scripts/smoke_dashboard_screenshots.py` now starts the

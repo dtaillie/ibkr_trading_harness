@@ -595,6 +595,52 @@ function timestampAgeLabel(value) {
   return `${text(value)} (${age(ageSeconds)} ago)`;
 }
 
+function shortTimestampAgeLabel(value) {
+  const millis = timestampMillis(value);
+  if (millis === null) return "not published";
+  const ageSeconds = Math.max(0, (Date.now() - millis) / 1000);
+  return `${age(ageSeconds)} ago`;
+}
+
+function setMetricValue(id, value, { className = "", meta = "" } = {}) {
+  const element = $(id);
+  if (!element) return;
+  element.textContent = value;
+  element.className = className;
+  const parent = element.parentElement;
+  if (!parent) return;
+  let metaElement = parent.querySelector(".metric-source");
+  if (!metaElement) {
+    metaElement = document.createElement("small");
+    metaElement.className = "metric-source";
+    parent.appendChild(metaElement);
+  }
+  metaElement.textContent = meta;
+}
+
+function sourceTimestamp(source, accountRow = {}) {
+  const summary = (source && source.summary) || {};
+  const perf = (source && source.performance) || {};
+  return firstPresent(
+    accountRow.timestamp,
+    summary.account_end_time,
+    perf.account_end_time,
+    summary.finished_at,
+    perf.finished_at,
+    summary.generated_at,
+    perf.generated_at,
+    summary.last_decision_time,
+    perf.last_decision_time,
+    (state.status || {}).generated_at,
+  );
+}
+
+function sourceMetaLabel(source, accountRow = {}) {
+  const timestamp = sourceTimestamp(source, accountRow);
+  const sourceLabel = text((source && source.label) || "No source");
+  return timestamp ? `${sourceLabel} / updated ${shortTimestampAgeLabel(timestamp)}` : sourceLabel;
+}
+
 function firstPresent(...values) {
   for (const value of values) {
     if (value !== null && value !== undefined && value !== "") return value;
@@ -1162,36 +1208,59 @@ function renderOverview() {
   const events = runEventRows();
   const latestSignal = events.find((event) => event.type === "decision");
   const latestFill = events.find((event) => event.type === "fill");
+  const statusMeta = payload.generated_at ? `status updated ${shortTimestampAgeLabel(payload.generated_at)}` : "status not published";
+  const sourceMeta = sourceMetaLabel(performance, latestAccount);
+  const accountMeta = latestAccount.timestamp
+    ? `account snapshot ${shortTimestampAgeLabel(latestAccount.timestamp)}`
+    : sourceMeta;
+  const todayRows = rowsInWindow(accountRows, todayWindow);
+  const weekRows = rowsInWindow(accountRows, weekWindow);
+  const todayMeta = todayRows.length ? `${todayWindow.label} / ${numberText(todayRows.length, 0)} account snapshots` : `${todayWindow.label} / no account snapshots`;
+  const weekMeta = weekRows.length ? `${weekWindow.label} / ${numberText(weekRows.length, 0)} account snapshots` : `${weekWindow.label} / no account snapshots`;
 
   $("overview-equity").textContent = money(equity);
-  $("overview-subtitle").textContent = performance.label;
-  $("overview-mode").textContent = text(mode);
-  $("overview-mode").className = statusClass(mode ? "ok" : "unknown");
-  $("overview-gateway").textContent = gateway.enabled ? text(gateway.reachable) : "disabled";
-  $("overview-gateway").className = statusClass(gateway.enabled ? gateway.reachable : "warn");
-  $("overview-latest-signal").textContent = latestSignal
-    ? `${text(latestSignal.symbol)} ${text(latestSignal.timestamp)}`
-    : "n/a";
-  $("overview-latest-fill").textContent = latestFill
-    ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
-    : "n/a";
-  $("overview-cash").textContent = money(cash);
-  $("overview-realized-pnl").textContent = money(realizedPnl);
-  $("overview-realized-pnl").className = statusClass(realizedPnl == null ? "" : Number(realizedPnl) >= 0 ? "ok" : "bad");
-  $("overview-unrealized-pnl").textContent = money(unrealizedPnl);
-  $("overview-unrealized-pnl").className = statusClass(unrealizedPnl == null ? "" : Number(unrealizedPnl) >= 0 ? "ok" : "bad");
-  $("overview-today-return").textContent = pctText(todayPerf.total_return_pct);
-  $("overview-today-return").className = statusClass(
-    todayPerf.total_return_pct == null ? "" : todayPerf.total_return_pct >= 0 ? "ok" : "bad",
-  );
-  $("overview-week-return").textContent = pctText(weekPerf.total_return_pct);
-  $("overview-week-return").className = statusClass(
-    weekPerf.total_return_pct == null ? "" : weekPerf.total_return_pct >= 0 ? "ok" : "bad",
-  );
-  $("overview-exposure").textContent = pctText(exposurePct);
-  $("overview-exposure").className = statusClass(exposurePct == null ? "" : exposurePct ? "warn" : "ok");
-  $("overview-next-check").textContent = nextCheck ? text(nextCheck) : "n/a";
-  $("overview-next-check").className = statusClass(nextCheck ? "ok" : "warn");
+  $("overview-subtitle").textContent = sourceMeta;
+  setMetricValue("overview-mode", text(mode), {
+    className: statusClass(mode ? "ok" : "unknown"),
+    meta: sourceMeta,
+  });
+  setMetricValue("overview-gateway", gateway.enabled ? text(gateway.reachable) : "disabled", {
+    className: statusClass(gateway.enabled ? gateway.reachable : "warn"),
+    meta: statusMeta,
+  });
+  setMetricValue("overview-latest-signal", latestSignal ? text(latestSignal.symbol) : "n/a", {
+    className: statusClass(latestSignal ? "ok" : "warn"),
+    meta: latestSignal ? `decision ${shortTimestampAgeLabel(latestSignal.timestamp)}` : "no decision event",
+  });
+  setMetricValue("overview-latest-fill", latestFill ? text(latestFill.symbol) : "n/a", {
+    className: statusClass(latestFill ? "ok" : "warn"),
+    meta: latestFill ? `fill ${shortTimestampAgeLabel(latestFill.timestamp)}` : "no fill event",
+  });
+  setMetricValue("overview-cash", money(cash), { meta: accountMeta });
+  setMetricValue("overview-realized-pnl", money(realizedPnl), {
+    className: statusClass(realizedPnl == null ? "" : Number(realizedPnl) >= 0 ? "ok" : "bad"),
+    meta: accountMeta,
+  });
+  setMetricValue("overview-unrealized-pnl", money(unrealizedPnl), {
+    className: statusClass(unrealizedPnl == null ? "" : Number(unrealizedPnl) >= 0 ? "ok" : "bad"),
+    meta: accountMeta,
+  });
+  setMetricValue("overview-today-return", pctText(todayPerf.total_return_pct), {
+    className: statusClass(todayPerf.total_return_pct == null ? "" : todayPerf.total_return_pct >= 0 ? "ok" : "bad"),
+    meta: todayMeta,
+  });
+  setMetricValue("overview-week-return", pctText(weekPerf.total_return_pct), {
+    className: statusClass(weekPerf.total_return_pct == null ? "" : weekPerf.total_return_pct >= 0 ? "ok" : "bad"),
+    meta: weekMeta,
+  });
+  setMetricValue("overview-exposure", pctText(exposurePct), {
+    className: statusClass(exposurePct == null ? "" : exposurePct ? "warn" : "ok"),
+    meta: sourceMeta,
+  });
+  setMetricValue("overview-next-check", nextCheck ? text(nextCheck) : "n/a", {
+    className: statusClass(nextCheck ? "ok" : "warn"),
+    meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
+  });
   renderRuntimeStatus();
   renderOverviewHealth();
   renderOverviewPositions();
@@ -1343,32 +1412,59 @@ function renderPerformance() {
   const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl;
   const totalPnl = latestAccount.total_pnl ?? perf.total_pnl ?? summary.total_pnl;
   const totalCommission = latestAccount.total_commission ?? perf.total_commission ?? summary.total_commission;
+  const sourceMeta = sourceMetaLabel(source, latestAccount);
+  const windowMeta = `${window.label} / ${accountRows.length ? `${numberText(accountRows.length, 0)} account snapshots` : "no account snapshots"}`;
+  const fillsMeta = `${window.label} / ${numberText(fills.length, 0)} fills`;
+  const tradeMeta = ledger.stats.closed_count
+    ? `${numberText(ledger.stats.closed_count, 0)} closed trades from fills`
+    : fillsMeta;
   $("performance-note").textContent = `${source.label} / ${window.label}`;
-  $("performance-equity").textContent = money(equity);
+  setMetricValue("performance-equity", money(equity), { meta: sourceMeta });
   $("performance-context").textContent = accountRows.length
-    ? `${numberText(accountRows.length, 0)} account snapshots in selected period.`
+    ? `${numberText(accountRows.length, 0)} account snapshots in selected period; latest ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
     : "Showing latest summarized run; select Artifacts for an equity curve.";
-  $("performance-source").textContent = source.label;
-  $("performance-source").className = statusClass(source.has_data ? "ok" : "warn");
-  $("performance-mode").textContent = text(mode);
-  $("performance-mode").className = statusClass(mode ? "ok" : "unknown");
-  $("performance-latest-account").textContent = text(latestAccount.timestamp);
-  $("performance-position-count").textContent = numberText(positionCount, 0);
-  $("performance-activity").textContent = `${numberText(decisions, 0)}D / ${numberText(orders, 0)}O / ${numberText(fillCount, 0)}F / ${numberText(rejections, 0)}R / ${numberText(approvalRequired, 0)}A`;
-  $("performance-return").textContent = pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null));
-  $("performance-drawdown").textContent = pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null));
-  $("performance-return-day").textContent = pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null));
-  $("performance-exposure").textContent = pctText(periodPerf.max_gross_exposure_pct ?? (period === "all" ? summary.max_gross_exposure_pct : null));
-  $("performance-win-loss").textContent = ledger.stats.closed_count
-    ? `${numberText(ledger.stats.wins, 0)}W / ${numberText(ledger.stats.losses, 0)}L`
-    : "n/a";
-  $("performance-profit-factor").textContent = Number.isFinite(ledger.stats.profit_factor)
+  setMetricValue("performance-source", source.label, {
+    className: statusClass(source.has_data ? "ok" : "warn"),
+    meta: sourceMeta,
+  });
+  setMetricValue("performance-mode", text(mode), {
+    className: statusClass(mode ? "ok" : "unknown"),
+    meta: sourceMeta,
+  });
+  setMetricValue("performance-latest-account", text(latestAccount.timestamp), {
+    className: statusClass(latestAccount.timestamp ? "ok" : "warn"),
+    meta: latestAccount.timestamp ? `updated ${shortTimestampAgeLabel(latestAccount.timestamp)}` : "no account snapshot",
+  });
+  setMetricValue("performance-position-count", numberText(positionCount, 0), { meta: sourceMeta });
+  setMetricValue("performance-activity", `${numberText(decisions, 0)}D / ${numberText(orders, 0)}O / ${numberText(fillCount, 0)}F / ${numberText(rejections, 0)}R / ${numberText(approvalRequired, 0)}A`, {
+    meta: sourceMeta,
+  });
+  setMetricValue("performance-return", pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null)), {
+    meta: windowMeta,
+  });
+  setMetricValue("performance-drawdown", pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null)), {
+    meta: windowMeta,
+  });
+  setMetricValue("performance-return-day", pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null)), {
+    meta: windowMeta,
+  });
+  setMetricValue("performance-exposure", pctText(periodPerf.max_gross_exposure_pct ?? (period === "all" ? summary.max_gross_exposure_pct : null)), {
+    meta: windowMeta,
+  });
+  setMetricValue("performance-win-loss", ledger.stats.closed_count ? `${numberText(ledger.stats.wins, 0)}W / ${numberText(ledger.stats.losses, 0)}L` : "n/a", {
+    meta: tradeMeta,
+  });
+  setMetricValue("performance-profit-factor", Number.isFinite(ledger.stats.profit_factor)
     ? numberText(ledger.stats.profit_factor, 2)
-    : ledger.stats.profit_factor === Infinity ? "inf" : "n/a";
-  $("performance-avg-win-loss").textContent = ledger.stats.closed_count
-    ? `${money(ledger.stats.avg_win)} / ${money(ledger.stats.avg_loss)}`
-    : "n/a";
-  $("performance-turnover").textContent = turnover.pct !== null ? pctText(turnover.pct) : "n/a";
+    : ledger.stats.profit_factor === Infinity ? "inf" : "n/a", {
+    meta: tradeMeta,
+  });
+  setMetricValue("performance-avg-win-loss", ledger.stats.closed_count ? `${money(ledger.stats.avg_win)} / ${money(ledger.stats.avg_loss)}` : "n/a", {
+    meta: tradeMeta,
+  });
+  setMetricValue("performance-turnover", turnover.pct !== null ? pctText(turnover.pct) : "n/a", {
+    meta: fillsMeta,
+  });
   const projectionWarning = Boolean(periodPerf.short_horizon_projection ?? perf.short_horizon_projection ?? summary.short_horizon_projection);
   $("performance-context-note").innerHTML = projectionWarning
     ? `<span class="status-warn">Short-horizon annualized stats</span>`

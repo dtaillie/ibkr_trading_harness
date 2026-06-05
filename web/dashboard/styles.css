@@ -412,6 +412,23 @@ section {
   font-size: 13px;
 }
 
+.overview-main-card .metric-source,
+.performance-card .metric-source,
+.status-tile .metric-source,
+.metric .metric-source {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.overview-main-card .metric-source,
+.performance-card .metric-source {
+  font-size: 12px;
+}
+
 .eyebrow {
   color: var(--muted);
   font-size: 12px;
