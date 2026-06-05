@@ -363,6 +363,8 @@ def run_smoke(
             "workbench-guide",
             "config-plugin-boundary-note",
             "config-plugin-boundary",
+            "config-broker-boundary-note",
+            "config-broker-boundary",
             "config-data-quality-note",
             "config-data-quality-body",
             "config-preview-alignment",
@@ -516,6 +518,8 @@ def run_smoke(
             "renderWorkbenchGuide",
             "latestWorkbenchRunForDraft",
             "renderConfigPluginBoundary",
+            "renderConfigBrokerBoundary",
+            "broker_adapters",
             "selectedConfigPlugin",
             "configDateRangePayload",
             "Filter Range",
@@ -576,6 +580,11 @@ def run_smoke(
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
+        broker_adapters = {item.get("id"): item for item in options.get("broker_adapters") or []}
+        if set(broker_adapters) != {"ibkr", "file"}:
+            raise RuntimeError("config options broker adapter capabilities are missing")
+        if not broker_adapters["ibkr"].get("requires_gateway") or not broker_adapters["file"].get("requires_static_prices"):
+            raise RuntimeError("config options broker adapter requirements are incomplete")
         if options.get("config_schema_version") != 1 or options.get("form_schema_version") != 1:
             raise RuntimeError("config options schema versions are missing")
         form_field_ids = {field.get("id") for field in options.get("form_schema") or []}
@@ -701,6 +710,7 @@ def run_smoke(
             "daily_rollup_count": daily_rollups.get("count", 0),
             "cleanup_reclaimable_bytes": cleanup_plan.get("reclaimable_bytes", 0),
             "risk_preset_count": len(options.get("risk_presets") or []),
+            "broker_adapter_count": len(options.get("broker_adapters") or []),
             "draft_validation_count": draft_validations.get("count", 0),
             "alignment_dataset_count": alignment_count,
             "compare_dataset_count": compare_count,
@@ -760,7 +770,8 @@ def main() -> None:
             f"scenario={result['scenario']} "
             f"datasets={result['catalog_count']} "
             f"diagnostics={result['diagnostics_status']} "
-            f"risk_presets={result['risk_preset_count']}"
+            f"risk_presets={result['risk_preset_count']} "
+            f"broker_adapters={result['broker_adapter_count']}"
         )
 
 

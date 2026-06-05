@@ -12,6 +12,50 @@ from core import Fill, Order, OrderStatus, Side
 from live.ibkr_broker import IBKRBroker
 
 
+BROKER_ADAPTER_CAPABILITIES: dict[str, dict[str, Any]] = {
+    "ibkr": {
+        "id": "ibkr",
+        "label": "IBKR",
+        "status": "paper_supported",
+        "visibility": "public_adapter",
+        "description": "IBKR paper execution through TWS or Gateway using the local API session.",
+        "account_modes": ["paper"],
+        "order_types": ["market"],
+        "order_sizing": ["quantity", "cash_quantity"],
+        "supports_cash_balance": True,
+        "supports_positions": True,
+        "supports_fractional_quantity": True,
+        "supports_short_orders": True,
+        "requires_gateway": True,
+        "requires_static_prices": False,
+        "persists_local_state": False,
+        "known_paper_ports": [4002, 7497],
+        "known_live_ports": [4001, 7496],
+        "boundary": "Requires a local authenticated IBKR paper session. Known live ports are blocked by the runner unless both config and CLI explicitly opt in.",
+    },
+    "file": {
+        "id": "file",
+        "label": "File-backed local broker",
+        "status": "plumbing_test",
+        "visibility": "public_adapter",
+        "description": "Local file-backed adapter for testing broker plumbing with configured static prices.",
+        "account_modes": ["paper"],
+        "order_types": ["market"],
+        "order_sizing": ["quantity", "cash_quantity"],
+        "supports_cash_balance": True,
+        "supports_positions": True,
+        "supports_fractional_quantity": True,
+        "supports_short_orders": False,
+        "requires_gateway": False,
+        "requires_static_prices": True,
+        "persists_local_state": True,
+        "known_paper_ports": [],
+        "known_live_ports": [],
+        "boundary": "Fills at configured static prices and persists local state. It is not a market simulator and is not evidence that a strategy works.",
+    },
+}
+
+
 class BrokerAdapter(Protocol):
     last_order_status: str
     last_order_message: str
@@ -30,6 +74,21 @@ class BrokerAdapter(Protocol):
 
     def submit_order(self, order: Order) -> Fill | None:
         """Submit an order and return a fill if one occurred."""
+
+
+def broker_adapter_ids() -> set[str]:
+    return set(BROKER_ADAPTER_CAPABILITIES)
+
+
+def broker_adapter_capability(adapter: str) -> dict[str, Any]:
+    normalized = adapter.lower().replace("-", "_")
+    if normalized not in BROKER_ADAPTER_CAPABILITIES:
+        raise ValueError(f"Unsupported broker.adapter {adapter!r}; use {', '.join(sorted(BROKER_ADAPTER_CAPABILITIES))}")
+    return dict(BROKER_ADAPTER_CAPABILITIES[normalized])
+
+
+def broker_adapter_capabilities() -> list[dict[str, Any]]:
+    return [broker_adapter_capability(adapter) for adapter in sorted(BROKER_ADAPTER_CAPABILITIES)]
 
 
 def jsonable(value: Any) -> Any:
@@ -236,8 +295,10 @@ class FileBrokerAdapter:
 
 def create_broker_adapter(config: dict[str, Any]) -> BrokerAdapter:
     adapter = str(config.get("adapter", config.get("provider", "ibkr"))).lower().replace("-", "_")
+    if adapter not in BROKER_ADAPTER_CAPABILITIES:
+        raise ValueError(f"Unsupported broker.adapter {adapter!r}; use {', '.join(sorted(BROKER_ADAPTER_CAPABILITIES))}")
     if adapter == "ibkr":
         return IBKRBrokerAdapter(config)
     if adapter == "file":
         return FileBrokerAdapter(config)
-    raise ValueError(f"Unsupported broker.adapter {adapter!r}; use ibkr or file")
+    raise ValueError(f"Unsupported broker.adapter {adapter!r}; use {', '.join(sorted(BROKER_ADAPTER_CAPABILITIES))}")

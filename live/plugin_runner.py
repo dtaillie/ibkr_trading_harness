@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core import Bar, Order, Side
 from framework.plugin_loader import create_plugin, load_object, validate_plugin_config
 from framework.strategy_plugin import OrderIntent, StrategyContext
-from live.broker_adapters import create_broker_adapter
+from live.broker_adapters import broker_adapter_capability, broker_adapter_ids, create_broker_adapter
 from live.ibkr_data import BAR_SIZES, fetch_ibkr_bars
 
 
@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 VALID_MODES = {"replay", "shadow", "simulated_paper", "paper"}
 SUPPORTED_ORDER_TYPES = {"market"}
-SUPPORTED_BROKER_ADAPTERS = {"ibkr", "file"}
+SUPPORTED_BROKER_ADAPTERS = broker_adapter_ids()
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
 KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
 
@@ -305,6 +305,13 @@ def validate_config(
     adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
     if adapter not in SUPPORTED_BROKER_ADAPTERS:
         errors.append(f"broker.adapter must be one of {sorted(SUPPORTED_BROKER_ADAPTERS)}")
+    else:
+        capability = broker_adapter_capability(adapter)
+        raw_order_types = execution_cfg.get("allowed_order_types")
+        configured_order_types = raw_order_types if isinstance(raw_order_types, list) and raw_order_types else ["market"]
+        unsupported_order_types = set(str(item).lower() for item in configured_order_types) - set(capability["order_types"])
+        if unsupported_order_types:
+            errors.append(f"broker.adapter {adapter} does not support order types: {sorted(unsupported_order_types)}")
     if broker_cfg.get("host") is not None and not str(broker_cfg["host"]).strip():
         errors.append("broker.host must not be empty")
     account_mode = broker_cfg.get("account_mode")
@@ -359,19 +366,27 @@ def paper_broker_safety_errors(
     allow_live_broker_port: bool = False,
 ) -> list[str]:
     errors: list[str] = []
+    adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
+    capability = broker_adapter_capability(adapter) if adapter in SUPPORTED_BROKER_ADAPTERS else {}
     account_mode = str(broker_cfg.get("account_mode", "paper")).lower().replace("-", "_")
     if account_mode != "paper":
         errors.append("paper mode requires broker.account_mode: paper")
+    if account_mode not in set(capability.get("account_modes") or []):
+        errors.append(f"broker.adapter {adapter} does not advertise account_mode {account_mode}")
     port = int(broker_cfg.get("port", 4002))
+    if not capability.get("requires_gateway", False):
+        return errors
     config_allows_live_port = bool(broker_cfg.get("allow_live_broker_port_for_paper", False))
-    if port in KNOWN_IBKR_LIVE_PORTS and not (config_allows_live_port and allow_live_broker_port):
+    known_live_ports = set(int(item) for item in capability.get("known_live_ports") or KNOWN_IBKR_LIVE_PORTS)
+    known_paper_ports = set(int(item) for item in capability.get("known_paper_ports") or KNOWN_IBKR_PAPER_PORTS)
+    if port in known_live_ports and not (config_allows_live_port and allow_live_broker_port):
         errors.append(
             "paper mode refuses known live IBKR ports "
-            f"{sorted(KNOWN_IBKR_LIVE_PORTS)}; use a paper port "
-            f"{sorted(KNOWN_IBKR_PAPER_PORTS)} or set broker.allow_live_broker_port_for_paper "
+            f"{sorted(known_live_ports)}; use a paper port "
+            f"{sorted(known_paper_ports)} or set broker.allow_live_broker_port_for_paper "
             "and pass --allow-live-broker-port"
         )
-    if port not in KNOWN_IBKR_PAPER_PORTS and port not in KNOWN_IBKR_LIVE_PORTS and broker_cfg.get("account_mode") is None:
+    if port not in known_paper_ports and port not in known_live_ports and broker_cfg.get("account_mode") is None:
         errors.append("non-standard broker.port requires explicit broker.account_mode: paper")
     return errors
 

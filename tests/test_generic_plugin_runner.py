@@ -644,6 +644,12 @@ def test_paper_broker_safety_allows_live_port_only_with_dual_opt_in():
     assert errors == []
 
 
+def test_paper_broker_safety_uses_adapter_capabilities_for_file_adapter():
+    errors = paper_broker_safety_errors({"adapter": "file"})
+
+    assert errors == []
+
+
 def test_paper_mode_can_use_file_broker_adapter(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

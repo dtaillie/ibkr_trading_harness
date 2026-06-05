@@ -496,7 +496,8 @@ section {
 .help-grid,
 .health-grid,
 .position-grid,
-.change-grid {
+.change-grid,
+.broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
@@ -510,7 +511,8 @@ section {
 .health-card,
 .position-card,
 .change-card,
-.empty-card {
+.empty-card,
+.broker-capability-card {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -716,6 +718,26 @@ section {
   display: block;
   margin-top: 6px;
   color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.broker-capability-card strong,
+.broker-capability-card span,
+.broker-capability-card small {
+  display: block;
+}
+
+.broker-capability-card strong {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+.broker-capability-card span,
+.broker-capability-card small {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 

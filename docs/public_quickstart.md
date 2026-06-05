@@ -121,6 +121,12 @@ that persist cash, positions, and submitted order rows to local files. The
 `file` adapter fills at configured static prices and is not a market simulator
 or a substitute for strategy validation.
 
+The dashboard exposes public broker capability metadata through `/config_options`
+and the Workbench Broker Boundary panel. Check that panel before paper mode: it
+shows which adapters require Gateway, which order types and sizing styles they
+advertise, whether they persist local state, and which IBKR ports are treated as
+paper or live.
+
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
 `paper`, reloads the latest data each interval, skips duplicate latest bars by

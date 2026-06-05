@@ -806,8 +806,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   strategy plugins.
   - partial; generic paper execution now uses a broker adapter factory with
     `ibkr` and a local file-backed adapter for public plumbing tests. Strategy
-    plugins still see the same order/fill interface. Schwab/future broker
-    adapters and richer broker capability metadata remain open.
+    plugins still see the same order/fill interface.
+  - partial; broker adapters now publish public capability metadata for
+    account modes, order types, order sizing, Gateway/static-price
+    requirements, local-state behavior, and known IBKR paper/live ports. The
+    generic runner uses that metadata for adapter-aware safety checks, and the
+    Workbench exposes it in a Broker Boundary panel. Schwab/future broker
+    adapters remain open.
 - Add stronger paper/live gates to prevent accidental live orders.
   - partial; generic paper mode now requires `--confirm-paper-orders`, rejects
     `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,

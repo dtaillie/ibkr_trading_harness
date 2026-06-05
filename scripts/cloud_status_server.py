@@ -32,6 +32,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from live.plugin_runner import validate_config as validate_runner_config
+from live.broker_adapters import broker_adapter_capabilities
 
 
 ALLOWED_COMMAND_ACTIONS = {
@@ -3535,6 +3536,7 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
         "plugin_registry_paths": [display_path(path) for path in parse_plugin_registry_paths(plugin_registry_paths)],
         "modes": list(CONFIG_BUILDER_MODES),
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
+        "broker_adapters": broker_adapter_capabilities(),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
         "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA),
         "defaults": {

@@ -564,6 +564,35 @@ function renderConfigPluginBoundary() {
   )).join("");
 }
 
+function renderConfigBrokerBoundary() {
+  if (!$("config-broker-boundary") || !$("config-broker-boundary-note")) return;
+  const adapters = (state.configOptions && state.configOptions.broker_adapters) || [];
+  const paperReady = adapters.filter((adapter) => (adapter.account_modes || []).includes("paper")).length;
+  $("config-broker-boundary-note").textContent = adapters.length
+    ? `${numberText(adapters.length, 0)} adapters / ${numberText(paperReady, 0)} paper-capable`
+    : "No broker adapter metadata loaded";
+  $("config-broker-boundary").innerHTML = adapters.length
+    ? adapters.map((adapter) => {
+        const requirements = [
+          adapter.requires_gateway ? "Gateway/API required" : "No Gateway required",
+          adapter.requires_static_prices ? "static prices required" : "live/account prices",
+          adapter.persists_local_state ? "local state file" : "broker/account state",
+        ].join(" / ");
+        return `
+          <div class="broker-capability-card">
+            <span>${statusText(adapter.status)}</span>
+            <strong>${escapeHtml(text(adapter.label || adapter.id))}</strong>
+            <small>${escapeHtml(text(adapter.description))}</small>
+            <small>Modes: ${escapeHtml((adapter.account_modes || []).join(", ") || "none")}</small>
+            <small>Orders: ${escapeHtml((adapter.order_types || []).join(", ") || "none")} / sizing ${escapeHtml((adapter.order_sizing || []).join(", ") || "none")}</small>
+            <small>${escapeHtml(requirements)}</small>
+            <small>${escapeHtml(text(adapter.boundary))}</small>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No adapter metadata</strong><span>Refresh config options or check the dashboard server logs.</span></div>`;
+}
+
 function selectedCompareDatasets() {
   const selectedPaths = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
@@ -3827,6 +3856,7 @@ function renderConfigBuilder() {
   renderConfigDataQuality();
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
+  renderConfigBrokerBoundary();
 
   const draft = state.configDraft;
   if (!draft) {
