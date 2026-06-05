@@ -578,6 +578,10 @@ section {
   font-size: 15px;
 }
 
+.wide-help-card {
+  grid-column: 1 / -1;
+}
+
 .help-card p,
 .help-card li,
 .mini-glossary dd {
@@ -586,9 +590,14 @@ section {
   line-height: 1.45;
 }
 
-.help-card ol {
+.help-card ol,
+.help-card ul {
   margin: 0;
   padding-left: 18px;
+}
+
+.check-list li + li {
+  margin-top: 7px;
 }
 
 .mini-glossary {

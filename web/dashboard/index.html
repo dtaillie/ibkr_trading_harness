@@ -1172,11 +1172,48 @@
     <section class="dashboard-section" data-view="help" hidden>
       <div class="section-head">
         <h2>Help</h2>
-        <span class="section-note">Local-first framework, not a strategy recommendation</span>
+        <span class="section-note">Local-first guide for operating the public workbench</span>
       </div>
       <div class="help-grid">
+        <div class="help-card wide-help-card">
+          <strong>Page Guide</strong>
+          <div class="guide-grid">
+            <div class="guide-item">
+              <strong>Overview</strong>
+              <span>Use first for current health, mode, Gateway/API reachability, open positions, and latest events.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Performance</strong>
+              <span>Use for equity, drawdown, daily return bars, and selected run-artifact metrics.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Data Library</strong>
+              <span>Use for saved files, root visibility, coverage, symbol diagnostics, and offline history inspection.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Fetch Jobs</strong>
+              <span>Use for historical-data pull manifests, failed symbols, no-data chunks, and produced output files.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Workbench</strong>
+              <span>Use for public-safe example config drafts, data alignment checks, validation, and replay runs.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Runs</strong>
+              <span>Use for run comparisons, archived artifacts, run logs, and exported public-safe result tables.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Operations</strong>
+              <span>Use for diagnostics, endpoint map, supervisors, remote-control audit state, queued commands, and cleanup.</span>
+            </div>
+            <div class="guide-item">
+              <strong>Help</strong>
+              <span>Use when the next dashboard step or public/private boundary is unclear.</span>
+            </div>
+          </div>
+        </div>
         <div class="help-card">
-          <strong>Start Here</strong>
+          <strong>First Run Checklist</strong>
           <ol>
             <li>Confirm Gateway/API status in Overview.</li>
             <li>Open Data Library and verify your real data roots are visible.</li>
@@ -1186,23 +1223,61 @@
           </ol>
         </div>
         <div class="help-card">
-          <strong>Why only a few symbols?</strong>
-          <p>The catalog only scans configured data roots and returns the selected limit. If you see only SPY and QQQ, the server is likely pointed at example data. Add your cache/history directories with <span class="mono">--data-root</span> or private local config.</p>
+          <strong>Today's Strategy Performance</strong>
+          <ol>
+            <li>Start in Overview for current mode, latest signal/fill, and open-position cards.</li>
+            <li>Open Performance for the latest account artifact, equity curve, drawdown, and daily returns.</li>
+            <li>Open Runs when a number looks suspicious and inspect the exact artifact or log.</li>
+            <li>Check Operations if the latest run is stale, the API is disconnected, or no current telemetry exists.</li>
+          </ol>
+        </div>
+        <div class="help-card">
+          <strong>Inspect Saved Historical Data</strong>
+          <ol>
+            <li>Open Data Library and set the catalog limit high enough for your root.</li>
+            <li>Use search, asset, source, bar-size, and quality filters to narrow the table.</li>
+            <li>Click Inspect on a dataset row.</li>
+            <li>Use the Data Detail date range, point count, and sampled/full controls for offline chart inspection.</li>
+            <li>Review gaps, nulls, timezone, row count, and quality before using the file in Workbench.</li>
+          </ol>
+        </div>
+        <div class="help-card">
+          <strong>Why Only A Few Symbols?</strong>
+          <ol>
+            <li>Check Configured Roots and suggested roots in Data Library.</li>
+            <li>Increase the catalog limit if the root has more files than the current scan limit.</li>
+            <li>Use Find Missing Symbol to see whether the file is visible, malformed, scan-limited, or outside configured roots.</li>
+            <li>Add real cache/history roots with <span class="mono">dashboard.data_roots</span> in a private local config.</li>
+          </ol>
+        </div>
+        <div class="help-card">
+          <strong>Public Publishing Boundary</strong>
+          <ul class="check-list">
+            <li>Keep private strategy plugins and tuned configs out of the public repo.</li>
+            <li>Keep account IDs, logs, credentials, and live/paper configs ignored locally.</li>
+            <li>Publish example configs only when they are no-edge and operationally illustrative.</li>
+            <li>Run the public readiness audit before pushing.</li>
+          </ul>
         </div>
         <div class="help-card">
           <strong>Glossary</strong>
           <dl class="mini-glossary">
+            <dt>Runner</dt><dd>A local process that evaluates a plugin and records decisions, orders, fills, and account snapshots.</dd>
+            <dt>Draft</dt><dd>A generated example runner config saved by the Workbench.</dd>
             <dt>Replay</dt><dd>Run a plugin against saved bars.</dd>
             <dt>Shadow</dt><dd>Observe decisions without submitting orders.</dd>
             <dt>Simulated paper</dt><dd>Use local simulated fills and account state.</dd>
             <dt>Paper</dt><dd>Submit to a broker paper account.</dd>
+            <dt>Fill</dt><dd>An executed order event from simulated or broker paper execution.</dd>
+            <dt>Reject</dt><dd>An order or intent blocked by validation, risk guards, broker response, or missing data.</dd>
             <dt>Artifact</dt><dd>Saved summary, decisions, orders, fills, and account snapshots.</dd>
+            <dt>Data root</dt><dd>A configured local directory that the dashboard scans for CSV/parquet files.</dd>
             <dt>Stale bar</dt><dd>Latest market data is older than expected.</dd>
           </dl>
         </div>
         <div class="help-card">
-          <strong>Safe Boundaries</strong>
-          <p>Public examples are intentionally no-edge. Private strategies should live in ignored config/plugin files. The dashboard summarizes decisions and artifacts without returning raw private signal payloads.</p>
+          <strong>Useful Local Docs</strong>
+          <p>Read <span class="mono">README.md</span> for the high-level public harness, <span class="mono">docs/public_quickstart.md</span> for the operating walkthrough, <span class="mono">docs/configuration_privacy.md</span> for public/private splitting, and <span class="mono">docs/work_queue.md</span> for remaining work.</p>
         </div>
       </div>
     </section>

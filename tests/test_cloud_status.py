@@ -463,6 +463,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-drawdown-chart" in html
         assert "performance-daily-return-chart" in html
         assert "performance-equity" in html
+        assert "Page Guide" in html
+        assert "Inspect Saved Historical Data" in html
+        assert "Public Publishing Boundary" in html
         assert "config-form" in html
         assert "endpoint-map-body" in html
 

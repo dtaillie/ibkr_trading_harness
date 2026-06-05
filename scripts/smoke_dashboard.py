@@ -89,6 +89,9 @@ def run_smoke(
             "comparison-filter-summary",
             "comparison-sort",
             "endpoint-map-body",
+            "Page Guide",
+            "Inspect Saved Historical Data",
+            "Public Publishing Boundary",
             "diagnostics-note",
             "cleanup-apply",
         ]

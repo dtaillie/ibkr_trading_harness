@@ -126,14 +126,22 @@ strategy-private.
   - recent near-threshold missed signals
 - Add a Help page and contextual help:
   - first-run checklist
+    - done on the Help page
   - "What am I looking at?" explanations for each major page
+    - done in the Help page guide grid
   - "How do I know today's strategy performance?" walkthrough
+    - done on the Help page
   - "Why do I only see SPY and QQQ?" diagnostic walkthrough
+    - done on the Help page
   - "How do I inspect historical data I already fetched?" walkthrough
+    - done on the Help page
   - "What should be private before publishing this repo?" checklist
+    - done on the Help page
   - glossary: runner, draft, replay, shadow, simulated paper, paper, fill,
     reject, artifact, data root, stale bar
+    - done on the Help page
   - links to the relevant quickstart sections
+    - partial; local doc paths are listed, direct served doc links remain open
   - empty states that explain what to do next instead of showing blank tables
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
