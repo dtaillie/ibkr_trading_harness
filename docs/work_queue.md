@@ -572,6 +572,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       draft from warn/bad files.
     - partial; Data Detail now shows a health strip with quality, gap,
       duplicate/null, and replay-readiness cards for the selected saved file.
+    - partial; Data Detail now has Saved Data Viewer triage cards that show
+      catalog file/symbol counts, the currently opened file, chart sampling
+      state, enabled actions, and the next action before lower-level details.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

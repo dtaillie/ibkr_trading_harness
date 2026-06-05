@@ -744,6 +744,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Web UI Runbook" in html
         assert "doc-link-grid" in html
         assert "Inspect Saved Historical Data" in html
+        assert "data-detail-overview-note" in html
+        assert "data-detail-overview" in html
         assert "Public Publishing Boundary" in html
         assert "workbench-guide-note" in html
         assert "workbench-guide" in html

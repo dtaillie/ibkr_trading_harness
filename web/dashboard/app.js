@@ -3899,6 +3899,7 @@ function renderDataDetail() {
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
   $("export-data-missing-intervals").disabled = !detail.path;
+  renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
   const pairs = [
     ["File Path", text(detail.path)],
@@ -3963,6 +3964,114 @@ function renderDataDetail() {
         escapeHtml(interval(item.gap_seconds)),
       ])).join("")
     : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
+}
+
+function renderDataDetailOverview(detail, timezoneMode = "utc") {
+  if (!$("data-detail-overview") || !$("data-detail-overview-note")) return;
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const symbolCount = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const qualityCounts = datasets.reduce((counts, dataset) => {
+    const key = text(dataset.quality_status || "unknown");
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+  const detailPath = detail && detail.path;
+  const viewer = (detail && detail.viewer) || {};
+  const quality = (detail && detail.quality) || {};
+  const selectedSymbol = detailPath
+    ? text(detail.symbol)
+    : (($("data-detail-symbol") && $("data-detail-symbol").value.trim()) || "");
+  const matchingSymbolFiles = selectedSymbol
+    ? datasets.filter((dataset) => text(dataset.symbol).toUpperCase() === selectedSymbol.toUpperCase())
+    : [];
+  const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : detailPath ? "full" : "waiting"));
+  const catalogStatus = datasets.length ? (qualityCounts.bad ? "warn" : "ok") : "bad";
+  const openedStatus = detailPath ? text(quality.quality_status || "ok") : datasets.length ? "warn" : "bad";
+  const chartStatus = !detailPath
+    ? "bad"
+    : viewerStatus === "empty_range" || viewerStatus === "unavailable"
+      ? "bad"
+      : viewer.sampled
+        ? "warn"
+        : "ok";
+  let nextStatus = "bad";
+  let nextTitle = "Scan Data";
+  let nextNote = "Configure data roots or refresh the catalog so saved files appear here.";
+  if (datasets.length && !detailPath) {
+    nextStatus = "warn";
+    nextTitle = "Open File";
+    nextNote = selectedSymbol
+      ? `Open the best ${selectedSymbol} file or choose one from the catalog table.`
+      : "Enter a symbol or click Preview/Open from the catalog table.";
+  } else if (detailPath && chartStatus === "bad") {
+    nextStatus = "bad";
+    nextTitle = "Adjust Range";
+    nextNote = "The current viewer range has no plotted rows; widen the date range or use sampled mode.";
+  } else if (detailPath && text(quality.quality_status) !== "ok") {
+    nextStatus = "warn";
+    nextTitle = "Review Quality";
+    nextNote = "Inspect gaps, missing intervals, nulls, and duplicate timestamps before replaying this file.";
+  } else if (detailPath) {
+    nextStatus = "ok";
+    nextTitle = "Use In Workbench";
+    nextNote = "Copy the replay starter or select this saved file in the Workbench Config Builder.";
+  }
+  const cards = [
+    {
+      status: catalogStatus,
+      title: numberText(datasets.length, 0),
+      label: "Catalog Files",
+      note: `${numberText(symbolCount, 0)} symbols; ${countSummary(qualityCounts) || "no quality counts"}.`,
+    },
+    {
+      status: selectedSymbol ? matchingSymbolFiles.length ? "ok" : "warn" : datasets.length ? "warn" : "bad",
+      title: selectedSymbol || "No Symbol",
+      label: "Symbol",
+      note: selectedSymbol
+        ? `${numberText(matchingSymbolFiles.length, 0)} scanned file${matchingSymbolFiles.length === 1 ? "" : "s"} match this symbol.`
+        : "Enter a symbol or use the Symbol Directory.",
+    },
+    {
+      status: openedStatus,
+      title: detailPath ? text(detail.bar_size) : "None",
+      label: "Opened File",
+      note: detailPath
+        ? `${text(detail.source)} / ${text(detail.storage_session)} / ${bytes(detail.size_bytes)}.`
+        : "No saved file is loaded in Data Detail yet.",
+    },
+    {
+      status: chartStatus,
+      title: detailPath ? (viewer.sampled ? "Sampled" : "Full") : "No Chart",
+      label: "Chart",
+      note: detailPath
+        ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range using ${timezoneLabel(timezoneMode)}.`
+        : "Open a file to render a saved-history chart.",
+    },
+    {
+      status: detailPath ? "ok" : "bad",
+      title: detailPath ? "Available" : "Disabled",
+      label: "Actions",
+      note: detailPath
+        ? "Copy path, data-root flag, replay starter, or export missing intervals."
+        : "Actions enable after a saved file is opened.",
+    },
+    {
+      status: nextStatus,
+      title: nextTitle,
+      label: "Next Action",
+      note: nextNote,
+    },
+  ];
+  $("data-detail-overview-note").textContent = detailPath
+    ? `${text(detail.symbol)} ${text(detail.bar_size)} from ${text(detail.source)}; ${numberText(viewer.sampled_points, 0)} plotted`
+    : `${numberText(datasets.length, 0)} catalog files / ${numberText(symbolCount, 0)} symbols available`;
+  $("data-detail-overview").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function dataDetailHealthCards(detail, timezoneMode = "utc") {
