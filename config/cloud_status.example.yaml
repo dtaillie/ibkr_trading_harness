@@ -15,6 +15,11 @@ runs:
     path: paper_logs/example_plugin_runner
     # Optional freshness alert threshold for real deployments.
     # max_age_seconds: 900
+    # Optional market/account freshness thresholds.
+    # max_data_age_seconds: 300
+    # max_account_age_seconds: 300
+    # Optional position expectation: any, flat, or positioned.
+    # expected_position_state: any
     recent_events:
       enabled: true
       max_rows: 5

@@ -102,6 +102,31 @@ def check_gateway(gateway_cfg: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def gateway_alerts(gateway: dict[str, Any]) -> list[dict[str, str]]:
+    if not gateway.get("enabled") or gateway.get("reachable") is not False:
+        return []
+    error = str(gateway.get("error") or "")
+    error_lower = error.lower()
+    alerts = [{
+        "level": "warn",
+        "kind": "gateway_unreachable",
+        "message": f"Gateway TCP check failed at {gateway['host']}:{gateway['port']}",
+    }]
+    if any(token in error_lower for token in ("auth", "login", "log in", "not logged", "session")):
+        alerts.append({
+            "level": "warn",
+            "kind": "gateway_login_required",
+            "message": f"Gateway may require login or session attention at {gateway['host']}:{gateway['port']}",
+        })
+    else:
+        alerts.append({
+            "level": "warn",
+            "kind": "gateway_api_disconnected",
+            "message": f"Gateway API socket is not reachable at {gateway['host']}:{gateway['port']}",
+        })
+    return alerts
+
+
 def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     runs = []
     alerts = []
@@ -144,8 +169,9 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
         try:
             record["metrics"] = summarize_run(run_path)
             record["status"] = "ok"
+            metrics = record["metrics"] or {}
             record["freshness"] = freshness_record(
-                (record["metrics"] or {}).get("last_decision_time"),
+                metrics.get("last_decision_time"),
                 now=now,
                 max_age_seconds=max_age_seconds,
             )
@@ -155,6 +181,10 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
                     "kind": "run_stale",
                     "message": f"{run_id}: last decision is stale",
                 })
+            if isinstance(entry, dict):
+                operational_extra, operational_alerts = run_operational_alerts(run_id, metrics, entry, now=now)
+                record.update(operational_extra)
+                alerts.extend(operational_alerts)
             recent_enabled, recent_max_rows, recent_error = parse_recent_events_config(recent_events_cfg)
             if recent_error is not None:
                 alerts.append({
@@ -198,6 +228,125 @@ def parse_recent_events_config(value: Any) -> tuple[bool, int, str | None]:
     if max_rows < 1 or max_rows > 50:
         return enabled, max_rows, "recent_events.max_rows must be between 1 and 50"
     return enabled, max_rows, None
+
+
+def nonzero_position_count(positions: Any) -> int:
+    if not isinstance(positions, dict):
+        return 0
+    count = 0
+    for value in positions.values():
+        try:
+            quantity = float(value)
+        except (TypeError, ValueError):
+            continue
+        if quantity != 0:
+            count += 1
+    return count
+
+
+def alert_on_timestamp_age(
+    alerts: list[dict[str, str]],
+    *,
+    run_id: str,
+    metrics: dict[str, Any],
+    metric_key: str,
+    max_age_seconds: Any,
+    alert_kind: str,
+    label: str,
+    now: datetime,
+) -> dict[str, Any] | None:
+    if max_age_seconds is None:
+        return None
+    freshness = freshness_record(metrics.get(metric_key), now=now, max_age_seconds=max_age_seconds)
+    if freshness["stale"]:
+        alerts.append({
+            "level": "warn",
+            "kind": alert_kind,
+            "message": f"{run_id}: {label} is stale",
+        })
+    return freshness
+
+
+def run_operational_alerts(
+    run_id: str,
+    metrics: dict[str, Any],
+    config: dict[str, Any],
+    *,
+    now: datetime,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    alerts: list[dict[str, str]] = []
+    extra: dict[str, Any] = {}
+    data_freshness = alert_on_timestamp_age(
+        alerts,
+        run_id=run_id,
+        metrics=metrics,
+        metric_key="latest_data_time",
+        max_age_seconds=config.get("max_data_age_seconds"),
+        alert_kind="stale_bars",
+        label="latest market-data timestamp",
+        now=now,
+    )
+    if data_freshness is not None:
+        extra["data_freshness"] = data_freshness
+    account_freshness = alert_on_timestamp_age(
+        alerts,
+        run_id=run_id,
+        metrics=metrics,
+        metric_key="account_end_time",
+        max_age_seconds=config.get("max_account_age_seconds"),
+        alert_kind="stale_account_snapshot",
+        label="latest account snapshot",
+        now=now,
+    )
+    if account_freshness is not None:
+        extra["account_freshness"] = account_freshness
+
+    rejections = int(metrics.get("rejections") or 0)
+    if rejections > 0:
+        alerts.append({
+            "level": "warn",
+            "kind": "rejected_orders",
+            "message": f"{run_id}: {rejections} rejected order event{'' if rejections == 1 else 's'}",
+        })
+
+    rejection_reasons = metrics.get("rejection_reasons") or {}
+    risk_reason_count = 0
+    if isinstance(rejection_reasons, dict):
+        for reason, count in rejection_reasons.items():
+            if "risk" in str(reason).lower() or "limit" in str(reason).lower():
+                risk_reason_count += int(count or 0)
+    risk_limit_trips = int(metrics.get("risk_limit_trips") or metrics.get("risk_limit_rejections") or risk_reason_count or 0)
+    if risk_limit_trips > 0:
+        alerts.append({
+            "level": "warn",
+            "kind": "risk_limit_trip",
+            "message": f"{run_id}: {risk_limit_trips} risk-limit trip{'' if risk_limit_trips == 1 else 's'}",
+        })
+
+    expected_state = str(config.get("expected_position_state") or "any").strip().lower()
+    position_count = nonzero_position_count(metrics.get("final_positions"))
+    if expected_state in {"flat", "positioned"}:
+        extra["expected_position_state"] = expected_state
+        extra["position_count"] = position_count
+    if expected_state == "flat" and position_count:
+        alerts.append({
+            "level": "warn",
+            "kind": "unexpected_positioned_state",
+            "message": f"{run_id}: expected flat but has {position_count} open position{'' if position_count == 1 else 's'}",
+        })
+    elif expected_state == "positioned" and not position_count:
+        alerts.append({
+            "level": "warn",
+            "kind": "unexpected_flat_state",
+            "message": f"{run_id}: expected a position but is flat",
+        })
+    elif expected_state not in {"any", "flat", "positioned"}:
+        alerts.append({
+            "level": "warn",
+            "kind": "run_position_expectation_config",
+            "message": f"{run_id}: expected_position_state must be any, flat, or positioned",
+        })
+    return extra, alerts
 
 
 def summarize_configured_supervisors(supervisors_cfg: list[Any], *, now: datetime) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
@@ -389,12 +538,7 @@ def collect_status(config: dict[str, Any]) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     alerts: list[dict[str, str]] = []
     gateway = check_gateway(config.get("gateway") or {})
-    if gateway["enabled"] and gateway["reachable"] is False:
-        alerts.append({
-            "level": "warn",
-            "kind": "gateway_unreachable",
-            "message": f"Gateway TCP check failed at {gateway['host']}:{gateway['port']}",
-        })
+    alerts.extend(gateway_alerts(gateway))
 
     runs_cfg = config.get("runs") or []
     if not isinstance(runs_cfg, list):

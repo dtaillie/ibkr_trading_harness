@@ -14,26 +14,28 @@ import pytest
 from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
 from scripts.command_worker import execute_command, poll_once
-from scripts.publish_status import collect_status, post_status, publish_status
+from scripts.publish_status import collect_status, gateway_alerts, post_status, publish_status
 
 
-def write_run(run_dir: Path, *, timestamp: str = "2026-01-02T14:30:00+00:00") -> None:
+def write_run(
+    run_dir: Path,
+    *,
+    timestamp: str = "2026-01-02T14:30:00+00:00",
+    summary_extra: dict | None = None,
+) -> None:
     run_dir.mkdir()
-    (run_dir / "summary.json").write_text(
-        json.dumps(
-            {
-                "mode": "replay",
-                "decisions": 1,
-                "orders": 0,
-                "fills": 0,
-                "rejections": 0,
-                "final_cash": 10000.0,
-                "final_equity": None,
-                "final_positions": {},
-            },
-            sort_keys=True,
-        )
-    )
+    summary = {
+        "mode": "replay",
+        "decisions": 1,
+        "orders": 0,
+        "fills": 0,
+        "rejections": 0,
+        "final_cash": 10000.0,
+        "final_equity": None,
+        "final_positions": {},
+    }
+    summary.update(summary_extra or {})
+    (run_dir / "summary.json").write_text(json.dumps(summary, sort_keys=True))
     (run_dir / "decisions.jsonl").write_text(json.dumps({"timestamp": timestamp}) + "\n")
 
 
@@ -324,6 +326,82 @@ def test_collect_status_warns_on_stale_run(tmp_path):
     assert payload["status"] == "warn"
     assert payload["runs"][0]["freshness"]["stale"] is True
     assert any(alert["kind"] == "run_stale" for alert in payload["alerts"])
+
+
+def test_gateway_alerts_classify_api_and_login_failures():
+    disconnected = gateway_alerts({
+        "enabled": True,
+        "reachable": False,
+        "host": "127.0.0.1",
+        "port": 4002,
+        "error": "connection refused",
+    })
+    login = gateway_alerts({
+        "enabled": True,
+        "reachable": False,
+        "host": "127.0.0.1",
+        "port": 4002,
+        "error": "session not logged in",
+    })
+
+    assert {alert["kind"] for alert in disconnected} == {"gateway_unreachable", "gateway_api_disconnected"}
+    assert {alert["kind"] for alert in login} == {"gateway_unreachable", "gateway_login_required"}
+
+
+def test_collect_status_warns_on_run_operational_alerts(tmp_path):
+    run_dir = tmp_path / "run"
+    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    write_run(
+        run_dir,
+        timestamp=old,
+        summary_extra={
+            "latest_data_time": old,
+            "account_end_time": old,
+            "rejections": 2,
+            "final_positions": {"SPY": 3},
+        },
+    )
+    (run_dir / "orders.jsonl").write_text(
+        json.dumps({"timestamp": old, "status": "rejected", "reason": "risk limit", "symbol": "SPY"})
+        + "\n"
+    )
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "runs": [{
+            "id": "example",
+            "path": str(run_dir),
+            "max_data_age_seconds": 60,
+            "max_account_age_seconds": 60,
+            "expected_position_state": "flat",
+        }],
+    })
+
+    kinds = {alert["kind"] for alert in payload["alerts"]}
+    assert payload["status"] == "warn"
+    assert payload["runs"][0]["data_freshness"]["stale"] is True
+    assert payload["runs"][0]["account_freshness"]["stale"] is True
+    assert payload["runs"][0]["expected_position_state"] == "flat"
+    assert payload["runs"][0]["position_count"] == 1
+    assert {
+        "stale_bars",
+        "stale_account_snapshot",
+        "rejected_orders",
+        "risk_limit_trip",
+        "unexpected_positioned_state",
+    }.issubset(kinds)
+
+
+def test_collect_status_warns_on_unexpected_flat_state(tmp_path):
+    run_dir = tmp_path / "run"
+    write_run(run_dir)
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "runs": [{"id": "example", "path": str(run_dir), "expected_position_state": "positioned"}],
+    })
+
+    assert any(alert["kind"] == "unexpected_flat_state" for alert in payload["alerts"])
 
 
 def test_collect_status_warns_on_stale_supervisor(tmp_path):

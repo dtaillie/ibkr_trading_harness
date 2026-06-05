@@ -538,6 +538,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - rejected orders
   - risk-limit trips
   - unexpected flat or positioned state
+  - partial; the status publisher now emits generic alerts for stale run
+    heartbeat, Gateway unreachable/API disconnected/login-required clues,
+    stale market-data bars, stale account snapshots, rejected orders,
+    risk-limit-like rejection reasons, and opt-in expected flat/positioned
+    state mismatches. Dashboard alert display already surfaces the emitted
+    alert rows; richer broker-native login/order-state categories still depend
+    on runner/broker telemetry.
 - Add historical run pages in the cloud view with bounded artifacts and logs.
 - Keep broker credentials and trading authority on the local machine.
 
