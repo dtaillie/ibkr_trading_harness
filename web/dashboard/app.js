@@ -1724,6 +1724,22 @@ function renderPerformance() {
   const tradeMeta = ledger.stats.closed_count
     ? `${numberText(ledger.stats.closed_count, 0)} closed trades from fills`
     : fillsMeta;
+  renderPerformanceTriage({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   setMetricValue("performance-equity", money(equity), { meta: sourceMeta });
   $("performance-context").textContent = accountRows.length
@@ -1854,6 +1870,144 @@ function renderPerformance() {
         escapeHtml(runItem.rejections),
       ])).join("")
     : row([`<span class="muted">No saved runs yet</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function renderPerformanceTriage(context) {
+  if (!$("performance-triage-cards") || !$("performance-triage-note")) return;
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const statusRollups = (state.statusEquityRollups && state.statusEquityRollups.rollups) || [];
+  const periodRollups = (state.statusEquityRollups && state.statusEquityRollups.period_rollups) || {};
+  const monthRollups = periodRollups.month || [];
+  const yearRollups = periodRollups.year || [];
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const hasBenchmark = Boolean(benchmark.path);
+  const hasArtifactDepth = Boolean((source.account || []).length || (source.fills || []).length || (source.orders || []).length || (source.decisions || []).length);
+  const sourceStatus = source.has_data ? (hasArtifactDepth ? "ok" : "warn") : "bad";
+  const windowStatus = accountRows.length ? "ok" : source.has_data ? "warn" : "bad";
+  const executionStatus = rejections > 0 || approvalRequired > 0
+    ? "warn"
+    : fillCount > 0
+      ? "ok"
+      : decisions || orders ? "warn" : "bad";
+  let nextStatus = "bad";
+  let nextTitle = "Load Source";
+  let nextNote = "Publish telemetry, run a Workbench config, or open a saved artifact.";
+  if (source.has_data && !accountRows.length && !hasArtifactDepth) {
+    nextStatus = "warn";
+    nextTitle = "Open Artifact";
+    nextNote = "Current source has summary metrics only; open artifacts for equity curves, drawdown, fills, and trade rows.";
+  } else if (source.has_data && !accountRows.length) {
+    nextStatus = "warn";
+    nextTitle = "Change Period";
+    nextNote = "Selected period has no account snapshots; switch to All or load a run with snapshots in this window.";
+  } else if (rejections > 0 || approvalRequired > 0) {
+    nextStatus = "warn";
+    nextTitle = "Review Execution";
+    nextNote = "Rejected orders or approval holds are present; inspect Runs before trusting performance.";
+  } else if (source.has_data && !hasBenchmark) {
+    nextStatus = "warn";
+    nextTitle = "Add Benchmark";
+    nextNote = "Optional: load a saved benchmark dataset to compare normalized returns.";
+  } else if (source.has_data) {
+    nextStatus = "ok";
+    nextTitle = "Review Charts";
+    nextNote = "Equity, drawdown, daily return, trade, and rollup detail are ready for this source.";
+  }
+  const totalReturn = Number(periodPerf.total_return_pct);
+  const returnStatus = Number.isFinite(totalReturn)
+    ? totalReturn >= 0 ? "ok" : "warn"
+    : windowStatus;
+  const cards = [
+    {
+      status: sourceStatus,
+      title: text(source.label),
+      label: "Source",
+      note: hasArtifactDepth
+        ? `${text(source.source_type)} with account/fill/order detail.`
+        : source.has_data
+          ? `${text(source.source_type)} summary-only source.`
+          : "No current telemetry, artifact, or saved run summary loaded.",
+    },
+    {
+      status: windowStatus,
+      title: window.label,
+      label: "Period",
+      note: `${numberText(accountRows.length, 0)} selected account snapshots / ${numberText((allAccountRows || []).length, 0)} total.`,
+    },
+    {
+      status: returnStatus,
+      title: pctText(periodPerf.total_return_pct),
+      label: "Return",
+      note: `Drawdown ${pctText(periodPerf.max_drawdown_pct)} / elapsed ${numberText(periodPerf.elapsed_days, 4)} days.`,
+    },
+    {
+      status: executionStatus,
+      title: `${numberText(fillCount, 0)} fills / ${numberText(rejections, 0)} rejects`,
+      label: "Execution",
+      note: `${numberText(decisions, 0)} decisions / ${numberText(orders, 0)} orders / ${numberText(approvalRequired, 0)} approval holds.`,
+    },
+    {
+      status: ledger.stats.closed_count ? "ok" : fills.length ? "warn" : "bad",
+      title: `${numberText(ledger.stats.closed_count, 0)} closed`,
+      label: "Trades",
+      note: ledger.stats.closed_count
+        ? `${numberText(ledger.stats.wins, 0)} wins / ${numberText(ledger.stats.losses, 0)} losses / profit factor ${Number.isFinite(ledger.stats.profit_factor) ? numberText(ledger.stats.profit_factor, 2) : ledger.stats.profit_factor === Infinity ? "inf" : "n/a"}.`
+        : fills.length ? "Fills exist but trade pairing has open/unclosed rows." : "Load artifact fills to derive trade stats.",
+    },
+    {
+      status: statusRollups.length ? "ok" : "warn",
+      title: numberText(statusRollups.length, 0),
+      label: "Live/Paper Rollups",
+      note: statusRollups.length
+        ? `${numberText(monthRollups.length, 0)} month rows / ${numberText(yearRollups.length, 0)} year rows from status history.`
+        : "No status-history equity rollups loaded.",
+    },
+    {
+      status: hasBenchmark ? "ok" : source.has_data ? "warn" : "bad",
+      title: hasBenchmark ? text(benchmark.symbol) : "None",
+      label: "Benchmark",
+      note: hasBenchmark
+        ? `${text(benchmark.bar_size)} from ${text(benchmark.source)}.`
+        : "Optional normalized saved-data overlay is not loaded.",
+    },
+    {
+      status: latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "bad",
+      title: mode ? text(mode) : "Unknown",
+      label: "Account Freshness",
+      note: latestAccount.timestamp
+        ? `Latest account ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
+        : "No account snapshot timestamp for the selected source.",
+    },
+    {
+      status: nextStatus,
+      title: nextTitle,
+      label: "Next Action",
+      note: nextNote,
+    },
+  ];
+  $("performance-triage-note").textContent = `${text(source.label)} / ${text(mode)} / ${numberText(accountRows.length, 0)} account snapshots / ${numberText(fills.length, 0)} fills`;
+  $("performance-triage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderPerformanceRollups() {

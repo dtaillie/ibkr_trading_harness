@@ -212,6 +212,10 @@ strategy-private.
     Current default, Loaded artifact mode, and Latest saved run mode. Opening
     artifacts switches to artifact mode, and users can return to Current
     without clearing the loaded artifact.
+  - partial; Strategy Performance now starts with triage cards for selected
+    source richness, period/account-snapshot coverage, return/drawdown,
+    execution health, trade pairing, live/paper rollups, benchmark state,
+    account freshness, and the next action.
 - Add strategy/session comparison only after the current-strategy page is easy
   to read.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for
