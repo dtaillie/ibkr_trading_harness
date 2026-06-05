@@ -508,6 +508,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data now has a Find Dataset filter for large
       catalogs, preserving already selected files while narrowing by symbol,
       source, bar size, quality, or path.
+    - partial; Compare Saved Data now also has exact asset, source, bar-size,
+      storage-session, and quality facets while preserving selected datasets
+      across filter changes.
     - partial; Compare Saved Data now has Select Shown and Clear actions,
       capped to the backend's 8-dataset comparison limit, so filtered symbol
       groups can be selected without manual multi-select gestures.

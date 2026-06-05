@@ -3817,15 +3817,29 @@ function renderDataCompareControls() {
       : Array.from(select.selectedOptions).map((option) => option.value)
   );
   const filter = ($("data-compare-filter").value || "").trim().toLowerCase();
+  const facets = {
+    asset: $("data-compare-asset").value || "",
+    source: $("data-compare-source").value || "",
+    bar: $("data-compare-bar").value || "",
+    session: $("data-compare-session").value || "",
+    quality: $("data-compare-quality").value || "",
+  };
   const allDatasets = state.dataCatalog.datasets || [];
+  renderDataCompareFilterOptions(allDatasets);
   const visibleDatasets = allDatasets.filter((dataset) => {
     if (previousSelection.has(dataset.path)) return true;
+    if (facets.asset && text(dataset.asset_class) !== facets.asset) return false;
+    if (facets.source && text(dataset.source) !== facets.source) return false;
+    if (facets.bar && text(dataset.bar_size) !== facets.bar) return false;
+    if (facets.session && text(dataset.storage_session) !== facets.session) return false;
+    if (facets.quality && text(dataset.quality_status) !== facets.quality) return false;
     if (!filter) return true;
     const haystack = [
       dataset.symbol,
       dataset.asset_class,
       dataset.source,
       dataset.bar_size,
+      dataset.storage_session,
       dataset.quality_status,
       dataset.path,
     ].map(text).join(" ").toLowerCase();
@@ -3846,9 +3860,36 @@ function renderDataCompareControls() {
   }
   updateCompareSelectionFromSelect();
   const selectedCount = state.dataCompareSelectedPaths.length;
-  $("data-compare-filter-note").textContent = filter
-    ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`
+  const activeFilters = [
+    filter ? `"${filter}"` : "",
+    facets.asset,
+    facets.source,
+    facets.bar,
+    facets.session,
+    facets.quality,
+  ].filter(Boolean);
+  $("data-compare-filter-note").textContent = activeFilters.length
+    ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total matching ${activeFilters.join(", ")}; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`
     : `${numberText(allDatasets.length, 0)} catalog datasets; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`;
+}
+
+function renderDataCompareFilterOptions(datasets) {
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    if (!select) return;
+    const current = select.value;
+    const options = Array.from(new Set((values || []).map(text).filter((item) => item !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) select.value = current;
+  };
+  makeOptions("data-compare-asset", datasets.map((item) => item.asset_class));
+  makeOptions("data-compare-source", datasets.map((item) => item.source));
+  makeOptions("data-compare-bar", datasets.map((item) => item.bar_size));
+  makeOptions("data-compare-session", datasets.map((item) => item.storage_session));
+  makeOptions("data-compare-quality", datasets.map((item) => item.quality_status));
 }
 
 function selectShownCompareDatasets() {
@@ -3888,6 +3929,12 @@ function selectSymbolCompareDatasets() {
 function clearCompareSelection() {
   state.dataCompareSelectedPaths = [];
   state.dataCompareSelectionCleared = true;
+  $("data-compare-filter").value = "";
+  $("data-compare-asset").value = "";
+  $("data-compare-source").value = "";
+  $("data-compare-bar").value = "";
+  $("data-compare-session").value = "";
+  $("data-compare-quality").value = "";
   for (const option of $("data-compare-datasets").options) {
     option.selected = false;
   }
@@ -6933,6 +6980,11 @@ function init() {
   });
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-compare-filter").addEventListener("input", renderDataCompareControls);
+  $("data-compare-asset").addEventListener("change", renderDataCompareControls);
+  $("data-compare-source").addEventListener("change", renderDataCompareControls);
+  $("data-compare-bar").addEventListener("change", renderDataCompareControls);
+  $("data-compare-session").addEventListener("change", renderDataCompareControls);
+  $("data-compare-quality").addEventListener("change", renderDataCompareControls);
   $("data-compare-datasets").addEventListener("change", () => updateCompareSelectionFromSelect(true));
   $("data-compare-select-symbol").addEventListener("click", selectSymbolCompareDatasets);
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
