@@ -541,6 +541,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       fetch-manifest clues
   - data-root scan errors in the UI
     - partial; catalog parser errors and root diagnostics are visible
+    - partial; Data Library now exposes `/data_catalog_scan_export` and an
+      Export Scan CSV button for configured-root parser errors, unsupported
+      files, catalog caps, scan timings, and skipped-file samples.
   - root-by-root scan duration, file count, skipped count, and parser error
     count
     - partial; Data Library now shows catalog scan diagnostics with per-root

@@ -87,6 +87,9 @@ that the dashboard will send to `/data_compare`.
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.
 
+Use Export Scan CSV when you want configured-root parser errors, unsupported
+files, catalog caps, scan timings, and skipped-file samples in an offline table.
+
 Use Export Coverage CSV when you want the Data Library symbol/date coverage
 grid as a downloadable table for offline review.
 

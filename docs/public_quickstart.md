@@ -257,7 +257,10 @@ historical previews. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
-large or slow roots are visible. Use the coverage grid to see recent date-bin
+large or slow roots are visible. Use Export Scan CSV in Catalog Scan
+Diagnostics to download configured-root parser errors, unsupported-file counts,
+catalog caps, scan durations, and skipped-file samples. Use the coverage grid
+to see recent date-bin
 coverage by symbol, or Export Coverage CSV to download symbol/date coverage
 rows for offline review. Use Export Gap CSV to download aggregate timestamp-gap
 and calendar-gap rows. Use Export Minute CSV to download intraday hour and

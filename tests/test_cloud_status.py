@@ -591,6 +591,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-scan-note" in html
         assert "data-catalog-scan-body" in html
         assert "data-storage-scan-limit" in html
+        assert "export-data-catalog-scan-csv" in html
         assert "export-data-storage-audit-csv" in html
         assert "data-storage-audit-body" in html
         assert "data-symbol-browser-input" in html
@@ -740,6 +741,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
+        assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
@@ -1345,6 +1347,23 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["bar_size"] == "5min"
         assert exported[0]["storage_session"] == "rth"
         assert exported[0]["adjustment_status"] == "unknown"
+
+        with request.urlopen(f"{base}/data_catalog_scan_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="data_catalog_scan.csv"'
+            scan_csv_body = resp.read().decode("utf-8")
+        scan_exported = list(csv.DictReader(io.StringIO(scan_csv_body)))
+        assert [row["row_type"] for row in scan_exported] == ["root", "skipped_sample", "skipped_sample"]
+        root_row = scan_exported[0]
+        assert root_row["path"] == str(data_root.resolve())
+        assert root_row["candidate_count"] == "2"
+        assert root_row["parsed_count"] == "1"
+        assert root_row["parse_error_count"] == "1"
+        assert root_row["unsupported_file_count"] == "1"
+        assert root_row["scan_duration_ms"] != ""
+        assert scan_exported[1]["sample_path"].endswith("BROKEN_5min_sample.parquet")
+        assert scan_exported[2]["sample_path"].endswith("notes.txt")
+        assert scan_exported[2]["sample_reason"] == "unsupported extension .txt"
 
         with request.urlopen(f"{base}/data_coverage?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
             coverage = json.loads(resp.read().decode("utf-8"))

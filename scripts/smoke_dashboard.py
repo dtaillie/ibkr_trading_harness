@@ -308,6 +308,7 @@ def run_smoke(
             "data-catalog-scan-note",
             "data-catalog-scan-body",
             "data-catalog-limit",
+            "export-data-catalog-scan-csv",
             "data-storage-audit-note",
             "data-storage-scan-limit",
             "data-storage-audit-body",
@@ -448,6 +449,7 @@ def run_smoke(
             "date_hour_rows",
             "data_storage_audit",
             "data_symbol_diagnostic",
+            "data_catalog_scan_export",
             "data_detail",
             "data_detail_available",
             "dataDetailHealthCards",
@@ -573,6 +575,7 @@ def run_smoke(
         coverage_symbol_limit = 50 if scenario == "seeded" else 10
         catalog = fetch_json(base_url, f"/data_catalog?limit={catalog_limit}&preview_points=3")
         data_catalog_csv = fetch_text(base_url, f"/data_catalog_export?limit={catalog_limit}")
+        data_catalog_scan_csv = fetch_text(base_url, f"/data_catalog_scan_export?limit={catalog_limit}")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         endpoint_map = fetch_json(base_url, "/workbench_endpoints")
         web_ui_runbook = fetch_text(base_url, "/docs/web_ui_runbook.md")
@@ -608,6 +611,8 @@ def run_smoke(
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
+        if "row_type,path,display_path" not in data_catalog_scan_csv:
+            raise RuntimeError("data catalog scan CSV header is missing")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
         broker_adapters = {item.get("id"): item for item in options.get("broker_adapters") or []}

@@ -5984,6 +5984,21 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataCatalogScanCsv() {
+  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const body = await fetchText(`/data_catalog_scan_export?limit=${catalogLimit}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_catalog_scan.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Catalog scan CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataStorageAuditCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
@@ -6347,6 +6362,11 @@ function init() {
   $("export-data-catalog-csv").addEventListener("click", () => {
     downloadDataCatalogCsv().catch((err) => {
       $("last-refresh").textContent = `Data catalog CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-catalog-scan-csv").addEventListener("click", () => {
+    downloadDataCatalogScanCsv().catch((err) => {
+      $("last-refresh").textContent = `Catalog scan CSV export failed: ${err.message}`;
     });
   });
   $("export-data-storage-audit-csv").addEventListener("click", () => {

@@ -327,6 +327,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_catalog_scan_export",
+        "category": "data",
+        "description": "Download data-root catalog scan diagnostics and skipped-file samples.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_detail",
         "category": "data",
         "description": "Inspect one saved data file with range-filtered sampled or full-in-range price/volume series.",
@@ -1938,6 +1945,27 @@ DATA_CATALOG_EXPORT_FIELDS = (
 )
 
 
+DATA_CATALOG_SCAN_EXPORT_FIELDS = (
+    "row_type",
+    "path",
+    "display_path",
+    "exists",
+    "is_dir",
+    "catalog_limit",
+    "candidate_count",
+    "parsed_count",
+    "parse_error_count",
+    "unsupported_file_count",
+    "skipped_candidate_count",
+    "scan_duration_ms",
+    "scan_capped",
+    "not_scanned_reason",
+    "sample_path",
+    "sample_reason",
+    "sample_error",
+)
+
+
 DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "scope",
     "path",
@@ -2058,6 +2086,27 @@ def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
     writer.writeheader()
     for row in catalog["datasets"]:
         writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_data_catalog_scan_csv(data_roots: list[Path], *, limit: int = 200) -> str:
+    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_CATALOG_SCAN_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for item in catalog.get("root_summaries", []):
+        base = {field: item.get(field) for field in DATA_CATALOG_SCAN_EXPORT_FIELDS}
+        base["row_type"] = "root"
+        writer.writerow({field: compact_csv_value(base.get(field)) for field in DATA_CATALOG_SCAN_EXPORT_FIELDS})
+        for sample in item.get("sample_skipped_files") or []:
+            row = {
+                **base,
+                "row_type": "skipped_sample",
+                "sample_path": sample.get("path"),
+                "sample_reason": sample.get("reason"),
+                "sample_error": sample.get("error"),
+            }
+            writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_CATALOG_SCAN_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -6717,6 +6766,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 200,
                 csv_body,
                 filename="saved_data_catalog.csv",
+                content_type="text/csv; charset=utf-8",
+            )
+            return
+        if parsed.path == "/data_catalog_scan_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=200, maximum=500)
+                csv_body = build_data_catalog_scan_csv(self.data_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_catalog_scan.csv",
                 content_type="text/csv; charset=utf-8",
             )
             return
