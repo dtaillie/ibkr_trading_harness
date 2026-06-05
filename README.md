@@ -213,9 +213,10 @@ and a symbol diagnostic for answering why a ticker is visible, scan-limited,
 in an unconfigured root, malformed, fetch-failed, or absent. The Fetch Jobs view reads JSON manifests from
 configured manifest roots, summarizing historical-data pulls by status,
 symbols, chunks, rows, output paths, no-data chunks, and errors. Individual datasets can be
-inspected for larger sampled price paths, null counts, gap rows, price/return
-stats, volume stats, and a compact ok/warn/bad quality summary before they are
-used in a replay config. The saved-data table can be filtered by search text,
+inspected offline with date-range controls, sampled or full-in-range viewing,
+close-price paths, volume bars, null counts, gap rows, price/return stats,
+volume stats, and a compact ok/warn/bad quality summary before they are used
+in a replay config. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size
 counts, total rows, and local file size. Saved-data coverage and quality
 metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and

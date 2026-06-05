@@ -3,6 +3,7 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataDetail: null,
+  dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
   symbolDiagnostic: null,
   fetchManifests: { manifests: [], roots: [], errors: [] },
@@ -511,22 +512,45 @@ function miniChart(points) {
 
 function detailChart(points) {
   if (!points || points.length < 2) return `<span class="muted">No price preview available</span>`;
-  const closes = points.map((point) => Number(point.close)).filter((value) => Number.isFinite(value));
-  if (closes.length < 2) return `<span class="muted">No price preview available</span>`;
+  const rows = points.map((point) => ({
+    timestamp: point.timestamp,
+    close: Number(point.close),
+    volume: Number(point.volume),
+  })).filter((point) => point.timestamp && Number.isFinite(point.close));
+  if (rows.length < 2) return `<span class="muted">No price preview available</span>`;
+  const closes = rows.map((point) => point.close);
   const min = Math.min(...closes);
   const max = Math.max(...closes);
   const width = 720;
-  const height = 180;
+  const priceHeight = 160;
+  const volumeHeight = rows.some((point) => Number.isFinite(point.volume)) ? 44 : 0;
+  const volumeGap = volumeHeight ? 16 : 0;
+  const height = priceHeight + volumeGap + volumeHeight;
   const span = max - min || 1;
-  const coords = closes.map((value, index) => {
-    const x = closes.length === 1 ? 0 : (index / (closes.length - 1)) * width;
-    const y = height - ((value - min) / span) * height;
+  const coords = rows.map((point, index) => {
+    const x = rows.length === 1 ? 0 : (index / (rows.length - 1)) * width;
+    const y = priceHeight - ((point.close - min) / span) * priceHeight;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
   const last = closes[closes.length - 1];
   const first = closes[0];
   const cls = last >= first ? "spark-good" : "spark-bad";
-  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="sampled close prices"><polyline points="${coords}"></polyline></svg>`;
+  let volumeBars = "";
+  const volumes = rows.map((point) => point.volume).filter((value) => Number.isFinite(value));
+  if (volumes.length) {
+    const maxVolume = Math.max(...volumes, 1);
+    const barWidth = Math.max(1, width / rows.length);
+    const baseY = priceHeight + volumeGap;
+    volumeBars = rows.map((point, index) => {
+      if (!Number.isFinite(point.volume)) return "";
+      const x = index * (width / rows.length);
+      const barHeight = Math.max(1, (point.volume / maxVolume) * volumeHeight);
+      const y = baseY + volumeHeight - barHeight;
+      return `<rect class="volume-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"><title>${escapeHtml(point.timestamp)} volume ${escapeHtml(numberText(point.volume, 0))}</title></rect>`;
+    }).join("");
+  }
+  const caption = `${rows[0].timestamp} close ${numberText(first)} | ${rows[rows.length - 1].timestamp} close ${numberText(last)}`;
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price and volume"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function equityChart(points) {
@@ -971,13 +995,19 @@ function renderDataDetail() {
   const price = detail.price_stats || {};
   const returns = detail.return_stats || {};
   const volume = detail.volume_stats || {};
+  const viewer = detail.viewer || {};
   $("data-detail-title").textContent = detail.path
     ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
     : "No dataset selected";
+  $("data-detail-viewer-note").textContent = detail.path
+    ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} UTC view`
+    : "Select a dataset to inspect saved history offline.";
   const pairs = [
     ["Asset", text(detail.asset_class)],
     ["Source", text(detail.source)],
     ["Rows", numberText(detail.rows, 0)],
+    ["Viewer Rows", `${numberText(viewer.filtered_rows, 0)} filtered / ${numberText(viewer.available_rows, 0)} available`],
+    ["Viewer Range", rangeLabel(viewer.first_timestamp, viewer.last_timestamp)],
     ["Range", rangeLabel(coverage.first_timestamp, coverage.last_timestamp)],
     ["Median Step", interval(coverage.median_interval_seconds)],
     ["Largest Gap", interval(coverage.largest_gap_seconds)],
@@ -1910,11 +1940,42 @@ async function previewConfigAlignment() {
   $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadDataDetail(path) {
-  const response = await fetchJson(`/data_detail?path=${encodeURIComponent(path)}&preview_points=360&gap_limit=30`);
+function dataDetailQuery(path) {
+  const params = new URLSearchParams();
+  params.set("path", path);
+  params.set("preview_points", $("data-detail-points").value || "600");
+  params.set("gap_limit", "30");
+  params.set("sample_mode", $("data-detail-mode").value || "sampled");
+  const start = $("data-detail-start").value;
+  const end = $("data-detail-end").value;
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  return params.toString();
+}
+
+async function loadDataDetail(path, { resetControls = false } = {}) {
+  if (!path) throw new Error("dataset path is required");
+  state.dataDetailPath = path;
+  if (resetControls) {
+    $("data-detail-start").value = "";
+    $("data-detail-end").value = "";
+    $("data-detail-points").value = "600";
+    $("data-detail-mode").value = "sampled";
+  }
+  const response = await fetchJson(`/data_detail?${dataDetailQuery(path)}`);
   state.dataDetail = response;
   renderDataDetail();
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
+}
+
+async function reloadDataDetail(event) {
+  event.preventDefault();
+  const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
+  if (!path) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Select a saved dataset first</span>`;
+    return;
+  }
+  await loadDataDetail(path);
 }
 
 async function diagnoseDataSymbol(event) {
@@ -2295,6 +2356,11 @@ function init() {
       $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("data-detail-form").addEventListener("submit", (event) => {
+    reloadDataDetail(event).catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("config-run-form").addEventListener("submit", (event) => {
     runConfigDraft(event).catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -2340,7 +2406,7 @@ function init() {
   $("data-catalog-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
-    loadDataDetail(target.dataset.path || "").catch((err) => {
+    loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
       $("last-refresh").textContent = `Data detail failed: ${err.message}`;
     });
   });

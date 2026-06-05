@@ -478,6 +478,29 @@
         <h2>Data Detail</h2>
         <span id="data-detail-title" class="section-note">No dataset selected</span>
       </div>
+      <form id="data-detail-form" class="viewer-controls">
+        <label>
+          <span>Start</span>
+          <input id="data-detail-start" type="date">
+        </label>
+        <label>
+          <span>End</span>
+          <input id="data-detail-end" type="date">
+        </label>
+        <label>
+          <span>Points</span>
+          <input id="data-detail-points" type="number" min="2" max="1000" step="1" value="600">
+        </label>
+        <label>
+          <span>Mode</span>
+          <select id="data-detail-mode">
+            <option value="sampled" selected>Sampled</option>
+            <option value="full">Full if range fits</option>
+          </select>
+        </label>
+        <button type="submit">Reload View</button>
+        <span id="data-detail-viewer-note" class="section-note">Select a dataset to inspect saved history offline.</span>
+      </form>
       <div class="data-detail-grid">
         <dl id="data-detail-summary" class="kv"></dl>
         <div id="data-detail-chart" class="detail-chart-wrap"></div>

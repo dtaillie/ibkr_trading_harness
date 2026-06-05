@@ -689,6 +689,23 @@ section {
   margin-top: 12px;
 }
 
+.viewer-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr)) auto minmax(220px, 1.3fr);
+  gap: 10px;
+  align-items: end;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.viewer-controls .section-note {
+  align-self: center;
+  line-height: 1.35;
+}
+
 .data-detail-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.34fr) minmax(0, 0.66fr);
@@ -862,6 +879,11 @@ tr:last-child td {
   vector-effect: non-scaling-stroke;
 }
 
+.volume-bar {
+  fill: #a9b5ad;
+  opacity: 0.7;
+}
+
 .axis-line {
   stroke: var(--line);
   stroke-width: 1;
@@ -910,6 +932,7 @@ footer {
   .split,
   .artifact-grid,
   .data-detail-grid,
+  .viewer-controls,
   .builder-output,
   .overview-hero,
   .performance-layout,

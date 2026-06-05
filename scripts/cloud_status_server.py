@@ -193,8 +193,8 @@ PUBLIC_ENDPOINTS = (
         "method": "GET",
         "path": "/data_detail",
         "category": "data",
-        "description": "Inspect one saved data file with coverage, gap, null, and price summaries.",
-        "response": "JSON dataset detail",
+        "description": "Inspect one saved data file with range-filtered sampled or full-in-range price/volume series.",
+        "response": "JSON dataset detail and viewer series",
     },
     {
         "method": "GET",
@@ -576,6 +576,21 @@ def parse_bool_param(params: dict[str, list[str]], key: str, *, default: bool) -
     if raw in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"{key} must be true or false")
+
+
+def parse_optional_utc_timestamp(raw: str | None, *, end_of_day: bool = False) -> pd.Timestamp | None:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    try:
+        parsed = pd.to_datetime(value, utc=True, errors="raise", format="mixed")
+    except TypeError:
+        parsed = pd.to_datetime(value, utc=True, errors="raise")
+    except Exception as exc:
+        raise ValueError(f"invalid timestamp: {value}") from exc
+    if end_of_day and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        parsed = parsed + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+    return parsed
 
 
 def parse_data_roots(raw_roots: list[Path] | None) -> list[Path]:
@@ -1704,11 +1719,21 @@ def build_data_detail(
     data_roots: list[Path],
     preview_points: int = 300,
     gap_limit: int = 20,
+    start: str | None = None,
+    end: str | None = None,
+    sample_mode: str = "sampled",
 ) -> dict[str, Any]:
     if preview_points < 2 or preview_points > MAX_DATA_DETAIL_POINTS:
         raise ValueError(f"preview_points must be between 2 and {MAX_DATA_DETAIL_POINTS}")
     if gap_limit < 1 or gap_limit > MAX_DATA_GAP_ROWS:
         raise ValueError(f"gap_limit must be between 1 and {MAX_DATA_GAP_ROWS}")
+    sample_mode = str(sample_mode or "sampled").strip().lower()
+    if sample_mode not in {"sampled", "full"}:
+        raise ValueError("sample_mode must be sampled or full")
+    start_ts = parse_optional_utc_timestamp(start)
+    end_ts = parse_optional_utc_timestamp(end, end_of_day=True)
+    if start_ts is not None and end_ts is not None and start_ts > end_ts:
+        raise ValueError("start must be before end")
 
     path, rel_path = data_path_allowed(raw_path, data_roots)
     root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
@@ -1784,6 +1809,21 @@ def build_data_detail(
     return_stats: dict[str, Any] = {}
     volume_stats: dict[str, Any] = {}
     preview = []
+    viewer: dict[str, Any] = {
+        "requested_start": start_ts.isoformat() if start_ts is not None else None,
+        "requested_end": end_ts.isoformat() if end_ts is not None else None,
+        "sample_mode": sample_mode,
+        "max_points": preview_points,
+        "available_rows": 0,
+        "filtered_rows": 0,
+        "sampled_points": 0,
+        "sampled": False,
+        "first_timestamp": None,
+        "last_timestamp": None,
+        "source_timezone": source_tz,
+        "normalized_timezone": "UTC" if source_tz else None,
+        "has_volume": bool(volume_col),
+    }
     if close_col and raw_ts is not None:
         scoped = pd.DataFrame({
             "timestamp": parse_datetime_utc(raw_ts),
@@ -1796,6 +1836,21 @@ def build_data_detail(
         if volume_col:
             scoped["volume"] = pd.to_numeric(df[volume_col], errors="coerce")
         scoped = scoped.dropna(subset=["timestamp", "close"]).sort_values("timestamp")
+        viewer["available_rows"] = int(len(scoped))
+        if start_ts is not None:
+            scoped = scoped[scoped["timestamp"] >= start_ts]
+        if end_ts is not None:
+            scoped = scoped[scoped["timestamp"] <= end_ts]
+        viewer["filtered_rows"] = int(len(scoped))
+        if sample_mode == "full" and len(scoped) > preview_points:
+            raise ValueError(
+                "full sample_mode requires filtered rows to fit inside preview_points; "
+                "narrow the date range, increase preview_points, or use sampled mode"
+            )
+        if not scoped.empty:
+            viewer["first_timestamp"] = scoped.iloc[0]["timestamp"].isoformat()
+            viewer["last_timestamp"] = scoped.iloc[-1]["timestamp"].isoformat()
+
         closes = scoped["close"].dropna()
         if not closes.empty:
             first_close = finite_float(closes.iloc[0])
@@ -1832,7 +1887,10 @@ def build_data_detail(
                 "zero_rows": int((volume_numeric.fillna(-1) == 0).sum()),
                 "sum": finite_float(volume_numeric.sum()),
             }
-        for idx in evenly_sample_indices(len(scoped), preview_points):
+        sample_indices = list(range(len(scoped))) if sample_mode == "full" else evenly_sample_indices(len(scoped), preview_points)
+        viewer["sampled"] = bool(len(scoped) > len(sample_indices))
+        viewer["sampled_points"] = int(len(sample_indices))
+        for idx in sample_indices:
             row = scoped.iloc[idx]
             item = {
                 "timestamp": row["timestamp"].isoformat(),
@@ -1877,6 +1935,7 @@ def build_data_detail(
         "price_stats": price_stats,
         "return_stats": return_stats,
         "volume_stats": volume_stats,
+        "viewer": viewer,
         "gaps": gap_rows,
         "preview": preview,
         "preview_points": preview_points,
@@ -3734,11 +3793,17 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 preview_points = int(params.get("preview_points", ["300"])[0])
                 gap_limit = int(params.get("gap_limit", ["20"])[0])
+                start = str(params.get("start", [""])[0]).strip()
+                end = str(params.get("end", [""])[0]).strip()
+                sample_mode = str(params.get("sample_mode", ["sampled"])[0]).strip()
                 payload = build_data_detail(
                     raw_path,
                     data_roots=self.data_roots,
                     preview_points=preview_points,
                     gap_limit=gap_limit,
+                    start=start,
+                    end=end,
+                    sample_mode=sample_mode,
                 )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})

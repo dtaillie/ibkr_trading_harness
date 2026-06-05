@@ -167,7 +167,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   available for one-off overrides. Catalog rows now include inferred asset class
   and source filters. Data Library now includes a coverage heatmap-style view
   and a symbol diagnostic that explains visible, scan-limited, parse-error,
-  unconfigured-root, fetch-error, and not-found states.
+  unconfigured-root, fetch-error, and not-found states. Data Detail now has an
+  offline saved-file viewer with date range controls, sampled/full-in-range
+  modes, price series, volume bars, and UTC/source-timezone context.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
@@ -198,16 +200,29 @@ QQQ show up, treat that as a bug until proven otherwise.
   - last updated time and file size
 - Add historical-data visualization:
   - line/candlestick chart for saved files
+    - partial; saved files now have a range-filtered close-price chart,
+      candlesticks remain open
   - volume chart
+    - done for the sampled Data Detail viewer when volume exists
   - selectable date range
+    - done for Data Detail viewer
   - symbol picker that can load every scanned symbol, not just public examples
+    - partial; every scanned catalog row can be inspected, richer typeahead
+      symbol picking remains open
   - gap markers
+    - partial; gaps are listed in the detail table, chart markers remain open
   - sampled and full-resolution modes
+    - partial; sampled mode is default and full mode is available when the
+      selected range fits the bounded point limit
   - compare two or more symbols on the same time range
+    - not started
   - offline mode for browsing saved files without connecting to IBKR or any
     live runner
+    - done for configured saved data roots
   - clear timestamp timezone display and conversion to local/UTC/Eastern where
     relevant
+    - partial; source timezone and normalized UTC are shown, local/Eastern
+      conversion toggles remain open
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

@@ -215,8 +215,9 @@ JSON fetch manifests. The default fetch commands write to
 `paper_logs/fetch_manifests`; add that root to local dashboard config when you
 want fetch jobs visible.
 Use Inspect on a saved dataset row to load a local-only detail view with a
-larger sampled price path, timestamp coverage, gap rows, null counts,
-price/return stats, volume stats, and a compact ok/warn/bad quality summary.
+range-filtered sampled or full-in-range price path, volume bars, timestamp
+coverage, gap rows, null counts, price/return stats, volume stats, and a
+compact ok/warn/bad quality summary.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and

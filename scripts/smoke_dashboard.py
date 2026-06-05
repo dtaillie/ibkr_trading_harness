@@ -73,6 +73,8 @@ def run_smoke(
             "data-coverage-grid",
             "data-symbol-diagnostic-form",
             "data-symbol-candidates-body",
+            "data-detail-form",
+            "data-detail-viewer-note",
             "fetch-manifests-body",
             "fetch-detail-summary",
             "data-filter-quality",
@@ -103,6 +105,7 @@ def run_smoke(
             "workbench_endpoints",
             "data_coverage",
             "data_symbol_diagnostic",
+            "data_detail",
             "fetch_manifests",
             "fetch_manifest_detail",
             "drawdownChart",
@@ -155,6 +158,12 @@ def run_smoke(
         alignment_count = 0
         datasets = catalog.get("datasets") or []
         if datasets:
+            detail = fetch_json(
+                base_url,
+                f"/data_detail?path={datasets[0]['path']}&preview_points=3&sample_mode=sampled",
+            )
+            if "viewer" not in detail or "preview" not in detail:
+                raise RuntimeError("data detail viewer payload is invalid")
             diagnostic = fetch_json(base_url, f"/data_symbol_diagnostic?symbol={datasets[0]['symbol']}&limit=5")
             if diagnostic.get("status") != "visible":
                 raise RuntimeError("symbol diagnostic did not find the sample dataset")

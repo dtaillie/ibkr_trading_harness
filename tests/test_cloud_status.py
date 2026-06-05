@@ -452,6 +452,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-coverage-grid" in html
         assert "data-symbol-diagnostic-form" in html
         assert "data-symbol-candidates-body" in html
+        assert "data-detail-form" in html
+        assert "data-detail-viewer-note" in html
         assert "nav-performance" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
@@ -926,6 +928,25 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["return_stats"]["count"] == 3
         assert detail["volume_stats"]["zero_rows"] == 1
         assert len(detail["preview"]) == 4
+        assert detail["viewer"]["available_rows"] == 4
+        assert detail["viewer"]["filtered_rows"] == 4
+        assert detail["viewer"]["sampled"] is False
+
+        with request.urlopen(
+            f"{base}/data_detail?"
+            f"path={data_file}&preview_points=2&gap_limit=5&sample_mode=full"
+            f"&start=2026-01-02T14:35:00Z&end=2026-01-02T14:50:00Z",
+            timeout=5,
+        ) as resp:
+            filtered = json.loads(resp.read().decode("utf-8"))
+
+        assert filtered["viewer"]["sample_mode"] == "full"
+        assert filtered["viewer"]["filtered_rows"] == 2
+        assert filtered["viewer"]["sampled_points"] == 2
+        assert filtered["viewer"]["sampled"] is False
+        assert filtered["price_stats"]["start_close"] == 101.0
+        assert filtered["price_stats"]["end_close"] == 102.0
+        assert len(filtered["preview"]) == 2
     finally:
         server.shutdown()
         server.server_close()
