@@ -1995,6 +1995,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         field_ids = [field["id"] for field in options["form_schema"]]
         assert field_ids[:4] == ["config-name", "config-plugin", "config-mode", "config-dataset"]
+        assert "config-session-enabled" in field_ids
+        assert "config-session-outside" in field_ids
         assert "config-risk-preset" in field_ids
         assert "config-allow-quality-warnings" in field_ids
         risk_field = next(field for field in options["form_schema"] if field["id"] == "config-risk-preset")
@@ -2023,6 +2025,12 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
                 "end": "2026-01-02",
                 "starting_cash": 25000,
                 "history_bars": 20,
+                "session_enabled": True,
+                "session_timezone": "America/New_York",
+                "session_start": "09:30",
+                "session_end": "16:00",
+                "session_weekdays": "monday,tuesday,wednesday,thursday,friday",
+                "session_outside": "idle",
                 "risk_preset": "costed_demo",
                 "max_steps": 5,
                 "max_orders_per_run": 1,
@@ -2042,6 +2050,13 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["name"] == "Test_Draft"
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
+        assert draft["config"]["runner"]["session"] == {
+            "timezone": "America/New_York",
+            "start": "09:30",
+            "end": "16:00",
+            "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+            "outside_session": "idle",
+        }
         assert draft["config"]["metadata"]["risk_preset"] == "costed_demo"
         assert draft["config"]["metadata"]["date_range"] == {"start": "2026-01-02", "end": "2026-01-02"}
         assert draft["config"]["data"]["start"] == "2026-01-02"

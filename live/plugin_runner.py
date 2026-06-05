@@ -17,10 +17,11 @@ import shutil
 import sys
 import time
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time as datetime_time, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 import yaml
@@ -42,6 +43,22 @@ SUPPORTED_BROKER_ADAPTERS = broker_adapter_ids()
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
 KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
 SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60
+WEEKDAY_NAMES = {
+    "mon": 0,
+    "monday": 0,
+    "tue": 1,
+    "tuesday": 1,
+    "wed": 2,
+    "wednesday": 2,
+    "thu": 3,
+    "thursday": 3,
+    "fri": 4,
+    "friday": 4,
+    "sat": 5,
+    "saturday": 5,
+    "sun": 6,
+    "sunday": 6,
+}
 
 
 @dataclass(frozen=True)
@@ -81,6 +98,9 @@ class RunnerResult:
     approval_required_orders: int = 0
     loop_enabled: bool = False
     loop_iterations: int = 0
+    session_enabled: bool = False
+    session_idle_iterations: int = 0
+    session_status: str | None = None
 
 
 class ConfigValidationError(ValueError):
@@ -185,6 +205,110 @@ def validate_nonnegative_float_map(value: Any, field: str, errors: list[str]) ->
         validate_nonnegative_float(raw_value, f"{field}[{raw_key}]", errors)
 
 
+def parse_session_time(raw: Any, *, field: str) -> datetime_time:
+    value = str(raw or "").strip()
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt).time()
+        except ValueError:
+            pass
+    raise ValueError(f"{field} must be formatted as HH:MM or HH:MM:SS")
+
+
+def parse_session_weekdays(raw: Any, *, field: str) -> set[int]:
+    if raw is None:
+        return set(range(7))
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(f"{field} must be a non-empty list")
+    weekdays: set[int] = set()
+    for item in raw:
+        if isinstance(item, int):
+            day = item
+        else:
+            text = str(item).strip().lower()
+            if text.isdigit():
+                day = int(text)
+            elif text in WEEKDAY_NAMES:
+                day = WEEKDAY_NAMES[text]
+            else:
+                raise ValueError(f"{field} contains unsupported weekday {item!r}")
+        if day < 0 or day > 6:
+            raise ValueError(f"{field} weekday values must be 0-6 where Monday is 0")
+        weekdays.add(day)
+    return weekdays
+
+
+def normalize_session_config(runner_cfg: dict[str, Any]) -> dict[str, Any] | None:
+    raw = runner_cfg.get("session")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("runner.session must be a mapping")
+    timezone_name = str(raw.get("timezone", "UTC")).strip()
+    if not timezone_name:
+        raise ValueError("runner.session.timezone must not be empty")
+    try:
+        timezone_info = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"runner.session.timezone is unknown: {timezone_name}") from exc
+    start_time = parse_session_time(raw.get("start"), field="runner.session.start") if raw.get("start") is not None else None
+    end_time = parse_session_time(raw.get("end"), field="runner.session.end") if raw.get("end") is not None else None
+    if start_time is None and end_time is not None:
+        raise ValueError("runner.session.start is required when runner.session.end is set")
+    if start_time is not None and end_time is None:
+        raise ValueError("runner.session.end is required when runner.session.start is set")
+    outside_session = str(raw.get("outside_session", "idle")).strip().lower().replace("-", "_")
+    if outside_session not in {"idle", "run"}:
+        raise ValueError("runner.session.outside_session must be idle or run")
+    return {
+        "timezone": timezone_name,
+        "timezone_info": timezone_info,
+        "start": start_time,
+        "end": end_time,
+        "weekdays": parse_session_weekdays(raw.get("weekdays"), field="runner.session.weekdays"),
+        "outside_session": outside_session,
+    }
+
+
+def session_state(now: pd.Timestamp, session_cfg: dict[str, Any] | None) -> dict[str, Any]:
+    if session_cfg is None:
+        return {"enabled": False, "status": "unrestricted", "inside": True}
+    timestamp = pd.Timestamp(now)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize(timezone.utc)
+    else:
+        timestamp = timestamp.tz_convert(timezone.utc)
+    local_dt = timestamp.to_pydatetime().astimezone(session_cfg["timezone_info"])
+    local_time = local_dt.time()
+    start = session_cfg["start"]
+    end = session_cfg["end"]
+    active_day = local_dt.weekday()
+    inside_time = True
+    if start is not None and end is not None:
+        if start <= end:
+            inside_time = start <= local_time <= end
+        elif local_time >= start:
+            inside_time = True
+        elif local_time <= end:
+            inside_time = True
+            active_day = (active_day - 1) % 7
+        else:
+            inside_time = False
+    inside_weekday = active_day in session_cfg["weekdays"]
+    inside = inside_time and inside_weekday
+    return {
+        "enabled": True,
+        "status": "inside_session" if inside else "outside_session",
+        "inside": inside,
+        "timezone": session_cfg["timezone"],
+        "local_time": local_dt.isoformat(),
+        "start": start.isoformat(timespec="minutes") if start else None,
+        "end": end.isoformat(timespec="minutes") if end else None,
+        "weekdays": sorted(session_cfg["weekdays"]),
+        "outside_session": session_cfg["outside_session"],
+    }
+
+
 def validate_config(
     config: dict[str, Any],
     *,
@@ -245,6 +369,10 @@ def validate_config(
     validate_bool(runner_cfg.get("clean_output_dir"), "runner.clean_output_dir", errors)
     if runner_cfg.get("output_dir") is not None and not str(runner_cfg["output_dir"]).strip():
         errors.append("runner.output_dir must not be empty")
+    try:
+        normalize_session_config(runner_cfg)
+    except ValueError as exc:
+        errors.append(str(exc))
     if control_cfg.get("pause_marker") is not None and not str(control_cfg["pause_marker"]).strip():
         errors.append("control.pause_marker must not be empty")
 
@@ -1355,6 +1483,7 @@ def run_from_config(
     if loop_enabled and mode not in {"shadow", "paper"}:
         raise ValueError("runner.loop is only supported for shadow or paper mode")
     skip_duplicate_latest = bool(runner_cfg.get("skip_duplicate_latest", True))
+    session_cfg = normalize_session_config(runner_cfg)
 
     output_dir = output_dir_override or Path(str(runner_cfg.get("output_dir", "paper_logs/generic_plugin_runner")))
     if bool(runner_cfg.get("clean_output_dir", False)) and output_dir.exists():
@@ -1391,6 +1520,8 @@ def run_from_config(
     account_records: list[dict[str, Any]] = []
     latest_data_time: str | None = None
     loop_iterations = 0
+    session_idle_iterations = 0
+    latest_session_status: str | None = None
     last_processed_latest: pd.Timestamp | None = None
     pause_marker = None
     if control_cfg.get("pause_marker") is not None:
@@ -1626,6 +1757,42 @@ def run_from_config(
         account_records.append(account_record)
         append_jsonl(output_dir / "account.jsonl", account_record)
 
+    def record_session_idle(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame], state: dict[str, Any]) -> None:
+        nonlocal decisions
+        nonlocal final_prices
+        nonlocal latest_data_time
+        nonlocal session_idle_iterations
+        nonlocal latest_session_status
+
+        snapshot = snapshot_at(panels, now, history_bars=history_bars)
+        snapshot_time = latest_snapshot_time(snapshot)
+        if snapshot_time is not None:
+            latest_data_time = snapshot_time.isoformat()
+        final_prices = latest_prices(snapshot) if snapshot else {}
+        decisions += 1
+        session_idle_iterations += 1
+        latest_session_status = str(state.get("status") or "outside_session")
+        append_jsonl(output_dir / "decisions.jsonl", {
+            "timestamp": now,
+            "step": step,
+            "mode": mode,
+            "signal": {"idle": True, "reason": "outside_session"},
+            "diagnostics": {
+                "idle": True,
+                "reason": "outside_session",
+                "session": state,
+                "symbols": sorted(snapshot),
+                "loop_enabled": loop_enabled,
+                "loop_iteration": loop_iterations,
+            },
+            "intents": [],
+        })
+        log.info(
+            "Decision step=%d time=%s idle outside configured session",
+            step,
+            now.isoformat(),
+        )
+
     try:
         if not loop_enabled:
             panels = load_panels(config.get("data") or {})
@@ -1650,8 +1817,13 @@ def run_from_config(
                         now.isoformat(),
                     )
                 else:
+                    state = session_state(now, session_cfg)
                     step += 1
-                    process_step(step, now, panels)
+                    latest_session_status = str(state.get("status") or latest_session_status or "unrestricted")
+                    if session_cfg is not None and not bool(state["inside"]) and session_cfg["outside_session"] == "idle":
+                        record_session_idle(step, now, panels, state)
+                    else:
+                        process_step(step, now, panels)
                     last_processed_latest = now
                 if max_loop_iterations is not None and loop_iterations >= max_loop_iterations:
                     break
@@ -1717,16 +1889,20 @@ def run_from_config(
         approval_required_orders=approval_required_orders,
         loop_enabled=loop_enabled,
         loop_iterations=loop_iterations,
+        session_enabled=session_cfg is not None,
+        session_idle_iterations=session_idle_iterations,
+        session_status=latest_session_status,
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
-        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d output_dir=%s",
+        "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d output_dir=%s",
         decisions,
         orders,
         fills,
         rejections,
         approval_required_orders,
         loop_iterations,
+        session_idle_iterations,
         output_dir,
     )
     return result

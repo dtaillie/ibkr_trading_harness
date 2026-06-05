@@ -630,6 +630,115 @@ def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):
     assert len(decisions) == 1
 
 
+def test_shadow_loop_records_idle_decision_outside_session(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 0,
+            "max_loop_iterations": 2,
+            "skip_duplicate_latest": False,
+            "session": {
+                "timezone": "UTC",
+                "start": "15:00",
+                "end": "16:00",
+                "weekdays": ["friday"],
+                "outside_session": "idle",
+            },
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_enabled is True
+    assert result.loop_iterations == 2
+    assert result.session_enabled is True
+    assert result.session_status == "outside_session"
+    assert result.session_idle_iterations == 2
+    assert result.decisions == 2
+    assert result.orders == 0
+    assert result.latest_data_time == "2026-01-02T14:40:00+00:00"
+    decisions = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert [row["signal"] for row in decisions] == [
+        {"idle": True, "reason": "outside_session"},
+        {"idle": True, "reason": "outside_session"},
+    ]
+    assert decisions[0]["diagnostics"]["session"]["timezone"] == "UTC"
+    assert decisions[0]["diagnostics"]["session"]["weekdays"] == [4]
+    assert not (output_dir / "orders.jsonl").exists()
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["session_enabled"] is True
+    assert summary["session_idle_iterations"] == 2
+    assert summary["session_status"] == "outside_session"
+
+
+def test_shadow_loop_runs_inside_session_window(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 0,
+            "max_loop_iterations": 1,
+            "session": {
+                "timezone": "UTC",
+                "start": "14:00",
+                "end": "15:00",
+                "weekdays": [4],
+            },
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.decisions == 1
+    assert result.session_enabled is True
+    assert result.session_status == "inside_session"
+    assert result.session_idle_iterations == 0
+    decisions = [json.loads(line) for line in (output_dir / "decisions.jsonl").read_text().splitlines()]
+    assert decisions[0]["signal"] == {"reason": "example_only_no_signal"}
+
+
+def test_validate_config_rejects_invalid_session_config(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={
+            "session": {
+                "timezone": "Not/AZone",
+                "start": "9:30",
+                "end": "16:00",
+                "outside_session": "trade_anyway",
+            },
+        },
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    text = str(exc.value)
+    assert "runner.session.timezone is unknown: Not/AZone" in text
+
+
 def test_paper_mode_requires_explicit_confirmation(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

@@ -1438,6 +1438,7 @@ function renderPerformance() {
   const rejections = summary.rejections ?? summary.rejects ?? 0;
   const approvalRequired = summary.approval_required_orders ?? perf.approval_required_orders ?? 0;
   const loopIterations = summary.loop_iterations ?? perf.loop_iterations ?? 0;
+  const sessionIdleIterations = summary.session_idle_iterations ?? perf.session_idle_iterations ?? 0;
   const elapsedDays = periodPerf.elapsed_days ?? (period === "all" ? (perf.elapsed_days ?? summary.elapsed_days) : null);
   const realizedPnl = latestAccount.realized_pnl ?? perf.realized_pnl ?? summary.realized_pnl;
   const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl;
@@ -1511,6 +1512,7 @@ function renderPerformance() {
     ["Costs", `Commission ${money(totalCommission)} / Borrow ${money(totalBorrowFees)}`],
     ["Approval Holds", numberText(approvalRequired, 0)],
     ["Loop", summary.loop_enabled ? `${numberText(loopIterations, 0)} iterations` : "one-shot"],
+    ["Session", summary.session_enabled ? `${text(summary.session_status)} / idle ${numberText(sessionIdleIterations, 0)}` : "unrestricted"],
     ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
     ["Annualized Scale", `Day ${pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null))} / Month ${pctText(periodPerf.return_per_month_pct ?? (period === "all" ? summary.return_per_month_pct : null))} / Year ${pctText(periodPerf.return_per_year_pct ?? (period === "all" ? summary.return_per_year_pct : null))}`],
   ];
@@ -3762,6 +3764,7 @@ const CONFIG_SECTION_LABELS = {
   identity: ["Setup", "Name the local draft, choose the plugin, and choose the run mode."],
   data: ["Data", "Pick scanned files and an optional replay date window."],
   account: ["Account", "Set starting cash and replay bounds for local accounting."],
+  runtime: ["Runtime", "Add optional loop/session boundaries for monitoring configs."],
   risk: ["Risk Limits", "Keep generated example runs bounded before validation."],
   costs: ["Simulated Costs", "Model basic local slippage and commissions."],
   output: ["Output", "Choose whether to save and whether suspicious data is acknowledged."],
@@ -4347,6 +4350,7 @@ function renderWorkbenchArtifacts() {
     ["Rejections", text(summary.rejections)],
     ["Approval Holds", text(summary.approval_required_orders)],
     ["Loop", summary.loop_enabled ? `${numberText(summary.loop_iterations, 0)} iterations` : "one-shot"],
+    ["Session", summary.session_enabled ? `${text(summary.session_status)} / idle ${numberText(summary.session_idle_iterations, 0)}` : "unrestricted"],
     ["Snapshots", text(performance.account_snapshot_count)],
     ["Initial Equity", money(performance.initial_equity)],
     ["Final Cash", money(summary.final_cash)],
@@ -5257,6 +5261,12 @@ async function generateConfigDraft(event) {
     ...configDateRangePayload(),
     starting_cash: $("config-starting-cash").value,
     history_bars: $("config-history-bars").value,
+    session_enabled: $("config-session-enabled").checked,
+    session_timezone: $("config-session-timezone").value,
+    session_start: $("config-session-start").value,
+    session_end: $("config-session-end").value,
+    session_weekdays: $("config-session-weekdays").value,
+    session_outside: $("config-session-outside").value,
     risk_preset: $("config-risk-preset").value,
     max_steps: $("config-max-steps").value,
     max_orders_per_run: $("config-max-orders").value,

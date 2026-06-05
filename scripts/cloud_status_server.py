@@ -199,6 +199,12 @@ CONFIG_BUILDER_FORM_SCHEMA = (
     {"id": "config-starting-cash", "name": "starting_cash", "label": "Starting Cash", "kind": "number", "min": 1, "step": 100, "default_key": "starting_cash", "section": "account", "help": "Starting cash for replay or simulated-paper accounting."},
     {"id": "config-history-bars", "name": "history_bars", "label": "History Bars", "kind": "number", "min": 1, "step": 1, "default_key": "history_bars", "section": "account", "help": "Number of prior bars provided to the plugin decision window."},
     {"id": "config-max-steps", "name": "max_steps", "label": "Max Steps", "kind": "number", "min": 1, "step": 1, "default_key": "max_steps", "section": "account", "help": "Optional cap on replay steps for quick tests."},
+    {"id": "config-session-enabled", "name": "session_enabled", "label": "Use session window", "kind": "checkbox", "section": "runtime", "help": "When enabled, loop mode can idle outside a configured local session."},
+    {"id": "config-session-timezone", "name": "session_timezone", "label": "Session Timezone", "kind": "text", "default_key": "session_timezone", "section": "runtime", "help": "IANA timezone such as America/New_York or UTC."},
+    {"id": "config-session-start", "name": "session_start", "label": "Session Start", "kind": "text", "default_key": "session_start", "section": "runtime", "help": "Local session start time as HH:MM."},
+    {"id": "config-session-end", "name": "session_end", "label": "Session End", "kind": "text", "default_key": "session_end", "section": "runtime", "help": "Local session end time as HH:MM."},
+    {"id": "config-session-weekdays", "name": "session_weekdays", "label": "Weekdays", "kind": "text", "default_key": "session_weekdays", "section": "runtime", "help": "Comma-separated weekdays, e.g. monday,tuesday,wednesday,thursday,friday."},
+    {"id": "config-session-outside", "name": "session_outside", "label": "Outside Session", "kind": "select", "default_key": "session_outside", "section": "runtime", "options": [{"value": "idle", "label": "idle - record idle decision"}, {"value": "run", "label": "run - evaluate anyway"}], "help": "Idle records a visible no-order decision without calling the plugin."},
     {"id": "config-risk-preset", "name": "risk_preset", "label": "Risk Preset", "kind": "select", "options_source": "risk_presets", "default_key": "risk_preset", "section": "risk", "help": "Public presets are conservative examples, not recommendations."},
     {"id": "config-max-orders", "name": "max_orders_per_run", "label": "Max Orders", "kind": "number", "min": 1, "step": 1, "default_key": "max_orders_per_run", "section": "risk", "help": "Maximum order intents allowed in one run."},
     {"id": "config-max-notional", "name": "max_notional_per_order", "label": "Max Notional", "kind": "number", "min": 1, "step": 1, "default_key": "max_notional_per_order", "section": "risk", "help": "Maximum notional value per order intent."},
@@ -3426,6 +3432,21 @@ def build_config_draft(
     max_quantity = number_field(payload, "max_quantity", 10)
     max_cash_quantity = number_field(payload, "max_cash_quantity", 100)
     max_gross_exposure_pct = number_field(payload, "max_gross_exposure_pct", 0.05)
+    session_config = None
+    if bool(payload.get("session_enabled", False)):
+        weekdays_raw = str(payload.get("session_weekdays") or "").strip()
+        weekdays = [
+            item.strip()
+            for item in re.split(r"[\s,]+", weekdays_raw)
+            if item.strip()
+        ] or ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        session_config = {
+            "timezone": str(payload.get("session_timezone") or "America/New_York").strip(),
+            "start": str(payload.get("session_start") or "09:30").strip(),
+            "end": str(payload.get("session_end") or "16:00").strip(),
+            "weekdays": weekdays,
+            "outside_session": str(payload.get("session_outside") or "idle").strip(),
+        }
 
     data_config = {
         "source": "files",
@@ -3495,6 +3516,8 @@ def build_config_draft(
             plugin["boundary"],
         ],
     }
+    if session_config is not None:
+        config["runner"]["session"] = session_config
     yaml_text = yaml.safe_dump(config, sort_keys=False)
     errors = validate_workbench_draft_config(
         config,
@@ -3545,6 +3568,11 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
             "history_bars": 100,
             "risk_preset": "demo_minimal",
             "max_steps": 100,
+            "session_timezone": "America/New_York",
+            "session_start": "09:30",
+            "session_end": "16:00",
+            "session_weekdays": "monday,tuesday,wednesday,thursday,friday",
+            "session_outside": "idle",
             "max_orders_per_run": 1,
             "max_notional_per_order": 100,
             "max_quantity": 10,

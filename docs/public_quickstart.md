@@ -140,6 +140,12 @@ python3 live/plugin_runner.py \
   --loop-interval-seconds 60
 ```
 
+Loop configs can also define `runner.session` with an IANA timezone, local
+`start`/`end`, weekdays, and `outside_session: idle`. When the latest data
+timestamp is outside that window, the runner writes an idle decision artifact
+instead of calling the plugin or broker, so the dashboard can show that the
+runner is intentionally waiting rather than broken.
+
 The current private stock and crypto runners are still excluded from the public
 repo because they encode strategy-specific assumptions. The generic runner is
 the public execution path.

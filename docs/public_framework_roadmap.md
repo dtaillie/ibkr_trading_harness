@@ -41,6 +41,10 @@ This roadmap is broader context; the queue is the current execution order.
 
 - Extend `live/plugin_runner.py` from basic shadow/paper continuous loops into
   richer market-hours/session-aware loops where needed.
+  - partial; generic loop configs can now set `runner.session` with timezone,
+    local start/end, weekdays, and `outside_session: idle` so loop runs publish
+    visible idle decisions outside the configured session without evaluating
+    the plugin or broker. Richer service lifecycle controls remain open.
 - Extend config validation into versioned schemas with richer per-plugin checks.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow

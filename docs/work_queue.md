@@ -771,8 +771,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; the generic plugin runner now supports `runner.loop` / `--loop`
     for shadow and paper modes, reloads latest data each interval, skips
     duplicate latest bars by default, preserves plugin state in-process, and
-    writes loop metadata to summaries. Dedicated market-hours/session windows
-    and richer service lifecycle controls remain open.
+    writes loop metadata to summaries. Generic loop configs can now define
+    `runner.session` with timezone, local start/end, weekdays, and
+    `outside_session: idle`; outside-window loop iterations write visible idle
+    decision artifacts without evaluating the plugin or broker. Richer service
+    lifecycle controls remain open.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version
