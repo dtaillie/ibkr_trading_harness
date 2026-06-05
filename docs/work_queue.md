@@ -253,6 +253,9 @@ strategy-private.
   - add "last updated" and source labels beside every derived metric
 - Add UI quality gates:
   - screenshot-smoke every top-level page at desktop and mobile widths
+    - partial; `scripts/smoke_dashboard_screenshots.py` now starts the
+      dashboard with seeded synthetic state and captures every top-level view
+      at desktop and mobile sizes with Chrome/Chromium when available.
   - empty-state smoke tests for no status, no data roots, no runs, and no saved
     drafts
     - partial; `scripts/smoke_dashboard.py --scenario empty` now exercises a
