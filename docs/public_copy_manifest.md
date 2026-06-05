@@ -30,6 +30,7 @@ pushing this working tree.
   - `config/strategy_registry.example.yaml`
 - Public documentation:
   - `docs/configuration_privacy.md`
+  - `docs/web_ui_runbook.md`
   - `docs/public_framework_roadmap.md`
   - operational docs after private paths and strategy names are sanitized.
 - Test utilities that do not encode private strategy rules.

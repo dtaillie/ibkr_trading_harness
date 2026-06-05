@@ -57,6 +57,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
 DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
+PUBLIC_DOCS = {
+    "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
+    "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
+    "configuration_privacy.md": ROOT / "docs" / "configuration_privacy.md",
+    "publication_readiness.md": ROOT / "docs" / "publication_readiness.md",
+    "work_queue.md": ROOT / "docs" / "work_queue.md",
+}
 SUGGESTED_DATA_ROOTS = (
     ROOT / "cache",
     ROOT / "cache" / "ibkr",
@@ -183,6 +190,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Inspect CSV/parquet data files under configured public data roots.",
         "response": "JSON catalog with quality metadata",
+    },
+    {
+        "method": "GET",
+        "path": "/docs/{name}",
+        "category": "help",
+        "description": "Serve allowlisted public Markdown docs for in-dashboard runbooks and guidance.",
+        "response": "Markdown text",
     },
     {
         "method": "GET",
@@ -489,6 +503,15 @@ def file_response(handler: BaseHTTPRequestHandler, path: Path) -> None:
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
     handler.wfile.write(raw)
+
+
+def public_doc_response(handler: BaseHTTPRequestHandler, name: str) -> None:
+    clean_name = Path(name).name
+    path = PUBLIC_DOCS.get(clean_name)
+    if path is None or not path.exists() or not path.is_file():
+        json_response(handler, 404, {"error": "not found"})
+        return
+    text_response(handler, 200, path.read_text(), content_type="text/markdown; charset=utf-8")
 
 
 def load_latest(state_dir: Path) -> dict[str, Any] | None:
@@ -4645,6 +4668,13 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 404, {"error": "not found"})
                 return
             file_response(self, self.dashboard_dir / rel)
+            return
+        if parsed.path.startswith("/docs/"):
+            rel = Path(unquote(parsed.path.removeprefix("/docs/")))
+            if rel.is_absolute() or len(rel.parts) != 1 or ".." in rel.parts:
+                json_response(self, 404, {"error": "not found"})
+                return
+            public_doc_response(self, rel.name)
             return
         json_response(self, 404, {"error": "not found"})
 

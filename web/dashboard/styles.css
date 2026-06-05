@@ -602,6 +602,7 @@ section {
 
 .help-card p,
 .help-card li,
+.doc-link-grid a,
 .mini-glossary dd {
   color: var(--muted);
   font-size: 13px;
@@ -629,6 +630,28 @@ section {
 
 .mini-glossary dd {
   margin: 2px 0 0;
+}
+
+.doc-link-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.doc-link-grid a {
+  display: block;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent-dark);
+  background: var(--soft-panel);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.doc-link-grid a:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 .metrics {

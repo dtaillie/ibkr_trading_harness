@@ -23,6 +23,7 @@ COPY_FILES = [
     "README.public.md",
     ".github/workflows/ci.yml",
     "docs/configuration_privacy.md",
+    "docs/web_ui_runbook.md",
     "docs/public_quickstart.md",
     "docs/publication_readiness.md",
     "docs/public_framework_roadmap.md",

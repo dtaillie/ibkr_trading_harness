@@ -487,6 +487,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
         assert "Page Guide" in html
+        assert "Web UI Runbook" in html
+        assert "doc-link-grid" in html
         assert "Inspect Saved Historical Data" in html
         assert "Public Publishing Boundary" in html
         assert "config-form" in html
@@ -524,7 +526,31 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/config_draft_validations") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
         assert ("GET", "/config_draft_daily_rollups") in endpoints
+        assert ("GET", "/docs/{name}") in endpoints
         assert ("POST", "/config_draft/run") in endpoints
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/docs/web_ui_runbook.md", timeout=5) as resp:
+            body = resp.read().decode("utf-8")
+            assert resp.headers["Content-Type"].startswith("text/markdown")
+        assert "Web UI Runbook" in body
+
+        for path in ["/docs/../README.md", "/docs/not_allowlisted.md"]:
+            try:
+                request.urlopen(f"{base}{path}", timeout=5)
+            except error.HTTPError as exc:
+                assert exc.code == 404
+            else:
+                raise AssertionError(f"{path} should not be served")
     finally:
         server.shutdown()
         server.server_close()

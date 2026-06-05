@@ -119,6 +119,8 @@ def run_smoke(
             "Page Guide",
             "Inspect Saved Historical Data",
             "Public Publishing Boundary",
+            "Web UI Runbook",
+            "doc-link-grid",
             "runtime-status-grid",
             "runtime-status-note",
             "diagnostics-note",
@@ -173,6 +175,7 @@ def run_smoke(
         data_catalog_csv = fetch_text(base_url, "/data_catalog_export?limit=5")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         endpoint_map = fetch_json(base_url, "/workbench_endpoints")
+        web_ui_runbook = fetch_text(base_url, "/docs/web_ui_runbook.md")
         cleanup_plan = fetch_json(base_url, "/workbench_cleanup_plan")
         snapshot = json.loads(fetch_text(base_url, "/workbench_snapshot_export"))
         options = fetch_json(base_url, "/config_options")
@@ -209,6 +212,10 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_compare")
         if ("GET", "/config_draft_daily_rollups") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing config_draft_daily_rollups")
+        if ("GET", "/docs/{name}") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing docs endpoint")
+        if "Web UI Runbook" not in web_ui_runbook:
+            raise RuntimeError("web UI runbook doc is not served")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:

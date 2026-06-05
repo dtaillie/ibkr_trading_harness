@@ -1,0 +1,98 @@
+# Web UI Runbook
+
+This runbook explains how to operate the local dashboard without exposing
+private strategy logic, account IDs, credentials, or runtime logs.
+
+## Start the Dashboard
+
+Use the public example config for a small demo setup:
+
+```bash
+python3 scripts/cloud_status_server.py --config config/cloud_status.example.yaml
+```
+
+For real local use, copy the example config to an ignored local file and add
+your private data roots:
+
+```bash
+python3 scripts/cloud_status_server.py --config config/cloud_status_local.yaml
+```
+
+Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
+such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
+`#runs`, `#operations`, and `#help`.
+
+## Configure Data Roots
+
+The dashboard only scans paths listed in `dashboard.data_roots`. Public example
+configs should point at `examples/data`; local private configs can point at
+cache/history folders.
+
+If Data Library only shows SPY/QQQ examples:
+
+1. Open Data Library.
+2. Check Configured Roots and Storage Audit.
+3. Use Find Missing Symbol for a ticker you expected to see.
+4. Add the missing root to `dashboard.data_roots` in your ignored local config.
+5. Refresh the dashboard.
+
+## Find Current Strategy Performance
+
+Start in Overview. The hero card and Runtime Status strip answer whether a
+runner is publishing telemetry, whether Gateway/API is reachable, what mode is
+active, and when the latest decision/account/data timestamps were published.
+
+Open Performance for equity, return, drawdown, exposure, daily return bars,
+period rollups, and open/closed trade rows when artifacts include fills.
+
+Open Runs when a metric looks suspicious. Runs exposes recent decisions,
+orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+
+## Inspect Saved Historical Data
+
+Open Data Library, search/filter to a dataset, then click Inspect. Data Detail
+works offline from saved CSV/parquet files and shows:
+
+- close-price path
+- volume bars
+- row count and date range
+- timestamp timezone context
+- gap/null/duplicate warnings
+- sampled or bounded full-in-range views
+
+Use Compare Saved Data to overlay normalized close paths for multiple scanned
+symbols over one date range.
+
+## Distinguish Result Modes
+
+- `replay`: plugin decisions over saved bars, no order submission.
+- `shadow`: observe decisions without submitting orders.
+- `simulated_paper`: local simulated fills and account state.
+- `paper`: broker paper account order submission.
+- `live`: real broker trading authority. The public workbench should keep live
+  operation behind private configs and explicit local gates.
+
+Treat short-horizon projected daily/monthly/yearly returns as convenience
+translations, not stable performance estimates.
+
+## Diagnose Fetch Jobs
+
+Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
+to inspect completed and active fetches, failed symbols, no-data chunks, output
+files, and generated data-detail links for files under configured data roots.
+
+If a fetch output is not visible in Data Library, check whether the output root
+is included in `dashboard.data_roots`.
+
+## Public/Private Boundary
+
+Before exporting or publishing:
+
+```bash
+python3 scripts/public_readiness_audit.py --fail-on-review
+PYTHONPATH=. pytest -q
+python3 scripts/smoke_dashboard.py
+```
+
+Keep private strategy plugins, tuned configs, account IDs, credentials, local
+runtime logs, and private research outputs out of the public repo.

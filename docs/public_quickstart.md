@@ -175,7 +175,9 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
-Open `http://127.0.0.1:8765/` to view the dashboard. The sidebar splits the
+Open `http://127.0.0.1:8765/` to view the dashboard. The Help page links to
+allowlisted local Markdown docs, including `docs/web_ui_runbook.md`, so the
+operating runbook is available without browsing the source tree. The sidebar splits the
 workbench into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 top-level views can also be opened directly with URL hashes such as

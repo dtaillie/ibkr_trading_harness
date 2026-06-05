@@ -199,7 +199,9 @@ strategy-private.
     reject, artifact, data root, stale bar
     - done on the Help page
   - links to the relevant quickstart sections
-    - partial; local doc paths are listed, direct served doc links remain open
+    - done; Help links to allowlisted local Markdown docs served by the
+      dashboard, including the Web UI runbook, quickstart, privacy, publication,
+      and work queue docs
   - empty states that explain what to do next instead of showing blank tables
 - Add a short web UI README/runbook:
   - how to start the local dashboard
@@ -209,6 +211,7 @@ strategy-private.
   - how to diagnose "only SPY/QQQ are visible"
   - how to distinguish live, paper, simulated paper, shadow, and replay results
   - what should stay private before publishing
+  - done in `docs/web_ui_runbook.md` and linked from Help
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography
