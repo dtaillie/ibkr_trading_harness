@@ -431,6 +431,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON fetch-job manifest detail",
     },
     {
+        "method": "GET",
+        "path": "/fetch_manifest_detail_export",
+        "category": "data",
+        "description": "Download selected fetch manifest symbols, outputs, errors, and retry/pacing events.",
+        "response": "CSV download",
+    },
+    {
         "method": "POST",
         "path": "/data_alignment",
         "category": "data",
@@ -2110,6 +2117,40 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
 )
 
 
+FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
+    "row_type",
+    "job_id",
+    "kind",
+    "status",
+    "symbol",
+    "symbol_status",
+    "timestamp",
+    "day",
+    "rows",
+    "bars",
+    "chunks_completed",
+    "chunks_failed",
+    "chunks_skipped",
+    "first_timestamp",
+    "last_timestamp",
+    "path",
+    "data_detail_path",
+    "data_detail_available",
+    "data_detail_status",
+    "data_detail_reason",
+    "elapsed_seconds",
+    "attempt_count",
+    "error_kind",
+    "event_type",
+    "attempt",
+    "max_retries",
+    "delay_seconds",
+    "seconds",
+    "reason",
+    "message",
+)
+
+
 def compact_csv_value(value: Any) -> Any:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True)
@@ -3002,6 +3043,110 @@ def build_fetch_manifests_csv(fetch_manifest_roots: list[Path], *, limit: int = 
     writer.writeheader()
     for row in payload.get("manifests", []):
         writer.writerow({field: compact_csv_value(row.get(field)) for field in FETCH_MANIFEST_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_fetch_manifest_detail_csv(
+    job_id: str,
+    *,
+    fetch_manifest_roots: list[Path],
+    data_roots: list[Path],
+    limit: int = 2000,
+) -> str:
+    detail = load_fetch_manifest_detail(
+        job_id,
+        fetch_manifest_roots=fetch_manifest_roots,
+        data_roots=data_roots,
+        limit=limit,
+    )
+    base = {
+        "job_id": detail.get("job_id"),
+        "kind": detail.get("kind"),
+        "status": detail.get("status"),
+    }
+    rows: list[dict[str, Any]] = []
+    for item in detail.get("symbols") or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                **base,
+                "row_type": "symbol",
+                "symbol": item.get("symbol"),
+                "symbol_status": item.get("status"),
+                "bars": item.get("bars"),
+                "chunks_completed": item.get("chunks_completed"),
+                "chunks_failed": item.get("chunks_failed"),
+                "chunks_skipped": item.get("chunks_skipped"),
+                "first_timestamp": item.get("first_timestamp"),
+                "last_timestamp": item.get("last_timestamp"),
+                "message": item.get("message"),
+            }
+        )
+    for item in detail.get("outputs") or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                **base,
+                "row_type": "output",
+                "symbol": item.get("symbol"),
+                "symbol_status": item.get("status"),
+                "timestamp": item.get("timestamp"),
+                "day": item.get("day"),
+                "rows": item.get("rows"),
+                "first_timestamp": item.get("first_timestamp"),
+                "last_timestamp": item.get("last_timestamp"),
+                "path": item.get("path"),
+                "data_detail_path": item.get("data_detail_path"),
+                "data_detail_available": item.get("data_detail_available"),
+                "data_detail_status": item.get("data_detail_status"),
+                "data_detail_reason": item.get("data_detail_reason"),
+                "elapsed_seconds": item.get("elapsed_seconds"),
+                "attempt_count": item.get("attempt_count"),
+                "message": item.get("message"),
+            }
+        )
+    for item in detail.get("errors") or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                **base,
+                "row_type": "error",
+                "symbol": item.get("symbol"),
+                "timestamp": item.get("timestamp"),
+                "day": item.get("day"),
+                "error_kind": item.get("kind"),
+                "attempt_count": item.get("attempt_count"),
+                "message": item.get("message"),
+            }
+        )
+    for item in detail.get("events") or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                **base,
+                "row_type": "event",
+                "symbol": item.get("symbol"),
+                "timestamp": item.get("timestamp"),
+                "day": item.get("day"),
+                "event_type": item.get("type"),
+                "attempt": item.get("attempt"),
+                "max_retries": item.get("max_retries"),
+                "delay_seconds": item.get("delay_seconds"),
+                "seconds": item.get("seconds"),
+                "reason": item.get("reason"),
+                "message": item.get("message"),
+            }
+        )
+
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=FETCH_MANIFEST_DETAIL_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in FETCH_MANIFEST_DETAIL_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -7135,6 +7280,32 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/fetch_manifest_detail_export":
+            if not self.require_auth():
+                return
+            job_id = str(params.get("job_id", [""])[0]).strip()
+            if not job_id:
+                json_response(self, 400, {"error": "job_id is required"})
+                return
+            try:
+                limit = parse_limit(params, default=2000, maximum=5000)
+                csv_body = build_fetch_manifest_detail_csv(
+                    job_id,
+                    fetch_manifest_roots=self.fetch_manifest_roots,
+                    data_roots=self.data_roots,
+                    limit=limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename=f"{slugify(job_id)}_fetch_detail.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/config_options":
             if not self.require_auth():

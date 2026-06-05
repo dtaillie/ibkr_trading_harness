@@ -596,6 +596,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail can now copy the selected job's Data
       Library-visible output paths as a newline-separated list for local
       scripts or manual audit.
+    - partial; Fetch Detail now exposes `/fetch_manifest_detail_export` and an
+      Export Detail CSV button for the selected job's symbol, output, error,
+      retry, and pacing rows with Data Library output visibility annotations.
 
 ## P1: Fetch jobs and backend data reliability
 
@@ -612,6 +615,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       Jobs CSV button for recent manifest summaries, including status,
       symbols/chunks, retry/pacing counts, progress/ETA fields, rows, errors,
       and latest output paths.
+    - partial; selected Fetch Detail views can be exported as CSV for offline
+      review of symbol progress, output visibility, errors, retry attempts, and
+      pacing waits.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

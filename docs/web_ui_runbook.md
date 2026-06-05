@@ -60,7 +60,9 @@ when produced files are visible under configured data roots; this filters Data
 Library to the selected fetch job's output set so you can inspect or compare
 those files without manually searching paths. Use Copy Output Paths when you
 want the same visible output set as newline-separated local paths for a script,
-config edit, or manual audit.
+config edit, or manual audit. Use Export Detail CSV when you want one offline
+file containing the selected job's symbol, output, error, retry, and pacing
+rows, including Data Library visibility labels for produced files.
 
 If the output files are not visible, add the output directory or a parent cache
 directory to `dashboard.data_roots`, refresh, and inspect the fetch again.

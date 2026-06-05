@@ -646,6 +646,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-fetch-resume-command" in html
         assert "show-fetch-outputs-data" in html
         assert "copy-fetch-output-paths" in html
+        assert "export-fetch-detail-csv" in html
         assert "overview-health-grid" in html
         assert "overview-positions-grid" in html
         assert "overview-change-cards" in html
@@ -754,6 +755,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/fetch_manifests") in endpoints
         assert ("GET", "/fetch_manifests_export") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
+        assert ("GET", "/fetch_manifest_detail_export") in endpoints
         assert ("GET", "/config_drafts_export") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
@@ -1280,6 +1282,26 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["errors"][0]["attempt_count"] == 2
         assert detail["counts"]["retry_events"] == 1
         assert detail["events"][0]["type"] == "retry"
+
+        with request.urlopen(f"{base}/fetch_manifest_detail_export?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="stock_history_20260102_fetch_detail.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event"}
+        output_rows = [row for row in rows if row["row_type"] == "output"]
+        assert len(output_rows) == 3
+        assert output_rows[0]["symbol"] == "SPY"
+        assert output_rows[0]["data_detail_available"] == "True"
+        assert output_rows[0]["data_detail_status"] == "visible"
+        assert output_rows[1]["data_detail_status"] == "missing_file"
+        assert output_rows[2]["data_detail_status"] == "outside_data_roots"
+        error_rows = [row for row in rows if row["row_type"] == "error"]
+        assert error_rows[0]["symbol"] == "QQQ"
+        assert error_rows[0]["error_kind"] == "permission"
+        assert error_rows[0]["attempt_count"] == "2"
+        event_rows = [row for row in rows if row["row_type"] == "event"]
+        assert {row["event_type"] for row in event_rows} == {"retry", "pacing_wait"}
     finally:
         server.shutdown()
         server.server_close()

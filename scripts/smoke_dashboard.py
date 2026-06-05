@@ -9,7 +9,7 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from urllib import request
+from urllib import parse, request
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -362,6 +362,7 @@ def run_smoke(
             "fetch-events-body",
             "copy-fetch-resume-command",
             "fetch-outputs-body",
+            "export-fetch-detail-csv",
             "data-filter-quality",
             "data-filter-asset",
             "data-filter-source",
@@ -472,12 +473,14 @@ def run_smoke(
             "fetch_manifests",
             "fetch_manifests_export",
             "fetch_manifest_detail",
+            "fetch_manifest_detail_export",
             "filteredFetchManifests",
             "fetchRecoveryCards",
             "fetchOutputVisibilityLabel",
             "output_visibility_counts",
             "fetchResumeCommand",
             "downloadFetchManifestsCsv",
+            "downloadFetchDetailCsv",
             "live/fetch_history.py --resume-manifest",
             "Symbol Coverage",
             "Data Visibility",
@@ -642,6 +645,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/fetch_manifests_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing fetch_manifests_export")
+        if ("GET", "/fetch_manifest_detail_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing fetch_manifest_detail_export")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if ("GET", "/data_coverage_export") not in endpoint_paths:
@@ -678,6 +683,16 @@ def run_smoke(
             raise RuntimeError("fetch manifest summary is invalid")
         if "job_id,kind,status" not in fetch_manifests_csv:
             raise RuntimeError("fetch manifests CSV header is missing")
+        first_fetch_job = None
+        if fetch_manifests.get("manifests"):
+            first_fetch_job = str((fetch_manifests["manifests"][0] or {}).get("job_id") or "")
+        if first_fetch_job:
+            fetch_detail_csv = fetch_text(
+                base_url,
+                f"/fetch_manifest_detail_export?job_id={parse.quote(first_fetch_job)}&limit=20",
+            )
+            if "row_type,job_id,kind,status" not in fetch_detail_csv or "output" not in fetch_detail_csv:
+                raise RuntimeError("fetch detail CSV export is invalid")
         daily_rollups = fetch_json(base_url, "/config_draft_daily_rollups?limit=5&run_limit=5")
         if "rollups" not in daily_rollups or "total" not in daily_rollups or "period_rollups" not in daily_rollups:
             raise RuntimeError("daily rollup summary is invalid")

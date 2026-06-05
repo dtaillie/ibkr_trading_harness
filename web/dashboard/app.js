@@ -3636,6 +3636,7 @@ function renderFetchManifestDetail() {
   $("copy-fetch-resume-command").disabled = !resumeCommand;
   $("show-fetch-outputs-data").disabled = !visibleOutputPaths.length;
   $("copy-fetch-output-paths").disabled = !visibleOutputPaths.length;
+  $("export-fetch-detail-csv").disabled = !detail.job_id;
   const counts = detail.counts || {};
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
@@ -5998,6 +5999,26 @@ async function downloadFetchManifestsCsv() {
   $("last-refresh").textContent = `Fetch jobs CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadFetchDetailCsv() {
+  const detail = state.fetchManifestDetail || {};
+  if (!detail.job_id) {
+    $("last-refresh").textContent = "Select a fetch manifest before exporting detail CSV";
+    return;
+  }
+  const jobId = String(detail.job_id);
+  const body = await fetchText(`/fetch_manifest_detail_export?job_id=${encodeURIComponent(jobId)}&limit=2000`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${jobId}_fetch_detail.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Fetch detail CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogScanCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const body = await fetchText(`/data_catalog_scan_export?limit=${catalogLimit}`);
@@ -6618,6 +6639,11 @@ function init() {
   });
   $("show-fetch-outputs-data").addEventListener("click", applyFetchOutputDataFilter);
   $("copy-fetch-output-paths").addEventListener("click", copyFetchVisibleOutputPaths);
+  $("export-fetch-detail-csv").addEventListener("click", () => {
+    downloadFetchDetailCsv().catch((err) => {
+      $("last-refresh").textContent = `Fetch detail CSV export failed: ${err.message}`;
+    });
+  });
   $("commands-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.classList.contains("cancel-command")) return;
