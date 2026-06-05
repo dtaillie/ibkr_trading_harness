@@ -95,6 +95,9 @@ strategy-private.
     empty state
     - partial; Data Library and Fetch Jobs show configured/suggested roots,
       broader action-level guidance still belongs in contextual help
+    - partial; Data Library now includes a contextual guide that turns current
+      root, catalog-cap, parser-skip, symbol, Data Detail, and Workbench
+      selection state into concrete next actions.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes

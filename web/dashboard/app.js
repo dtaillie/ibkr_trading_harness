@@ -2507,7 +2507,103 @@ function renderDataLibrarySummary() {
         </div>
       `).join("")
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
+  renderDataLibraryGuide({
+    catalog,
+    datasets,
+    roots,
+    suggestedRoots,
+    existingRoots,
+    totalRootFiles,
+    catalogCount,
+    catalogLimit,
+    symbols,
+  });
   renderDataCatalogScanDiagnostics();
+}
+
+function renderDataLibraryGuide(context = {}) {
+  if (!$("data-library-guide") || !$("data-library-guide-note")) return;
+  const catalog = context.catalog || state.dataCatalog || {};
+  const datasets = context.datasets || catalog.datasets || [];
+  const roots = context.roots || (state.diagnostics || {}).data_roots || [];
+  const suggestedRoots = context.suggestedRoots || (state.diagnostics || {}).suggested_data_roots || [];
+  const existingRoots = context.existingRoots || roots.filter((root) => root.exists && root.is_dir);
+  const totalRootFiles = Number(context.totalRootFiles ?? roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0));
+  const catalogCount = Number(context.catalogCount ?? catalog.count ?? datasets.length);
+  const catalogLimit = Number(context.catalogLimit ?? catalog.limit ?? 0);
+  const symbols = context.symbols || new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const rootSummaries = catalog.root_summaries || [];
+  const totalCandidates = rootSummaries.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
+  const totalParsed = rootSummaries.reduce((sum, item) => sum + Number(item.parsed_count || 0), 0);
+  const totalParserErrors = rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0);
+  const totalUnsupported = rootSummaries.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0);
+  const capped = rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached");
+  const onlyExamples = catalogCount > 0 && catalogCount <= 2 && roots.some((root) => String(root.path || "").includes("examples/data"));
+  const selected = selectedConfigDatasets();
+  const detail = state.dataDetail || {};
+  const steps = [
+    {
+      status: existingRoots.length && totalRootFiles ? "ok" : suggestedRoots.length ? "warn" : "bad",
+      label: "Configure Roots",
+      detail: existingRoots.length && totalRootFiles
+        ? `${numberText(existingRoots.length, 0)} active root${existingRoots.length === 1 ? "" : "s"} with ${numberText(totalRootFiles, 0)} visible files.`
+        : suggestedRoots.length
+          ? `Configured roots look sparse; suggested root has ${numberText(suggestedRoots[0].data_file_count, 0)} files.`
+          : "Add cache or history directories with dashboard.data_roots or --data-root.",
+    },
+    {
+      status: !catalogCount ? "bad" : capped || (catalogLimit && totalCandidates > catalogCount) ? "warn" : "ok",
+      label: "Scan Catalog",
+      detail: !catalogCount
+        ? "No catalog rows loaded; increase the scan limit only after roots are correct."
+        : capped || (catalogLimit && totalCandidates > catalogCount)
+          ? `${numberText(catalogCount, 0)} rows shown, but the scan appears capped at ${numberText(catalogLimit, 0)}.`
+          : `${numberText(catalogCount, 0)} datasets and ${numberText(symbols.size, 0)} symbols are searchable.`,
+    },
+    {
+      status: totalParserErrors ? "bad" : totalUnsupported ? "warn" : totalCandidates ? "ok" : "bad",
+      label: "Resolve Skips",
+      detail: totalParserErrors
+        ? `${numberText(totalParserErrors, 0)} parser error${totalParserErrors === 1 ? "" : "s"} need review in Catalog Scan Diagnostics.`
+        : totalUnsupported
+          ? `${numberText(totalUnsupported, 0)} unsupported files were skipped; this is ok if they are notes/logs.`
+          : totalCandidates
+            ? `${numberText(totalParsed, 0)} candidates parsed without catalog parser errors.`
+            : "No candidate CSV/parquet files were scanned.",
+    },
+    {
+      status: !symbols.size ? "bad" : onlyExamples ? "warn" : "ok",
+      label: "Find Symbols",
+      detail: !symbols.size
+        ? "Use Diagnose to check whether the symbol lives outside configured roots."
+        : onlyExamples
+          ? "Only example symbols may be visible; check suggested roots or raise the catalog limit."
+          : "Use Symbol Browser or table filters to find any scanned saved dataset.",
+    },
+    {
+      status: detail.path ? "ok" : catalogCount ? "warn" : "bad",
+      label: "Inspect History",
+      detail: detail.path
+        ? `Data Detail is showing ${text(detail.symbol)} from ${text(detail.path)}.`
+        : catalogCount
+          ? "Pick a symbol and click Inspect to chart saved historical data offline."
+          : "Fetch or configure data before opening Data Detail.",
+    },
+    {
+      status: selected.length ? "ok" : catalogCount ? "warn" : "bad",
+      label: "Simulate",
+      detail: selected.length
+        ? `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected in Config Workbench.`
+        : catalogCount
+          ? "Select datasets in Config Workbench after confirming their quality and timestamp coverage."
+          : "No datasets are ready for Workbench simulation yet.",
+    },
+  ];
+  const ready = steps.filter((step) => step.status === "ok").length;
+  $("data-library-guide-note").textContent = `${ready} of ${steps.length} steps ready`;
+  $("data-library-guide").innerHTML = steps.map((step) => (
+    `<div class="check-item status-${escapeHtml(step.status)}"><span>${escapeHtml(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div></div>`
+  )).join("");
 }
 
 function renderDataCatalogScanDiagnostics() {
