@@ -6092,6 +6092,20 @@ async function downloadRunArtifactsJson() {
   $("last-refresh").textContent = `Run artifacts JSON exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadRemoteNodesCsv() {
+  const body = await fetchText("/remote_nodes_export?limit=500");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "remote_nodes.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Remote nodes CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
@@ -6524,6 +6538,11 @@ function init() {
   $("export-run-artifacts-json").addEventListener("click", () => {
     downloadRunArtifactsJson().catch((err) => {
       $("last-refresh").textContent = `Run artifact JSON export failed: ${err.message}`;
+    });
+  });
+  $("export-remote-nodes-csv").addEventListener("click", () => {
+    downloadRemoteNodesCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
     });
   });
   $("export-data-catalog-csv").addEventListener("click", () => {

@@ -687,6 +687,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-count" in html
         assert "remote-alert-count" in html
         assert "remote-open-order-count" in html
+        assert "export-remote-nodes-csv" in html
         assert "remote-filter-text" in html
         assert "remote-filter-status" in html
         assert "remote-filter-mode" in html
@@ -740,6 +741,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/remote_nodes") in endpoints
+        assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
         assert ("GET", "/command_audit") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
@@ -912,6 +914,20 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert by_node["test-node"]["fill_count"] == 1
         assert by_node["test-node"]["rejection_count"] == 1
         assert by_node["test-node"]["latest_account_time"] == "2026-01-02T14:31:00+00:00"
+
+        with request.urlopen(f"{base}/remote_nodes_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="remote_nodes.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(rows) == 2
+        csv_by_node = {row["node_id"]: row for row in rows}
+        assert csv_by_node["test-node"]["status"] == "ok"
+        assert csv_by_node["test-node"]["gateway_reachable"] == "True"
+        assert csv_by_node["test-node"]["mode"] == "paper"
+        assert csv_by_node["test-node"]["final_equity"] == "10123.45"
+        assert csv_by_node["test-node"]["open_order_count"] == "1"
+        assert csv_by_node["test-node"]["latest_decision_time"] == "2026-01-02T14:31:00+00:00"
 
         with request.urlopen(f"{base}/remote_node_detail?node_id=test-node&limit=2", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))

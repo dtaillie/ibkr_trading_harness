@@ -292,6 +292,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/remote_nodes_export",
+        "category": "telemetry",
+        "description": "Download sanitized latest read-only monitoring summaries by node.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/remote_node_detail",
         "category": "telemetry",
         "description": "Return bounded sanitized latest status detail and history for one node.",
@@ -851,6 +858,30 @@ def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+REMOTE_NODES_EXPORT_FIELDS = (
+    "node_id",
+    "status",
+    "generated_at",
+    "received_at",
+    "gateway_reachable",
+    "alert_count",
+    "latest_run_id",
+    "latest_run_status",
+    "mode",
+    "final_equity",
+    "cash",
+    "position_count",
+    "open_order_count",
+    "decision_count",
+    "order_count",
+    "fill_count",
+    "rejection_count",
+    "latest_account_time",
+    "latest_data_time",
+    "latest_decision_time",
+)
+
+
 def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
     path = status_history_path(state_dir)
     if not path.exists():
@@ -878,6 +909,16 @@ def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
         reverse=True,
     )[:limit]
     return {"nodes": nodes, "count": len(nodes), "total": total, "limit": limit}
+
+
+def build_remote_nodes_csv(state_dir: Path, *, limit: int = 100) -> str:
+    payload = load_remote_nodes(state_dir, limit=limit)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=REMOTE_NODES_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in payload.get("nodes") or []:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in REMOTE_NODES_EXPORT_FIELDS})
+    return out.getvalue()
 
 
 def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
@@ -6915,6 +6956,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, load_remote_nodes(self.state_dir, limit=limit))
+            return
+        if parsed.path == "/remote_nodes_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                csv_body = build_remote_nodes_csv(self.state_dir, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="remote_nodes.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/remote_node_detail":
             if not self.require_auth():

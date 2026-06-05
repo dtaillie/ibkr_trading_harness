@@ -407,6 +407,7 @@ def run_smoke(
             "remote-node-count",
             "remote-alert-count",
             "remote-open-order-count",
+            "export-remote-nodes-csv",
             "remote-filter-text",
             "remote-filter-status",
             "remote-filter-mode",
@@ -562,6 +563,7 @@ def run_smoke(
             "renderPaperMonitor",
             "Order Context",
             "remote_nodes",
+            "remote_nodes_export",
             "remote_node_detail",
             "status_equity_rollups",
             "performance-status-period-rollups-body",
@@ -648,6 +650,8 @@ def run_smoke(
         endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
         if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
+        if ("GET", "/remote_nodes_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing remote_nodes_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/fetch_manifests_export") not in endpoint_paths:
@@ -729,6 +733,9 @@ def run_smoke(
                 raise RuntimeError("seeded scenario status snapshot was not served")
             if not remote_nodes.get("nodes") or remote_nodes["nodes"][0].get("node_id") != "seed-node":
                 raise RuntimeError("seeded scenario remote node summary was not served")
+            remote_nodes_csv = fetch_text(base_url, "/remote_nodes_export?limit=5")
+            if "node_id,status,generated_at,received_at" not in remote_nodes_csv or "seed-node" not in remote_nodes_csv:
+                raise RuntimeError("seeded scenario remote nodes CSV export is invalid")
             node = remote_nodes["nodes"][0]
             if node.get("alert_count", 0) < 1 or node.get("rejection_count", 0) < 1:
                 raise RuntimeError("seeded scenario did not expose warning/rejection telemetry")

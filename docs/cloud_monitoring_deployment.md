@@ -133,6 +133,11 @@ Good low-cost provider shapes:
 Avoid cloud deployment shapes that mount the trading machine's broker config,
 raw `paper_logs`, private strategy plugins, or data cache into the hosted app.
 
+The Operations page can export the Remote Nodes table as CSV. Use that export
+for offline review of sanitized heartbeat, Gateway, mode, equity, position,
+open-order, activity, account/data freshness, and alert summaries across
+published nodes.
+
 ### Local Publisher Service Example
 
 On the trading machine, keep publishing local sanitized status to the hosted

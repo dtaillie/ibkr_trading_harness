@@ -819,6 +819,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     status/mode filters, and sort controls for heartbeat age, alerts, open
     orders, equity, and node name so cloud monitoring snapshots are easier to
     triage.
+  - partial; Operations now exposes `/remote_nodes_export` and an Export Nodes
+    CSV button for offline review of sanitized heartbeat, Gateway, mode,
+    equity, positions, open orders, activity counts, freshness, and alerts by
+    node.
 - Add alerts:
   - missed heartbeat
   - Gateway login required

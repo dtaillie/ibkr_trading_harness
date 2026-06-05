@@ -132,6 +132,13 @@ status, plugin, symbol, tag, validation, output, and YAML path metadata.
 Treat short-horizon projected daily/monthly/yearly returns as convenience
 translations, not stable performance estimates.
 
+## Review Remote Monitoring
+
+Open Operations, then Remote Nodes, to inspect sanitized latest status
+snapshots from local or hosted status publishers. Use Export Nodes CSV for an
+offline table of heartbeat, Gateway, mode, equity, positions, open orders,
+activity counts, account/data freshness, and alert summaries by node.
+
 ## Diagnose Fetch Jobs
 
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
