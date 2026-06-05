@@ -615,6 +615,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html
+        assert "export-data-missing-intervals" in html
         assert "nav-performance" in html
         assert "performance-context-note" in html
         assert "performance-metric-context" in html
@@ -721,6 +722,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
+        assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
         assert ("POST", "/data_compare") in endpoints
@@ -1819,6 +1821,31 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert len(capped["missing_intervals"]) == 1
         assert capped["missing_interval_omitted_count"] == 1
         assert capped["quality"]["missing_interval_omitted_count"] == 1
+
+        with request.urlopen(
+            f"{base}/data_missing_intervals_export?path={data_file}&max_rows=10",
+            timeout=5,
+        ) as resp:
+            csv_body = resp.read().decode("utf-8")
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert "missing_intervals.csv" in resp.headers["Content-Disposition"]
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert [row["expected_timestamp"] for row in exported] == [
+            "2026-01-02T14:40:00+00:00",
+            "2026-01-02T14:45:00+00:00",
+        ]
+        assert exported[0]["path"] == str(data_file)
+        assert exported[0]["estimated_missing_intervals"] == "2"
+        assert exported[0]["omitted_by_export_cap"] == "0"
+
+        with request.urlopen(
+            f"{base}/data_missing_intervals_export?path={data_file}&max_rows=1",
+            timeout=5,
+        ) as resp:
+            capped_csv = resp.read().decode("utf-8")
+        capped_exported = list(csv.DictReader(io.StringIO(capped_csv)))
+        assert len(capped_exported) == 1
+        assert capped_exported[0]["omitted_by_export_cap"] == "1"
     finally:
         server.shutdown()
         server.server_close()

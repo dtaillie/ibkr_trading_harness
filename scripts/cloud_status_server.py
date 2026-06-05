@@ -233,6 +233,7 @@ MAX_ARTIFACT_ROWS = 500
 MAX_DATA_DETAIL_POINTS = 1000
 MAX_DATA_GAP_ROWS = 200
 MAX_DATA_MISSING_INTERVAL_ROWS = 1000
+MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS = 1000000
 MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
@@ -330,6 +331,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Inspect one saved data file with range-filtered sampled or full-in-range price/volume series.",
         "response": "JSON dataset detail and viewer series",
+    },
+    {
+        "method": "GET",
+        "path": "/data_missing_intervals_export",
+        "category": "data",
+        "description": "Download inferred missing expected timestamps for one saved data file.",
+        "response": "CSV download",
     },
     {
         "method": "GET",
@@ -3173,6 +3181,117 @@ def build_data_compare(payload: dict[str, Any], *, data_roots: list[Path]) -> di
     }
 
 
+def missing_interval_analysis(
+    parsed_ts: pd.Series,
+    *,
+    gap_limit: int,
+    missing_interval_limit: int | None,
+) -> dict[str, Any]:
+    parsed_valid = parsed_ts.dropna()
+    ordered = parsed_valid.sort_values()
+    diffs = ordered.diff().dropna().dt.total_seconds() if not ordered.empty else pd.Series([], dtype="float64")
+    median_interval = finite_float(diffs.median()) if not diffs.empty else None
+    largest_gap = finite_float(diffs.max()) if not diffs.empty else None
+    gap_rows = []
+    missing_interval_rows = []
+    estimated_missing = 0
+    if median_interval and median_interval > 0 and len(ordered) > 1:
+        previous = ordered.iloc[0]
+        expected_step = pd.Timedelta(seconds=float(median_interval))
+        for current in ordered.iloc[1:]:
+            gap_seconds = float((current - previous).total_seconds())
+            if gap_seconds > median_interval * 1.5:
+                missing = max(0, round(gap_seconds / median_interval) - 1)
+                estimated_missing += missing
+                gap_index = len(gap_rows)
+                if len(gap_rows) < gap_limit:
+                    gap_rows.append({
+                        "from_timestamp": previous.isoformat(),
+                        "to_timestamp": current.isoformat(),
+                        "gap_seconds": finite_float(gap_seconds),
+                        "estimated_missing_intervals": int(missing),
+                    })
+                expected_ts = previous + expected_step
+                emitted_for_gap = 0
+                while expected_ts < current and emitted_for_gap < missing:
+                    if missing_interval_limit is None or len(missing_interval_rows) < missing_interval_limit:
+                        missing_interval_rows.append({
+                            "expected_timestamp": expected_ts.isoformat(),
+                            "from_timestamp": previous.isoformat(),
+                            "to_timestamp": current.isoformat(),
+                            "gap_seconds": finite_float(gap_seconds),
+                            "gap_index": gap_index,
+                        })
+                    expected_ts += expected_step
+                    emitted_for_gap += 1
+            previous = current
+    missing_interval_omitted = (
+        max(0, int(estimated_missing) - len(missing_interval_rows))
+        if missing_interval_limit is not None
+        else 0
+    )
+    return {
+        "parsed_valid": parsed_valid,
+        "ordered": ordered,
+        "median_interval": median_interval,
+        "largest_gap": largest_gap,
+        "gap_rows": gap_rows,
+        "missing_interval_rows": missing_interval_rows,
+        "estimated_missing": int(estimated_missing),
+        "missing_interval_omitted": int(missing_interval_omitted),
+    }
+
+
+def data_missing_intervals_csv(
+    raw_path: str,
+    *,
+    data_roots: list[Path],
+    max_rows: int = MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS,
+) -> tuple[str, str]:
+    if max_rows < 1 or max_rows > MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS:
+        raise ValueError(f"max_rows must be between 1 and {MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS}")
+    path, rel_path = data_path_allowed(raw_path, data_roots)
+    df, _fmt = read_data_file(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    if raw_ts is None:
+        raise ValueError("data file has no timestamp column")
+    analysis = missing_interval_analysis(
+        pd.Series(parse_datetime_utc(raw_ts)),
+        gap_limit=MAX_DATA_GAP_ROWS,
+        missing_interval_limit=max_rows,
+    )
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "path",
+            "expected_timestamp",
+            "from_timestamp",
+            "to_timestamp",
+            "gap_seconds",
+            "gap_index",
+            "estimated_missing_intervals",
+            "omitted_by_export_cap",
+        ],
+    )
+    writer.writeheader()
+    omitted = int(analysis["missing_interval_omitted"])
+    for row_item in analysis["missing_interval_rows"]:
+        writer.writerow({
+            "path": rel_path,
+            "expected_timestamp": row_item.get("expected_timestamp"),
+            "from_timestamp": row_item.get("from_timestamp"),
+            "to_timestamp": row_item.get("to_timestamp"),
+            "gap_seconds": row_item.get("gap_seconds"),
+            "gap_index": row_item.get("gap_index"),
+            "estimated_missing_intervals": analysis["estimated_missing"],
+            "omitted_by_export_cap": omitted,
+        })
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(rel_path).stem).strip("_") or "data"
+    return output.getvalue(), f"{safe_name}_missing_intervals.csv"
+
+
 def build_data_detail(
     raw_path: str,
     *,
@@ -3209,45 +3328,19 @@ def build_data_detail(
         source_tz = source_timezone_label(raw_ts)
         parsed_ts = pd.Series(parse_datetime_utc(raw_ts))
 
-    parsed_valid = parsed_ts.dropna()
-    ordered = parsed_valid.sort_values()
-    diffs = ordered.diff().dropna().dt.total_seconds() if not ordered.empty else pd.Series([], dtype="float64")
-    median_interval = finite_float(diffs.median()) if not diffs.empty else None
-    largest_gap = finite_float(diffs.max()) if not diffs.empty else None
-    gap_rows = []
-    missing_interval_rows = []
-    estimated_missing = 0
-    if median_interval and median_interval > 0 and len(ordered) > 1:
-        previous = ordered.iloc[0]
-        expected_step = pd.Timedelta(seconds=float(median_interval))
-        for current in ordered.iloc[1:]:
-            gap_seconds = float((current - previous).total_seconds())
-            if gap_seconds > median_interval * 1.5:
-                missing = max(0, round(gap_seconds / median_interval) - 1)
-                estimated_missing += missing
-                gap_index = len(gap_rows)
-                if len(gap_rows) < gap_limit:
-                    gap_rows.append({
-                        "from_timestamp": previous.isoformat(),
-                        "to_timestamp": current.isoformat(),
-                        "gap_seconds": finite_float(gap_seconds),
-                        "estimated_missing_intervals": int(missing),
-                    })
-                expected_ts = previous + expected_step
-                emitted_for_gap = 0
-                while expected_ts < current and emitted_for_gap < missing:
-                    if len(missing_interval_rows) < missing_interval_limit:
-                        missing_interval_rows.append({
-                            "expected_timestamp": expected_ts.isoformat(),
-                            "from_timestamp": previous.isoformat(),
-                            "to_timestamp": current.isoformat(),
-                            "gap_seconds": finite_float(gap_seconds),
-                            "gap_index": gap_index,
-                        })
-                    expected_ts += expected_step
-                    emitted_for_gap += 1
-            previous = current
-    missing_interval_omitted = max(0, int(estimated_missing) - len(missing_interval_rows))
+    analysis = missing_interval_analysis(
+        parsed_ts,
+        gap_limit=gap_limit,
+        missing_interval_limit=missing_interval_limit,
+    )
+    parsed_valid = analysis["parsed_valid"]
+    ordered = analysis["ordered"]
+    median_interval = analysis["median_interval"]
+    largest_gap = analysis["largest_gap"]
+    gap_rows = analysis["gap_rows"]
+    missing_interval_rows = analysis["missing_interval_rows"]
+    estimated_missing = analysis["estimated_missing"]
+    missing_interval_omitted = analysis["missing_interval_omitted"]
 
     columns = {
         "timestamp": ts_col,
@@ -6367,6 +6460,36 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_missing_intervals_export":
+            if not self.require_auth():
+                return
+            raw_path = str(params.get("path", [""])[0]).strip()
+            if not raw_path:
+                json_response(self, 400, {"error": "path is required"})
+                return
+            try:
+                max_rows = parse_int_param(
+                    params,
+                    "max_rows",
+                    default=MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS,
+                    maximum=MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS,
+                )
+                csv_body, filename = data_missing_intervals_csv(
+                    raw_path,
+                    data_roots=self.data_roots,
+                    max_rows=max_rows,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename=filename,
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_coverage":
             if not self.require_auth():

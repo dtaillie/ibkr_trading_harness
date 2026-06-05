@@ -606,6 +606,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if ("GET", "/data_gap_summary") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_gap_summary")
+        if ("GET", "/data_missing_intervals_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_missing_intervals_export")
         if ("GET", "/data_storage_audit") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_storage_audit")
         if ("POST", "/data_compare") not in endpoint_paths:

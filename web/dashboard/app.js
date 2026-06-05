@@ -3137,6 +3137,7 @@ function renderDataDetail() {
   $("copy-data-path").disabled = !detail.path;
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
+  $("export-data-missing-intervals").disabled = !detail.path;
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
   const pairs = [
     ["File Path", text(detail.path)],
@@ -5680,6 +5681,27 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataMissingIntervalsCsv() {
+  const path = (state.dataDetail || {}).path || "";
+  if (!path) {
+    $("last-refresh").textContent = "Select a saved dataset before exporting missing intervals";
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set("path", path);
+  const body = await fetchText(`/data_missing_intervals_export?${params.toString()}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${(state.dataDetail.symbol || "data").replace(/[^A-Za-z0-9_.-]+/g, "_")}_missing_intervals.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Missing interval CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadWorkbenchSnapshot() {
   const body = await fetchText("/workbench_snapshot_export");
   const blob = new Blob([body], { type: "application/json;charset=utf-8" });
@@ -6067,6 +6089,11 @@ function init() {
       $("last-refresh").textContent = `Replay starter copied: ${new Date().toLocaleString()}`;
     }).catch((err) => {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
+  $("export-data-missing-intervals").addEventListener("click", () => {
+    downloadDataMissingIntervalsCsv().catch((err) => {
+      $("last-refresh").textContent = `Missing interval export failed: ${err.message}`;
     });
   });
   $("fetch-manifests-body").addEventListener("click", (event) => {

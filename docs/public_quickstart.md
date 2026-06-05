@@ -317,7 +317,9 @@ offline and only reads CSV/parquet files under configured data roots.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
-quality summary without exporting full bar data.
+quality summary without exporting full bar data. From Data Detail, Export
+Missing CSV downloads inferred missing expected timestamps for the selected
+saved file so gap audits can be reviewed offline.
 The Config Builder section can generate and validate plugin-runner YAML from
 one or more selected saved datasets. Public exports offer generic no-edge
 examples by default; local ignored plugin registries can add private plugin

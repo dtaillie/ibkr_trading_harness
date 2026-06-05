@@ -464,8 +464,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       users can tell whether the selected files share enough timestamps.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
-      a `--data-root` flag, and a replay-starter command. Fully generated
-      strategy-specific replay commands still come from saved Workbench drafts.
+      a `--data-root` flag, a replay-starter command, and a full-file inferred
+      missing-interval CSV. Fully generated strategy-specific replay commands
+      still come from saved Workbench drafts.
   - flag suspicious files before they are used in a strategy replay
     - done for Workbench-generated drafts; selected dataset quality is visible
       before draft generation, `/data_alignment`/draft alignment payloads carry
@@ -490,8 +491,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       by UTC hour for bounded catalog rows and listing worst incomplete files.
       Data Library now also lists bounded worst date/hour missing-interval
       drilldowns from the same endpoint. Data Detail now lists bounded exact
-      inferred missing timestamps for the selected saved file; unbounded
-      full-file exports remain future work.
+      inferred missing timestamps for the selected saved file and can export a
+      full-file missing-interval CSV through `/data_missing_intervals_export`.
   - "why is this symbol not visible?" diagnostic
     - done for configured/suggested roots, parser failures, catalog limits, and
       fetch-manifest clues
