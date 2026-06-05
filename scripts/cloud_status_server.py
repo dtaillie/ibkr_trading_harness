@@ -668,6 +668,13 @@ PUBLIC_ENDPOINTS = (
         "description": "List sanitized command queue/cancel/result audit events.",
         "response": "JSON audit event list",
     },
+    {
+        "method": "GET",
+        "path": "/command_audit_export",
+        "category": "remote",
+        "description": "Download sanitized command queue/cancel/result audit events with integrity metadata.",
+        "response": "CSV audit event export",
+    },
 )
 
 
@@ -6399,6 +6406,59 @@ def load_command_audit(state_dir: Path, *, node_id: str | None = None, limit: in
     return list(events)
 
 
+COMMAND_AUDIT_EXPORT_FIELDS = (
+    "audited_at",
+    "event",
+    "node_id",
+    "command_id",
+    "action",
+    "action_class",
+    "status",
+    "param_keys",
+    "error",
+    "reason",
+    "integrity_status",
+    "signature_status",
+    "checked_records",
+    "legacy_records",
+    "signed_records",
+    "unsigned_records",
+    "signature_key_env",
+    "hash_algorithm",
+    "prev_hash",
+    "record_hash",
+    "signature_algorithm",
+    "row_signature",
+)
+
+
+def build_command_audit_csv(
+    state_dir: Path,
+    *,
+    node_id: str = "",
+    limit: int = 100,
+    signature_env: str | None = None,
+) -> str:
+    integrity = verify_command_audit(state_dir, signature_env=signature_env)
+    rows = load_command_audit(state_dir, node_id=node_id or None, limit=limit)
+    shared = {
+        "integrity_status": integrity.get("status"),
+        "signature_status": integrity.get("signature_status"),
+        "checked_records": integrity.get("checked_records"),
+        "legacy_records": integrity.get("legacy_records"),
+        "signed_records": integrity.get("signed_records"),
+        "unsigned_records": integrity.get("unsigned_records"),
+        "signature_key_env": integrity.get("signature_key_env"),
+    }
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=COMMAND_AUDIT_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        merged = {**shared, **row}
+        writer.writerow({field: compact_csv_value(merged.get(field)) for field in COMMAND_AUDIT_EXPORT_FIELDS})
+    return out.getvalue()
+
+
 def load_command_rate_state(state_dir: Path) -> dict[str, list[float]]:
     path = command_rate_limit_path(state_dir)
     if not path.exists():
@@ -7096,6 +7156,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                     "events": load_command_audit(self.state_dir, node_id=node_id, limit=limit),
                     "integrity": verify_command_audit(self.state_dir, signature_env=self.command_audit_signature_env),
                 },
+            )
+            return
+        if parsed.path == "/command_audit_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                csv_body = build_command_audit_csv(
+                    self.state_dir,
+                    node_id=node_id,
+                    limit=limit,
+                    signature_env=self.command_audit_signature_env,
+                )
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="command_audit.csv",
+                content_type="text/csv; charset=utf-8",
             )
             return
         if parsed.path == "/data_catalog":

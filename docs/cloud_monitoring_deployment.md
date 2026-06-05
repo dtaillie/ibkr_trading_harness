@@ -180,12 +180,12 @@ worker rejects launcher commands until
 `paper_logs/control/remote_commands.enabled` exists on the trading machine.
 The receiver also records sanitized queue/cancel/result events in
 `paper_logs/cloud_status_server/command_audit.jsonl`, exposes them through
-`/command_audit`, and rate-limits command queue requests per node with
-`dashboard.command_rate_limit`. It also applies `dashboard.command_scopes`
-before a command is queued. Public examples allow `read_only` and `control`
-classes by default; `launcher` commands such as `run_supervisor_once` require
-an explicit server-side opt-in through `allowed_action_classes` or
-`allowed_actions`.
+`/command_audit`, offers a CSV download through `/command_audit_export`, and
+rate-limits command queue requests per node with `dashboard.command_rate_limit`.
+It also applies `dashboard.command_scopes` before a command is queued. Public
+examples allow `read_only` and `control` classes by default; `launcher`
+commands such as `run_supervisor_once` require an explicit server-side opt-in
+through `allowed_action_classes` or `allowed_actions`.
 
 For hosted receivers, prefer separate tokens:
 
@@ -229,6 +229,8 @@ variable containing an HMAC secret. New command audit rows then include
 `row_signature`, and `/command_audit` reports whether signatures are disabled,
 valid, unsigned, missing a key, or failing verification. Keep the signing secret
 outside the repo and rotate it like any other service secret.
+Use the Operations Export Audit CSV action when you need the bounded sanitized
+audit rows and the current integrity/signature summary in one offline file.
 
 This is tamper-evident for local file edits after the fact. It is still not a
 substitute for off-host immutable storage or provider-level retention controls;

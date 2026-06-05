@@ -6120,6 +6120,22 @@ async function downloadStatusRollupsCsv() {
   $("last-refresh").textContent = `Status rollups CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadCommandAuditCsv() {
+  const node = $("command-node").value || (state.status && state.status.node_id) || "";
+  const nodeParam = node ? `node_id=${encodeURIComponent(node)}&` : "";
+  const body = await fetchText(`/command_audit_export?${nodeParam}limit=500`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "command_audit.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Command audit CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataCatalogCsv() {
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
   const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
@@ -6562,6 +6578,11 @@ function init() {
   $("export-status-rollups-csv").addEventListener("click", () => {
     downloadStatusRollupsCsv().catch((err) => {
       $("last-refresh").textContent = `Status rollups CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-command-audit-csv").addEventListener("click", () => {
+    downloadCommandAuditCsv().catch((err) => {
+      $("last-refresh").textContent = `Command audit CSV export failed: ${err.message}`;
     });
   });
   $("export-data-catalog-csv").addEventListener("click", () => {

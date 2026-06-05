@@ -966,6 +966,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     reports signature status, signed/unsigned row counts, and signature
     verification errors. Remaining gap: provider/network-specific off-host
     immutable audit retention for internet-facing deployments.
+  - progress; Operations now includes an Export Audit CSV action backed by
+    `/command_audit_export`, so bounded sanitized queue/cancel/result audit rows
+    can be reviewed offline with the current hash-chain and signature status
+    columns.
 - Keep initial commands low-risk:
   - pause
   - resume

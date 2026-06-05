@@ -54,6 +54,10 @@ yearly equity rollups for offline review.
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
 
+Open Operations when reviewing remote-control activity. Use Export Audit CSV
+to download sanitized command queue, cancel, and result events together with
+hash-chain and signature status for offline review.
+
 ## Review a Completed Fetch
 
 Open Fetch Jobs, choose a manifest, then inspect Fetch Detail. Use Copy Resume

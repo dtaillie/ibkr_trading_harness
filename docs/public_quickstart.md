@@ -297,6 +297,8 @@ results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.
+Use Export Audit CSV from Operations when you want sanitized command audit rows
+plus hash-chain and signature status outside the dashboard.
 Use Export Snapshot from Workbench State to download a public-safe JSON bundle
 of setup diagnostics, saved-data metadata, config options, and recent run
 summaries.
@@ -495,16 +497,17 @@ audited instead of being executed in the same sweep.
 
 The receiver also keeps a sanitized server-side audit at
 `paper_logs/cloud_status_server/command_audit.jsonl` and exposes it through
-`/command_audit`. The example dashboard config rate-limits command queue
-requests per node with `dashboard.command_rate_limit`; rejected queue attempts
-are audited and return HTTP 429. Explicit `command_id` values must be unique,
-so retried queue requests cannot ambiguously map later results to older
-commands. The receiver also checks `dashboard.command_scopes` before queueing:
-public examples allow read-only and pause/resume control commands, while
-launcher actions such as `run_supervisor_once` require an explicit server-side
-opt-in. Hosted configs can also define `dashboard.auth_tokens` so a monitoring
-token can read status and queue only read-only commands while a separate
-operator token can queue pause/resume control commands.
+`/command_audit` and `/command_audit_export`. The example dashboard config
+rate-limits command queue requests per node with `dashboard.command_rate_limit`;
+rejected queue attempts are audited and return HTTP 429. Explicit `command_id`
+values must be unique, so retried queue requests cannot ambiguously map later
+results to older commands. The receiver also checks `dashboard.command_scopes`
+before queueing: public examples allow read-only and pause/resume control
+commands, while launcher actions such as `run_supervisor_once` require an
+explicit server-side opt-in. Hosted configs can also define
+`dashboard.auth_tokens` so a monitoring token can read status and queue only
+read-only commands while a separate operator token can queue pause/resume
+control commands.
 Command audit rows are hash-chained as they are appended. `/command_audit`
 returns an `integrity` summary so the dashboard can flag missing legacy hashes
 or modified rows. For hosted receivers, set

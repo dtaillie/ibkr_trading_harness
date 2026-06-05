@@ -423,6 +423,7 @@ def run_smoke(
             "artifact-account-body",
             "command-audit-note",
             "command-audit-body",
+            "export-command-audit-csv",
             "Signature",
             "diagnostics-note",
             "cleanup-apply",
@@ -441,8 +442,10 @@ def run_smoke(
             "plugin_registry_paths",
             "workbench_endpoints",
             "command_audit",
+            "command_audit_export",
             "signature_status",
             "row_signature",
+            "downloadCommandAuditCsv",
             "data_coverage",
             "data-library-guide",
             "renderDataLibraryGuide",
@@ -656,6 +659,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing status_equity_rollups_export")
         if ("GET", "/remote_nodes_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing remote_nodes_export")
+        if ("GET", "/command_audit_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing command_audit_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing fetch_manifests")
         if ("GET", "/fetch_manifests_export") not in endpoint_paths:
@@ -714,6 +719,9 @@ def run_smoke(
         status_rollups_csv = fetch_text(base_url, "/status_equity_rollups_export?limit=5&history_limit=100")
         if "row_type,label,day,node_id" not in status_rollups_csv:
             raise RuntimeError("status equity rollup CSV header is missing")
+        command_audit_csv = fetch_text(base_url, "/command_audit_export?limit=5")
+        if "audited_at,event,node_id,command_id" not in command_audit_csv:
+            raise RuntimeError("command audit CSV header is missing")
         scenario_checks = {}
         if scenario == "empty":
             if catalog.get("count") != 0:

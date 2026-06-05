@@ -700,6 +700,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-history-body" in html
         assert "command-audit-note" in html
         assert "command-audit-body" in html
+        assert "export-command-audit-csv" in html
         assert "Signature" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
@@ -749,6 +750,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
         assert ("GET", "/command_audit") in endpoints
+        assert ("GET", "/command_audit_export") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
         assert ("GET", "/data_coverage") in endpoints
@@ -3388,6 +3390,18 @@ def test_cloud_status_server_command_audit_endpoint_reports_signed_rows(tmp_path
         assert audit["integrity"]["signature_status"] == "ok"
         assert audit["integrity"]["signed_records"] == 1
         assert audit["events"][0]["row_signature"]
+
+        with request.urlopen(f"{base}/command_audit_export?node_id=test-node&limit=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="command_audit.csv"'
+            csv_body = resp.read().decode("utf-8")
+        rows = list(csv.DictReader(io.StringIO(csv_body)))
+        assert rows[0]["event"] == "command_queued"
+        assert rows[0]["node_id"] == "test-node"
+        assert rows[0]["integrity_status"] == "ok"
+        assert rows[0]["signature_status"] == "ok"
+        assert rows[0]["signed_records"] == "1"
+        assert rows[0]["row_signature"]
     finally:
         server.shutdown()
         server.server_close()
