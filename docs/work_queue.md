@@ -803,10 +803,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; catalog root summaries and Data Library scan diagnostics expose
       parser error counts/sample errors and unsupported-file counts
   - catalog limits must be visible and user-adjustable through config
-    - partial; Data Library exposes catalog limit controls and scan diagnostics
-      show limit-capped roots. The UI now exposes the backend's 1000-row bound,
-      and catalog CSV export uses the selected scan limit instead of a
-      hard-coded smaller export size.
+    - done; `dashboard.data_catalog.default_limit` and `max_limit` control the
+      first Data Library scan and request bounds. Workbench diagnostics and
+      catalog payloads expose those settings, the dashboard builds its row-count
+      control from them, and catalog/scan/coverage/gap/heatmap/storage exports
+      use the selected configured limit.
 
 ## P1: Public workbench usability
 

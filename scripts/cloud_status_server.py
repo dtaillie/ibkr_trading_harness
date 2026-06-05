@@ -79,6 +79,8 @@ DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
 DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
 DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",)
+DEFAULT_DATA_CATALOG_LIMIT = 200
+DEFAULT_DATA_CATALOG_MAX_LIMIT = 1000
 PUBLIC_DOCS = {
     "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
@@ -1349,6 +1351,10 @@ def dashboard_server_settings(
         "plugin_registry_paths": None,
         "auth_token_env": None,
         "auth_tokens": [],
+        "data_catalog": {
+            "default_limit": DEFAULT_DATA_CATALOG_LIMIT,
+            "max_limit": DEFAULT_DATA_CATALOG_MAX_LIMIT,
+        },
         "network_access": {"enabled": False, "allowed_client_networks": [], "trust_x_forwarded_for": False},
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
         "command_scopes": normalize_command_scope_policy({}),
@@ -1371,6 +1377,22 @@ def dashboard_server_settings(
             settings["auth_token_env"] = str(dashboard["auth_token_env"])
         if dashboard.get("auth_tokens") is not None:
             settings["auth_tokens"] = normalize_auth_token_configs(dashboard["auth_tokens"])
+        if dashboard.get("data_catalog") is not None:
+            data_catalog = dashboard["data_catalog"]
+            if not isinstance(data_catalog, dict):
+                raise ValueError("dashboard.data_catalog must be a mapping")
+            default_limit = int(data_catalog.get("default_limit", settings["data_catalog"]["default_limit"]))
+            max_limit = int(data_catalog.get("max_limit", settings["data_catalog"]["max_limit"]))
+            if default_limit < 1:
+                raise ValueError("dashboard.data_catalog.default_limit must be at least 1")
+            if max_limit < 1:
+                raise ValueError("dashboard.data_catalog.max_limit must be at least 1")
+            if default_limit > max_limit:
+                raise ValueError("dashboard.data_catalog.default_limit must be less than or equal to max_limit")
+            settings["data_catalog"] = {
+                "default_limit": default_limit,
+                "max_limit": max_limit,
+            }
         if dashboard.get("network_access") is not None:
             network_access = dashboard["network_access"]
             if not isinstance(network_access, dict):
@@ -5137,6 +5159,8 @@ def build_workbench_diagnostics(
     *,
     data_roots: list[Path],
     dashboard_dir: Path,
+    data_catalog_default_limit: int = DEFAULT_DATA_CATALOG_LIMIT,
+    data_catalog_max_limit: int = DEFAULT_DATA_CATALOG_MAX_LIMIT,
 ) -> dict[str, Any]:
     warnings = []
     blockers = []
@@ -5188,6 +5212,10 @@ def build_workbench_diagnostics(
         "state_dir": state_probe,
         "dashboard_dir": str(dashboard_dir.resolve()),
         "dashboard_assets": dashboard_assets,
+        "data_catalog": {
+            "default_limit": data_catalog_default_limit,
+            "max_limit": data_catalog_max_limit,
+        },
         "data_roots": data_root_rows,
         "suggested_data_roots": suggested_rows,
     }
@@ -5200,8 +5228,10 @@ def build_workbench_snapshot(
     dashboard_dir: Path,
     fetch_manifest_roots: list[Path],
     plugin_registry_paths: list[Path] | None = None,
+    data_catalog_default_limit: int = DEFAULT_DATA_CATALOG_LIMIT,
+    data_catalog_max_limit: int = DEFAULT_DATA_CATALOG_MAX_LIMIT,
 ) -> dict[str, Any]:
-    catalog = build_data_catalog(data_roots, limit=200, preview_points=2)
+    catalog = build_data_catalog(data_roots, limit=data_catalog_default_limit, preview_points=2)
     dataset_rows = [
         {field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS}
         for row in catalog["datasets"]
@@ -5217,9 +5247,13 @@ def build_workbench_snapshot(
             state_dir,
             data_roots=data_roots,
             dashboard_dir=dashboard_dir,
+            data_catalog_default_limit=data_catalog_default_limit,
+            data_catalog_max_limit=data_catalog_max_limit,
         ),
         "data_catalog": {
             "roots": catalog["roots"],
+            "limit": catalog["limit"],
+            "max_limit": data_catalog_max_limit,
             "count": catalog["count"],
             "error_count": catalog["error_count"],
             "quality_counts": catalog["quality_counts"],
@@ -6924,6 +6958,8 @@ class StatusHandler(BaseHTTPRequestHandler):
     dashboard_dir = DEFAULT_DASHBOARD_DIR
     data_roots = list(DEFAULT_DATA_ROOTS)
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
+    data_catalog_default_limit = DEFAULT_DATA_CATALOG_LIMIT
+    data_catalog_max_limit = DEFAULT_DATA_CATALOG_MAX_LIMIT
     command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     command_scopes: dict[str, Any] = normalize_command_scope_policy({})
     command_audit_signature_env: str | None = None
@@ -7351,9 +7387,15 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=200, maximum=500)
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 preview_points = int(params.get("preview_points", ["80"])[0])
                 payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
+                payload["default_limit"] = self.data_catalog_default_limit
+                payload["max_limit"] = self.data_catalog_max_limit
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -7363,7 +7405,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=200, maximum=500)
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 csv_body = build_data_catalog_csv(self.data_roots, limit=limit)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
@@ -7380,7 +7426,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=200, maximum=500)
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 csv_body = build_data_catalog_scan_csv(self.data_roots, limit=limit)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
@@ -7456,7 +7506,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=200, maximum=1000)
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 max_symbols = parse_int_param(params, "max_symbols", default=60, maximum=500)
                 max_dates = parse_int_param(params, "max_dates", default=60, maximum=366)
                 payload = build_data_coverage(
@@ -7474,7 +7528,11 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                limit = parse_limit(params, default=200, maximum=1000)
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 max_symbols = parse_int_param(params, "max_symbols", default=60, maximum=500)
                 max_dates = parse_int_param(params, "max_dates", default=60, maximum=366)
                 csv_body = build_data_coverage_csv(
@@ -7498,7 +7556,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
                 payload = build_data_gap_summary(
                     self.data_roots,
@@ -7514,7 +7577,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
                 csv_body = build_data_gap_summary_csv(
                     self.data_roots,
@@ -7536,7 +7604,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
                 payload = build_data_minute_heatmap(
                     self.data_roots,
@@ -7552,7 +7625,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 top_limit = parse_int_param(params, "top_limit", default=20, maximum=100)
                 csv_body = build_data_minute_heatmap_csv(
                     self.data_roots,
@@ -7575,7 +7653,11 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             raw_symbol = str(params.get("symbol", [""])[0]).strip()
             try:
-                catalog_limit = parse_limit(params, default=200, maximum=1000)
+                catalog_limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 payload = build_data_symbol_diagnostic(
                     raw_symbol,
                     data_roots=self.data_roots,
@@ -7591,7 +7673,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 scan_limit = parse_int_param(params, "scan_limit", default=5000, maximum=50000)
                 payload = build_data_storage_audit(
                     self.data_roots,
@@ -7607,7 +7694,12 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
-                catalog_limit = parse_int_param(params, "catalog_limit", default=200, maximum=1000)
+                catalog_limit = parse_int_param(
+                    params,
+                    "catalog_limit",
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
                 scan_limit = parse_int_param(params, "scan_limit", default=5000, maximum=50000)
                 csv_body = build_data_storage_audit_csv(
                     self.data_roots,
@@ -7726,6 +7818,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                 self.state_dir,
                 data_roots=self.data_roots,
                 dashboard_dir=self.dashboard_dir,
+                data_catalog_default_limit=self.data_catalog_default_limit,
+                data_catalog_max_limit=self.data_catalog_max_limit,
             )
             json_response(self, 200, payload)
             return
@@ -7738,6 +7832,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                 dashboard_dir=self.dashboard_dir,
                 fetch_manifest_roots=self.fetch_manifest_roots,
                 plugin_registry_paths=self.plugin_registry_paths,
+                data_catalog_default_limit=self.data_catalog_default_limit,
+                data_catalog_max_limit=self.data_catalog_max_limit,
             )
             download_text_response(
                 self,
@@ -7989,12 +8085,21 @@ def create_server(
     data_roots: list[Path] | None = None,
     fetch_manifest_roots: list[Path] | None = None,
     plugin_registry_paths: list[Path] | None = None,
+    data_catalog_default_limit: int = DEFAULT_DATA_CATALOG_LIMIT,
+    data_catalog_max_limit: int = DEFAULT_DATA_CATALOG_MAX_LIMIT,
     command_rate_limit: dict[str, Any] | None = None,
     command_scopes: dict[str, Any] | None = None,
     command_audit_signature_env: str | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(StatusHandler):
         pass
+
+    if data_catalog_default_limit < 1:
+        raise ValueError("data_catalog_default_limit must be at least 1")
+    if data_catalog_max_limit < 1:
+        raise ValueError("data_catalog_max_limit must be at least 1")
+    if data_catalog_default_limit > data_catalog_max_limit:
+        raise ValueError("data_catalog_default_limit must be less than or equal to data_catalog_max_limit")
 
     Handler.state_dir = state_dir
     Handler.auth_token_env = auth_token_env
@@ -8004,6 +8109,8 @@ def create_server(
     Handler.data_roots = parse_data_roots(data_roots)
     Handler.fetch_manifest_roots = parse_fetch_manifest_roots(fetch_manifest_roots)
     Handler.plugin_registry_paths = parse_plugin_registry_paths(plugin_registry_paths)
+    Handler.data_catalog_default_limit = data_catalog_default_limit
+    Handler.data_catalog_max_limit = data_catalog_max_limit
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     Handler.command_scopes = normalize_command_scope_policy(command_scopes)
     Handler.command_audit_signature_env = command_audit_signature_env
@@ -8072,6 +8179,8 @@ def main() -> None:
         data_roots=settings["data_roots"],
         fetch_manifest_roots=settings["fetch_manifest_roots"],
         plugin_registry_paths=settings["plugin_registry_paths"],
+        data_catalog_default_limit=settings["data_catalog"]["default_limit"],
+        data_catalog_max_limit=settings["data_catalog"]["max_limit"],
         command_rate_limit=settings["command_rate_limit"],
         command_scopes=settings["command_scopes"],
         command_audit_signature_env=settings["command_audit_signature_env"],

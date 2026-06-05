@@ -1676,6 +1676,61 @@ def test_cloud_status_server_marks_crypto_calendar_gaps_as_24_7(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_uses_configured_data_catalog_limits(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for index in range(6):
+        (data_root / f"T{index}_1min_sample.csv").write_text(
+            "\n".join(
+                [
+                    "timestamp,open,high,low,close,volume",
+                    f"2026-01-02T14:3{index}:00Z,100,101,99,100.5,1000",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        data_roots=[data_root],
+        data_catalog_default_limit=3,
+        data_catalog_max_limit=6,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/workbench_diagnostics", timeout=5) as resp:
+            diagnostics = json.loads(resp.read().decode("utf-8"))
+        assert diagnostics["data_catalog"] == {"default_limit": 3, "max_limit": 6}
+
+        with request.urlopen(f"{base}/data_catalog?preview_points=2", timeout=5) as resp:
+            default_payload = json.loads(resp.read().decode("utf-8"))
+        assert default_payload["limit"] == 3
+        assert default_payload["default_limit"] == 3
+        assert default_payload["max_limit"] == 6
+        assert default_payload["count"] == 3
+        assert default_payload["root_summaries"][0]["scan_capped"] is True
+
+        with request.urlopen(f"{base}/data_catalog_export?limit=6", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert len(exported) == 6
+
+        try:
+            request.urlopen(f"{base}/data_catalog?limit=7&preview_points=2", timeout=5)
+            raise AssertionError("expected limit rejection")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "limit must be between 1 and 6"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
     pytest.importorskip("pyarrow")
     data_root = tmp_path / "history"

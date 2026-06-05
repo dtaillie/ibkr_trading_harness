@@ -219,6 +219,40 @@ function qualityBadge(status, warnings = []) {
   return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
+function dataCatalogSettings() {
+  const diagnostics = state.diagnostics || {};
+  const catalog = state.dataCatalog || {};
+  const settings = diagnostics.data_catalog || catalog || {};
+  const defaultLimit = Number(settings.default_limit || catalog.default_limit || catalog.limit || 200);
+  const maxLimit = Number(settings.max_limit || catalog.max_limit || 1000);
+  return {
+    defaultLimit: Number.isFinite(defaultLimit) && defaultLimit > 0 ? Math.floor(defaultLimit) : 200,
+    maxLimit: Number.isFinite(maxLimit) && maxLimit > 0 ? Math.floor(maxLimit) : 1000,
+  };
+}
+
+function syncDataCatalogLimitControl() {
+  const select = $("data-catalog-limit");
+  if (!select) return;
+  const settings = dataCatalogSettings();
+  const maxLimit = Math.max(settings.defaultLimit, settings.maxLimit);
+  const current = Number(select.value || 0);
+  const selected = current > 0 && current <= maxLimit ? current : settings.defaultLimit;
+  const candidates = [50, 100, 200, 500, 1000, settings.defaultLimit, maxLimit]
+    .filter((value) => value > 0 && value <= maxLimit);
+  const unique = Array.from(new Set(candidates)).sort((a, b) => a - b);
+  select.innerHTML = unique.map((value) => (
+    `<option value="${value}"${value === selected ? " selected" : ""}>${numberText(value, 0)}</option>`
+  )).join("");
+  select.value = String(selected);
+  $("data-catalog-limit-note").textContent = `Configured default ${numberText(settings.defaultLimit, 0)}, max ${numberText(maxLimit, 0)}`;
+}
+
+function selectedDataCatalogLimit() {
+  syncDataCatalogLimitControl();
+  return $("data-catalog-limit").value || String(dataCatalogSettings().defaultLimit);
+}
+
 function availableViews() {
   return Array.from(document.querySelectorAll(".dashboard-section"))
     .map((section) => section.dataset.view)
@@ -3606,6 +3640,7 @@ function renderDataLibrarySummary() {
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
   const rootConfigPaths = dataRootConfigPaths();
   const catalogCount = Number(catalog.count || 0);
+  syncDataCatalogLimitControl();
   const catalogLimit = Number(catalog.limit || $("data-catalog-limit").value || 0);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const timestampRange = timestampRangeFromDatasets(datasets);
@@ -7498,7 +7533,10 @@ async function refresh() {
   const nodeId = encodeURIComponent(node || status.node_id || "");
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const remoteNodes = await fetchJson("/remote_nodes?limit=100");
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const diagnostics = await fetchJson("/workbench_diagnostics");
+  state.diagnostics = diagnostics || {};
+  syncDataCatalogLimitControl();
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
@@ -7508,7 +7546,6 @@ async function refresh() {
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
-  const diagnostics = await fetchJson("/workbench_diagnostics");
   const endpointMap = await fetchJson("/workbench_endpoints");
   const configOptions = await fetchJson("/config_options");
   const configDrafts = await fetchJson("/config_drafts");
@@ -7530,7 +7567,6 @@ async function refresh() {
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
-  state.diagnostics = diagnostics || {};
   state.endpointMap = endpointMap || { endpoints: [] };
   state.configOptions = configOptions || { plugins: [], modes: [], defaults: {} };
   state.configDrafts = configDrafts || { drafts: [], errors: [] };
@@ -7748,7 +7784,7 @@ async function diagnoseDataSymbol(event) {
     $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">Enter a symbol</span>`;
     return;
   }
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const response = await fetchJson(`/data_symbol_diagnostic?symbol=${encodeURIComponent(symbol)}&limit=${catalogLimit}`);
   state.symbolDiagnostic = response;
   renderSymbolDiagnostic();
@@ -8026,7 +8062,7 @@ async function downloadCommandAuditCsv() {
 }
 
 async function downloadDataCatalogCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -8075,7 +8111,7 @@ async function downloadFetchDetailCsv() {
 }
 
 async function downloadDataCatalogScanCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_catalog_scan_export?limit=${catalogLimit}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -8090,7 +8126,7 @@ async function downloadDataCatalogScanCsv() {
 }
 
 async function downloadDataStorageAuditCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
   const body = await fetchText(`/data_storage_audit_export?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -8106,7 +8142,7 @@ async function downloadDataStorageAuditCsv() {
 }
 
 async function downloadDataCoverageCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_coverage_export?limit=${catalogLimit}&max_symbols=500&max_dates=366`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -8121,7 +8157,7 @@ async function downloadDataCoverageCsv() {
 }
 
 async function downloadDataGapSummaryCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_gap_summary_export?catalog_limit=${catalogLimit}&top_limit=100`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -8136,7 +8172,7 @@ async function downloadDataGapSummaryCsv() {
 }
 
 async function downloadDataMinuteHeatmapCsv() {
-  const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_minute_heatmap_export?catalog_limit=${catalogLimit}&top_limit=100`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

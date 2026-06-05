@@ -74,6 +74,11 @@ dashboard:
       - read_only
       - control
     allowed_actions: []
+  data_catalog:
+    # Rows/files to inspect on the first Data Library refresh.
+    default_limit: 200
+    # Upper bound allowed by Data Library scans and exports.
+    max_limit: 1000
   # Optional tamper-evident audit signing. Set this to an environment variable
   # that contains an HMAC secret; never commit the secret value.
   # command_audit_signature_env: TRADING_COMMAND_AUDIT_HMAC_KEY
