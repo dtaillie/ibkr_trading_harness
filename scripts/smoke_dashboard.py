@@ -294,6 +294,7 @@ def run_smoke(
             "data-symbol-candidates-body",
             "data-detail-form",
             "data-detail-viewer-note",
+            "data-detail-chart-style",
             "data-detail-timezone",
             "copy-data-path",
             "copy-data-root-flag",

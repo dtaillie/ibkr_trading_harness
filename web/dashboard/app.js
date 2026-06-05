@@ -1485,6 +1485,68 @@ function detailChart(points, timezoneMode = "utc") {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price and volume"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
+function candlestickChart(points, timezoneMode = "utc") {
+  if (!points || points.length < 2) return detailChart(points, timezoneMode);
+  const rows = points.map((point) => ({
+    timestamp: point.timestamp,
+    open: Number(point.open),
+    high: Number(point.high),
+    low: Number(point.low),
+    close: Number(point.close),
+    volume: Number(point.volume),
+  })).filter((point) => (
+    point.timestamp
+    && Number.isFinite(point.open)
+    && Number.isFinite(point.high)
+    && Number.isFinite(point.low)
+    && Number.isFinite(point.close)
+  ));
+  if (rows.length < 2) return detailChart(points, timezoneMode);
+  const lows = rows.map((point) => point.low);
+  const highs = rows.map((point) => point.high);
+  const min = Math.min(...lows);
+  const max = Math.max(...highs);
+  const width = 720;
+  const priceHeight = 170;
+  const volumeHeight = rows.some((point) => Number.isFinite(point.volume)) ? 44 : 0;
+  const volumeGap = volumeHeight ? 16 : 0;
+  const height = priceHeight + volumeGap + volumeHeight;
+  const span = max - min || 1;
+  const xStep = rows.length === 1 ? width : width / (rows.length - 1);
+  const candleWidth = Math.max(2, Math.min(10, xStep * 0.55));
+  const yFor = (value) => priceHeight - ((value - min) / span) * priceHeight;
+  const candles = rows.map((point, index) => {
+    const x = rows.length === 1 ? width / 2 : index * xStep;
+    const openY = yFor(point.open);
+    const closeY = yFor(point.close);
+    const highY = yFor(point.high);
+    const lowY = yFor(point.low);
+    const top = Math.min(openY, closeY);
+    const bodyHeight = Math.max(1, Math.abs(openY - closeY));
+    const cls = point.close >= point.open ? "candle-good" : "candle-bad";
+    const label = `${formatTimestampForMode(point.timestamp, timezoneMode)} O ${numberText(point.open)} H ${numberText(point.high)} L ${numberText(point.low)} C ${numberText(point.close)}`;
+    return `<g class="${cls}"><line class="candle-wick" x1="${x.toFixed(1)}" y1="${highY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${lowY.toFixed(1)}"><title>${escapeHtml(label)}</title></line><rect class="candle-body" x="${(x - candleWidth / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${candleWidth.toFixed(1)}" height="${bodyHeight.toFixed(1)}"><title>${escapeHtml(label)}</title></rect></g>`;
+  }).join("");
+  let volumeBars = "";
+  const volumes = rows.map((point) => point.volume).filter((value) => Number.isFinite(value));
+  if (volumes.length) {
+    const maxVolume = Math.max(...volumes, 1);
+    const barWidth = Math.max(1, width / rows.length);
+    const baseY = priceHeight + volumeGap;
+    volumeBars = rows.map((point, index) => {
+      if (!Number.isFinite(point.volume)) return "";
+      const x = index * (width / rows.length);
+      const barHeight = Math.max(1, (point.volume / maxVolume) * volumeHeight);
+      const y = baseY + volumeHeight - barHeight;
+      return `<rect class="volume-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"><title>${escapeHtml(formatTimestampForMode(point.timestamp, timezoneMode))} volume ${escapeHtml(numberText(point.volume, 0))}</title></rect>`;
+    }).join("");
+  }
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const caption = `${formatTimestampForMode(first.timestamp, timezoneMode)} close ${numberText(first.close)} | ${formatTimestampForMode(last.timestamp, timezoneMode)} close ${numberText(last.close)}`;
+  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data candlestick and volume">${candles}${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
+}
+
 function compareChart(series, timezoneMode = "utc") {
   const rows = (series || []).map((item) => ({
     symbol: item.symbol,
@@ -2235,6 +2297,7 @@ function renderDataDetail() {
   const volume = detail.volume_stats || {};
   const viewer = detail.viewer || {};
   const timezoneMode = $("data-detail-timezone").value || "utc";
+  const chartStyle = $("data-detail-chart-style").value || "candles";
   $("data-detail-title").textContent = detail.path
     ? `${text(detail.symbol)} ${text(detail.bar_size)} - ${text(detail.path)}`
     : "No dataset selected";
@@ -2269,7 +2332,9 @@ function renderDataDetail() {
   $("data-detail-summary").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
-  $("data-detail-chart").innerHTML = detailChart(detail.preview || [], timezoneMode);
+  $("data-detail-chart").innerHTML = chartStyle === "line"
+    ? detailChart(detail.preview || [], timezoneMode)
+    : candlestickChart(detail.preview || [], timezoneMode);
 
   const nullCounts = quality.null_counts || {};
   $("data-quality-body").innerHTML = Object.keys(nullCounts).length
@@ -4009,6 +4074,7 @@ function init() {
   $("config-end-date").addEventListener("change", renderWorkbenchGuide);
   $("config-plugin").addEventListener("change", renderConfigPluginBoundary);
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
+  $("data-detail-chart-style").addEventListener("change", renderDataDetail);
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {

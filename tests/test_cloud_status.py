@@ -556,6 +556,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
         assert "data-detail-viewer-note" in html
+        assert "data-detail-chart-style" in html
         assert "data-detail-timezone" in html
         assert "data-compare-timezone" in html
         assert "copy-data-path" in html
@@ -1402,6 +1403,9 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["source"] == "file"
         assert detail["rows"] == 4
         assert detail["column_map"]["close"] == "close"
+        assert detail["preview"][0]["open"] == 100.0
+        assert detail["preview"][0]["high"] == 101.0
+        assert detail["preview"][0]["low"] == 99.0
         assert detail["coverage"]["median_interval_seconds"] == 300.0
         assert detail["coverage"]["largest_gap_seconds"] == 900.0
         assert detail["coverage"]["estimated_missing_intervals"] == 2

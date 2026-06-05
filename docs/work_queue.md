@@ -351,6 +351,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   - line/candlestick chart for saved files
     - partial; saved files now have a range-filtered close-price chart,
       candlesticks remain open
+    - partial; Data Detail now supports a candlestick chart mode when saved
+      files expose OHLC columns, with close-line fallback for close-only files.
   - volume chart
     - done for the sampled Data Detail viewer when volume exists
   - selectable date range

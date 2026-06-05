@@ -1032,6 +1032,25 @@ tr:last-child td {
   opacity: 0.7;
 }
 
+.candle-wick {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.candle-body {
+  fill: currentColor;
+  opacity: 0.86;
+}
+
+.candle-good {
+  color: var(--good);
+}
+
+.candle-bad {
+  color: var(--bad);
+}
+
 .calendar-scroll {
   overflow-x: auto;
   padding-bottom: 6px;
