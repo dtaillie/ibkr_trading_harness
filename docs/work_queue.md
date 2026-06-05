@@ -107,6 +107,10 @@ strategy-private.
     - partial; current equity, cash, exposure, and open positions are shown
       when account artifacts or telemetry publish them. Realized/unrealized PnL
       still needs richer account/position telemetry.
+    - partial; simulated-paper account artifacts now publish realized PnL,
+      unrealized PnL, total PnL, total commission, and average costs, and the
+      Overview/Performance pages display realized/unrealized PnL when those
+      fields are available.
   - today's return, week/month return, cumulative paper return
     - partial; cumulative/latest artifact return is available in Performance,
       period-specific live paper summaries are not implemented
@@ -670,6 +674,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - borrow constraints
   - commission schedules
   - slippage models
+  - partial; simulated-paper fills/account snapshots now track average cost,
+    realized PnL, unrealized PnL, total PnL, and total commission using the
+    configured simulated slippage/commission fields. Borrow constraints and
+    richer commission/slippage schedules remain open.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins.

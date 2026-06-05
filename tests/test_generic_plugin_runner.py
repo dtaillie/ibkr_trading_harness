@@ -203,7 +203,84 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[0]["cash"] == pytest.approx(9000.0)
     assert account[0]["equity"] == pytest.approx(10000.0)
+    assert account[0]["average_costs"]["SPY"] == pytest.approx(100.0)
+    assert account[0]["unrealized_pnl"] == pytest.approx(0.0)
+    assert account[-1]["unrealized_pnl"] == pytest.approx(20.0)
+    assert account[-1]["total_pnl"] == pytest.approx(20.0)
     assert account[-1]["position_values"]["SPY"] == pytest.approx(1020.0)
+
+
+def test_simulated_paper_tracks_realized_pnl_and_average_cost(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.round_trip_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 10},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.decisions == 3
+    assert result.orders == 2
+    assert result.fills == 2
+    assert result.final_positions == {}
+    assert result.final_cash == pytest.approx(10020.0)
+    assert result.final_equity == pytest.approx(10020.0)
+    assert result.realized_pnl == pytest.approx(20.0)
+    assert result.unrealized_pnl == pytest.approx(0.0)
+    assert result.total_pnl == pytest.approx(20.0)
+    assert result.total_commission == pytest.approx(0.0)
+
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["realized_pnl"] == pytest.approx(0.0)
+    assert fills[0]["average_cost_after"] == pytest.approx(100.0)
+    assert fills[1]["realized_pnl"] == pytest.approx(20.0)
+    assert fills[1]["cumulative_realized_pnl"] == pytest.approx(20.0)
+    assert fills[1]["average_cost_after"] is None
+
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[0]["average_costs"]["SPY"] == pytest.approx(100.0)
+    assert account[1]["unrealized_pnl_by_symbol"]["SPY"] == pytest.approx(10.0)
+    assert account[-1]["positions"] == {}
+    assert account[-1]["average_costs"] == {}
+    assert account[-1]["realized_pnl"] == pytest.approx(20.0)
+    assert account[-1]["unrealized_pnl"] == pytest.approx(0.0)
+    assert account[-1]["total_pnl"] == pytest.approx(20.0)
+
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["realized_pnl"] == pytest.approx(20.0)
+    assert summary["unrealized_pnl"] == pytest.approx(0.0)
+    assert summary["total_pnl"] == pytest.approx(20.0)
+
+
+def test_simulated_paper_average_cost_includes_opening_commission(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 10, "cash_quantity": None},
+        execution={"sim_commission_bps": 10},
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.total_commission == pytest.approx(1.0)
+    assert result.unrealized_pnl == pytest.approx(19.0)
+    assert result.total_pnl == pytest.approx(19.0)
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[0]["average_costs"]["SPY"] == pytest.approx(100.1)
+    assert account[-1]["unrealized_pnl"] == pytest.approx(19.0)
+    assert account[-1]["total_commission"] == pytest.approx(1.0)
 
 
 def test_paper_mode_requires_explicit_confirmation(tmp_path):

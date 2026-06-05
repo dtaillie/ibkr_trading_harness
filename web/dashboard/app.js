@@ -1102,6 +1102,8 @@ function renderOverview() {
   const latestAccount = latestAccountRow(accountRows);
   const equity = perf.final_equity ?? summary.final_equity ?? runMetrics.final_equity;
   const cash = latestAccount.cash ?? summary.final_cash ?? runMetrics.final_cash;
+  const realizedPnl = latestAccount.realized_pnl ?? perf.realized_pnl ?? summary.realized_pnl ?? runMetrics.realized_pnl;
+  const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl ?? runMetrics.unrealized_pnl;
   const mode = perf.mode ?? summary.mode ?? runMetrics.mode;
   const todayWindow = performancePeriodWindow(accountRows, "today");
   const weekWindow = performancePeriodWindow(accountRows, "week");
@@ -1131,6 +1133,10 @@ function renderOverview() {
     ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}`
     : "n/a";
   $("overview-cash").textContent = money(cash);
+  $("overview-realized-pnl").textContent = money(realizedPnl);
+  $("overview-realized-pnl").className = statusClass(realizedPnl == null ? "" : Number(realizedPnl) >= 0 ? "ok" : "bad");
+  $("overview-unrealized-pnl").textContent = money(unrealizedPnl);
+  $("overview-unrealized-pnl").className = statusClass(unrealizedPnl == null ? "" : Number(unrealizedPnl) >= 0 ? "ok" : "bad");
   $("overview-today-return").textContent = pctText(todayPerf.total_return_pct);
   $("overview-today-return").className = statusClass(
     todayPerf.total_return_pct == null ? "" : todayPerf.total_return_pct >= 0 ? "ok" : "bad",
@@ -1288,6 +1294,10 @@ function renderPerformance() {
   const fillCount = summary.fills ?? (source.fills || []).length;
   const rejections = summary.rejections ?? summary.rejects ?? 0;
   const elapsedDays = periodPerf.elapsed_days ?? (period === "all" ? (perf.elapsed_days ?? summary.elapsed_days) : null);
+  const realizedPnl = latestAccount.realized_pnl ?? perf.realized_pnl ?? summary.realized_pnl;
+  const unrealizedPnl = latestAccount.unrealized_pnl ?? perf.unrealized_pnl ?? summary.unrealized_pnl;
+  const totalPnl = latestAccount.total_pnl ?? perf.total_pnl ?? summary.total_pnl;
+  const totalCommission = latestAccount.total_commission ?? perf.total_commission ?? summary.total_commission;
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   $("performance-equity").textContent = money(equity);
   $("performance-context").textContent = accountRows.length
@@ -1324,6 +1334,8 @@ function renderPerformance() {
     ["Selected Window", `${window.label}; ${accountRows.length ? `${numberText(accountRows.length, 0)} account snapshots` : "no account snapshots"}`],
     ["Elapsed", elapsedDays !== null && elapsedDays !== undefined ? `${numberText(elapsedDays, 4)} days` : "n/a"],
     ["Turnover Basis", `${money(turnover.notional)} filled notional${turnover.pct !== null ? ` / ${money(initialEquity)} initial equity` : "; initial equity unavailable"}`],
+    ["Accounting PnL", `Realized ${money(realizedPnl)} / Unrealized ${money(unrealizedPnl)} / Total ${money(totalPnl)}`],
+    ["Total Commission", money(totalCommission)],
     ["Projection Caveat", projectionCaveat(periodPerf, summary, elapsedDays)],
     ["Annualized Scale", `Day ${pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null))} / Month ${pctText(periodPerf.return_per_month_pct ?? (period === "all" ? summary.return_per_month_pct : null))} / Year ${pctText(periodPerf.return_per_year_pct ?? (period === "all" ? summary.return_per_year_pct : null))}`],
   ];
@@ -3321,6 +3333,10 @@ function renderWorkbenchArtifacts() {
     ["Initial Equity", money(performance.initial_equity)],
     ["Final Cash", money(summary.final_cash)],
     ["Final Equity", money(performance.final_equity ?? summary.final_equity)],
+    ["Realized PnL", money(performance.realized_pnl ?? summary.realized_pnl)],
+    ["Unrealized PnL", money(performance.unrealized_pnl ?? summary.unrealized_pnl)],
+    ["Total PnL", money(performance.total_pnl ?? summary.total_pnl)],
+    ["Total Commission", money(performance.total_commission ?? summary.total_commission)],
     ["Return", pctText(performance.total_return_pct)],
     ["Max Drawdown", pctText(performance.max_drawdown_pct)],
     ["Elapsed Days", numberText(performance.elapsed_days, 4)],

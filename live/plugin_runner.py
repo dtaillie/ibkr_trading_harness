@@ -68,6 +68,10 @@ class RunnerResult:
     max_abs_net_exposure: float | None = None
     max_abs_net_exposure_pct: float | None = None
     max_position_count: int = 0
+    realized_pnl: float | None = None
+    unrealized_pnl: float | None = None
+    total_pnl: float | None = None
+    total_commission: float | None = None
 
 
 class ConfigValidationError(ValueError):
@@ -546,6 +550,7 @@ def account_snapshot_record(
     equity: float | None,
     positions: dict[str, float],
     prices: dict[str, float],
+    accounting: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     position_values = {
         symbol: float(qty) * float(prices.get(symbol, 0.0))
@@ -553,7 +558,7 @@ def account_snapshot_record(
     }
     gross_exposure = sum(abs(value) for value in position_values.values())
     net_exposure = sum(position_values.values())
-    return {
+    record = {
         "timestamp": now,
         "step": step,
         "mode": mode,
@@ -564,6 +569,18 @@ def account_snapshot_record(
         "gross_exposure": finite_float(gross_exposure),
         "net_exposure": finite_float(net_exposure),
     }
+    if accounting:
+        average_costs = accounting.get("average_costs") if isinstance(accounting.get("average_costs"), dict) else {}
+        unrealized_by_symbol = accounting.get("unrealized_pnl_by_symbol") if isinstance(accounting.get("unrealized_pnl_by_symbol"), dict) else {}
+        record.update({
+            "average_costs": {symbol: finite_float(value) for symbol, value in average_costs.items()},
+            "realized_pnl": finite_float(accounting.get("realized_pnl")),
+            "unrealized_pnl": finite_float(accounting.get("unrealized_pnl")),
+            "unrealized_pnl_by_symbol": {symbol: finite_float(value) for symbol, value in unrealized_by_symbol.items()},
+            "total_pnl": finite_float(accounting.get("total_pnl")),
+            "total_commission": finite_float(accounting.get("total_commission")),
+        })
+    return record
 
 
 def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -583,6 +600,7 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
     net_values = [value for value in net_values if value is not None]
     max_gross_exposure = max(gross_values) if gross_values else None
     max_abs_net_exposure = max((abs(value) for value in net_values), default=None)
+    latest_accounting = records[-1] if records else {}
     max_position_count = 0
     for row in records:
         positions = row.get("positions")
@@ -608,6 +626,10 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
             "max_abs_net_exposure": max_abs_net_exposure,
             "max_abs_net_exposure_pct": None,
             "max_position_count": max_position_count,
+            "realized_pnl": finite_float(latest_accounting.get("realized_pnl")),
+            "unrealized_pnl": finite_float(latest_accounting.get("unrealized_pnl")),
+            "total_pnl": finite_float(latest_accounting.get("total_pnl")),
+            "total_commission": finite_float(latest_accounting.get("total_commission")),
         }
     initial = equity_values[0]
     final = equity_values[-1]
@@ -651,6 +673,10 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "max_abs_net_exposure": finite_float(max_abs_net_exposure),
         "max_abs_net_exposure_pct": finite_float((max_abs_net_exposure / initial) * 100.0) if initial and max_abs_net_exposure is not None else None,
         "max_position_count": max_position_count,
+        "realized_pnl": finite_float(latest_accounting.get("realized_pnl")),
+        "unrealized_pnl": finite_float(latest_accounting.get("unrealized_pnl")),
+        "total_pnl": finite_float(latest_accounting.get("total_pnl")),
+        "total_commission": finite_float(latest_accounting.get("total_commission")),
     }
 
 
@@ -658,12 +684,98 @@ class SimulatedExecutor:
     def __init__(self, cash: float, execution_cfg: dict[str, Any]):
         self.cash = float(cash)
         self.positions: dict[str, float] = {}
+        self.average_costs: dict[str, float] = {}
+        self.realized_pnl = 0.0
+        self.total_commission = 0.0
         self.allow_short = bool(execution_cfg.get("allow_short", False))
         self.slippage_bps = float(execution_cfg.get("sim_slippage_bps", 0.0))
         self.commission_bps = float(execution_cfg.get("sim_commission_bps", 0.0))
 
     def equity(self, prices: dict[str, float]) -> float:
         return self.cash + sum(qty * prices.get(symbol, 0.0) for symbol, qty in self.positions.items())
+
+    def unrealized_pnl_by_symbol(self, prices: dict[str, float]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for symbol, qty in self.positions.items():
+            price = prices.get(symbol)
+            avg_cost = self.average_costs.get(symbol)
+            if price is None or avg_cost is None:
+                continue
+            if qty > 0:
+                out[symbol] = (float(price) - avg_cost) * qty
+            elif qty < 0:
+                out[symbol] = (avg_cost - float(price)) * abs(qty)
+        return out
+
+    def accounting_snapshot(self, prices: dict[str, float]) -> dict[str, Any]:
+        unrealized_by_symbol = self.unrealized_pnl_by_symbol(prices)
+        unrealized = sum(unrealized_by_symbol.values())
+        return {
+            "average_costs": dict(self.average_costs),
+            "realized_pnl": self.realized_pnl,
+            "unrealized_pnl": unrealized,
+            "unrealized_pnl_by_symbol": unrealized_by_symbol,
+            "total_pnl": self.realized_pnl + unrealized,
+            "total_commission": self.total_commission,
+        }
+
+    @staticmethod
+    def opening_average_cost(side_sign: float, fill_price: float, quantity: float, commission: float) -> float:
+        if quantity <= 0:
+            return fill_price
+        if side_sign >= 0:
+            return fill_price + commission / quantity
+        return fill_price - commission / quantity
+
+    def apply_accounting(
+        self,
+        *,
+        symbol: str,
+        old_qty: float,
+        delta_qty: float,
+        fill_price: float,
+        commission: float,
+    ) -> float:
+        self.total_commission += commission
+        old_avg = self.average_costs.get(symbol, fill_price)
+        if abs(old_qty) < 1e-9:
+            self.average_costs[symbol] = self.opening_average_cost(delta_qty, fill_price, abs(delta_qty), commission)
+            return 0.0
+
+        if old_qty * delta_qty > 0:
+            old_abs = abs(old_qty)
+            add_abs = abs(delta_qty)
+            new_abs = old_abs + add_abs
+            self.average_costs[symbol] = (
+                old_abs * old_avg
+                + add_abs * fill_price
+                + (commission if delta_qty > 0 else -commission)
+            ) / new_abs
+            return 0.0
+
+        close_qty = min(abs(old_qty), abs(delta_qty))
+        commission_for_close = commission * (close_qty / abs(delta_qty)) if abs(delta_qty) > 0 else 0.0
+        if old_qty > 0:
+            realized = (fill_price - old_avg) * close_qty - commission_for_close
+        else:
+            realized = (old_avg - fill_price) * close_qty - commission_for_close
+        self.realized_pnl += realized
+
+        remaining_open_qty = abs(delta_qty) - close_qty
+        new_qty = old_qty + delta_qty
+        if abs(new_qty) < 1e-9:
+            self.average_costs.pop(symbol, None)
+        elif old_qty * new_qty > 0:
+            self.average_costs[symbol] = old_avg
+        elif remaining_open_qty > 1e-9:
+            leftover_commission = commission - commission_for_close
+            self.average_costs[symbol] = self.opening_average_cost(
+                new_qty,
+                fill_price,
+                remaining_open_qty,
+                leftover_commission,
+            )
+        return realized
 
     def execute(self, intent: OrderIntent, price: float, now: pd.Timestamp) -> tuple[dict[str, Any] | None, str | None]:
         side = intent.side.lower()
@@ -688,6 +800,7 @@ class SimulatedExecutor:
         notional = quantity * fill_price
         commission = notional * self.commission_bps / 10000.0
         current_qty = self.positions.get(intent.symbol, 0.0)
+        delta_qty = quantity if side == "buy" else -quantity
 
         if side == "buy":
             if notional + commission > self.cash + 1e-9:
@@ -703,6 +816,14 @@ class SimulatedExecutor:
                 self.positions.pop(intent.symbol, None)
             else:
                 self.positions[intent.symbol] = new_qty
+        realized = self.apply_accounting(
+            symbol=intent.symbol,
+            old_qty=current_qty,
+            delta_qty=delta_qty,
+            fill_price=fill_price,
+            commission=commission,
+        )
+        avg_after = self.average_costs.get(intent.symbol)
 
         return {
             "timestamp": now,
@@ -711,6 +832,9 @@ class SimulatedExecutor:
             "quantity": quantity,
             "price": fill_price,
             "commission": commission,
+            "realized_pnl": realized,
+            "cumulative_realized_pnl": self.realized_pnl,
+            "average_cost_after": avg_after,
             "tag": intent.tag,
             "simulated": True,
         }, None
@@ -1025,6 +1149,7 @@ def run_from_config(
                     equity=account_equity,
                     positions=account_positions,
                     prices=final_prices,
+                    accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
                 )
                 account_records.append(account_record)
                 append_jsonl(output_dir / "account.jsonl", account_record)
@@ -1168,6 +1293,7 @@ def run_from_config(
                 equity=float(equity) if equity is not None else None,
                 positions=positions,
                 prices=final_prices,
+                accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
             )
             account_records.append(account_record)
             append_jsonl(output_dir / "account.jsonl", account_record)
@@ -1223,6 +1349,10 @@ def run_from_config(
         max_abs_net_exposure=perf["max_abs_net_exposure"],
         max_abs_net_exposure_pct=perf["max_abs_net_exposure_pct"],
         max_position_count=int(perf["max_position_count"]),
+        realized_pnl=perf["realized_pnl"],
+        unrealized_pnl=perf["unrealized_pnl"],
+        total_pnl=perf["total_pnl"],
+        total_commission=perf["total_commission"],
     )
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
