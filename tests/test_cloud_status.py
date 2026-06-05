@@ -2004,12 +2004,12 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
     (data_root / "WARN_1min_sample.csv").write_text(
         "\n".join(
             [
-                "timestamp,close,volume",
-                "2026-01-02T14:30:00Z,100,1000",
-                "not-a-time,,1100",
-                "2026-01-02T14:40:00Z,101,",
-                "2026-01-02T14:40:00Z,101.5,1200",
-                "2026-01-02T15:00:00Z,102,1300",
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100,1000",
+                "not-a-time,100,101,99,,1100",
+                "2026-01-02T14:40:00Z,101,100,102,101,",
+                "2026-01-02T14:40:00Z,101,102,100,101.5,-5",
+                "2026-01-02T15:00:00Z,102,103,101,102,1300",
             ]
         )
         + "\n",
@@ -2041,10 +2041,23 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
         assert any("timestamp parse failures" in item for item in datasets["WARN"]["quality_warnings"])
         assert any("missing close values" in item for item in datasets["WARN"]["quality_warnings"])
         assert any("duplicate timestamps" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("bars with high below low" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("closes outside high/low range" in item for item in datasets["WARN"]["quality_warnings"])
+        assert any("negative volume values" in item for item in datasets["WARN"]["quality_warnings"])
         assert any("estimated missing intervals" in item for item in datasets["WARN"]["quality_warnings"])
+        assert datasets["WARN"]["high_low_inversion_count"] == 1
+        assert datasets["WARN"]["close_outside_high_low_count"] == 1
+        assert datasets["WARN"]["negative_volume_count"] == 1
         assert datasets["BAD"]["quality_status"] == "bad"
         assert "no parseable timestamps" in datasets["BAD"]["quality_warnings"]
         assert "no close/last column found" in datasets["BAD"]["quality_warnings"]
+
+        with request.urlopen(f"{base}/data_detail?path={data_root / 'WARN_1min_sample.csv'}&preview_points=3", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["quality"]["high_low_inversion_count"] == 1
+        assert detail["quality"]["close_outside_high_low_count"] == 1
+        assert detail["quality"]["negative_volume_count"] == 1
+        assert any("negative volume values" in item for item in detail["quality"]["quality_warnings"])
 
         alignment = post_json(
             base,

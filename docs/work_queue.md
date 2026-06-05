@@ -790,7 +790,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       fixture coverage remains open.
   - malformed/skipped files with visible reasons
     - partial; parser failures and unsupported files are covered by catalog
-      scan diagnostics, deeper malformed-minute cases remain open
+      scan diagnostics. Catalog rows and Data Detail now also warn on malformed
+      minute bars with high below low, closes outside high/low, and negative
+      volume; broader multi-session fixture coverage remains open.
 - Add data ingestion acceptance tests:
   - a fixture with hundreds of synthetic symbols must show more than the public
     SPY/QQQ examples
@@ -801,7 +803,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - done
   - parser skip reasons must be returned to the UI, not only logged
     - partial; catalog root summaries and Data Library scan diagnostics expose
-      parser error counts/sample errors and unsupported-file counts
+      parser error counts/sample errors and unsupported-file counts. Catalog
+      quality warnings now also expose malformed OHLC/volume minute-bar counts
+      that do not throw parser exceptions.
   - catalog limits must be visible and user-adjustable through config
     - done; `dashboard.data_catalog.default_limit` and `max_limit` control the
       first Data Library scan and request bounds. Workbench diagnostics and

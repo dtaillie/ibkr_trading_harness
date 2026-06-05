@@ -1686,6 +1686,31 @@ def volume_column(df: pd.DataFrame) -> str | None:
     return lower_map.get("volume")
 
 
+def bar_integrity_counts(df: pd.DataFrame) -> dict[str, int]:
+    high_col = column_named(df, "high")
+    low_col = column_named(df, "low")
+    close_col = close_column(df)
+    volume_col = volume_column(df)
+    counts = {
+        "high_low_inversion_count": 0,
+        "close_outside_high_low_count": 0,
+        "negative_volume_count": 0,
+    }
+    if high_col and low_col:
+        high = pd.to_numeric(df[high_col], errors="coerce")
+        low = pd.to_numeric(df[low_col], errors="coerce")
+        valid_range = high.notna() & low.notna()
+        counts["high_low_inversion_count"] = int((valid_range & (high < low)).sum())
+        if close_col:
+            close = pd.to_numeric(df[close_col], errors="coerce")
+            valid_close = valid_range & close.notna()
+            counts["close_outside_high_low_count"] = int((valid_close & ((close > high) | (close < low))).sum())
+    if volume_col:
+        volume = pd.to_numeric(df[volume_col], errors="coerce")
+        counts["negative_volume_count"] = int((volume.notna() & (volume < 0)).sum())
+    return counts
+
+
 def data_quality_summary(
     *,
     rows: int,
@@ -1700,6 +1725,9 @@ def data_quality_summary(
     close_missing: int | None,
     volume_column_name: str | None,
     volume_missing: int | None,
+    high_low_inversion_count: int = 0,
+    close_outside_high_low_count: int = 0,
+    negative_volume_count: int = 0,
 ) -> dict[str, Any]:
     blockers = []
     warnings = []
@@ -1717,6 +1745,10 @@ def data_quality_summary(
         warnings.append(f"{close_missing} missing close values")
     if duplicate_timestamps:
         warnings.append(f"{duplicate_timestamps} duplicate timestamps")
+    if high_low_inversion_count:
+        warnings.append(f"{high_low_inversion_count} bars with high below low")
+    if close_outside_high_low_count:
+        warnings.append(f"{close_outside_high_low_count} closes outside high/low range")
     if estimated_missing_intervals:
         warnings.append(f"{estimated_missing_intervals} estimated missing intervals")
     elif (
@@ -1730,6 +1762,8 @@ def data_quality_summary(
         warnings.append("no volume column found")
     elif volume_missing:
         warnings.append(f"{volume_missing} missing volume values")
+    if negative_volume_count:
+        warnings.append(f"{negative_volume_count} negative volume values")
 
     status = "bad" if blockers else "warn" if warnings else "ok"
     all_warnings = blockers + warnings
@@ -1737,6 +1771,9 @@ def data_quality_summary(
         "quality_status": status,
         "quality_warnings": all_warnings,
         "quality_warning_count": len(all_warnings),
+        "high_low_inversion_count": high_low_inversion_count,
+        "close_outside_high_low_count": close_outside_high_low_count,
+        "negative_volume_count": negative_volume_count,
     }
 
 
@@ -1796,6 +1833,7 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         volume_missing = int(pd.to_numeric(df[volume_col], errors="coerce").isna().sum())
     duplicate_timestamps = int(parsed_ts.duplicated().sum()) if not parsed_ts.empty else 0
     timestamp_parse_failures = int(parsed_all.isna().sum()) if raw_ts is not None else None
+    integrity_counts = bar_integrity_counts(df)
     quality = data_quality_summary(
         rows=int(len(df)),
         timestamp_available=raw_ts is not None,
@@ -1809,6 +1847,7 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         close_missing=close_missing,
         volume_column_name=volume_col,
         volume_missing=volume_missing,
+        **integrity_counts,
     )
     preview = []
     if close_col and not parsed_ts.empty:
@@ -4097,6 +4136,7 @@ def build_data_detail(
     volume_missing = int(pd.to_numeric(df[volume_col], errors="coerce").isna().sum()) if volume_col else None
     timestamp_parse_failures = int(parsed_ts.isna().sum()) if raw_ts is not None else None
     duplicate_timestamps = int(parsed_valid.duplicated().sum()) if not parsed_valid.empty else 0
+    integrity_counts = bar_integrity_counts(df)
     quality_summary = data_quality_summary(
         rows=int(len(df)),
         timestamp_available=raw_ts is not None,
@@ -4110,6 +4150,7 @@ def build_data_detail(
         close_missing=close_missing,
         volume_column_name=volume_col,
         volume_missing=volume_missing,
+        **integrity_counts,
     )
     price_stats: dict[str, Any] = {}
     return_stats: dict[str, Any] = {}
