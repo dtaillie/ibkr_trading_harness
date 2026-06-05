@@ -217,6 +217,29 @@ MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
 RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl")
+PUBLIC_DECISION_DRILLDOWN_FIELDS = (
+    "reason",
+    "signal_label",
+    "signal_value",
+    "threshold",
+    "threshold_distance",
+    "threshold_direction",
+    "near_threshold",
+    "near_threshold_reason",
+    "entry_marker",
+    "exit_marker",
+    "expected_hold_minutes",
+    "hold_until",
+    "active_exit_rule",
+    "exit_state",
+    "stop_state",
+    "stop_price",
+    "target_price",
+    "current_price",
+    "entry_price",
+    "mae_pct",
+    "mfe_pct",
+)
 PUBLIC_ENDPOINTS = (
     {
         "method": "GET",
@@ -4224,7 +4247,31 @@ def summarize_decision_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "intent_count": len(intents) if isinstance(intents, list) else 0,
         "paused": bool(diagnostics.get("paused")),
         "symbols": [str(symbol) for symbol in symbols[:25]],
+        "drilldown": sanitize_public_decision_drilldown(diagnostics),
     }
+
+
+def safe_public_drilldown_value(value: Any) -> Any:
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    if isinstance(value, list):
+        safe = [safe_public_drilldown_value(item) for item in value[:10]]
+        return [item for item in safe if item is not None]
+    return None
+
+
+def sanitize_public_decision_drilldown(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    raw = diagnostics.get("dashboard") if isinstance(diagnostics, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for key in PUBLIC_DECISION_DRILLDOWN_FIELDS:
+        if key not in raw:
+            continue
+        value = safe_public_drilldown_value(raw.get(key))
+        if value is not None:
+            out[key] = value
+    return out
 
 
 def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:

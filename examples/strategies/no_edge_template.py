@@ -27,6 +27,16 @@ class NoEdgeTemplateStrategy:
             diagnostics={
                 "symbols_seen": sorted(data),
                 "note": "This public example intentionally emits no orders.",
+                "dashboard": {
+                    "reason": "example_only_no_signal",
+                    "signal_label": "Example score",
+                    "signal_value": 0.0,
+                    "threshold": 1.0,
+                    "threshold_distance": -1.0,
+                    "near_threshold": False,
+                    "expected_hold_minutes": 0,
+                    "active_exit_rule": "none",
+                },
             },
         )
 
@@ -38,4 +48,3 @@ def create_strategy(config: dict[str, Any]) -> NoEdgeTemplateStrategy:
     strategy = NoEdgeTemplateStrategy()
     strategy.on_start(config)
     return strategy
-

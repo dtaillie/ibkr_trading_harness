@@ -182,7 +182,7 @@ def summarize_decision_record(row: dict[str, Any]) -> dict[str, Any]:
     intents = row.get("intents") or []
     diagnostics = row.get("diagnostics") or {}
     signal = row.get("signal") or {}
-    return {
+    record = {
         "timestamp": row.get("timestamp"),
         "step": row.get("step"),
         "mode": row.get("mode"),
@@ -193,6 +193,29 @@ def summarize_decision_record(row: dict[str, Any]) -> dict[str, Any]:
         ),
         "symbols": sorted(diagnostics.get("symbols") or []) if isinstance(diagnostics, dict) else [],
     }
+    dashboard = diagnostics.get("dashboard") if isinstance(diagnostics, dict) else None
+    if isinstance(dashboard, dict):
+        public_keys = {
+            "reason",
+            "signal_label",
+            "signal_value",
+            "threshold",
+            "threshold_distance",
+            "near_threshold",
+            "near_threshold_reason",
+            "expected_hold_minutes",
+            "active_exit_rule",
+            "exit_state",
+            "stop_state",
+            "mae_pct",
+            "mfe_pct",
+        }
+        record["drilldown"] = {
+            key: value
+            for key, value in dashboard.items()
+            if key in public_keys and isinstance(value, bool | int | float | str)
+        }
+    return record
 
 
 def summarize_order_record(row: dict[str, Any]) -> dict[str, Any]:

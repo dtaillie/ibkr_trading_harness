@@ -223,6 +223,11 @@ strategy-private.
   - current stop/exit state
   - MAE/MFE where available
   - recent near-threshold missed signals
+  - partial; public-safe strategy drilldowns now use an explicit
+    `diagnostics.dashboard` allowlist. Run Artifacts render signal label/value,
+    threshold distance, near-threshold state, expected hold, exit/stop state,
+    and MAE/MFE when a plugin publishes those fields. Raw signal and diagnostics
+    payloads remain hidden.
 - Add a Help page and contextual help:
   - first-run checklist
     - done on the Help page

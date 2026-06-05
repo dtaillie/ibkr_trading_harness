@@ -3717,6 +3717,59 @@ function artifactSessionRows(artifacts) {
   });
 }
 
+function strategyDrilldownRows(decisions) {
+  return (decisions || [])
+    .map((decision) => ({
+      timestamp: decision.timestamp,
+      symbols: decision.symbols || [],
+      drilldown: decision.drilldown || {},
+    }))
+    .filter((item) => Object.keys(item.drilldown).length);
+}
+
+function drilldownSignalText(drilldown) {
+  const label = text(drilldown.signal_label || drilldown.reason || "signal");
+  const value = drilldown.signal_value === undefined ? "n/a" : numberText(drilldown.signal_value, 4);
+  return `${label}: ${value}`;
+}
+
+function drilldownThresholdText(drilldown) {
+  const parts = [];
+  if (drilldown.threshold !== undefined) parts.push(`threshold ${numberText(drilldown.threshold, 4)}`);
+  if (drilldown.threshold_distance !== undefined) parts.push(`distance ${numberText(drilldown.threshold_distance, 4)}`);
+  if (drilldown.threshold_direction !== undefined) parts.push(text(drilldown.threshold_direction));
+  return parts.join("; ") || "n/a";
+}
+
+function drilldownHoldText(drilldown) {
+  if (drilldown.hold_until) return text(drilldown.hold_until);
+  if (drilldown.expected_hold_minutes !== undefined) return `${numberText(drilldown.expected_hold_minutes, 0)}m expected`;
+  return "n/a";
+}
+
+function drilldownNearText(drilldown) {
+  const label = drilldown.near_threshold ? "near" : "no";
+  return drilldown.near_threshold_reason ? `${label}: ${text(drilldown.near_threshold_reason)}` : label;
+}
+
+function drilldownExitText(drilldown) {
+  const parts = [];
+  if (drilldown.entry_marker) parts.push(`entry ${text(drilldown.entry_marker)}`);
+  if (drilldown.exit_marker) parts.push(`exit ${text(drilldown.exit_marker)}`);
+  if (drilldown.active_exit_rule) parts.push(`rule ${text(drilldown.active_exit_rule)}`);
+  if (drilldown.exit_state) parts.push(`exit ${text(drilldown.exit_state)}`);
+  if (drilldown.stop_state) parts.push(`stop ${text(drilldown.stop_state)}`);
+  if (drilldown.stop_price !== undefined) parts.push(`stop ${money(drilldown.stop_price)}`);
+  if (drilldown.target_price !== undefined) parts.push(`target ${money(drilldown.target_price)}`);
+  return parts.join("; ") || "n/a";
+}
+
+function drilldownMaeMfeText(drilldown) {
+  const mae = drilldown.mae_pct === undefined ? "n/a" : pctText(drilldown.mae_pct);
+  const mfe = drilldown.mfe_pct === undefined ? "n/a" : pctText(drilldown.mfe_pct);
+  return `${mae} / ${mfe}`;
+}
+
 function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
@@ -3768,6 +3821,25 @@ function renderWorkbenchArtifacts() {
     : row([`<span class="muted">No decisions, orders, fills, or account snapshots in this artifact.</span>`, "", "", "", ""]);
 
   const decisions = artifacts.decisions || [];
+  const drilldowns = strategyDrilldownRows(decisions);
+  $("artifact-drilldown-note").textContent = drilldowns.length
+    ? `${numberText(drilldowns.length, 0)} decision drilldown row${drilldowns.length === 1 ? "" : "s"} from diagnostics.dashboard`
+    : "No public-safe strategy drilldown diagnostics in this artifact";
+  $("artifact-drilldown-body").innerHTML = drilldowns.length
+    ? drilldowns.map((item) => {
+        const drilldown = item.drilldown || {};
+        return row([
+          escapeHtml(item.timestamp),
+          escapeHtml((item.symbols || []).join(", ")),
+          escapeHtml(drilldownSignalText(drilldown)),
+          escapeHtml(drilldownThresholdText(drilldown)),
+          statusText(drilldownNearText(drilldown)),
+          escapeHtml(drilldownHoldText(drilldown)),
+          escapeHtml(drilldownExitText(drilldown)),
+          escapeHtml(drilldownMaeMfeText(drilldown)),
+        ]);
+      }).join("")
+    : row([`<span class="muted">Plugins can publish public-safe fields under diagnostics.dashboard to populate this table.</span>`, "", "", "", "", "", "", ""]);
   $("artifact-decisions-body").innerHTML = decisions.length
     ? decisions.map((decision) => row([
         escapeHtml(decision.timestamp),

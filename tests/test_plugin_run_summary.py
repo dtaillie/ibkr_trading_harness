@@ -135,7 +135,17 @@ def test_summarize_recent_run_events_omits_raw_signal_payload(tmp_path):
                 "step": 2,
                 "mode": "replay",
                 "signal": {"private_score": 456.0},
-                "diagnostics": {"symbols": ["QQQ"], "paused": True},
+                "diagnostics": {
+                    "symbols": ["QQQ"],
+                    "paused": True,
+                    "private_detail": "hidden",
+                    "dashboard": {
+                        "signal_label": "Public score",
+                        "signal_value": 0.5,
+                        "threshold": 1.0,
+                        "unsafe_private_blob": "hidden",
+                    },
+                },
                 "intents": [],
             },
         ],
@@ -164,9 +174,16 @@ def test_summarize_recent_run_events_omits_raw_signal_payload(tmp_path):
             "intents": 0,
             "paused": True,
             "symbols": ["QQQ"],
+            "drilldown": {
+                "signal_label": "Public score",
+                "signal_value": 0.5,
+                "threshold": 1.0,
+            },
         }
     ]
     assert "signal" not in recent["decisions"][0]
+    assert "diagnostics" not in recent["decisions"][0]
+    assert "unsafe_private_blob" not in recent["decisions"][0]["drilldown"]
     assert recent["orders"][0]["reason"] == "guard"
     assert recent["fills"][0]["price"] == 100.0
 

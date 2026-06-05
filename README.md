@@ -263,7 +263,9 @@ without touching archived run artifacts. Saved draft runs can be inspected throu
 artifacts for decisions, orders, fills, account snapshots, return, drawdown,
 time-normalized return projections, gross/net exposure, position count, and an
 equity curve; raw strategy signal payloads are not returned by the public
-artifact view. Successful non-validate draft runs also archive a local per-run
+artifact view. Plugins can opt into public-safe dashboard drilldowns by placing
+sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
+diagnostics remain hidden. Successful non-validate draft runs also archive a local per-run
 artifact snapshot so a comparison row can inspect the exact run even after the
 draft output directory is overwritten. Recent saved draft runs can also be
 compared side by side by return, drawdown, exposure, elapsed time, fills,

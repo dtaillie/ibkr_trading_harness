@@ -15,6 +15,8 @@ def test_no_edge_template_strategy_emits_no_orders():
     assert decision.intents == []
     assert decision.signal["reason"] == "example_only_no_signal"
     assert decision.diagnostics["symbols_seen"] == ["SPY"]
+    assert decision.diagnostics["dashboard"]["signal_label"] == "Example score"
+    assert decision.diagnostics["dashboard"]["threshold"] == 1.0
 
 
 def test_example_crypto_signal_plugin_loads_from_spec():

@@ -2166,6 +2166,9 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "orders": 0}
         assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in run_artifacts["decisions"][0]
+        assert "diagnostics" not in run_artifacts["decisions"][0]
+        assert run_artifacts["decisions"][0]["drilldown"]["signal_label"] == "Example score"
+        assert run_artifacts["decisions"][0]["drilldown"]["threshold"] == 1.0
         assert run_artifacts["performance"]["max_gross_exposure"] == 0.0
         assert run_artifacts["performance"]["max_gross_exposure_pct"] == 0.0
         assert run_artifacts["performance"]["max_abs_net_exposure"] == 0.0
@@ -2184,6 +2187,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert exported_artifacts["draft_id"] == "Run_Draft"
         assert exported_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in exported_artifacts["decisions"][0]
+        assert exported_artifacts["decisions"][0]["drilldown"]["signal_value"] == 0.0
 
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
@@ -2206,6 +2210,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["decisions"][0]["intent_count"] == 0
         assert artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in artifacts["decisions"][0]
+        assert artifacts["decisions"][0]["drilldown"]["active_exit_rule"] == "none"
         assert artifacts["orders"] == []
         assert artifacts["fills"] == []
         assert artifacts["account"][0]["equity"] == 25000.0

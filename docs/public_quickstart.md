@@ -320,7 +320,12 @@ run results are shown below the draft list. Use Inspect on a saved draft or run
 row to review summarized `summary.json`, decisions, orders, fills, account
 snapshots, return, drawdown, elapsed time, time-normalized return projections,
 gross/net exposure, max position count, and an equity curve. The artifact view
-intentionally omits raw strategy signal payloads. Successful non-validate runs
+intentionally omits raw strategy signal payloads. If a plugin wants public-safe
+strategy drilldowns in the dashboard, publish only sanitized fields under
+`StrategyDecision.diagnostics["dashboard"]`; the dashboard allowlists fields
+such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
+`near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,
+`stop_state`, `mae_pct`, and `mfe_pct`. Successful non-validate runs
 also archive a local per-run artifact snapshot, so a comparison row can inspect
 that exact run even after a later run overwrites the draft's output directory.
 Use Log on a run row to inspect command argv, return code, duration, and
@@ -363,8 +368,10 @@ runs:
 ```
 
 This publishes bounded decision/order/fill summaries for the dashboard's
-Recent Run Events table. It intentionally omits raw strategy `signal` and
-`diagnostics` payloads, which may contain private strategy details.
+Recent Run Events table. It intentionally omits raw strategy `signal` and raw
+`diagnostics` payloads, which may contain private strategy details. Only
+explicit public-safe `diagnostics.dashboard` fields are eligible for dashboard
+drilldowns.
 
 ## 9. Safe Remote Command Prototype
 

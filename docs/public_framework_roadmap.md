@@ -102,6 +102,9 @@ This roadmap is broader context; the queue is the current execution order.
 - Expose bounded run event summaries for operator context while keeping raw
   strategy signal payloads private unless a local config explicitly publishes
   them.
+- Keep strategy drilldowns opt-in through public-safe dashboard diagnostics so
+  private scores, tuned thresholds, and raw strategy payloads are never shown by
+  accident.
 - Add alerting for missed heartbeats, gateway login required, rejected orders,
   stale data, unexpected flat/positioned state, and risk-limit trips.
 
