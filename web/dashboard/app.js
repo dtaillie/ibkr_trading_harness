@@ -4309,6 +4309,7 @@ function renderFetchJobs() {
     escapeHtml(item.error),
     "",
     "",
+    "",
   ]));
   const manifestRows = filteredManifests.map((item) => {
     const symbolSummary = [
@@ -4343,13 +4344,32 @@ function renderFetchJobs() {
       escapeHtml(etaSummary),
       escapeHtml(numberText(item.rows, 0)),
       `<span class="${Number(item.errors || 0) ? "status-warn" : "status-ok"}">${escapeHtml(numberText(item.errors, 0))}</span>`,
+      fetchOutputVisibilityHtml(item),
       `<span class="mono">${escapeHtml(output)}</span>`,
       `<button type="button" class="secondary inspect-fetch" data-job-id="${escapeHtml(item.job_id)}">Inspect</button>`,
     ]);
   });
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
-    : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function fetchOutputVisibilityHtml(item) {
+  const visible = Number(item.output_visible_count || 0);
+  const missing = Number(item.output_missing_file_count || 0);
+  const outside = Number(item.output_outside_data_roots_count || 0);
+  const noPath = Number(item.output_no_path_count || 0);
+  const unsupported = Number(item.output_unsupported_file_count || 0);
+  const issueCount = missing + outside + noPath + unsupported;
+  const status = issueCount ? "warn" : visible ? "ok" : "unknown";
+  const detail = [
+    `visible ${numberText(visible, 0)}`,
+    missing ? `missing ${numberText(missing, 0)}` : "",
+    outside ? `outside ${numberText(outside, 0)}` : "",
+    noPath ? `no path ${numberText(noPath, 0)}` : "",
+    unsupported ? `unsupported ${numberText(unsupported, 0)}` : "",
+  ].filter(Boolean).join(" / ") || "n/a";
+  return `<span class="${statusClass(status)}">${escapeHtml(detail)}</span>`;
 }
 
 function fetchJobTerminal(status) {

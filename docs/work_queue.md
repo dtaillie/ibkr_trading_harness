@@ -664,6 +664,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       visibility counts against configured Data Library roots, so Fetch Jobs
       triage can flag missing/outside/unsupported outputs before opening
       Fetch Detail.
+    - partial; the Fetch Jobs manifest table now shows compact output
+      visibility counts inline, so visible/missing/outside/no-path/unsupported
+      output problems are scan-readable without opening each manifest.
 
 ## P1: Fetch jobs and backend data reliability
 
