@@ -428,6 +428,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     start/end, output files, success/failure counts, pacing pauses, and errors
     - mostly done; remaining gap is richer pacing-pause and retry summaries in
       the JSON manifest
+    - partial; JSON manifests now retain retry events, pacing-wait events,
+      latest rolling ETA/progress fields, average output elapsed seconds, and
+      per-output/per-error attempt timing where fetchers publish them.
   - manifests should be visible from the dashboard
     - done for list/detail views
   - failed/missing symbols should be resumable from a manifest
@@ -448,12 +451,21 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time
     - logged by crypto fetcher, not yet persisted into JSON manifests
+    - partial; crypto fetch manifests now persist latest rolling ETA,
+      completed/remaining chunk counts, and rolling average chunk time for the
+      dashboard summary/detail views.
   - success/failure/retry counts
     - partial; success/failure/no-data counts are persisted, retry counts need
       richer per-attempt recording
+    - partial; the shared fetch manifest now counts retry events and the
+      crypto fetcher records bounded per-attempt retry events with delay,
+      attempt, symbol, and day context.
   - pacing waits
     - partial; configured pacing delay is persisted, actual wait events are not
       summarized yet
+    - partial; crypto fetch manifests now record actual pacing wait events and
+      the dashboard summarizes total wait count/seconds plus retry/pacing
+      event rows in Fetch Detail.
   - current output path
     - done for manifest outputs and latest output path
 - Standardize historical storage:

@@ -2457,6 +2457,7 @@ function renderFetchJobs() {
     "",
     "",
     "",
+    "",
     escapeHtml(item.error),
     "",
     "",
@@ -2474,6 +2475,12 @@ function renderFetchJobs() {
       `failed ${numberText(item.failed_chunks, 0)}`,
       item.pending_chunks !== undefined && item.pending_chunks !== null ? `planned ${numberText(item.pending_chunks, 0)}` : "",
     ].filter(Boolean).join(" / ");
+    const etaSummary = [
+      item.latest_eta_seconds !== undefined && item.latest_eta_seconds !== null ? `eta ${interval(item.latest_eta_seconds)}` : "",
+      item.latest_avg_chunk_seconds !== undefined && item.latest_avg_chunk_seconds !== null ? `avg ${interval(item.latest_avg_chunk_seconds)}` : "",
+      item.retry_events ? `retries ${numberText(item.retry_events, 0)}` : "",
+      item.pacing_wait_events ? `waits ${numberText(item.pacing_wait_events, 0)}` : "",
+    ].filter(Boolean).join(" / ") || "n/a";
     const output = item.latest_output_path || item.out_dir || item.first_output_path || "";
     return row([
       escapeHtml(item.started_at),
@@ -2483,6 +2490,7 @@ function renderFetchJobs() {
       escapeHtml(rangeLabel(item.range_start, item.range_end || item.duration || item.months)),
       escapeHtml(symbolSummary),
       escapeHtml(chunkSummary),
+      escapeHtml(etaSummary),
       escapeHtml(numberText(item.rows, 0)),
       `<span class="${Number(item.errors || 0) ? "status-warn" : "status-ok"}">${escapeHtml(numberText(item.errors, 0))}</span>`,
       `<span class="mono">${escapeHtml(output)}</span>`,
@@ -2491,7 +2499,7 @@ function renderFetchJobs() {
   });
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
-    : row([`<span class="muted">No fetch manifests yet. Run a fetch command to create one.</span>`, "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No fetch manifests yet. Run a fetch command to create one.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderFetchManifestDetail() {
@@ -2513,6 +2521,10 @@ function renderFetchManifestDetail() {
     ["Outputs", `${numberText(detail.output_total, 0)} total / rows ${numberText(counts.rows, 0)}`],
     ["Output Statuses", JSON.stringify(counts.output_status_counts || {})],
     ["Errors", `${numberText(detail.error_total, 0)} total ${JSON.stringify(counts.error_kind_counts || {})}`],
+    ["Retries", `${numberText(counts.retry_events, 0)} retry events`],
+    ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
+    ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
+    ["Avg Chunk", counts.latest_avg_chunk_seconds !== null && counts.latest_avg_chunk_seconds !== undefined ? interval(counts.latest_avg_chunk_seconds) : "n/a"],
     ["Output Dir", text(parameters.out_dir)],
     ["Manifest", text(detail.path)],
   ];
@@ -2539,9 +2551,26 @@ function renderFetchManifestDetail() {
         escapeHtml(item.symbol),
         statusText(item.kind),
         escapeHtml(item.day),
+        escapeHtml(numberText(item.attempt_count, 0)),
         escapeHtml(item.message),
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
+
+  const events = (detail.events || []).filter((item) => item.type === "retry" || item.type === "pacing_wait");
+  $("fetch-events-note").textContent = detail.job_id
+    ? `${numberText(events.length, 0)} retry/pacing events shown`
+    : "No retry or pacing events selected";
+  $("fetch-events-body").innerHTML = events.length
+    ? events.slice().reverse().map((item) => row([
+        escapeHtml(item.timestamp),
+        statusText(item.type === "retry" ? "warn" : "ok"),
+        escapeHtml(item.symbol),
+        escapeHtml(item.day),
+        escapeHtml(item.type === "retry"
+          ? `attempt ${numberText(item.attempt, 0)} / max ${numberText(item.max_retries, 0)} after ${interval(item.delay_seconds)}: ${text(item.message)}`
+          : `${text(item.reason)} ${interval(item.seconds)}`),
+      ])).join("")
+    : row([`<span class="muted">No retry or pacing events recorded in this manifest.</span>`, "", "", "", ""]);
 
   const outputs = detail.outputs || [];
   $("fetch-output-note").textContent = detail.job_id
@@ -2554,13 +2583,14 @@ function renderFetchManifestDetail() {
         statusText(item.status),
         escapeHtml(item.day),
         escapeHtml(numberText(item.rows, 0)),
+        escapeHtml(`${interval(item.elapsed_seconds)} / ${numberText(item.attempt_count, 0)} attempts`),
         escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
         `<span class="mono">${escapeHtml(item.path)}</span>`,
         item.data_detail_available
           ? `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(item.data_detail_path)}">Inspect Data</button>`
           : `<span class="muted">not in data roots</span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function replaceOptions(select, options) {

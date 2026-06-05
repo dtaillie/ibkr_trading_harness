@@ -84,6 +84,54 @@ class FetchManifest:
             "message": message,
             **fields,
         })
+        self.recompute_counts()
+        self.write()
+
+    def retry(
+        self,
+        symbol: str,
+        message: str,
+        *,
+        day: str | None = None,
+        attempt: int | None = None,
+        max_retries: int | None = None,
+        delay_seconds: float | None = None,
+    ) -> None:
+        self.event(
+            "retry",
+            message,
+            symbol=symbol,
+            day=day,
+            attempt=attempt,
+            max_retries=max_retries,
+            delay_seconds=delay_seconds,
+        )
+
+    def pacing_wait(
+        self,
+        seconds: float,
+        *,
+        reason: str,
+        symbol: str | None = None,
+        day: str | None = None,
+    ) -> None:
+        self.event(
+            "pacing_wait",
+            f"{reason}: waited {seconds:.3f}s",
+            symbol=symbol,
+            day=day,
+            seconds=float(seconds),
+            reason=reason,
+        )
+
+    def set_progress(self, **fields: Any) -> None:
+        if not self.enabled:
+            return
+        self.data["progress"] = {
+            "updated_at": utc_now(),
+            **fields,
+        }
+        self.recompute_counts()
         self.write()
 
     def set_plan(self, **fields: Any) -> None:
@@ -143,6 +191,8 @@ class FetchManifest:
         last_timestamp: Any = None,
         day: str | None = None,
         message: str | None = None,
+        elapsed_seconds: float | None = None,
+        attempt_count: int | None = None,
     ) -> None:
         if not self.enabled:
             return
@@ -161,6 +211,10 @@ class FetchManifest:
             row["day"] = day
         if message:
             row["message"] = message
+        if elapsed_seconds is not None:
+            row["elapsed_seconds"] = float(elapsed_seconds)
+        if attempt_count is not None:
+            row["attempt_count"] = int(attempt_count)
         self.data["outputs"].append(row)
         self.recompute_counts()
         self.write()
@@ -172,6 +226,8 @@ class FetchManifest:
         *,
         kind: str | None = None,
         day: str | None = None,
+        elapsed_seconds: float | None = None,
+        attempt_count: int | None = None,
     ) -> None:
         if not self.enabled:
             return
@@ -183,6 +239,10 @@ class FetchManifest:
         }
         if day:
             row["day"] = day
+        if elapsed_seconds is not None:
+            row["elapsed_seconds"] = float(elapsed_seconds)
+        if attempt_count is not None:
+            row["attempt_count"] = int(attempt_count)
         self.data["errors"].append(row)
         self.recompute_counts()
         self.write()
@@ -191,6 +251,8 @@ class FetchManifest:
         symbols = list((self.data.get("symbols") or {}).values())
         outputs = self.data.get("outputs") or []
         errors = self.data.get("errors") or []
+        events = self.data.get("events") or []
+        progress = self.data.get("progress") if isinstance(self.data.get("progress"), dict) else {}
         status_counts: dict[str, int] = {}
         for row in symbols:
             status = str(row.get("status") or "unknown")
@@ -203,6 +265,13 @@ class FetchManifest:
         for row in errors:
             kind = str(row.get("kind") or "error")
             error_kind_counts[kind] = error_kind_counts.get(kind, 0) + 1
+        retry_events = [row for row in events if isinstance(row, dict) and row.get("type") == "retry"]
+        pacing_events = [row for row in events if isinstance(row, dict) and row.get("type") == "pacing_wait"]
+        output_elapsed = [
+            float(row.get("elapsed_seconds"))
+            for row in outputs
+            if isinstance(row, dict) and row.get("elapsed_seconds") is not None
+        ]
         self.data["counts"] = {
             "requested_symbols": len(self.data.get("symbols_requested") or []),
             "tracked_symbols": len(symbols),
@@ -221,6 +290,16 @@ class FetchManifest:
             "empty_chunks": output_status_counts.get("empty", 0),
             "failed_chunks": len(errors),
             "error_kind_counts": dict(sorted(error_kind_counts.items())),
+            "retry_events": len(retry_events),
+            "pacing_wait_events": len(pacing_events),
+            "pacing_wait_seconds": sum(float(row.get("seconds") or 0.0) for row in pacing_events),
+            "avg_output_elapsed_seconds": (
+                sum(output_elapsed) / len(output_elapsed) if output_elapsed else None
+            ),
+            "latest_completed_chunks": progress.get("completed_chunks"),
+            "latest_remaining_chunks": progress.get("remaining_chunks"),
+            "latest_eta_seconds": progress.get("eta_seconds"),
+            "latest_avg_chunk_seconds": progress.get("rolling_avg_chunk_seconds"),
         }
 
     def finish(self, status: str | None = None) -> None:

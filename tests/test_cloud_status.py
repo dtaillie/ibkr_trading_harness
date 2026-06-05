@@ -161,6 +161,8 @@ def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.
                         "status": "ok",
                         "rows": 3,
                         "path": output_path,
+                        "elapsed_seconds": 0.4,
+                        "attempt_count": 1,
                     }
                 ],
                 "errors": [
@@ -169,9 +171,30 @@ def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.
                         "symbol": "QQQ",
                         "kind": "permission",
                         "message": "No market data permissions",
+                        "attempt_count": 2,
                     }
                 ],
-                "events": [],
+                "events": [
+                    {
+                        "timestamp": "2026-01-02T14:30:30+00:00",
+                        "type": "retry",
+                        "symbol": "QQQ",
+                        "day": "2026-01-02",
+                        "attempt": 1,
+                        "max_retries": 2,
+                        "delay_seconds": 5.0,
+                        "message": "temporary HMDS error",
+                    },
+                    {
+                        "timestamp": "2026-01-02T14:30:35+00:00",
+                        "type": "pacing_wait",
+                        "symbol": "SPY",
+                        "day": "2026-01-02",
+                        "seconds": 0.35,
+                        "reason": "post historical data request",
+                        "message": "post historical data request: waited 0.350s",
+                    },
+                ],
                 "counts": {
                     "requested_symbols": 2,
                     "tracked_symbols": 2,
@@ -189,6 +212,14 @@ def write_fetch_manifest(path: Path, *, output_path: str = "cache/ibkr/SPY_5min.
                     "status_counts": {"failed": 1, "ok": 1},
                     "output_status_counts": {"ok": 1},
                     "error_kind_counts": {"permission": 1},
+                    "retry_events": 1,
+                    "pacing_wait_events": 1,
+                    "pacing_wait_seconds": 0.35,
+                    "avg_output_elapsed_seconds": 0.4,
+                    "latest_completed_chunks": 1,
+                    "latest_remaining_chunks": 0,
+                    "latest_eta_seconds": 0.0,
+                    "latest_avg_chunk_seconds": 0.4,
                 },
             },
             sort_keys=True,
@@ -567,6 +598,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-metric-context" in html
         assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
+        assert "fetch-events-body" in html
         assert "overview-health-grid" in html
         assert "overview-positions-grid" in html
         assert "overview-change-cards" in html
@@ -918,6 +950,10 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["failed_symbols"] == 1
         assert manifest["rows"] == 3
         assert manifest["error_kind_counts"] == {"permission": 1}
+        assert manifest["retry_events"] == 1
+        assert manifest["pacing_wait_events"] == 1
+        assert manifest["pacing_wait_seconds"] == 0.35
+        assert manifest["latest_avg_chunk_seconds"] == 0.4
 
         with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
@@ -928,7 +964,11 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["outputs"][0]["path"] == str(data_file)
         assert detail["outputs"][0]["data_detail_available"] is True
         assert detail["outputs"][0]["data_detail_path"] == str(data_file)
+        assert detail["outputs"][0]["elapsed_seconds"] == 0.4
         assert detail["errors"][0]["kind"] == "permission"
+        assert detail["errors"][0]["attempt_count"] == 2
+        assert detail["counts"]["retry_events"] == 1
+        assert detail["events"][0]["type"] == "retry"
     finally:
         server.shutdown()
         server.server_close()

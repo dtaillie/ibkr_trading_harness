@@ -306,6 +306,7 @@ def run_smoke(
             "data-compare-body",
             "fetch-manifests-body",
             "fetch-detail-summary",
+            "fetch-events-body",
             "fetch-outputs-body",
             "data-filter-quality",
             "data-filter-asset",

@@ -935,6 +935,7 @@
               <th>Range</th>
               <th>Symbols</th>
               <th>Chunks</th>
+              <th>ETA / Pace</th>
               <th>Rows</th>
               <th>Errors</th>
               <th>Output</th>
@@ -985,12 +986,33 @@
                   <th>Symbol</th>
                   <th>Kind</th>
                   <th>Day</th>
+                  <th>Attempts</th>
                   <th>Message</th>
                 </tr>
               </thead>
               <tbody id="fetch-errors-body"></tbody>
             </table>
           </div>
+        </div>
+      </section>
+      <section class="nested-section">
+        <div class="section-head">
+          <h2>Fetch Events</h2>
+          <span id="fetch-events-note" class="section-note">No retry or pacing events selected</span>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Symbol</th>
+                <th>Day</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="fetch-events-body"></tbody>
+          </table>
         </div>
       </section>
       <div class="section-head artifact-head">
@@ -1006,6 +1028,7 @@
               <th>Status</th>
               <th>Day</th>
               <th>Rows</th>
+              <th>Elapsed</th>
               <th>Range</th>
               <th>Path</th>
               <th></th>

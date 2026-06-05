@@ -58,6 +58,7 @@ COPY_FILES = [
     "tests/fixtures/order_once_plugin.py",
     "tests/test_cloud_status.py",
     "tests/test_export_public_repo.py",
+    "tests/test_fetch_manifest.py",
     "tests/test_generic_plugin_runner.py",
     "tests/test_market_calendar.py",
     "tests/test_plugin_supervisor.py",

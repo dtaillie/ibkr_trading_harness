@@ -326,6 +326,7 @@ def main() -> None:
                 message = f"no qualified contract on {args.exchange}"
                 job_manifest.error(symbol, message, kind="contract")
                 job_manifest.symbol(symbol, "failed", message=message)
+            job_manifest.pacing_wait(args.pacing_delay, reason="contract qualification", symbol=symbol)
             ib.sleep(args.pacing_delay)
         log.info(
             "Qualified symbols: %d/%d: %s",
@@ -427,8 +428,10 @@ def main() -> None:
                     manifest_status = "partial"
                     return
                 last_err = None
+                attempt_count = 0
                 chunk_started = time.monotonic()
                 for attempt in range(args.retries + 1):
+                    attempt_count = attempt + 1
                     try:
                         df = request_day(
                             ib,
@@ -444,6 +447,14 @@ def main() -> None:
                     except Exception as exc:
                         last_err = exc
                         if attempt < args.retries:
+                            job_manifest.retry(
+                                symbol,
+                                str(exc),
+                                day=day.isoformat(),
+                                attempt=attempt_count,
+                                max_retries=args.retries,
+                                delay_seconds=args.retry_delay,
+                            )
                             time.sleep(args.retry_delay)
                 requests += 1
                 elapsed = time.monotonic() - chunk_started
@@ -453,6 +464,18 @@ def main() -> None:
                 remaining_chunks = max(0, pending_total - completed_chunks)
                 avg_chunk_seconds = sum(chunk_times) / len(chunk_times) if chunk_times else None
                 eta = format_duration(avg_chunk_seconds * remaining_chunks if avg_chunk_seconds is not None else None)
+                eta_seconds = avg_chunk_seconds * remaining_chunks if avg_chunk_seconds is not None else None
+                job_manifest.set_progress(
+                    completed_chunks=completed_chunks,
+                    pending_chunks=pending_total,
+                    remaining_chunks=remaining_chunks,
+                    rolling_avg_chunk_seconds=avg_chunk_seconds,
+                    eta_seconds=eta_seconds,
+                    eta=eta,
+                    symbol=symbol,
+                    symbol_completed_chunks=symbol_completed,
+                    symbol_pending_chunks=symbol_pending,
+                )
                 prefix = (
                     f"Progress chunks={completed_chunks}/{pending_total} "
                     f"symbol={symbol} {symbol_completed}/{symbol_pending} "
@@ -472,7 +495,14 @@ def main() -> None:
                         "path": "",
                         "message": str(last_err),
                     })
-                    job_manifest.error(symbol, str(last_err), kind=infer_error_kind(str(last_err)), day=day.isoformat())
+                    job_manifest.error(
+                        symbol,
+                        str(last_err),
+                        kind=infer_error_kind(str(last_err)),
+                        day=day.isoformat(),
+                        elapsed_seconds=elapsed,
+                        attempt_count=attempt_count,
+                    )
                     continue
                 if df.empty:
                     log.warning("%s %s no bars", symbol, day)
@@ -495,6 +525,8 @@ def main() -> None:
                         status="empty",
                         day=day.isoformat(),
                         message="HMDS returned no bars for this day",
+                        elapsed_seconds=elapsed,
+                        attempt_count=attempt_count,
                     )
                     log.info("%s status=empty elapsed=%.2fs", prefix, elapsed)
                     consecutive_empty += 1
@@ -540,7 +572,10 @@ def main() -> None:
                     first_timestamp=first_ts,
                     last_timestamp=last_ts,
                     day=day.isoformat(),
+                    elapsed_seconds=elapsed,
+                    attempt_count=attempt_count,
                 )
+                job_manifest.pacing_wait(args.pacing_delay, reason="post historical data request", symbol=symbol, day=day.isoformat())
                 ib.sleep(args.pacing_delay)
             symbols_done += 1
             if symbol_failed:
