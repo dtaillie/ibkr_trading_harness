@@ -440,6 +440,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       seeds symbols, range, exchange/bar/data type, output directory, and
       ok/empty done paths from a prior JSON manifest so failed or missing
       crypto chunks can be retried without manually reconstructing the run.
+    - partial; Fetch Detail now exposes a copyable crypto resume command for
+      selected `crypto_history` JSON manifests.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to

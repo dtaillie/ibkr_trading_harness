@@ -2504,9 +2504,11 @@ function renderFetchJobs() {
 
 function renderFetchManifestDetail() {
   const detail = state.fetchManifestDetail || {};
+  const resumeCommand = fetchResumeCommand(detail);
   $("fetch-detail-title").textContent = detail.job_id
     ? `${text(detail.job_id)} - ${text(detail.status)}`
     : "No fetch job selected";
+  $("copy-fetch-resume-command").disabled = !resumeCommand;
   const counts = detail.counts || {};
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
@@ -2525,6 +2527,7 @@ function renderFetchManifestDetail() {
     ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
     ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
     ["Avg Chunk", counts.latest_avg_chunk_seconds !== null && counts.latest_avg_chunk_seconds !== undefined ? interval(counts.latest_avg_chunk_seconds) : "n/a"],
+    ["Resume", resumeCommand || "n/a"],
     ["Output Dir", text(parameters.out_dir)],
     ["Manifest", text(detail.path)],
   ];
@@ -2591,6 +2594,11 @@ function renderFetchManifestDetail() {
           : `<span class="muted">not in data roots</span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function fetchResumeCommand(detail) {
+  if (!detail || !detail.path || detail.kind !== "crypto_history") return "";
+  return `python3 live/fetch_crypto_history.py --resume-manifest ${shellQuote(detail.path)}`;
 }
 
 function replaceOptions(select, options) {
@@ -4356,6 +4364,18 @@ function init() {
     if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-data")) return;
     loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
       $("last-refresh").textContent = `Fetch output data detail failed: ${err.message}`;
+    });
+  });
+  $("copy-fetch-resume-command").addEventListener("click", () => {
+    const command = fetchResumeCommand(state.fetchManifestDetail || {});
+    if (!command) {
+      $("last-refresh").textContent = "Select a crypto fetch manifest before copying a resume command";
+      return;
+    }
+    copyText(command).then(() => {
+      $("last-refresh").textContent = `Fetch resume command copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
   $("commands-body").addEventListener("click", (event) => {
