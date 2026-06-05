@@ -3764,6 +3764,7 @@ function configFormOptionRows(field, options) {
 const CONFIG_SECTION_LABELS = {
   identity: ["Setup", "Name the local draft, choose the plugin, and choose the run mode."],
   data: ["Data", "Pick scanned files and an optional replay date window."],
+  plugin_strategy: ["Plugin Settings", "Configure public-safe fields exposed by the selected plugin."],
   account: ["Account", "Set starting cash and replay bounds for local accounting."],
   runtime: ["Runtime", "Add optional loop/session boundaries for monitoring configs."],
   risk: ["Risk Limits", "Keep generated example runs bounded before validation."],
@@ -3783,17 +3784,19 @@ function renderConfigField(field) {
   const id = escapeHtml(field.id);
   const label = escapeHtml(field.label || field.name || field.id);
   const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
+  const pluginAttr = field.plugin_id ? ` data-plugin-id="${escapeHtml(field.plugin_id)}"` : "";
   const cls = [
     field.kind === "checkbox" ? "checkbox-field" : "",
+    field.plugin_id ? "plugin-strategy-field" : "",
     field.wide ? "wide-field" : "",
   ].filter(Boolean).join(" ");
   if (field.kind === "select") {
     const multiple = field.multiple ? " multiple" : "";
     const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
-    return `<label class="${escapeHtml(cls)}"><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
   }
   if (field.kind === "checkbox") {
-    return `<label class="${escapeHtml(cls)}"><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
   }
   const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
   const attrs = [
@@ -3803,7 +3806,15 @@ function renderConfigField(field) {
     field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
     field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
   ].filter(Boolean).join(" ");
-  return `<label class="${escapeHtml(cls)}"><span>${label}</span><input ${attrs}>${help}</label>`;
+  return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><input ${attrs}>${help}</label>`;
+}
+
+function updatePluginStrategyFields() {
+  const selectedPluginId = $("config-plugin") ? $("config-plugin").value : "";
+  for (const field of document.querySelectorAll(".plugin-strategy-field")) {
+    const visible = !field.dataset.pluginId || field.dataset.pluginId === selectedPluginId;
+    field.hidden = !visible;
+  }
 }
 
 function renderConfigFormSchema() {
@@ -3853,12 +3864,24 @@ function renderConfigBuilder() {
   const defaultFields = Object.fromEntries((options.form_schema || [])
     .filter((field) => field.default_key)
     .map((field) => [field.id, defaults[field.default_key]]));
+  for (const field of options.form_schema || []) {
+    if (field.default !== undefined && defaultFields[field.id] === undefined) {
+      defaultFields[field.id] = field.default;
+    }
+  }
   defaultFields["config-run-max-steps"] = defaults.max_steps;
   defaultFields["config-run-timeout"] = defaults.run_timeout_seconds;
   for (const [id, value] of Object.entries(defaultFields)) {
-    if ($(id) && !$(id).value && value !== undefined) $(id).value = String(value);
+    const el = $(id);
+    if (!el || value === undefined) continue;
+    if (el.type === "checkbox") {
+      el.checked = Boolean(value);
+    } else if (!el.value) {
+      el.value = String(value);
+    }
   }
   renderConfigDataQuality();
+  updatePluginStrategyFields();
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
   renderConfigBrokerBoundary();
@@ -3883,6 +3906,19 @@ function renderConfigBuilder() {
       )).join("")
     : "";
   renderConfigAlignment(draft.alignment || {});
+}
+
+function configPluginStrategyPayload() {
+  const payload = {};
+  const selectedPluginId = $("config-plugin") ? $("config-plugin").value : "";
+  const fields = ((state.configOptions || {}).form_schema || [])
+    .filter((field) => field.plugin_id === selectedPluginId);
+  for (const field of fields) {
+    const el = $(field.id);
+    if (!el) continue;
+    payload[field.name] = field.kind === "checkbox" ? el.checked : el.value;
+  }
+  return payload;
 }
 
 function renderConfigAlignment(alignment) {
@@ -5259,6 +5295,7 @@ async function generateConfigDraft(event) {
     name: $("config-name").value,
     plugin_id: $("config-plugin").value,
     mode: $("config-mode").value,
+    strategy: configPluginStrategyPayload(),
     datasets: selected.map((dataset) => ({ symbol: dataset.symbol, path: dataset.path })),
     ...configDateRangePayload(),
     starting_cash: $("config-starting-cash").value,
@@ -5803,7 +5840,10 @@ function init() {
   $("config-dataset").addEventListener("change", renderWorkbenchGuide);
   $("config-start-date").addEventListener("change", renderWorkbenchGuide);
   $("config-end-date").addEventListener("change", renderWorkbenchGuide);
-  $("config-plugin").addEventListener("change", renderConfigPluginBoundary);
+  $("config-plugin").addEventListener("change", () => {
+    renderConfigPluginBoundary();
+    updatePluginStrategyFields();
+  });
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-detail-chart-style").addEventListener("change", renderDataDetail);
   $("data-compare-timezone").addEventListener("change", renderDataCompare);

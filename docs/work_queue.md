@@ -653,12 +653,15 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those
     controls from schema while preserving existing draft/alignment behavior.
-    Versioned schemas and richer private plugin-specific fields remain future
-    work.
+    Versioned schemas and deeper plugin-specific validation remain future work.
   - partial; the generated Config Builder form now groups schema fields into
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields
     in the UI.
+  - partial; plugin registry entries can now expose public-safe
+    `strategy_fields`, the Workbench renders fields for the selected plugin,
+    and generated drafts write only those allowlisted values under `strategy`.
+    The form schema version was bumped to v2 for this expansion.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
@@ -783,8 +786,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     exported workbench snapshots now carry explicit config/form schema version
     fields. Generic plugin modules/factories can now expose optional
     `validate_config` or `validate_strategy_config` hooks that run during
-    plugin-runner config validation. Schema-driven UI controls and deeper
-    plugin-specific validation remain open.
+    plugin-runner config validation. Plugin registry entries can now expose
+    public-safe `strategy_fields` that the Workbench renders and serializes
+    into generated drafts. Deeper plugin-specific validation remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

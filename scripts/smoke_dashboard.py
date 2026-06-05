@@ -585,10 +585,10 @@ def run_smoke(
             raise RuntimeError("config options broker adapter capabilities are missing")
         if not broker_adapters["ibkr"].get("requires_gateway") or not broker_adapters["file"].get("requires_static_prices"):
             raise RuntimeError("config options broker adapter requirements are incomplete")
-        if options.get("config_schema_version") != 1 or options.get("form_schema_version") != 1:
+        if options.get("config_schema_version") != 1 or options.get("form_schema_version") != 2:
             raise RuntimeError("config options schema versions are missing")
         form_field_ids = {field.get("id") for field in options.get("form_schema") or []}
-        for field_id in ("config-name", "config-plugin", "config-mode", "config-dataset", "config-risk-preset", "config-allow-quality-warnings"):
+        for field_id in ("config-name", "config-plugin", "config-mode", "config-dataset", "config-risk-preset", "config-plugin-field-no-edge-template-example-parameter", "config-allow-quality-warnings"):
             if field_id not in form_field_ids:
                 raise RuntimeError(f"config form schema is missing {field_id}")
         if not all(plugin.get("visibility") and plugin.get("boundary") for plugin in options.get("plugins") or []):
@@ -620,7 +620,7 @@ def run_smoke(
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:
             raise RuntimeError("workbench snapshot export is invalid")
-        if snapshot.get("config_schema_version") != 1 or snapshot.get("form_schema_version") != 1:
+        if snapshot.get("config_schema_version") != 1 or snapshot.get("form_schema_version") != 2:
             raise RuntimeError("workbench snapshot schema versions are missing")
         fetch_manifests = fetch_json(base_url, "/fetch_manifests?limit=5")
         if "manifests" not in fetch_manifests or "roots" not in fetch_manifests:

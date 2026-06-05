@@ -1988,13 +1988,14 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert plugin_ids == {"no_edge_template"}
         plugin = options["plugins"][0]
         assert options["config_schema_version"] == 1
-        assert options["form_schema_version"] == 1
+        assert options["form_schema_version"] == 2
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         field_ids = [field["id"] for field in options["form_schema"]]
         assert field_ids[:4] == ["config-name", "config-plugin", "config-mode", "config-dataset"]
+        assert "config-plugin-field-no-edge-template-example-parameter" in field_ids
         assert "config-session-enabled" in field_ids
         assert "config-session-outside" in field_ids
         assert "config-risk-preset" in field_ids
@@ -2020,6 +2021,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
                 "name": "Test Draft",
                 "plugin_id": "no_edge_template",
                 "mode": "simulated_paper",
+                "strategy": {"example_parameter": False},
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
                 "start": "2026-01-02",
                 "end": "2026-01-02",
@@ -2050,6 +2052,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["name"] == "Test_Draft"
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
+        assert draft["config"]["strategy"] == {"example_parameter": False}
         assert draft["config"]["runner"]["session"] == {
             "timezone": "America/New_York",
             "start": "09:30",
@@ -2526,7 +2529,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
             snapshot = json.loads(resp.read().decode("utf-8"))
         assert snapshot["schema_version"] == 1
         assert snapshot["config_schema_version"] == 1
-        assert snapshot["form_schema_version"] == 1
+        assert snapshot["form_schema_version"] == 2
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
         assert snapshot["data_catalog"]["asset_class_counts"] == {"etf": 1}
@@ -2535,7 +2538,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["config_options"]["risk_presets"]
         assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file"}
         assert snapshot["config_options"]["config_schema_version"] == 1
-        assert snapshot["config_options"]["form_schema_version"] == 1
+        assert snapshot["config_options"]["form_schema_version"] == 2
         assert snapshot["run_comparison"]["count"] == 0
     finally:
         server.shutdown()
@@ -2940,6 +2943,11 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
                 "    visibility: private_local",
                 "    description: Local metadata only; strategy logic stays outside public configs.",
                 "    boundary: Loaded from an ignored local registry.",
+                "    strategy_fields:",
+                "      - name: local_flag",
+                "        label: Local Flag",
+                "        kind: checkbox",
+                "        default: false",
             ]
         )
         + "\n",
@@ -2965,6 +2973,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         assert plugins["local_demo"]["status"] == "private_local"
         assert plugins["local_demo"]["source"] == "local_registry"
         assert plugins["local_demo"]["source_path"] == str(registry.resolve())
+        assert plugins["local_demo"]["strategy_fields"][0]["name"] == "local_flag"
         assert str(registry.resolve()) in options["plugin_registry_paths"]
 
         draft_req = request.Request(
@@ -2973,6 +2982,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
                 "name": "Local Plugin Draft",
                 "plugin_id": "local_demo",
                 "mode": "replay",
+                "strategy": {"local_flag": True},
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
                 "history_bars": 1,
                 "max_steps": 1,
@@ -2992,6 +3002,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         draft = draft_payload["draft"]
         assert draft["plugin"]["id"] == "local_demo"
         assert draft["validation"]["valid"] is True
+        assert draft["config"]["strategy"] == {"local_flag": True}
         assert draft["config"]["metadata"]["status"] == "private_local"
         assert draft["config"]["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
         assert "Loaded from an ignored local registry." in draft["config"]["notes"]

@@ -11,3 +11,9 @@ plugins:
     visibility: private_local
     description: Local metadata only. Replace this in an ignored local copy.
     boundary: Loaded from an ignored local registry; do not publish real edge.
+    strategy_fields:
+      - name: example_parameter
+        label: Example Parameter
+        kind: checkbox
+        default: false
+        help: Public-safe wiring example only; do not publish tuned values.

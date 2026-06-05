@@ -138,12 +138,22 @@ CONFIG_BUILDER_PLUGINS = (
             "Public Workbench drafts only list generic example plugins. Point "
             "ignored local configs at private plugins for real strategy work."
         ),
+        "strategy_fields": [
+            {
+                "name": "example_parameter",
+                "label": "Example Parameter",
+                "kind": "checkbox",
+                "default": True,
+                "help": "Demonstrates plugin-specific config wiring only.",
+            },
+        ],
     },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
-CONFIG_FORM_SCHEMA_VERSION = 1
+CONFIG_FORM_SCHEMA_VERSION = 2
+PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
@@ -2758,11 +2768,56 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         "visibility": visibility,
         "description": description,
         "boundary": boundary,
+        "strategy_fields": normalize_plugin_strategy_fields(row.get("strategy_fields"), plugin_id=plugin_id),
         "source": source,
     }
     if source_path:
         plugin["source_path"] = source_path
     return plugin
+
+
+def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list[dict[str, Any]]:
+    if raw_fields is None:
+        return []
+    if not isinstance(raw_fields, list):
+        raise ValueError(f"plugin {plugin_id} strategy_fields must be a list")
+    normalized = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_fields, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"plugin {plugin_id} strategy_fields[{idx}] must be a mapping")
+        name = str(raw.get("name") or "").strip()
+        if not name or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError(f"plugin {plugin_id} strategy_fields[{idx}].name must be a safe identifier")
+        if name in seen:
+            raise ValueError(f"plugin {plugin_id} strategy_fields contains duplicate field {name}")
+        seen.add(name)
+        kind = str(raw.get("kind") or "text").strip().lower()
+        if kind not in PLUGIN_STRATEGY_FIELD_KINDS:
+            raise ValueError(
+                f"plugin {plugin_id} strategy_fields[{name}].kind must be one of {sorted(PLUGIN_STRATEGY_FIELD_KINDS)}"
+            )
+        field = {
+            "id": f"config-plugin-field-{slugify(plugin_id)}-{name}".replace("_", "-"),
+            "name": name,
+            "label": str(raw.get("label") or name.replace("_", " ").title()).strip(),
+            "kind": kind,
+            "section": "plugin_strategy",
+            "plugin_id": plugin_id,
+            "help": str(raw.get("help") or "").strip(),
+        }
+        for key in ("default", "min", "max", "step"):
+            if key in raw:
+                field[key] = raw[key]
+        if raw.get("wide") is not None:
+            field["wide"] = bool(raw["wide"])
+        if raw.get("options") is not None:
+            options = raw["options"]
+            if not isinstance(options, list) or not options:
+                raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].options must be a non-empty list")
+            field["options"] = options
+        normalized.append(field)
+    return normalized
 
 
 def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:
@@ -3387,6 +3442,42 @@ def number_field(payload: dict[str, Any], key: str, default: float, *, integer: 
     return value
 
 
+def plugin_strategy_value(raw: Any, field: dict[str, Any]) -> Any:
+    kind = str(field.get("kind") or "text")
+    if kind == "checkbox":
+        return bool(raw)
+    if kind == "number":
+        if raw is None or str(raw).strip() == "":
+            raw = field.get("default", 0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"strategy.{field['name']} must be numeric") from exc
+        if field.get("step") and str(field.get("step")).strip() in {"1", "1.0"}:
+            value = int(value)
+        return value
+    if kind == "select":
+        value = str(raw if raw is not None and str(raw) != "" else field.get("default", "")).strip()
+        allowed = {
+            str(option.get("value") if isinstance(option, dict) else option)
+            for option in field.get("options", [])
+        }
+        if allowed and value not in allowed:
+            raise ValueError(f"strategy.{field['name']} must be one of {sorted(allowed)}")
+        return value
+    return str(raw if raw is not None else field.get("default", "")).strip()
+
+
+def plugin_strategy_config(payload: dict[str, Any], plugin: dict[str, Any]) -> dict[str, Any]:
+    raw_strategy = payload.get("strategy") if isinstance(payload.get("strategy"), dict) else {}
+    strategy: dict[str, Any] = {}
+    for field in plugin.get("strategy_fields") or []:
+        name = str(field["name"])
+        raw = raw_strategy.get(name, field.get("default"))
+        strategy[name] = plugin_strategy_value(raw, field)
+    return strategy
+
+
 def build_config_draft(
     payload: dict[str, Any],
     *,
@@ -3407,6 +3498,7 @@ def build_config_draft(
     risk_preset_ids = {preset["id"] for preset in CONFIG_BUILDER_RISK_PRESETS}
     if risk_preset not in risk_preset_ids:
         raise ValueError(f"risk_preset must be one of {', '.join(sorted(risk_preset_ids))}")
+    strategy_config = plugin_strategy_config(payload, plugin)
 
     selected = selected_data_files(payload.get("datasets") or [], data_roots)
     data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
@@ -3476,9 +3568,7 @@ def build_config_draft(
             "wiring demonstrations only; local registry plugins remain private."
         ),
         "metadata": metadata,
-        "strategy": {
-            "example_parameter": True,
-        },
+        "strategy": strategy_config,
         "runner": {
             "mode": mode,
             "starting_cash": starting_cash,
@@ -3553,6 +3643,11 @@ def build_config_draft(
 
 def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> dict[str, Any]:
     plugins = load_config_builder_plugins(plugin_registry_paths)
+    plugin_strategy_fields = [
+        field
+        for plugin in plugins
+        for field in (plugin.get("strategy_fields") or [])
+    ]
     return {
         "config_schema_version": CONFIG_SCHEMA_VERSION,
         "form_schema_version": CONFIG_FORM_SCHEMA_VERSION,
@@ -3562,7 +3657,7 @@ def config_builder_options(plugin_registry_paths: list[Path] | None = None) -> d
         "run_actions": list(CONFIG_DRAFT_RUN_ACTIONS),
         "broker_adapters": broker_adapter_capabilities(),
         "risk_presets": list(CONFIG_BUILDER_RISK_PRESETS),
-        "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA),
+        "form_schema": list(CONFIG_BUILDER_FORM_SCHEMA) + plugin_strategy_fields,
         "defaults": {
             "name": "workbench_example",
             "starting_cash": 10000,

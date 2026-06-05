@@ -322,7 +322,11 @@ The Config Builder section can generate and validate plugin-runner YAML from
 one or more selected saved datasets. Public exports offer generic no-edge
 examples by default; local ignored plugin registries can add private plugin
 metadata for your own machine without publishing strategy logic. The Workbench
-uses replay/shadow/simulated-paper modes; it does not submit broker orders.
+can render public-safe `strategy_fields` from that plugin metadata and writes
+those allowlisted values into the generated `strategy` section. Keep real edge,
+tuned defaults, and private-only parameters in ignored local registries. The
+Workbench uses replay/shadow/simulated-paper modes; it does not submit broker
+orders.
 Duplicate symbols and duplicate paths are rejected before YAML is saved.
 Risk presets fill example guardrail and simulated-cost fields, but the fields
 remain editable and the presets are not trading recommendations.
