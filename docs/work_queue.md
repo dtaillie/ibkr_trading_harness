@@ -365,6 +365,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       diagnose action, and direct Data Detail inspection for scanned files.
   - gap markers
     - partial; gaps are listed in the detail table, chart markers remain open
+    - partial; Data Detail charts now render gap bands/markers over the price
+      area for returned gap rows, while still listing the exact gap intervals
+      in the table below the chart.
   - sampled and full-resolution modes
     - partial; sampled mode is default and full mode is available when the
       selected range fits the bounded point limit

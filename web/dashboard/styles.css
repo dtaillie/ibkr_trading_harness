@@ -1032,6 +1032,19 @@ tr:last-child td {
   opacity: 0.7;
 }
 
+.gap-marker-band {
+  fill: var(--warn);
+  opacity: 0.08;
+}
+
+.gap-marker-line {
+  stroke: var(--warn);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
+  opacity: 0.78;
+  vector-effect: non-scaling-stroke;
+}
+
 .candle-wick {
   stroke: currentColor;
   stroke-width: 1.4;
