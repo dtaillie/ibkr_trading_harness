@@ -687,6 +687,15 @@ section {
   overflow-wrap: anywhere;
 }
 
+.status-tile small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .runtime-status-card small {
   display: block;
   margin-top: 8px;
@@ -724,6 +733,45 @@ section {
   margin-top: 8px;
   font-size: 30px;
   line-height: 1.1;
+}
+
+.performance-home-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.performance-home-main,
+.performance-home-tiles {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
+.performance-home-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.performance-home-main > span:last-of-type {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.performance-home-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
 }
 
 .data-home-main > span:last-of-type,
@@ -1806,6 +1854,7 @@ footer {
   .symbol-browser,
   .data-home-panel,
   .help-start-panel,
+  .performance-home-panel,
   .builder-output,
   .overview-hero,
   .performance-layout,

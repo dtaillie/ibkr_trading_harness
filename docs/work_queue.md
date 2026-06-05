@@ -216,6 +216,9 @@ strategy-private.
     source richness, period/account-snapshot coverage, return/drawdown,
     execution health, trade pairing, live/paper rollups, benchmark state,
     account freshness, and the next action.
+  - partial; Strategy Performance now also has a Performance Home band with
+    selected result, source/window/execution/trade/freshness/benchmark tiles,
+    and direct navigation to Runs, Workbench, and Data Library.
 - Add strategy/session comparison only after the current-strategy page is easy
   to read.
 - Add daily run rollups so the dashboard can answer "how did it do today?" for
@@ -342,6 +345,9 @@ strategy-private.
   - partial; Help now has a standalone first-screen Start Here panel with
     route links, keeping the operating guide closer to a task picker than a
     long documentation dump.
+  - partial; Performance now adds a first-screen summary band before detailed
+    KPIs and charts, so the selected strategy/source result is visible before
+    dense metric context and artifact tables.
 - Add a small design system for the dashboard:
   - color tokens for cash/equity/gain/loss/warning/neutral states
   - consistent badge styles for modes, health, fills, rejects, and stale data

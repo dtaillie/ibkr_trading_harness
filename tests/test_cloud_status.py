@@ -575,6 +575,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "/dashboard/app.js" in html
         assert "supervisors-body" in html
         assert "remote-control-body" in html
+        assert "performance-home-result" in html
+        assert "performance-home-tiles" in html
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
         assert "copy-data-roots-yaml" in html

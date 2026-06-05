@@ -1740,6 +1740,21 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceHome({
+    source,
+    window,
+    accountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   setMetricValue("performance-equity", money(equity), { meta: sourceMeta });
   $("performance-context").textContent = accountRows.length
@@ -2006,6 +2021,100 @@ function renderPerformanceTriage(context) {
       <span>${statusText(card.status)}</span>
       <strong>${escapeHtml(card.title)}</strong>
       <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
+function renderPerformanceHome(context) {
+  if (!$("performance-home-result") || !$("performance-home-note") || !$("performance-home-tiles")) return;
+  const {
+    source,
+    window,
+    accountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const totalReturn = Number(periodPerf.total_return_pct);
+  const returnClass = Number.isFinite(totalReturn)
+    ? totalReturn >= 0 ? "status-ok" : "status-bad"
+    : "status-unknown";
+  const result = source.has_data
+    ? `${pctText(periodPerf.total_return_pct)} / ${money(periodPerf.final_equity)}`
+    : "No performance data";
+  let nextNote = "Publish telemetry, run a Workbench config, or open a saved artifact from Runs.";
+  if (source.has_data && !accountRows.length) {
+    nextNote = "Selected source lacks account snapshots for this period; switch period or open a richer artifact.";
+  } else if (rejections > 0 || approvalRequired > 0) {
+    nextNote = "Execution needs review: rejected orders or approval holds are present.";
+  } else if (source.has_data && !benchmark.path) {
+    nextNote = "Performance is readable; optionally load a saved benchmark dataset for context.";
+  } else if (source.has_data) {
+    nextNote = "Charts, trade rows, rollups, and source context are ready for inspection.";
+  }
+  $("performance-home-result").textContent = result;
+  $("performance-home-result").className = returnClass;
+  $("performance-home-note").textContent = `${text(source.label)} / ${text(mode)} / ${window.label}. ${nextNote}`;
+  const executionStatus = rejections > 0 || approvalRequired > 0
+    ? "warn"
+    : fillCount > 0
+      ? "ok"
+      : decisions || orders ? "warn" : "bad";
+  const freshnessStatus = latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "bad";
+  const tradeStatus = ledger.stats.closed_count ? "ok" : fills.length ? "warn" : "bad";
+  const tiles = [
+    {
+      status: source.has_data ? "ok" : "bad",
+      label: "Source",
+      value: text(source.source_type || source.label),
+      detail: source.has_data ? text(source.label) : "No current or saved run selected.",
+    },
+    {
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Window",
+      value: window.label,
+      detail: `${numberText(accountRows.length, 0)} account snapshots.`,
+    },
+    {
+      status: executionStatus,
+      label: "Execution",
+      value: `${numberText(fillCount, 0)} fills`,
+      detail: `${numberText(decisions, 0)} decisions / ${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approvals.`,
+    },
+    {
+      status: tradeStatus,
+      label: "Trades",
+      value: `${numberText(ledger.stats.closed_count, 0)} closed`,
+      detail: ledger.stats.closed_count
+        ? `${numberText(ledger.stats.wins, 0)} wins / ${numberText(ledger.stats.losses, 0)} losses.`
+        : fills.length ? "Fills exist but paired trade rows remain open." : "No fills for trade stats.",
+    },
+    {
+      status: freshnessStatus,
+      label: "Freshness",
+      value: latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a",
+      detail: latestAccount.timestamp ? text(latestAccount.timestamp) : "No account snapshot timestamp.",
+    },
+    {
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Benchmark",
+      value: benchmark.path ? text(benchmark.symbol) : "None",
+      detail: benchmark.path ? `${text(benchmark.bar_size)} ${text(benchmark.source)}` : "Optional saved-data overlay not loaded.",
+    },
+  ];
+  $("performance-home-tiles").innerHTML = tiles.map((tile) => `
+    <div class="status-tile">
+      <span>${escapeHtml(tile.label)}</span>
+      <strong class="${statusClass(tile.status)}">${escapeHtml(tile.value)}</strong>
+      <small>${escapeHtml(tile.detail)}</small>
     </div>
   `).join("");
 }
@@ -8410,6 +8519,9 @@ function init() {
     renderPerformance();
     renderOverview();
   });
+  $("performance-home-open-runs").addEventListener("click", () => navigateToView("runs"));
+  $("performance-home-open-workbench").addEventListener("click", () => navigateToView("workbench"));
+  $("performance-home-open-data").addEventListener("click", () => navigateToView("data"));
   $("performance-period").addEventListener("change", renderPerformance);
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
