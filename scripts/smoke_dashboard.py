@@ -284,6 +284,7 @@ def run_smoke(
             "data-catalog-scan-body",
             "data-catalog-limit",
             "data-storage-audit-note",
+            "data-storage-scan-limit",
             "data-storage-audit-body",
             "data-coverage-grid",
             "data-symbol-diagnostic-form",

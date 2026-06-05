@@ -577,7 +577,18 @@
       <section class="nested-section">
         <div class="section-head">
           <h2>Storage Audit</h2>
-          <span id="data-storage-audit-note" class="section-note">No storage audit loaded</span>
+          <span class="button-pair">
+            <label class="inline-control">
+              <span>Disk scan</span>
+              <select id="data-storage-scan-limit">
+                <option value="1000">1000</option>
+                <option value="5000" selected>5000</option>
+                <option value="10000">10000</option>
+                <option value="50000">50000</option>
+              </select>
+            </label>
+            <span id="data-storage-audit-note" class="section-note">No storage audit loaded</span>
+          </span>
         </div>
         <dl id="data-storage-audit-list" class="kv wide-kv"></dl>
         <div class="table-wrap compact-table">
@@ -592,7 +603,7 @@
                 <th>Hidden</th>
                 <th>Extensions</th>
                 <th>Sources</th>
-                <th>Sample Hidden Path</th>
+                <th>Sample Hidden Paths</th>
               </tr>
             </thead>
             <tbody id="data-storage-audit-body"></tbody>

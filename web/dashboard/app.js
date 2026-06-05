@@ -1930,6 +1930,7 @@ function renderDataStorageAudit() {
   $("data-storage-audit-body").innerHTML = rows.length
     ? rows.map((item) => {
         const scopeClass = item.scope === "configured" ? "status-ok" : "status-warn";
+        const hiddenSamples = (item.sample_hidden_paths || []).slice(0, 3);
         return row([
           `<span class="${scopeClass}">${escapeHtml(item.scope)}</span>`,
           `<span class="mono">${escapeHtml(item.display_path || item.path)}</span>`,
@@ -1939,7 +1940,9 @@ function renderDataStorageAudit() {
           escapeHtml(numberText(item.hidden_file_count, 0)),
           escapeHtml(countSummary(item.extension_counts)),
           escapeHtml(countSummary(item.source_guess_counts)),
-          `<span class="mono">${escapeHtml((item.sample_hidden_paths || [])[0] || "none")}</span>`,
+          hiddenSamples.length
+            ? hiddenSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
+            : `<span class="muted">none</span>`,
         ]);
       }).join("")
     : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", ""]);
@@ -3382,9 +3385,10 @@ async function refresh() {
   const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
   const remoteNodes = await fetchJson("/remote_nodes?limit=100");
   const catalogLimit = encodeURIComponent($("data-catalog-limit").value || "200");
+  const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
   const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
   const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
-  const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=5000`);
+  const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
   const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
   const workbenchStatus = await fetchJson("/workbench_status");
   const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
@@ -3916,6 +3920,11 @@ function init() {
   $("data-catalog-limit").addEventListener("change", () => {
     refresh().catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+  });
+  $("data-storage-scan-limit").addEventListener("change", () => {
+    refresh().catch((err) => {
+      $("last-refresh").textContent = `Storage audit refresh failed: ${err.message}`;
     });
   });
   for (const button of document.querySelectorAll("[data-view-target]")) {

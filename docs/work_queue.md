@@ -335,6 +335,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       parser errors and unsupported extensions, and the Data Library table shows
       a skipped sample path plus reason.
   - include a "show me everything on disk" diagnostic mode with bounded limits
+    - partial; Storage Audit now has a user-selectable bounded per-root disk
+      scan limit up to 50,000 files, and shows multiple hidden file samples so
+      users can inspect what exists on disk beyond the catalog-visible rows.
 - Add a backend storage audit command and matching dashboard panel:
   - done; `scripts/audit_data_storage.py`, the storage-audit endpoint, and the
     Data Library panel compare configured/suggested root files with
