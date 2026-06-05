@@ -2658,6 +2658,28 @@ async function diagnoseSelectedSymbol() {
   await diagnoseDataSymbol(new Event("submit"));
 }
 
+function compareSelectedSymbolDatasets() {
+  const symbol = selectedSymbolBrowserSymbol();
+  if (!symbol) {
+    $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Enter a symbol first</span>`;
+    return;
+  }
+  const matches = (state.dataCatalog.datasets || [])
+    .filter((dataset) => text(dataset.symbol).toUpperCase() === symbol && dataset.path)
+    .slice(0, MAX_DATA_COMPARE_DATASETS);
+  if (matches.length < 2) {
+    $("data-symbol-browser-note").innerHTML = `<span class="status-warn">Need at least two saved ${escapeHtml(symbol)} datasets to compare</span>`;
+    return;
+  }
+  state.dataCompareSelectedPaths = matches.map((dataset) => dataset.path);
+  state.dataCompareSelectionCleared = false;
+  $("data-compare-filter").value = symbol;
+  renderDataCompareControls();
+  $("data-symbol-browser-note").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} datasets for comparison`;
+  $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} datasets for comparison; run Compare Saved Data to load the chart`;
+  if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 function renderDataLibrarySummary() {
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
@@ -6473,6 +6495,7 @@ function init() {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("data-symbol-browser-compare").addEventListener("click", compareSelectedSymbolDatasets);
   $("data-symbol-browser-diagnose").addEventListener("click", () => {
     diagnoseSelectedSymbol().catch((err) => {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

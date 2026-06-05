@@ -274,6 +274,8 @@ suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
 chunks, errors, produced output files, per-symbol progress, and output paths.
+Use Compare from Symbol Browser to preselect matching saved files for a ticker
+and jump into the normalized saved-data comparison workflow.
 The Fetch Workflow checklist turns that manifest state into next actions:
 configure roots, load jobs, review failures, inspect outputs, open saved data,
 and recover or export the selected job.
