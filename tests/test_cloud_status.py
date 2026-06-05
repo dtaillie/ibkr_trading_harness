@@ -621,6 +621,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-compare-timezone" in html
         assert "data-compare-filter" in html
         assert "data-compare-filter-note" in html
+        assert "data-compare-select-symbol" in html
         assert "data-compare-select-shown" in html
         assert "data-compare-clear" in html
         assert "export-data-compare-csv" in html

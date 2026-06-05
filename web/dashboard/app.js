@@ -3427,6 +3427,26 @@ function selectShownCompareDatasets() {
     : "No shown datasets to select";
 }
 
+function selectSymbolCompareDatasets() {
+  const symbol = ($("data-compare-filter").value || "").trim().toUpperCase();
+  if (!symbol) {
+    $("last-refresh").textContent = "Enter a symbol in Find Dataset before selecting symbol matches";
+    return;
+  }
+  const matches = (state.dataCatalog.datasets || [])
+    .filter((dataset) => text(dataset.symbol).toUpperCase() === symbol)
+    .slice(0, MAX_DATA_COMPARE_DATASETS);
+  if (!matches.length) {
+    $("last-refresh").textContent = `No exact catalog symbol matches for ${symbol}`;
+    return;
+  }
+  state.dataCompareSelectedPaths = matches.map((dataset) => dataset.path);
+  state.dataCompareSelectionCleared = false;
+  $("data-compare-filter").value = symbol;
+  renderDataCompareControls();
+  $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} dataset${matches.length === 1 ? "" : "s"} for comparison`;
+}
+
 function clearCompareSelection() {
   state.dataCompareSelectedPaths = [];
   state.dataCompareSelectionCleared = true;
@@ -6250,6 +6270,7 @@ function init() {
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-compare-filter").addEventListener("input", renderDataCompareControls);
   $("data-compare-datasets").addEventListener("change", () => updateCompareSelectionFromSelect(true));
+  $("data-compare-select-symbol").addEventListener("click", selectSymbolCompareDatasets);
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
   $("data-compare-clear").addEventListener("click", clearCompareSelection);
   $("data-catalog-limit").addEventListener("change", () => {

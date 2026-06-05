@@ -79,8 +79,9 @@ works offline from saved CSV/parquet files and shows:
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range. Use Find Dataset to narrow large catalogs without
-dropping already selected files; Select Shown chooses the visible comparison
-set up to the 8-dataset comparison cap.
+dropping already selected files. Select Symbol chooses exact matches for the
+typed catalog symbol, and Select Shown chooses the visible comparison set up to
+the 8-dataset comparison cap.
 
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.

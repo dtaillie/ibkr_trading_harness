@@ -492,6 +492,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data now has Select Shown and Clear actions,
       capped to the backend's 8-dataset comparison limit, so filtered symbol
       groups can be selected without manual multi-select gestures.
+    - partial; Compare Saved Data now also has Select Symbol, which chooses
+      exact catalog symbol matches from the typed Find Dataset value for quick
+      same-symbol file/bar/source comparisons.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred
