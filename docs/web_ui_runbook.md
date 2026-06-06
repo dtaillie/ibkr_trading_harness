@@ -194,10 +194,14 @@ translations, not stable performance estimates.
 
 ## Review Remote Monitoring
 
-Open Operations, then Remote Nodes, to inspect sanitized latest status
-snapshots from local or hosted status publishers. Use Export Nodes CSV for an
-offline table of heartbeat, Gateway, mode, equity, positions, open orders,
-activity counts, account/data freshness, and alert summaries by node.
+Open Operations Home first. It summarizes local paper-monitor readiness,
+Gateway/API reachability, remote-node freshness, command-audit integrity and
+signature state, and current alerts before the detailed tables.
+
+Then open Remote Nodes to inspect sanitized latest status snapshots from local
+or hosted status publishers. Use Export Nodes CSV for an offline table of
+heartbeat, Gateway, mode, equity, positions, open orders, activity counts,
+account/data freshness, and alert summaries by node.
 
 ## Diagnose Fetch Jobs
 

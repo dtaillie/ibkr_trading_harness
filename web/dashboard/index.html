@@ -2252,6 +2252,20 @@
     </section>
 
     <section class="dashboard-section" data-view="operations" hidden>
+      <section class="operations-home-panel">
+        <div class="operations-home-main">
+          <span class="eyebrow">Operations Home</span>
+          <strong id="operations-home-result">No operations state loaded</strong>
+          <span id="operations-home-note">Check local paper readiness, remote node freshness, command-audit integrity, and alerts before trusting automation.</span>
+          <div class="hero-actions">
+            <button id="operations-home-paper" type="button" data-operations-home-action="paper">Paper Monitor</button>
+            <button id="operations-home-remote" class="secondary" type="button" data-operations-home-action="remote">Remote Nodes</button>
+            <button id="operations-home-audit" class="secondary" type="button" data-operations-home-action="audit">Command Audit</button>
+            <button id="operations-home-gateway" class="secondary" type="button" data-operations-home-action="gateway">Gateway</button>
+          </div>
+        </div>
+        <div id="operations-home-tiles" class="operations-home-tiles"></div>
+      </section>
       <div class="section-head">
         <h2>Paper Monitor</h2>
         <span id="paper-monitor-note" class="section-note">Verify Gateway, telemetry, mode, and next-order context before trusting a paper run.</span>

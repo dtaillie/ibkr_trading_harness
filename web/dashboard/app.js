@@ -8693,6 +8693,127 @@ function renderPaperMonitor() {
   )).join("");
 }
 
+function operationsHomeState() {
+  const status = state.status || {};
+  const gateway = status.gateway || {};
+  const alerts = status.alerts || [];
+  const paperItems = paperMonitorItems();
+  const paperBad = paperItems.filter((item) => item.status === "bad").length;
+  const paperWarn = paperItems.filter((item) => item.status === "warn").length;
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const staleRemote = remoteNodes.filter((node) => {
+    const ageSeconds = (Date.now() - (timestampMillis(node.received_at || node.generated_at) || 0)) / 1000;
+    return Number.isFinite(ageSeconds) && ageSeconds > 900;
+  }).length;
+  const commandAudit = state.commandAudit || {};
+  const auditEvents = commandAudit.events || [];
+  const integrity = commandAudit.integrity || {};
+  const auditBad = ["broken", "invalid"].includes(String(integrity.status || "").toLowerCase())
+    || ["invalid", "failed"].includes(String(integrity.signature_status || "").toLowerCase());
+  const auditWarn = !auditBad && (
+    !auditEvents.length
+    || ["legacy", "unsigned", "disabled", "mixed"].includes(String(integrity.signature_status || "").toLowerCase())
+    || ["legacy", "unchecked", "missing"].includes(String(integrity.status || "").toLowerCase())
+  );
+  const gatewayStatus = gateway.enabled
+    ? gateway.reachable ? "ok" : "bad"
+    : "warn";
+  let result = "Review Operations";
+  let note = "Use Operations Home to route into local paper monitoring, remote nodes, command audit, or Gateway diagnostics.";
+  let nextAction = "paper";
+  if (paperBad) {
+    result = "Paper Monitor Blocked";
+    note = `${numberText(paperBad, 0)} local paper-monitor blocker${paperBad === 1 ? "" : "s"} need review before trusting automation.`;
+    nextAction = "paper";
+  } else if (gatewayStatus === "bad") {
+    result = "Gateway Not Reachable";
+    note = text(gateway.error || "Gateway/API check is enabled but not reachable.");
+    nextAction = "gateway";
+  } else if (remoteAlerts || staleRemote) {
+    result = "Remote Nodes Need Review";
+    note = `${numberText(remoteAlerts, 0)} remote alert${remoteAlerts === 1 ? "" : "s"} / ${numberText(staleRemote, 0)} stale node${staleRemote === 1 ? "" : "s"}.`;
+    nextAction = "remote";
+  } else if (auditBad || auditWarn) {
+    result = auditBad ? "Command Audit Broken" : "Command Audit Needs Review";
+    note = integrity.status
+      ? `Integrity ${text(integrity.status)}; signature ${text(integrity.signature_status || "not loaded")}.`
+      : "No command audit events or integrity status loaded yet.";
+    nextAction = "audit";
+  } else if (alerts.length || paperWarn) {
+    result = "Warnings Present";
+    note = `${numberText(alerts.length, 0)} local alert${alerts.length === 1 ? "" : "s"} / ${numberText(paperWarn, 0)} paper warning${paperWarn === 1 ? "" : "s"}.`;
+    nextAction = alerts.length ? "gateway" : "paper";
+  } else {
+    result = "Operations Look Ready";
+    note = "Local paper checks, Gateway, remote nodes, and command audit have no visible blockers.";
+    nextAction = "remote";
+  }
+  const tiles = [
+    {
+      label: "Paper",
+      status: paperBad ? "bad" : paperWarn ? "warn" : "ok",
+      title: paperBad ? `${numberText(paperBad, 0)} blockers` : paperWarn ? `${numberText(paperWarn, 0)} warnings` : "Ready",
+      note: `${numberText(paperItems.length, 0)} monitor checks.`,
+    },
+    {
+      label: "Gateway",
+      status: gatewayStatus,
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      note: gateway.enabled ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === undefined || gateway.latency_ms === null ? "" : `${gateway.latency_ms}ms`}` : "Gateway check disabled.",
+    },
+    {
+      label: "Remote",
+      status: remoteNodes.length ? remoteAlerts || staleRemote ? "warn" : "ok" : "warn",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} node${remoteNodes.length === 1 ? "" : "s"}` : "No Nodes",
+      note: `${numberText(remoteAlerts, 0)} alerts / ${numberText(staleRemote, 0)} stale.`,
+    },
+    {
+      label: "Audit",
+      status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
+      title: integrity.status ? text(integrity.status) : "Not Loaded",
+      note: `${numberText(auditEvents.length, 0)} events; signature ${text(integrity.signature_status || "n/a")}.`,
+    },
+    {
+      label: "Alerts",
+      status: alerts.length ? "warn" : "ok",
+      title: numberText(alerts.length, 0),
+      note: alerts.length ? "Local alerts need review." : "No local alerts.",
+    },
+  ];
+  return { result, note, nextAction, tiles };
+}
+
+function renderOperationsHome() {
+  if (!$("operations-home-result") || !$("operations-home-note") || !$("operations-home-tiles")) return;
+  const model = operationsHomeState();
+  $("operations-home-result").textContent = model.result;
+  $("operations-home-note").textContent = model.note;
+  for (const button of document.querySelectorAll("[data-operations-home-action]")) {
+    if (!(button instanceof HTMLButtonElement)) continue;
+    const active = button.dataset.operationsHomeAction === model.nextAction;
+    button.classList.toggle("secondary", !active);
+  }
+  $("operations-home-tiles").innerHTML = model.tiles.map((tile) => `
+    <div class="action-card status-${escapeHtml(tile.status)}">
+      <span>${escapeHtml(tile.label)}</span>
+      <strong>${escapeHtml(tile.title)}</strong>
+      <small>${escapeHtml(tile.note)}</small>
+    </div>
+  `).join("");
+}
+
+function handleOperationsHomeAction(action) {
+  const targets = {
+    paper: "paper-monitor-guide",
+    remote: "remote-nodes-body",
+    audit: "command-audit-body",
+    gateway: "gateway-list",
+  };
+  const element = $(targets[action] || "paper-monitor-guide");
+  if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 function remoteNodeFilters() {
   return {
     text: ($("remote-filter-text").value || "").trim().toLowerCase(),
@@ -9044,6 +9165,7 @@ function renderAll() {
   renderCommands();
   renderResults();
   renderCommandAudit();
+  renderOperationsHome();
   renderHelpSetupGaps();
   renderPageIntro();
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
@@ -9941,6 +10063,11 @@ function init() {
   for (const button of document.querySelectorAll("[data-workbench-home-action]")) {
     button.addEventListener("click", () => {
       handleWorkbenchHomeAction(button.dataset.workbenchHomeAction || "");
+    });
+  }
+  for (const button of document.querySelectorAll("[data-operations-home-action]")) {
+    button.addEventListener("click", () => {
+      handleOperationsHomeAction(button.dataset.operationsHomeAction || "");
     });
   }
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);

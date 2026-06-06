@@ -1044,6 +1044,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     CSV button for offline review of sanitized heartbeat, Gateway, mode,
     equity, positions, open orders, activity counts, freshness, and alerts by
     node.
+  - partial; Operations now starts with an Operations Home band that summarizes
+    local paper-monitor readiness, Gateway/API reachability, remote-node
+    freshness, command-audit integrity/signature status, and alerts before the
+    detailed remote/control tables.
 - Add alerts:
   - missed heartbeat
   - Gateway login required
