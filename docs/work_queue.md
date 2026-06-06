@@ -1095,6 +1095,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench now starts with a Workbench Home band that summarizes
     the selected data, alignment window, draft validation, latest run, loaded
     artifacts, and the next action before the schema-rendered form.
+  - partial; Workbench Home now also includes workflow cards for selecting
+    data, previewing alignment, building a draft, running a draft, opening
+    results, and reviewing plugin/public-private boundaries, giving users a
+    job-oriented route before the detailed guide/stepper.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.

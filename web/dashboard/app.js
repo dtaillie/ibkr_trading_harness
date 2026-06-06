@@ -1817,6 +1817,116 @@ function renderWorkbenchHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderWorkbenchWorkflowLauncher();
+}
+
+function workbenchWorkflowCards() {
+  const selected = selectedConfigDatasets();
+  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : Boolean(validation && validation.valid);
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const plugin = selectedConfigPlugin();
+  const range = configDateRangePayload();
+  const hasRange = Boolean(range.start || range.end);
+  const hasAlignment = Boolean(alignment.dataset_count);
+  const commonTimestamps = Number(alignment.common_timestamp_count || 0);
+  const alignmentWarnings = Number(alignment.warning_count || 0);
+  const hasDraft = Boolean(draft.yaml || savedDraft);
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+
+  return [
+    {
+      label: "Select Data",
+      title: selected.length ? `${numberText(selected.length, 0)} selected` : "No Data",
+      value: selected.length ? selected.map((item) => text(item.symbol)).slice(0, 3).join(", ") : "choose files",
+      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      detail: selected.length
+        ? `${numberText(warningRows.length, 0)} selected file${warningRows.length === 1 ? "" : "s"} need quality review.`
+        : "Choose scanned files from Data Library or the Config Builder dataset field.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Choose Data",
+    },
+    {
+      label: "Preview Alignment",
+      title: hasAlignment ? `${numberText(commonTimestamps, 0)} common` : "Not Previewed",
+      value: hasRange ? `${range.start || "first"} to ${range.end || "last"}` : "full range",
+      status: hasAlignment ? commonTimestamps > 0 ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      detail: hasAlignment
+        ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignmentWarnings, 0)} warning${alignmentWarnings === 1 ? "" : "s"}.`
+        : "Preview timestamp overlap before trusting a replay or simulated-paper draft.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Preview",
+    },
+    {
+      label: "Build Draft",
+      title: hasDraft ? savedDraftId || "Generated" : "No Draft",
+      value: plugin.label || plugin.id || "plugin",
+      status: hasDraft ? draftValid ? "ok" : "warn" : hasAlignment && commonTimestamps > 0 ? "warn" : "bad",
+      detail: hasDraft
+        ? draftValid ? "Draft validation is clean enough to run." : "Draft exists but needs validation review."
+        : "Review plugin, mode, risk limits, costs, and output before saving generated YAML.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Build",
+    },
+    {
+      label: "Run Draft",
+      title: latestRun ? text(latestRun.status) : "Not Run",
+      value: latestRun ? text(latestRun.action) : "validate/replay",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "bad",
+      detail: latestRun
+        ? `${text(latestRun.draft_id || savedDraftId)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
+        : draftValid ? "Run validate, replay, or simulated paper from the saved draft." : "Generate and validate a draft before running.",
+      href: workflowHref("workbench", "run"),
+      cta: "Run",
+    },
+    {
+      label: "Open Results",
+      title: hasArtifacts ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "No Artifacts",
+      value: hasArtifacts ? text(artifacts.run_id || artifacts.draft_id) : latestRun && latestRun.artifact_path ? "loadable" : "missing",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : latestRun ? "bad" : "bad",
+      detail: hasArtifacts
+        ? "Performance and Runs can inspect this run's charts, orders, fills, decisions, and logs."
+        : latestRun && latestRun.artifact_path
+          ? "Artifacts exist; load them before comparing performance."
+          : "Completed run artifacts appear after a draft run finishes.",
+      href: workflowHref(hasArtifacts ? "performance" : "workbench", hasArtifacts ? "home" : "artifacts"),
+      cta: hasArtifacts ? "Performance" : "Artifacts",
+    },
+    {
+      label: "Review Boundary",
+      title: plugin.visibility || plugin.status || "Unknown",
+      value: plugin.status || "plugin",
+      status: plugin.visibility === "public_example" || plugin.status === "example_only" ? "warn" : plugin.id ? "ok" : "bad",
+      detail: plugin.id
+        ? text(plugin.boundary || "Public examples are illustrative; private strategies belong in ignored local configs.")
+        : "Choose a configured Workbench plugin before generating a draft.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Review",
+    },
+  ];
+}
+
+function renderWorkbenchWorkflowLauncher() {
+  const container = $("workbench-workflows");
+  if (!container) return;
+  const cards = workbenchWorkflowCards();
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
+  `).join("");
 }
 
 function handleWorkbenchHomeAction(action) {

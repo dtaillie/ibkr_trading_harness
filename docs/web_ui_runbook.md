@@ -224,6 +224,10 @@ Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
 artifacts, and the next action. Use its buttons to jump to data selection,
 alignment preview, builder review, the run form, or loaded results.
+The Workbench workflow cards are the quickest route when you know the job:
+Select Data, Preview Alignment, Build Draft, Run Draft, Open Results, or Review
+Boundary. They use the same selected-data, alignment, draft, run, and artifact
+state as the detailed guide below them.
 
 The Simulate From Saved Data guide is actionable: use each step's button to
 jump to the relevant data picker, quality table, alignment preview, draft

@@ -1106,6 +1106,7 @@ section {
 .action-card-grid,
 .overview-workflow-grid,
 .data-workflow-grid,
+.workbench-workflow-grid,
 .broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1430,6 +1431,11 @@ section {
   grid-column: 1 / -1;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin: 2px 0 4px;
+}
+
+.workbench-workflow-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin: 12px 0 18px;
 }
 
 .action-card {
