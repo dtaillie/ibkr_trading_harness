@@ -126,6 +126,18 @@ pointing `ops/cloud/sync-command-audit.example.sh` at the bucket prefix. Review
 AWS Object Lock rules before applying it; the Terraform file is a starting
 point, not a substitute for provider/account hardening.
 
+`ops/cloud/gcp-gcs-command-audit-retention.example.tf` is the same retention
+shape for Google Cloud Storage: a dedicated bucket with uniform bucket-level
+access, public access prevention, versioning, and a retention policy. Test with
+`lock_retention_policy=false`; locking a GCS bucket retention policy is
+irreversible.
+
+`ops/cloud/azure-blob-command-audit-retention.example.tf` is the same retention
+shape for Azure Blob Storage: a private container, blob versioning, delete
+retention, and a container immutability policy. Test with
+`lock_immutability_policy=false`; locking the immutability policy is
+irreversible.
+
 `ops/cloud/digitalocean-firewall-status-receiver.example.tf` is the same
 boundary shape for a DigitalOcean Droplet: SSH from management CIDRs, HTTPS
 from publisher/dashboard CIDRs, and no receiver app port exposed.
@@ -294,6 +306,27 @@ blocking, and narrow writer/reader principals. Upload retained copies under the
 
 ```bash
 AUDIT_DEST=s3://example-audit-bucket/command-audit/receiver-a/command_audit.jsonl \
+  APPLY=1 \
+  ops/cloud/sync-command-audit.example.sh
+```
+
+For GCP, `ops/cloud/gcp-gcs-command-audit-retention.example.tf` sketches a
+dedicated GCS bucket with public access prevention, versioning, and Bucket Lock
+retention controls. Use `rclone` or another reviewed uploader with a separate
+service account:
+
+```bash
+AUDIT_DEST=gcs:example-audit-bucket/command-audit/receiver-a/command_audit.jsonl \
+  APPLY=1 \
+  ops/cloud/sync-command-audit.example.sh
+```
+
+For Azure, `ops/cloud/azure-blob-command-audit-retention.example.tf` sketches a
+private Blob container with versioning and a time-based immutability policy.
+Use `rclone` or another reviewed uploader with a separate Azure AD principal:
+
+```bash
+AUDIT_DEST=azureblob:exampleauditstorage/command-audit/receiver-a/command_audit.jsonl \
   APPLY=1 \
   ops/cloud/sync-command-audit.example.sh
 ```

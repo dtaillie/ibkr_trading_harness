@@ -1573,6 +1573,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     Object Lock bucket, versioning, TLS-only access, public-access blocking,
     narrow writer/reader principals, and governance-mode default retention for
     synced command-audit copies.
+  - progress; GCP and Azure off-host audit retention now include
+    `ops/cloud/gcp-gcs-command-audit-retention.example.tf` and
+    `ops/cloud/azure-blob-command-audit-retention.example.tf`, sketching
+    dedicated storage targets with public access prevention/private containers,
+    versioning, and provider-native retention/immutability controls for
+    command-audit copies.
 - Keep initial commands low-risk:
   - pause
   - resume
