@@ -778,6 +778,9 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing docs endpoint")
         if "Web UI Runbook" not in web_ui_runbook:
             raise RuntimeError("web UI runbook doc is not served")
+        for expected in ["Data Source Map", "Fetch Recovery Plan", "Workbench Home"]:
+            if expected not in web_ui_runbook:
+                raise RuntimeError(f"web UI runbook is missing {expected}")
         if "reclaimable_bytes" not in cleanup_plan:
             raise RuntimeError("cleanup plan reclaimable_bytes is missing")
         if snapshot.get("schema_version") != 1 or "data_catalog" not in snapshot or "fetch_manifests" not in snapshot:

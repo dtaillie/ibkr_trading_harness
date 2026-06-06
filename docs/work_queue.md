@@ -362,6 +362,9 @@ strategy-private.
   - done in `docs/web_ui_runbook.md` and linked from Help
   - done; the runbook now includes completed-fetch review and replay-from-saved
     data workflows that match the Help page
+  - partial; Help and the Web UI runbook now include a Data To Simulation Fast
+    Path that names the current first-screen panels: Data Source Map, Data
+    Home, Fetch Recovery Plan, and Workbench Home.
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography

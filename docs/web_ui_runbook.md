@@ -41,7 +41,8 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Check Configured Roots and Storage Audit.
+2. Check Data Source Map for configured, suggested, hidden/capped,
+   parser-error, unavailable, and not-scanned roots.
 3. Use Find Missing Symbol for a ticker you expected to see.
 4. Use Copy data_roots YAML to copy configured plus suggested roots.
 5. Paste the `dashboard.data_roots` block into your ignored local dashboard
@@ -91,6 +92,11 @@ config edit, or manual audit. Use Export Detail CSV when you want one offline
 file containing the selected job's symbol, output, error, retry, and pacing
 rows, including Data Library visibility labels for produced files.
 
+Use Fetch Recovery Plan before retrying. It translates the selected manifest's
+recovery status into concrete next steps: fix market-data permissions, fix
+contract settings, review no-data symbols, update Data Library roots, resume
+failed work, or inspect visible outputs.
+
 If the output files are not visible, add the output directory or a parent cache
 directory to `dashboard.data_roots`, refresh, and inspect the fetch again.
 
@@ -109,6 +115,9 @@ works offline from saved CSV/parquet files and shows:
 Start with the Data Home shortlist when the catalog is large. It ranks the
 currently visible saved files by quality, rows, and recency, then gives direct
 Inspect, Filter, and Compare actions before you need to use the dense table.
+Use Data Source Map before searching if the catalog looks sparse: it summarizes
+which roots are scanned, which suggested roots are outside the config, whether
+files are hidden by caps, and whether parser/root errors explain missing data.
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range. Use Find Dataset to narrow large catalogs without
@@ -158,6 +167,11 @@ rows from the Minute Coverage Heatmap.
 6. Generate and validate the draft.
 7. Run replay or simulated paper.
 8. Open the result from the Runs or Workbench table and inspect Performance.
+
+Start from Workbench Home before the form. It summarizes selected data,
+alignment, optional replay window, draft validation, latest run, loaded
+artifacts, and the next action. Use its buttons to jump to data selection,
+alignment preview, builder review, the run form, or loaded results.
 
 The Simulate From Saved Data guide is actionable: use each step's button to
 jump to the relevant data picker, quality table, alignment preview, draft

@@ -824,6 +824,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Page Guide" in html
         assert "Web UI Runbook" in html
         assert "doc-link-grid" in html
+        assert "Data To Simulation Fast Path" in html
         assert "Inspect Saved Historical Data" in html
         assert "data-detail-overview-note" in html
         assert "data-detail-overview" in html
@@ -919,6 +920,9 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             body = resp.read().decode("utf-8")
             assert resp.headers["Content-Type"].startswith("text/markdown")
         assert "Web UI Runbook" in body
+        assert "Data Source Map" in body
+        assert "Fetch Recovery Plan" in body
+        assert "Workbench Home" in body
         for name, expected in {
             "ibkr_gateway_runbook.md": "IBKR Gateway Runbook",
             "paper_trading_runbook.md": "Paper Trading Runbook",
