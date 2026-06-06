@@ -2851,6 +2851,7 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "resume_retry_count",
     "resume_review_count",
     "resume_pending_estimate",
+    "resume_command",
     "permission_error_count",
     "no_data_error_count",
     "retryable_error_count",
@@ -2915,6 +2916,7 @@ FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
     "resume_retry_count",
     "resume_review_count",
     "resume_pending_estimate",
+    "resume_command",
     "message",
 )
 
@@ -3989,6 +3991,21 @@ def fetch_manifest_resume_plan(payload: dict[str, Any], *, resume_supported: boo
     }
 
 
+def shell_quote(value: str) -> str:
+    return "'" + str(value).replace("'", "'\\''") + "'"
+
+
+def fetch_manifest_resume_command(kind: str | None, path: Path | str) -> str | None:
+    command_by_kind = {
+        "crypto_history": "python3 live/fetch_crypto_history.py",
+        "stock_history": "python3 live/fetch_history.py",
+    }
+    command = command_by_kind.get(str(kind or ""))
+    if not command:
+        return None
+    return f"{command} --resume-manifest {shell_quote(display_path(Path(path)))}"
+
+
 def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
@@ -4017,6 +4034,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         output_visibility_counts=output_visibility_counts,
     )
     resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(recovery.get("resume_supported")))
+    resume_command = fetch_manifest_resume_command(payload.get("kind"), path) if recovery.get("resume_supported") else None
     return {
         "job_id": payload.get("job_id") or path.stem,
         "path": display_path(path),
@@ -4058,6 +4076,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         "resume_retry_count": resume_plan.get("retry_failed_count"),
         "resume_review_count": resume_plan.get("review_no_data_count"),
         "resume_pending_estimate": resume_plan.get("pending_estimate"),
+        "resume_command": resume_command,
         "error_kind_counts": counts.get("error_kind_counts") or {},
         "status_counts": counts.get("status_counts") or {},
         "output_status_counts": counts.get("output_status_counts") or {},
@@ -4232,6 +4251,7 @@ def build_fetch_manifest_detail_csv(
                 "resume_retry_count": resume_plan.get("retry_failed_count"),
                 "resume_review_count": resume_plan.get("review_no_data_count"),
                 "resume_pending_estimate": resume_plan.get("pending_estimate"),
+                "resume_command": detail.get("resume_command"),
                 "message": resume_plan.get("resume_summary"),
             }
         )

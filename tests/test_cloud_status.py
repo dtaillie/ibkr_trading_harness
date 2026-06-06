@@ -1841,6 +1841,8 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["resume_retry_count"] == 1
         assert manifest["resume_review_count"] == 0
         assert manifest["resume_pending_estimate"] == 1
+        assert manifest["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
+        assert manifest["resume_command"].endswith("stock_history_20260102.json'")
         assert manifest["permission_error_count"] == 1
         assert manifest["no_data_error_count"] == 0
         assert manifest["retryable_error_count"] == 0
@@ -1880,6 +1882,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert rows[0]["resume_skip_count"] == "1"
         assert rows[0]["resume_retry_count"] == "1"
         assert rows[0]["resume_pending_estimate"] == "1"
+        assert rows[0]["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
         assert rows[0]["permission_error_count"] == "1"
         assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
         assert "visible" in rows[0]["output_visibility_counts"]
@@ -1916,6 +1919,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["resume_plan"]["skip_completed_count"] == 1
         assert detail["resume_plan"]["retry_failed_count"] == 1
         assert detail["resume_plan"]["retry_symbols_sample"] == ["QQQ"]
+        assert detail["resume_command"] == manifest["resume_command"]
         assert detail["errors"][0]["kind"] == "permission"
         assert detail["errors"][0]["attempt_count"] == 2
         assert detail["counts"]["retry_events"] == 1
@@ -1944,6 +1948,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert resume_rows[0]["resume_mode"] == "symbol"
         assert resume_rows[0]["resume_skip_count"] == "1"
         assert resume_rows[0]["resume_retry_count"] == "1"
+        assert resume_rows[0]["resume_command"] == detail["resume_command"]
     finally:
         server.shutdown()
         server.server_close()

@@ -773,6 +773,7 @@ def run_smoke(
             "fetchRecoveryCards",
             "fetchOutputVisibilityLabel",
             "output_visibility_counts",
+            "resume_command",
             "fetchResumeCommand",
             "renderFetchResumePanel",
             "copy-fetch-resume-inline",

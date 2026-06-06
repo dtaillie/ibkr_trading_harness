@@ -11242,6 +11242,7 @@ function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) 
 
 function fetchResumeCommand(detail) {
   if (!detail || !detail.path) return "";
+  if (detail.resume_command) return text(detail.resume_command);
   if (detail.kind === "crypto_history") {
     return `python3 live/fetch_crypto_history.py --resume-manifest ${shellQuote(detail.path)}`;
   }

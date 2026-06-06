@@ -371,7 +371,9 @@ job's symbol, output, error, retry, and pacing rows with output visibility
 annotations.
 Fetch Detail's Resume Scope summarizes what a copied resume command is expected
 to skip versus retry or review, so failed fetch recovery is not just a copied
-shell command with hidden intent.
+shell command with hidden intent. The fetch manifest detail API and CSV export
+also include the backend-generated `resume_command`, so copied dashboard
+commands and offline exports point at the same manifest file.
 Runs shows searchable saved-run comparisons, recent run-event telemetry,
 current managed positions, and recent non-terminal order events when runners
 publish them. Operations shows node health, Gateway reachability,

@@ -1044,6 +1044,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       skip/retry/review/pending scope cards and an inline copyable resume
       command, so manifest recovery no longer depends on finding the command in
       dense summary rows.
+    - partial; fetch manifest list/detail payloads and detail CSV exports now
+      include the backend-generated `resume_command`, and the dashboard copies
+      that manifest-owned command rather than reconstructing it only in the
+      browser.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to
