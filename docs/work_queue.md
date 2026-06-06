@@ -707,10 +707,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       samples beside hidden-file samples in the dashboard.
 - Add historical-data visualization:
   - line/candlestick chart for saved files
-    - partial; saved files now have a range-filtered close-price chart,
-      candlesticks remain open
-    - partial; Data Detail now supports a candlestick chart mode when saved
-      files expose OHLC columns, with close-line fallback for close-only files.
+    - done for Data Detail; saved files now have a range-filtered close-price
+      chart and candlestick mode when OHLC columns are available, with
+      close-line fallback for close-only files.
   - volume chart
     - done for the sampled Data Detail viewer when volume exists
   - selectable date range
@@ -856,7 +855,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       opened file is outside active filters, so users can browse saved history
       without returning to dense catalog rows.
     - partial; Data Detail now has a Range Stats strip above the chart for
-      selected-range return, close range, bar movement, median/max volume, gap
+      selected-range return, close range, OHLC high/low span, open-to-close
+      move, candle direction balance, bar movement, median/max volume, gap
       pressure, and viewer sampling/full-state, so saved history is readable
       before opening raw metadata tables.
 - Add data coverage diagnostics:

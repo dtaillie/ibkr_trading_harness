@@ -4871,6 +4871,7 @@ def build_data_detail(
     price_stats: dict[str, Any] = {}
     return_stats: dict[str, Any] = {}
     volume_stats: dict[str, Any] = {}
+    ohlc_stats: dict[str, Any] = {"available": False, "missing_columns": []}
     preview = []
     viewer: dict[str, Any] = {
         "requested_start": start_ts.isoformat() if start_ts is not None else None,
@@ -4953,6 +4954,49 @@ def build_data_detail(
                 "zero_rows": int((volume_numeric.fillna(-1) == 0).sum()),
                 "sum": finite_float(volume_numeric.sum()),
             }
+        missing_ohlc_columns = [
+            name
+            for name in ("open", "high", "low")
+            if name not in scoped.columns
+        ]
+        if {"open", "high", "low", "close"}.issubset(scoped.columns):
+            ohlc = scoped[["open", "high", "low", "close"]].dropna()
+            if not ohlc.empty:
+                first_open = finite_float(ohlc.iloc[0]["open"])
+                last_close = finite_float(ohlc.iloc[-1]["close"])
+                range_high = finite_float(ohlc["high"].max())
+                range_low = finite_float(ohlc["low"].min())
+                up_candles = int((ohlc["close"] > ohlc["open"]).sum())
+                down_candles = int((ohlc["close"] < ohlc["open"]).sum())
+                flat_candles = int((ohlc["close"] == ohlc["open"]).sum())
+                candle_count = int(len(ohlc))
+                ohlc_stats = {
+                    "available": True,
+                    "candle_count": candle_count,
+                    "first_open": first_open,
+                    "last_close": last_close,
+                    "range_high": range_high,
+                    "range_low": range_low,
+                    "open_to_close_pct": pct(
+                        (last_close / first_open) - 1.0
+                        if first_open is not None and first_open != 0 and last_close is not None
+                        else None
+                    ),
+                    "high_low_range_pct": pct(
+                        (range_high / range_low) - 1.0
+                        if range_low is not None and range_low != 0 and range_high is not None
+                        else None
+                    ),
+                    "up_candles": up_candles,
+                    "down_candles": down_candles,
+                    "flat_candles": flat_candles,
+                    "up_candle_pct": pct(float(up_candles) / float(candle_count)) if candle_count else None,
+                }
+        if not ohlc_stats.get("available"):
+            ohlc_stats = {
+                "available": False,
+                "missing_columns": missing_ohlc_columns,
+            }
         sample_indices = list(range(len(scoped))) if sample_mode == "full" else evenly_sample_indices(len(scoped), preview_points)
         viewer["sampled"] = bool(len(scoped) > len(sample_indices))
         viewer["sampled_points"] = int(len(sample_indices))
@@ -5017,6 +5061,7 @@ def build_data_detail(
         "price_stats": price_stats,
         "return_stats": return_stats,
         "volume_stats": volume_stats,
+        "ohlc_stats": ohlc_stats,
         "viewer": viewer,
         "gaps": gap_rows,
         "missing_intervals": missing_interval_rows,

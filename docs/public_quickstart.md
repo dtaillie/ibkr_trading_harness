@@ -398,7 +398,10 @@ Range CSV downloads the selected date range as bounded bar data, while Export
 Missing CSV downloads inferred missing expected timestamps for the selected
 saved file so gap audits can be reviewed offline.
 Data Detail also has quick range presets for full file, last day, last week,
-last month, and last three months before manual Start/End tuning.
+last month, and last three months before manual Start/End tuning. Its range
+stats show close return, OHLC high/low span, open-to-close move, candle
+direction balance, volume, gaps, and sampling state before the lower metadata
+tables.
 The Config Builder section can generate and validate plugin-runner YAML from
 one or more selected saved datasets. Public exports offer generic no-edge
 examples by default; local ignored plugin registries can add private plugin

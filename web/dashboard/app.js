@@ -7427,6 +7427,7 @@ function renderDataDetail() {
   const price = detail.price_stats || {};
   const returns = detail.return_stats || {};
   const volume = detail.volume_stats || {};
+  const ohlc = detail.ohlc_stats || {};
   const viewer = detail.viewer || {};
   const timezoneMode = $("data-detail-timezone").value || "utc";
   const chartStyle = $("data-detail-chart-style").value || "candles";
@@ -7471,6 +7472,10 @@ function renderDataDetail() {
     ["TZ", text(detail.source_timezone)],
     ["Display TZ", timezoneLabel(timezoneMode)],
     ["Close Range", `${numberText(price.min_close)} -> ${numberText(price.max_close)}`],
+    ["OHLC", ohlc.available ? "available" : "close-only"],
+    ["OHLC High/Low", `${numberText(ohlc.range_high)} -> ${numberText(ohlc.range_low)}`],
+    ["Open To Close", pctText(ohlc.open_to_close_pct)],
+    ["Candle Bias", ohlc.available ? `${numberText(ohlc.up_candles, 0)} up / ${numberText(ohlc.down_candles, 0)} down / ${numberText(ohlc.flat_candles, 0)} flat` : "n/a"],
     ["Total Return", pctText(price.total_return_pct)],
     ["Bar Std", pctText(returns.std_pct)],
     ["Mean Abs Bar", pctText(returns.mean_abs_pct)],
@@ -7542,6 +7547,7 @@ function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
   const price = detail.price_stats || {};
   const returns = detail.return_stats || {};
   const volume = detail.volume_stats || {};
+  const ohlc = detail.ohlc_stats || {};
   const coverage = detail.coverage || {};
   const viewer = detail.viewer || {};
   const previewReturn = previewCloseReturn(detail.preview || []);
@@ -7562,8 +7568,24 @@ function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
     {
       label: "Close Range",
       title: `${numberText(price.min_close)} -> ${numberText(price.max_close)}`,
-      note: `Open ${numberText(price.first_close)} / close ${numberText(price.last_close)}.`,
+      note: `Start close ${numberText(price.start_close)} / end close ${numberText(price.end_close)}.`,
       status: finiteNumber(price.min_close) === null || finiteNumber(price.max_close) === null ? "unknown" : "ok",
+    },
+    {
+      label: "OHLC Span",
+      title: ohlc.available ? pctText(ohlc.high_low_range_pct) : "Close Only",
+      note: ohlc.available
+        ? `High ${numberText(ohlc.range_high)} / low ${numberText(ohlc.range_low)} across ${numberText(ohlc.candle_count, 0)} candles.`
+        : `Missing ${((ohlc.missing_columns || []).join(", ") || "OHLC")} columns; candles fall back to close-line context.`,
+      status: ohlc.available ? "ok" : "warn",
+    },
+    {
+      label: "Candle Bias",
+      title: ohlc.available ? `${numberText(ohlc.up_candles, 0)} up / ${numberText(ohlc.down_candles, 0)} down` : "n/a",
+      note: ohlc.available
+        ? `${numberText(ohlc.flat_candles, 0)} flat; open-to-close ${pctText(ohlc.open_to_close_pct)} / up share ${pctText(ohlc.up_candle_pct)}.`
+        : "Open/high/low columns are needed for candle direction and range context.",
+      status: ohlc.available ? "ok" : "warn",
     },
     {
       label: "Bar Movement",

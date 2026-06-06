@@ -2464,6 +2464,18 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         + "\n",
         encoding="utf-8",
     )
+    close_only_file = data_root / "CLOSE_1min_sample.csv"
+    close_only_file.write_text(
+        "\n".join(
+            [
+                "timestamp,close",
+                "2026-01-02T14:30:00Z,10.0",
+                "2026-01-02T14:31:00Z,10.5",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -2505,6 +2517,18 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert detail["price_stats"]["start_close"] == 100.0
         assert detail["price_stats"]["end_close"] == 103.0
         assert abs(detail["price_stats"]["total_return_pct"] - 3.0) < 1e-9
+        assert detail["ohlc_stats"]["available"] is True
+        assert detail["ohlc_stats"]["candle_count"] == 4
+        assert detail["ohlc_stats"]["first_open"] == 100.0
+        assert detail["ohlc_stats"]["last_close"] == 103.0
+        assert detail["ohlc_stats"]["range_high"] == 104.0
+        assert detail["ohlc_stats"]["range_low"] == 99.0
+        assert abs(detail["ohlc_stats"]["open_to_close_pct"] - 3.0) < 1e-9
+        assert abs(detail["ohlc_stats"]["high_low_range_pct"] - ((104.0 / 99.0 - 1.0) * 100.0)) < 1e-9
+        assert detail["ohlc_stats"]["up_candles"] == 3
+        assert detail["ohlc_stats"]["down_candles"] == 0
+        assert detail["ohlc_stats"]["flat_candles"] == 1
+        assert detail["ohlc_stats"]["up_candle_pct"] == 75.0
         assert detail["return_stats"]["count"] == 3
         assert detail["volume_stats"]["zero_rows"] == 1
         assert len(detail["preview"]) == 4
@@ -2541,7 +2565,18 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert filtered["viewer"]["sampled"] is False
         assert filtered["price_stats"]["start_close"] == 101.0
         assert filtered["price_stats"]["end_close"] == 102.0
+        assert filtered["ohlc_stats"]["candle_count"] == 2
+        assert filtered["ohlc_stats"]["range_high"] == 103.0
+        assert filtered["ohlc_stats"]["range_low"] == 99.0
+        assert filtered["ohlc_stats"]["up_candles"] == 2
         assert len(filtered["preview"]) == 2
+
+        with request.urlopen(f"{base}/data_detail?path={close_only_file}&preview_points=2", timeout=5) as resp:
+            close_only = json.loads(resp.read().decode("utf-8"))
+
+        assert close_only["ohlc_stats"]["available"] is False
+        assert close_only["ohlc_stats"]["missing_columns"] == ["open", "high", "low"]
+        assert close_only["price_stats"]["start_close"] == 10.0
 
         with request.urlopen(
             f"{base}/data_detail_export?"
