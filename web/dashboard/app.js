@@ -2942,6 +2942,188 @@ function renderPerformanceTradeControls(ledger) {
   return rows;
 }
 
+function performanceTradeFilters() {
+  return {
+    state: (($("performance-trade-filter-state") || {}).value || "").toLowerCase(),
+    side: (($("performance-trade-filter-side") || {}).value || "").toLowerCase(),
+    symbol: (($("performance-trade-filter-symbol") || {}).value || "").trim().toUpperCase(),
+  };
+}
+
+function performanceTradeFilterCount() {
+  const filters = performanceTradeFilters();
+  return [filters.state, filters.side, filters.symbol].filter(Boolean).length;
+}
+
+function tradeLedgerRealizedPnl(ledger) {
+  return (ledger.closed || []).reduce((sum, trade) => sum + (finiteNumber(trade.pnl) || 0), 0);
+}
+
+function tradeLedgerWorstLoss(ledger) {
+  const losses = (ledger.closed || [])
+    .filter((trade) => finiteNumber(trade.pnl) !== null && Number(trade.pnl) < 0)
+    .sort((left, right) => Number(left.pnl || 0) - Number(right.pnl || 0));
+  return losses[0] || null;
+}
+
+function tradeLedgerNewestOpen(ledger) {
+  const open = (ledger.open || []).slice();
+  open.sort((left, right) => String(right.entry_time || "").localeCompare(String(left.entry_time || "")));
+  return open[0] || null;
+}
+
+function renderPerformanceTradeAssistant(ledger, shownRows = [], fills = []) {
+  if (!$("performance-trade-assistant-title") || !$("performance-trade-assistant-cards") || !$("performance-trade-assistant-actions")) return;
+  const realizedPnl = tradeLedgerRealizedPnl(ledger);
+  const winRate = ledger.stats.closed_count
+    ? (Number(ledger.stats.wins || 0) / Number(ledger.stats.closed_count || 1)) * 100
+    : null;
+  const worstLoss = tradeLedgerWorstLoss(ledger);
+  const newestOpen = tradeLedgerNewestOpen(ledger);
+  const activeFilters = performanceTradeFilterCount();
+  const profitFactor = Number.isFinite(ledger.stats.profit_factor)
+    ? numberText(ledger.stats.profit_factor, 2)
+    : ledger.stats.profit_factor === Infinity ? "inf" : "n/a";
+  let title = "No Trades To Review";
+  let note = fills.length
+    ? `${numberText(fills.length, 0)} fill${fills.length === 1 ? "" : "s"} loaded, but no paired trade rows are available yet.`
+    : "Load a run or artifact with sanitized fills to build the public-safe trade ledger.";
+  if (ledger.stats.open_count) {
+    title = "Open Exposure In Ledger";
+    note = `${numberText(ledger.stats.open_count, 0)} open lot${ledger.stats.open_count === 1 ? "" : "s"} remain; newest is ${text(newestOpen && newestOpen.symbol)} from ${text(newestOpen && newestOpen.entry_time)}.`;
+  } else if (ledger.stats.closed_count && realizedPnl >= 0) {
+    title = "Closed Trades Positive";
+    note = `${numberText(ledger.stats.closed_count, 0)} closed trade${ledger.stats.closed_count === 1 ? "" : "s"} have ${money(realizedPnl)} realized PnL in the selected source.`;
+  } else if (ledger.stats.closed_count) {
+    title = "Closed Trades Negative";
+    note = `${numberText(ledger.stats.closed_count, 0)} closed trade${ledger.stats.closed_count === 1 ? "" : "s"} have ${money(realizedPnl)} realized PnL; inspect losses before trusting this run.`;
+  }
+  if (activeFilters) {
+    note += ` ${numberText(activeFilters, 0)} filter${activeFilters === 1 ? "" : "s"} active; ${numberText(shownRows.length, 0)} of ${numberText((ledger.rows || []).length, 0)} rows shown.`;
+  }
+  $("performance-trade-assistant-title").textContent = title;
+  $("performance-trade-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: ledger.stats.closed_count ? realizedPnl >= 0 ? "ok" : "bad" : "warn",
+      label: "Realized",
+      title: ledger.stats.closed_count ? money(realizedPnl) : "n/a",
+      note: ledger.stats.closed_count ? `${numberText(ledger.stats.closed_count, 0)} closed paired trades.` : "No closed trades yet.",
+    },
+    {
+      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "bad",
+      label: "Open",
+      title: numberText(ledger.stats.open_count, 0),
+      note: newestOpen ? `${text(newestOpen.symbol)} entered ${text(newestOpen.entry_time)}.` : "No open matched lots.",
+    },
+    {
+      status: winRate === null ? "warn" : winRate >= 50 ? "ok" : "warn",
+      label: "Win Rate",
+      title: winRate === null ? "n/a" : pctText(winRate),
+      note: ledger.stats.closed_count ? `${numberText(ledger.stats.wins, 0)} wins / ${numberText(ledger.stats.losses, 0)} losses.` : "Needs closed trades.",
+    },
+    {
+      status: worstLoss ? "warn" : ledger.stats.closed_count ? "ok" : "warn",
+      label: worstLoss ? "Largest Loss" : "Profit Factor",
+      title: worstLoss ? money(worstLoss.pnl) : profitFactor,
+      note: worstLoss ? `${text(worstLoss.symbol)} closed ${text(worstLoss.exit_time)}.` : "No losing closed trade in this source.",
+    },
+  ];
+  $("performance-trade-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const actions = [
+    {
+      action: "open",
+      title: "Show Open Lots",
+      note: ledger.stats.open_count ? "Filter the ledger to currently open matched lots." : "No open lots are available in this source.",
+      label: "Open",
+      disabled: !ledger.stats.open_count,
+    },
+    {
+      action: "closed",
+      title: "Show Closed Trades",
+      note: ledger.stats.closed_count ? "Filter the ledger to completed matched trades." : "No closed trades are available in this source.",
+      label: "Closed",
+      disabled: !ledger.stats.closed_count,
+    },
+    {
+      action: "worst-loss",
+      title: "Inspect Largest Loss",
+      note: worstLoss ? `Filter to ${text(worstLoss.symbol)} and closed trades.` : "No losing closed trade is available.",
+      label: "Inspect",
+      disabled: !worstLoss,
+    },
+    {
+      action: activeFilters ? "clear" : "runs",
+      title: activeFilters ? "Clear Filters" : "Open Runs",
+      note: activeFilters ? "Return to the full trade ledger." : "Open Runs for artifact, event, and log context.",
+      label: activeFilters ? "Clear" : "Runs",
+      disabled: false,
+    },
+  ];
+  $("performance-trade-assistant-actions").innerHTML = actions.map((action) => `
+    <button type="button" class="performance-trade-assistant-action ${action.disabled ? "secondary" : ""}" data-performance-trade-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function applyPerformanceTradeFilter({ state = "", side = "", symbol = "" } = {}) {
+  $("performance-trade-filter-state").value = state;
+  $("performance-trade-filter-side").value = side;
+  $("performance-trade-filter-symbol").value = symbol;
+  renderPerformance();
+}
+
+function currentTradeLedger() {
+  const source = performanceSource();
+  const window = selectedPerformanceWindow(source.accountRows || []);
+  const fills = eventsInPeriod(source.fills || [], window.start, window.end, (fill) => fill.timestamp || fill.time);
+  return tradeLedgerFromFills(fills);
+}
+
+function handlePerformanceTradeAssistantAction(action) {
+  const ledger = currentTradeLedger();
+  if (action === "open") {
+    applyPerformanceTradeFilter({ state: "open" });
+    $("performance-trades-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Performance trade ledger filtered to open lots";
+    return;
+  }
+  if (action === "closed") {
+    applyPerformanceTradeFilter({ state: "closed" });
+    $("performance-trades-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Performance trade ledger filtered to closed trades";
+    return;
+  }
+  if (action === "worst-loss") {
+    const worstLoss = tradeLedgerWorstLoss(ledger);
+    if (!worstLoss) {
+      $("last-refresh").textContent = "No losing closed trade is available in the selected performance source";
+      return;
+    }
+    applyPerformanceTradeFilter({ state: "closed", symbol: text(worstLoss.symbol).toUpperCase() });
+    $("performance-trades-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = `Performance trade ledger filtered to largest loss symbol ${text(worstLoss.symbol)}`;
+    return;
+  }
+  if (action === "clear") {
+    applyPerformanceTradeFilter();
+    $("last-refresh").textContent = "Performance trade filters cleared";
+    return;
+  }
+  navigateToRunsLens("runs");
+}
+
 function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
   const positions = accountRow.positions || summary.final_positions || {};
   const values = accountRow.position_values || {};
@@ -4209,6 +4391,7 @@ function renderPerformance() {
     ? "Green/red daily return cells"
     : "Load archived artifacts for calendar view";
   const shownTradeRows = renderPerformanceTradeControls(ledger);
+  renderPerformanceTradeAssistant(ledger, shownTradeRows, fills);
   $("performance-trade-note").textContent = fills.length
     ? `${numberText(ledger.stats.closed_count, 0)} closed / ${numberText(ledger.stats.open_count, 0)} open from ${numberText(fills.length, 0)} fills; ${numberText(shownTradeRows.length, 0)} shown`
     : "Load artifacts with fills for trade rows";
@@ -15710,6 +15893,11 @@ function init() {
   $("performance-trade-filter-state").addEventListener("change", renderPerformance);
   $("performance-trade-filter-side").addEventListener("change", renderPerformance);
   $("performance-trade-filter-symbol").addEventListener("input", renderPerformance);
+  $("performance-trade-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-trade-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceTradeAssistantAction(target.dataset.performanceTradeAction || "");
+  });
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
     if (!state.performanceBenchmarkPath) {

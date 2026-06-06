@@ -79,6 +79,9 @@ strategy-private.
     with deep-linkable hashes such as `#performance/trades`, keeping the
     default result/risk/chart view separate from trade tables, rollup archives,
     and metric caveats.
+  - partial; Performance Trades now includes a Trade Ledger Assistant that
+    summarizes open lots, realized PnL, win/loss state, largest loss, active
+    filters, and direct table/Runs actions before the dense trade table.
   - partial; Data Library now has Home / Browse / Inspect / Compare /
     Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
     root visibility, catalog browsing, saved-file inspection, comparisons, and
