@@ -733,6 +733,7 @@ def run_smoke(
             "currentOpenOrderRows",
             "viewFromHash",
             "navigateToView",
+            "navigateToViewTarget",
             "copy-command",
             "copy-data-path-row",
             "replayStarterCommand",

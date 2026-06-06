@@ -96,6 +96,10 @@ strategy-private.
     lenses with deep-linkable hashes such as `#help/workflows`, separating
     first-step routing, page guide, workflow recipes, data troubleshooting,
     public/private boundaries, and runbook links.
+  - partial; page-intro action buttons now preserve focused destinations, so
+    cross-page shortcuts can land on Data Browse, Fetch Jobs, Workbench Builder,
+    Runs, Operations Paper, or other task-specific lenses instead of generic
+    page defaults.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -505,6 +509,9 @@ strategy-private.
     - partial; Help now defaults to a Home lens, with Pages, Workflows, Data,
       Boundary, and Docs lenses carrying guide/reference material away from the
       first-question routing and setup gaps.
+    - partial; the reusable page-intro actions now support a target lens, so
+      primary/secondary shortcuts take users to the relevant focused subview
+      for the job being suggested.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
