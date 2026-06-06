@@ -1073,6 +1073,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     summary cards plus a combined sanitized recent decisions/orders/fills table
     with type filtering. Raw logs and full artifact browsing remain out of the
     hosted view until retention and privacy boundaries are stronger.
+  - partial; Operations now exposes `/remote_node_detail_export` plus an
+    Export Detail CSV button for the selected remote node, covering sanitized
+    summary, bounded history, latest runs, alerts, supervisors, and recent
+    decision/order/fill rows without raw logs or strategy diagnostics.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

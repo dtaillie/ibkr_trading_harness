@@ -476,6 +476,7 @@ def run_smoke(
             "remote-alert-count",
             "remote-open-order-count",
             "export-remote-nodes-csv",
+            "export-remote-node-detail-csv",
             "remote-filter-text",
             "remote-filter-status",
             "remote-filter-mode",
@@ -656,6 +657,7 @@ def run_smoke(
             "remote_nodes",
             "remote_nodes_export",
             "remote_node_detail",
+            "remote_node_detail_export",
             "status_equity_rollups",
             "status_equity_rollups_export",
             "statusRollupEquityChart",
@@ -752,6 +754,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing status_equity_rollups_export")
         if ("GET", "/remote_nodes_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing remote_nodes_export")
+        if ("GET", "/remote_node_detail_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing remote_node_detail_export")
         if ("GET", "/command_audit_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing command_audit_export")
         if ("GET", "/fetch_manifests") not in endpoint_paths:
@@ -847,6 +851,9 @@ def run_smoke(
             remote_nodes_csv = fetch_text(base_url, "/remote_nodes_export?limit=5")
             if "node_id,status,generated_at,received_at" not in remote_nodes_csv or "seed-node" not in remote_nodes_csv:
                 raise RuntimeError("seeded scenario remote nodes CSV export is invalid")
+            remote_node_detail_csv = fetch_text(base_url, "/remote_node_detail_export?node_id=seed-node&limit=5")
+            if "row_type,node_id,received_at" not in remote_node_detail_csv or "summary" not in remote_node_detail_csv:
+                raise RuntimeError("seeded scenario remote node detail CSV export is invalid")
             node = remote_nodes["nodes"][0]
             if node.get("alert_count", 0) < 1 or node.get("rejection_count", 0) < 1:
                 raise RuntimeError("seeded scenario did not expose warning/rejection telemetry")

@@ -203,6 +203,11 @@ or hosted status publishers. Use Export Nodes CSV for an offline table of
 heartbeat, Gateway, mode, equity, positions, open orders, activity counts,
 account/data freshness, and alert summaries by node.
 
+Click Detail on a node when you need bounded per-node history, recent
+decisions/orders/fills, latest run summaries, alerts, and supervisors. Use
+Export Detail CSV to download that sanitized node detail for offline review
+without exposing raw logs or strategy diagnostics.
+
 ## Diagnose Fetch Jobs
 
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it

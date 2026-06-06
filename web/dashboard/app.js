@@ -8975,6 +8975,9 @@ function renderRemoteNodeDetail() {
   $("remote-node-detail-note").textContent = detail.node_id
     ? `${text(detail.node_id)} / ${numberText(detail.total, 0)} stored status snapshot${detail.total === 1 ? "" : "s"}`
     : "Select a remote node to inspect bounded sanitized status detail";
+  if ($("export-remote-node-detail-csv")) {
+    $("export-remote-node-detail-csv").disabled = !detail.node_id;
+  }
   $("remote-detail-snapshot-count").textContent = numberText(detail.count || 0, 0);
   $("remote-detail-snapshot-note").textContent = detail.node_id
     ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored`
@@ -9678,6 +9681,27 @@ async function downloadRemoteNodesCsv() {
   $("last-refresh").textContent = `Remote nodes CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadRemoteNodeDetailCsv() {
+  const detail = state.remoteNodeDetail || {};
+  const nodeId = String(detail.node_id || "").trim();
+  if (!nodeId) {
+    $("last-refresh").textContent = "Select a remote node before exporting detail CSV";
+    return;
+  }
+  const body = await fetchText(`/remote_node_detail_export?node_id=${encodeURIComponent(nodeId)}&limit=100`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const safeNodeId = nodeId.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "") || "remote_node";
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `remote_node_detail_${safeNodeId}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Remote node detail CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadStatusRollupsCsv() {
   const body = await fetchText("/status_equity_rollups_export?limit=500&history_limit=50000");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -10228,6 +10252,11 @@ function init() {
   $("export-remote-nodes-csv").addEventListener("click", () => {
     downloadRemoteNodesCsv().catch((err) => {
       $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-remote-node-detail-csv").addEventListener("click", () => {
+    downloadRemoteNodeDetailCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote node detail CSV export failed: ${err.message}`;
     });
   });
   $("export-status-rollups-csv").addEventListener("click", () => {

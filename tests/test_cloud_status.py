@@ -799,6 +799,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-alert-count" in html
         assert "remote-open-order-count" in html
         assert "export-remote-nodes-csv" in html
+        assert "export-remote-node-detail-csv" in html
         assert "remote-filter-text" in html
         assert "remote-filter-status" in html
         assert "remote-filter-mode" in html
@@ -886,6 +887,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
+        assert ("GET", "/remote_node_detail_export") in endpoints
         assert ("GET", "/command_audit") in endpoints
         assert ("GET", "/command_audit_export") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
@@ -1108,6 +1110,16 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert detail["runs"][0]["recent_orders"][0]["status"] == "Submitted"
         assert detail["supervisors"][0]["id"] == "sup-a"
         assert [row["status"] for row in detail["history"]] == ["ok", "warn"]
+
+        with request.urlopen(f"{base}/remote_node_detail_export?node_id=test-node&limit=2", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="remote_node_detail_test-node.csv"'
+            detail_csv_body = resp.read().decode("utf-8")
+        detail_rows = list(csv.DictReader(io.StringIO(detail_csv_body)))
+        row_types = {row["row_type"] for row in detail_rows}
+        assert {"summary", "history", "run", "activity", "supervisor"}.issubset(row_types)
+        assert any(row["row_type"] == "activity" and row["run_id"] == "run-a" and row["status"] == "Submitted" for row in detail_rows)
+        assert any(row["row_type"] == "summary" and row["node_id"] == "test-node" and row["mode"] == "paper" for row in detail_rows)
     finally:
         server.shutdown()
         server.server_close()

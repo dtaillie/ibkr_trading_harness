@@ -349,6 +349,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON node detail",
     },
     {
+        "method": "GET",
+        "path": "/remote_node_detail_export",
+        "category": "telemetry",
+        "description": "Download bounded sanitized status detail, history, runs, alerts, and activity for one node.",
+        "response": "CSV download",
+    },
+    {
         "method": "POST",
         "path": "/status",
         "category": "telemetry",
@@ -932,6 +939,35 @@ REMOTE_NODES_EXPORT_FIELDS = (
     "latest_decision_time",
 )
 
+REMOTE_NODE_DETAIL_EXPORT_FIELDS = (
+    "row_type",
+    "node_id",
+    "received_at",
+    "generated_at",
+    "status",
+    "gateway_reachable",
+    "mode",
+    "run_id",
+    "event_type",
+    "symbol",
+    "action",
+    "level",
+    "kind",
+    "message",
+    "final_equity",
+    "cash",
+    "position_count",
+    "open_order_count",
+    "decision_count",
+    "order_count",
+    "fill_count",
+    "rejection_count",
+    "latest_account_time",
+    "latest_data_time",
+    "latest_decision_time",
+    "detail",
+)
+
 
 def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
     path = status_history_path(state_dir)
@@ -969,6 +1005,132 @@ def build_remote_nodes_csv(state_dir: Path, *, limit: int = 100) -> str:
     writer.writeheader()
     for row in payload.get("nodes") or []:
         writer.writerow({field: compact_csv_value(row.get(field)) for field in REMOTE_NODES_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def remote_event_timestamp(event: dict[str, Any]) -> str:
+    for key in ("timestamp", "time", "submitted_at", "filled_at", "decision_time", "created_at", "updated_at"):
+        value = event.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def remote_event_symbol(event: dict[str, Any]) -> str:
+    for key in ("symbol", "ticker", "contract", "instrument"):
+        value = event.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def remote_event_detail(event: dict[str, Any]) -> str:
+    keys = ("reason", "tag", "side", "quantity", "price", "cash_quantity", "signal", "threshold")
+    parts = [
+        f"{key}:{event[key]}"
+        for key in keys
+        if event.get(key) not in (None, "")
+    ]
+    return " ".join(parts) if parts else compact_csv_value(event)
+
+
+def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 20) -> str:
+    detail = load_remote_node_detail(state_dir, node_id, limit=limit)
+    rows: list[dict[str, Any]] = []
+    node = detail.get("node_id")
+    summary = detail.get("summary") or {}
+    if summary:
+        rows.append({
+            "row_type": "summary",
+            "node_id": node,
+            "received_at": summary.get("received_at"),
+            "generated_at": summary.get("generated_at"),
+            "status": summary.get("status"),
+            "gateway_reachable": summary.get("gateway_reachable"),
+            "mode": summary.get("mode"),
+            "run_id": summary.get("latest_run_id"),
+            "final_equity": summary.get("final_equity"),
+            "cash": summary.get("cash"),
+            "position_count": summary.get("position_count"),
+            "open_order_count": summary.get("open_order_count"),
+            "decision_count": summary.get("decision_count"),
+            "order_count": summary.get("order_count"),
+            "fill_count": summary.get("fill_count"),
+            "rejection_count": summary.get("rejection_count"),
+            "latest_account_time": summary.get("latest_account_time"),
+            "latest_data_time": summary.get("latest_data_time"),
+            "latest_decision_time": summary.get("latest_decision_time"),
+        })
+    for item in detail.get("history") or []:
+        rows.append({
+            "row_type": "history",
+            "node_id": node,
+            "received_at": item.get("received_at"),
+            "generated_at": item.get("generated_at"),
+            "status": item.get("status"),
+            "gateway_reachable": item.get("gateway_reachable"),
+            "detail": compact_csv_value({
+                "alerts": item.get("alert_count"),
+                "runs": item.get("run_status_counts"),
+                "supervisors": item.get("supervisor_status_counts"),
+                "remote": item.get("remote_latest_event"),
+            }),
+        })
+    for run in detail.get("runs") or []:
+        rows.append({
+            "row_type": "run",
+            "node_id": node,
+            "run_id": run.get("id"),
+            "status": run.get("status"),
+            "mode": run.get("mode"),
+            "final_equity": run.get("final_equity"),
+            "cash": run.get("final_cash"),
+            "position_count": run.get("position_count"),
+            "decision_count": run.get("decisions"),
+            "order_count": run.get("orders"),
+            "fill_count": run.get("fills"),
+            "rejection_count": run.get("rejections"),
+            "latest_account_time": run.get("latest_account_time"),
+            "latest_data_time": run.get("latest_data_time"),
+            "latest_decision_time": run.get("last_decision_time"),
+        })
+        for event_type, key in (("decision", "recent_decisions"), ("order", "recent_orders"), ("fill", "recent_fills")):
+            for event in run.get(key) or []:
+                if not isinstance(event, dict):
+                    continue
+                rows.append({
+                    "row_type": "activity",
+                    "node_id": node,
+                    "run_id": run.get("id"),
+                    "received_at": remote_event_timestamp(event),
+                    "event_type": event_type,
+                    "symbol": remote_event_symbol(event),
+                    "status": event.get("status") or event.get("action") or event.get("side") or event_type,
+                    "action": event.get("action") or event.get("side"),
+                    "detail": remote_event_detail(event),
+                })
+    for alert in detail.get("alerts") or []:
+        rows.append({
+            "row_type": "alert",
+            "node_id": node,
+            "level": alert.get("level"),
+            "kind": alert.get("kind"),
+            "message": alert.get("message"),
+        })
+    for supervisor in detail.get("supervisors") or []:
+        rows.append({
+            "row_type": "supervisor",
+            "node_id": node,
+            "run_id": supervisor.get("id"),
+            "status": supervisor.get("status"),
+            "generated_at": supervisor.get("generated_at"),
+            "detail": compact_csv_value(supervisor.get("job_status_counts") or {}),
+        })
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=REMOTE_NODE_DETAIL_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in REMOTE_NODE_DETAIL_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -7514,6 +7676,25 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/remote_node_detail_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=20, maximum=100)
+                detail_node_id = str(params.get("node_id", [""])[0] or "").strip()
+                csv_body = build_remote_node_detail_csv(self.state_dir, detail_node_id, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            safe_node_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", detail_node_id or "remote_node").strip("_") or "remote_node"
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename=f"remote_node_detail_{safe_node_id}.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/commands":
             if not self.require_auth():
