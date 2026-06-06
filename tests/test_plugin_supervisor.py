@@ -189,6 +189,95 @@ def test_supervisor_manages_long_running_job_without_blocking(tmp_path):
     assert "example" not in MANAGED_PROCESSES
 
 
+def test_supervisor_restarts_managed_job_after_exit_when_enabled(tmp_path):
+    started = tmp_path / "started.txt"
+    finished = tmp_path / "finished.txt"
+    script = tmp_path / "short_managed_job.py"
+    slow_helper_script(script, started, finished, sleep_seconds=0.1)
+    config = base_config(tmp_path, command=[sys.executable, str(script)], process_mode="managed")
+    config["jobs"][0]["restart"] = {"on_exit": True, "max_restarts_per_hour": 2}
+    first = datetime(2026, 1, 2, 14, 30, tzinfo=timezone.utc)
+
+    state = evaluate_once(config, now=first)
+    first_pid = state["jobs"][0]["pid"]
+    proc = MANAGED_PROCESSES["example"]
+    proc.wait(timeout=5)
+
+    restarted = evaluate_once(config, now=first + timedelta(seconds=1))
+
+    assert restarted["jobs"][0]["status"] == "running"
+    assert restarted["jobs"][0]["reason"] == "restart_completed"
+    assert restarted["jobs"][0]["restart_trigger"] == "completed"
+    assert restarted["jobs"][0]["restart_count_last_hour"] == 1
+    assert restarted["jobs"][0]["pid"] != first_pid
+
+
+def test_supervisor_restarts_managed_job_when_runner_status_is_stale(tmp_path):
+    started = tmp_path / "started.txt"
+    finished = tmp_path / "finished.txt"
+    script = tmp_path / "long_managed_job.py"
+    slow_helper_script(script, started, finished, sleep_seconds=10)
+    runner_status = tmp_path / "run" / "runner_status.json"
+    runner_status.parent.mkdir()
+    runner_status.write_text(json.dumps({
+        "schema_version": 1,
+        "state": "running",
+        "mode": "shadow",
+        "updated_at": "2026-01-02T14:00:00+00:00",
+        "latest_data_time": "2026-01-02T14:00:00+00:00",
+        "counts": {"decisions": 4},
+    }))
+    config = base_config(tmp_path, command=[sys.executable, str(script)], process_mode="managed")
+    config["jobs"][0]["schedule"]["max_runtime_seconds"] = 1000
+    config["jobs"][0]["restart"] = {
+        "on_stale_runner_status": True,
+        "runner_status_path": str(runner_status),
+        "max_status_age_seconds": 60,
+        "stop_grace_seconds": 2,
+        "max_restarts_per_hour": 2,
+    }
+    first = datetime(2026, 1, 2, 14, 30, tzinfo=timezone.utc)
+
+    state = evaluate_once(config, now=first)
+    first_pid = state["jobs"][0]["pid"]
+    old_proc = MANAGED_PROCESSES["example"]
+    restarted = evaluate_once(config, now=first + timedelta(minutes=2))
+
+    assert old_proc.poll() is not None
+    assert restarted["jobs"][0]["status"] == "running"
+    assert restarted["jobs"][0]["reason"] == "restart_runner_status_stale"
+    assert restarted["jobs"][0]["restart_trigger"] == "runner_status_stale"
+    assert restarted["jobs"][0]["restart_count_last_hour"] == 1
+    assert restarted["jobs"][0]["pid"] != first_pid
+    assert restarted["jobs"][0]["runner_status"]["stale"] is True
+    assert restarted["jobs"][0]["runner_status"]["age_seconds"] == 1920.0
+
+
+def test_supervisor_blocks_managed_restart_after_limit(tmp_path):
+    started = tmp_path / "started.txt"
+    finished = tmp_path / "finished.txt"
+    script = tmp_path / "short_managed_job.py"
+    slow_helper_script(script, started, finished, sleep_seconds=0.1)
+    config = base_config(tmp_path, command=[sys.executable, str(script)], process_mode="managed")
+    config["jobs"][0]["restart"] = {"on_exit": True, "max_restarts_per_hour": 1}
+    first = datetime(2026, 1, 2, 14, 30, tzinfo=timezone.utc)
+
+    state = evaluate_once(config, now=first)
+    proc = MANAGED_PROCESSES["example"]
+    proc.wait(timeout=5)
+    state_file = Path(config["supervisor"]["state_file"])
+    saved = json.loads(state_file.read_text())
+    saved["jobs"][0]["restart_history"] = [(first + timedelta(seconds=10)).isoformat()]
+    state_file.write_text(json.dumps(saved))
+    blocked = evaluate_once(config, now=first + timedelta(seconds=20))
+
+    assert blocked["jobs"][0]["status"] == "failed"
+    assert blocked["jobs"][0]["reason"] == "restart_limit_reached"
+    assert blocked["jobs"][0]["restart_trigger"] == "completed"
+    assert blocked["jobs"][0]["restart_count_last_hour"] == 1
+    assert "example" not in MANAGED_PROCESSES
+
+
 def test_supervisor_rejects_shell_command_string(tmp_path):
     config = base_config(tmp_path, command=[sys.executable, "-c", "print('ok')"])
     config["jobs"][0]["command"] = "python3 live/plugin_runner.py"
@@ -205,6 +294,21 @@ def test_supervisor_rejects_invalid_process_mode(tmp_path):
     errors = validate_config(config)
 
     assert any("process_mode" in err for err in errors)
+
+
+def test_supervisor_rejects_invalid_restart_policy(tmp_path):
+    config = base_config(tmp_path, command=[sys.executable, "-c", "print('ok')"], process_mode="managed")
+    config["jobs"][0]["restart"] = {
+        "on_exit": "yes",
+        "on_stale_runner_status": True,
+        "max_restarts_per_hour": 0,
+    }
+
+    errors = validate_config(config)
+
+    assert any("restart.on_exit" in err for err in errors)
+    assert any("restart.runner_status_path is required" in err for err in errors)
+    assert any("restart.max_restarts_per_hour" in err for err in errors)
 
 
 def test_supervisor_config_error_contains_all_errors(tmp_path):

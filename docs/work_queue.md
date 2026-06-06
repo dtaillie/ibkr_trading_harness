@@ -1365,8 +1365,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     before the next data/plugin/broker pass. Generic runner executions now
     maintain a public-safe `runner_status.json` heartbeat/status artifact with
     lifecycle state, loop/session counters, latest data time, stop/pause marker
-    presence, and final result pointers. Richer external process supervision
-    and restart policy remains open.
+    presence, and final result pointers. The generic local supervisor now has
+    an opt-in managed-job `restart` policy that can relaunch exited managed
+    children or terminate/relaunch a managed plugin-runner child when its
+    `runner_status.json` heartbeat is stale, with a per-hour restart cap and
+    pause-marker guard. Richer UI controls and provider/service-specific
+    restart recipes remain open.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version

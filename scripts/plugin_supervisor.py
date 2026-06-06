@@ -31,6 +31,7 @@ SCHEMA_VERSION = 1
 VALID_MARKETS = {"always", "us_stocks"}
 VALID_PROCESS_MODES = {"blocking", "managed"}
 MANAGED_PROCESSES: dict[str, subprocess.Popen] = {}
+RESTARTABLE_EXIT_REASONS = {"completed", "nonzero_exit", "pid_not_running_returncode_unknown"}
 
 
 class SupervisorConfigError(ValueError):
@@ -110,6 +111,11 @@ def positive_number(value: Any, field: str, errors: list[str], *, integer: bool 
         errors.append(f"{field} must be an integer")
 
 
+def validate_bool(value: Any, field: str, errors: list[str]) -> None:
+    if value is not None and not isinstance(value, bool):
+        errors.append(f"{field} must be true or false")
+
+
 def validate_config(config: dict[str, Any], *, check_paths: bool = True) -> list[str]:
     errors: list[str] = []
     supervisor = section(config, "supervisor", errors)
@@ -155,6 +161,19 @@ def validate_config(config: dict[str, Any], *, check_paths: bool = True) -> list
         process_mode = str(raw_job.get("process_mode", "blocking"))
         if process_mode not in VALID_PROCESS_MODES:
             errors.append(f"{prefix}.process_mode must be one of {sorted(VALID_PROCESS_MODES)}")
+        restart = raw_job.get("restart") or {}
+        if not isinstance(restart, dict):
+            errors.append(f"{prefix}.restart must be a mapping")
+            restart = {}
+        validate_bool(restart.get("on_exit"), f"{prefix}.restart.on_exit", errors)
+        validate_bool(restart.get("on_stale_runner_status"), f"{prefix}.restart.on_stale_runner_status", errors)
+        if restart.get("runner_status_path") is not None and not str(restart["runner_status_path"]).strip():
+            errors.append(f"{prefix}.restart.runner_status_path must not be empty")
+        if restart.get("on_stale_runner_status") and not restart.get("runner_status_path"):
+            errors.append(f"{prefix}.restart.runner_status_path is required when on_stale_runner_status is true")
+        positive_number(restart.get("max_status_age_seconds"), f"{prefix}.restart.max_status_age_seconds", errors)
+        positive_number(restart.get("stop_grace_seconds"), f"{prefix}.restart.stop_grace_seconds", errors)
+        positive_number(restart.get("max_restarts_per_hour"), f"{prefix}.restart.max_restarts_per_hour", errors, integer=True)
 
         schedule = raw_job.get("schedule") or {}
         if not isinstance(schedule, dict):
@@ -314,6 +333,87 @@ def runtime_seconds_from_status(status: dict[str, Any], now: datetime) -> float 
     return max(0.0, (now - started_at).total_seconds())
 
 
+def runner_status_summary(job: dict[str, Any], now: datetime) -> dict[str, Any] | None:
+    restart = job.get("restart") or {}
+    path_value = restart.get("runner_status_path")
+    if not path_value:
+        return None
+    path = Path(str(path_value))
+    max_age = restart.get("max_status_age_seconds")
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "stale": False,
+        "max_age_seconds": float(max_age) if max_age is not None else None,
+    }
+    if not path.exists():
+        summary.update({
+            "status": "missing",
+            "stale": bool(max_age is not None),
+        })
+        return summary
+    try:
+        with path.open() as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        summary.update({
+            "status": "invalid",
+            "error": str(exc),
+            "stale": bool(max_age is not None),
+        })
+        return summary
+    if not isinstance(payload, dict):
+        summary.update({
+            "status": "invalid",
+            "error": "runner status payload must be a mapping",
+            "stale": bool(max_age is not None),
+        })
+        return summary
+    updated_at = parse_dt(payload.get("updated_at"))
+    age_seconds = (now - updated_at).total_seconds() if updated_at is not None else None
+    stale = bool(max_age is not None and (age_seconds is None or age_seconds > float(max_age)))
+    counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+    loop = payload.get("loop") if isinstance(payload.get("loop"), dict) else {}
+    session = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+    summary.update({
+        "status": "ok",
+        "state": payload.get("state"),
+        "mode": payload.get("mode"),
+        "updated_at": updated_at.isoformat() if updated_at is not None else None,
+        "age_seconds": round(age_seconds, 3) if age_seconds is not None else None,
+        "stale": stale,
+        "latest_data_time": payload.get("latest_data_time"),
+        "last_decision_time": payload.get("last_decision_time"),
+        "counts": counts,
+        "loop": loop,
+        "session": session,
+    })
+    return summary
+
+
+def restart_history(previous: dict[str, Any] | None, now: datetime) -> list[str]:
+    raw = (previous or {}).get("restart_history")
+    if not isinstance(raw, list):
+        return []
+    out = []
+    cutoff = now - timedelta(hours=1)
+    for value in raw:
+        parsed = parse_dt(value)
+        if parsed is not None and parsed >= cutoff:
+            out.append(parsed.isoformat())
+    return out
+
+
+def restart_allowed(job: dict[str, Any], previous: dict[str, Any] | None, now: datetime) -> tuple[bool, list[str], int | None]:
+    restart = job.get("restart") or {}
+    history = restart_history(previous, now)
+    raw_limit = restart.get("max_restarts_per_hour")
+    limit = int(raw_limit) if raw_limit is not None else None
+    if limit is not None and len(history) >= limit:
+        return False, history, limit
+    return True, history, limit
+
+
 def managed_running_status(
     job: dict[str, Any],
     previous: dict[str, Any] | None,
@@ -322,6 +422,8 @@ def managed_running_status(
     reason: str,
 ) -> dict[str, Any]:
     status = status_from_previous(job, previous, now, reason)
+    status.pop("restart_requested", None)
+    status.pop("managed_process_exited", None)
     status["status"] = "running"
     status["process_mode"] = "managed"
     status["reason"] = reason
@@ -331,14 +433,36 @@ def managed_running_status(
     return status
 
 
-def terminate_process(proc: subprocess.Popen) -> None:
+def terminate_process(proc: subprocess.Popen, *, grace_seconds: float = 0) -> bool:
     try:
         os.killpg(proc.pid, 15)
     except OSError:
         try:
             proc.terminate()
         except OSError:
-            pass
+            return proc.poll() is not None
+    if grace_seconds > 0:
+        try:
+            proc.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            return False
+    return proc.poll() is not None
+
+
+def blocked_restart_status(
+    status: dict[str, Any],
+    *,
+    history: list[str],
+    limit: int | None,
+    trigger: str,
+) -> dict[str, Any]:
+    status["status"] = "failed"
+    status["reason"] = "restart_limit_reached"
+    status["restart_trigger"] = trigger
+    status["restart_history"] = history
+    status["restart_count_last_hour"] = len(history)
+    status["restart_limit_per_hour"] = limit
+    return status
 
 
 def monitor_managed_job(
@@ -354,6 +478,9 @@ def monitor_managed_job(
         if returncode is None:
             status = managed_running_status(job, previous, now, reason="already_running")
             status["pid"] = proc.pid
+            runner_status = runner_status_summary(job, now)
+            if runner_status is not None:
+                status["runner_status"] = runner_status
             max_runtime = schedule.get("max_runtime_seconds")
             runtime = runtime_seconds_from_status(status, now)
             if max_runtime is not None and runtime is not None and runtime > float(max_runtime):
@@ -361,6 +488,20 @@ def monitor_managed_job(
                 status["status"] = "failed"
                 status["reason"] = "max_runtime_exceeded"
                 status["error"] = f"runtime {runtime:.3f}s exceeded max_runtime_seconds {float(max_runtime):.3f}"
+            elif runner_status is not None and runner_status.get("stale") and bool((job.get("restart") or {}).get("on_stale_runner_status", False)):
+                grace = float((job.get("restart") or {}).get("stop_grace_seconds", 5.0))
+                stopped = terminate_process(proc, grace_seconds=grace)
+                if stopped:
+                    MANAGED_PROCESSES.pop(job_id, None)
+                    status["status"] = "failed"
+                    status["reason"] = "runner_status_stale"
+                    status["restart_requested"] = True
+                    status["last_returncode"] = proc.poll()
+                    status["last_finished_at"] = now.isoformat()
+                else:
+                    status["status"] = "failed"
+                    status["reason"] = "runner_status_stale_stop_pending"
+                    status["error"] = f"stale runner_status.json but process did not stop within {grace:.3f}s"
             return status
         MANAGED_PROCESSES.pop(job_id, None)
         status = status_from_previous(job, previous, now, "completed" if returncode == 0 else "nonzero_exit")
@@ -368,6 +509,7 @@ def monitor_managed_job(
         status["status"] = "ok" if returncode == 0 else "failed"
         status["last_returncode"] = returncode
         status["last_finished_at"] = now.isoformat()
+        status["managed_process_exited"] = True
         runtime = runtime_seconds_from_status(status, now)
         if runtime is not None:
             status["last_runtime_seconds"] = round(runtime, 3)
@@ -378,16 +520,28 @@ def monitor_managed_job(
         if pid_running(pid):
             status = managed_running_status(job, previous, now, reason="external_pid_running")
             status["pid"] = pid
+            runner_status = runner_status_summary(job, now)
+            if runner_status is not None:
+                status["runner_status"] = runner_status
             return status
         status = status_from_previous(job, previous, now, "pid_not_running_returncode_unknown")
         status["process_mode"] = "managed"
         status["status"] = "unknown"
         status["last_finished_at"] = now.isoformat()
+        status["managed_process_exited"] = True
         return status
     return None
 
 
-def start_managed_job(job: dict[str, Any], previous: dict[str, Any] | None, now: datetime, log_dir: Path) -> dict[str, Any]:
+def start_managed_job(
+    job: dict[str, Any],
+    previous: dict[str, Any] | None,
+    now: datetime,
+    log_dir: Path,
+    *,
+    start_reason: str = "started",
+    restart_trigger: str | None = None,
+) -> dict[str, Any]:
     job_id = str(job["id"])
     command = [str(part) for part in job["command"]]
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
@@ -395,7 +549,18 @@ def start_managed_job(job: dict[str, Any], previous: dict[str, Any] | None, now:
     job_log_dir.mkdir(parents=True, exist_ok=True)
     stdout_path = job_log_dir / f"{stamp}.stdout.log"
     stderr_path = job_log_dir / f"{stamp}.stderr.log"
-    status = status_from_previous(job, previous, now, "started")
+    status = status_from_previous(job, previous, now, start_reason)
+    status.pop("restart_requested", None)
+    status.pop("managed_process_exited", None)
+    restart_history_values: list[str] | None = None
+    restart_limit: int | None = None
+    if restart_trigger:
+        allowed, history, limit = restart_allowed(job, previous, now)
+        if not allowed:
+            status["process_mode"] = "managed"
+            return blocked_restart_status(status, history=history, limit=limit, trigger=restart_trigger)
+        restart_history_values = [*history, now.isoformat()]
+        restart_limit = limit
     status.update({
         "status": "running",
         "process_mode": "managed",
@@ -404,6 +569,11 @@ def start_managed_job(job: dict[str, Any], previous: dict[str, Any] | None, now:
         "last_stderr": str(stderr_path),
         "last_returncode": None,
     })
+    if restart_trigger:
+        status["restart_trigger"] = restart_trigger
+        status["restart_history"] = restart_history_values
+        status["restart_count_last_hour"] = len(restart_history_values or [])
+        status["restart_limit_per_hour"] = restart_limit
     try:
         stdout = stdout_path.open("w")
         stderr = stderr_path.open("w")
@@ -456,12 +626,34 @@ def evaluate_once(config: dict[str, Any], *, now: datetime | None = None) -> dic
         process_mode = str(job.get("process_mode", "blocking"))
         if process_mode == "managed":
             current = monitor_managed_job(job, previous_status, now)
-            if current is not None and current.get("status") == "running":
-                statuses.append(current)
-                continue
-            if current is not None and previous_status and previous_status.get("status") == "running":
-                statuses.append(current)
-                continue
+            if current is not None:
+                restart = job.get("restart") or {}
+                should_restart = bool(current.get("restart_requested")) or (
+                    bool(restart.get("on_exit", False))
+                    and bool(current.get("managed_process_exited", False))
+                    and str(current.get("reason")) in RESTARTABLE_EXIT_REASONS
+                )
+                if current.get("status") == "running" and not should_restart:
+                    statuses.append(current)
+                    continue
+                if should_restart:
+                    marker_value = job.get("pause_marker")
+                    if marker_value and Path(str(marker_value)).exists():
+                        statuses.append(paused_status(job, current, now, Path(str(marker_value))))
+                        continue
+                    trigger = "runner_status_stale" if current.get("restart_requested") else str(current.get("reason") or "process_exit")
+                    statuses.append(start_managed_job(
+                        job,
+                        current,
+                        now,
+                        log_dir,
+                        start_reason=f"restart_{trigger}",
+                        restart_trigger=trigger,
+                    ))
+                    continue
+                if previous_status and previous_status.get("status") == "running":
+                    statuses.append(current)
+                    continue
         marker_value = job.get("pause_marker")
         if marker_value and Path(str(marker_value)).exists():
             statuses.append(paused_status(job, previous_status, now, Path(str(marker_value))))

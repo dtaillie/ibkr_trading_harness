@@ -31,9 +31,19 @@ jobs:
       run_on_start: true
       interval_seconds: 3600
       max_runtime_seconds: 60
+    # For long-running loop jobs, switch process_mode to managed and enable a
+    # conservative restart policy after reviewing the command and output dir.
+    # restart:
+    #   on_exit: true
+    #   on_stale_runner_status: true
+    #   runner_status_path: paper_logs/example_plugin_runner/runner_status.json
+    #   max_status_age_seconds: 300
+    #   stop_grace_seconds: 5
+    #   max_restarts_per_hour: 3
 
 notes:
   - Commands are argv lists, not shell strings.
   - Use process_mode=managed for long-running paper/shadow processes.
+  - Managed restart policies are opt-in and should point at runner_status.json.
   - Keep private strategy commands in ignored local configs.
   - Pause/resume writes or removes the configured pause marker.

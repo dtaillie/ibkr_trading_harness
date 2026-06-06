@@ -202,6 +202,14 @@ job-level `pause_marker` lets the safe command worker pause scheduled launches;
 `stop_marker` lets looped plugin-runner jobs exit cleanly on their next loop
 check.
 
+Managed jobs can opt into a conservative `restart` policy. Set
+`restart.on_exit: true` to relaunch a managed child after it exits, or set
+`restart.on_stale_runner_status: true` with `restart.runner_status_path`,
+`restart.max_status_age_seconds`, `restart.stop_grace_seconds`, and
+`restart.max_restarts_per_hour` to terminate and relaunch a managed
+plugin-runner job when its `runner_status.json` heartbeat goes stale. Leave
+restart disabled for one-shot replay/fetch jobs.
+
 ## 8. Cloud Checking Prototype
 
 Publish read-only local telemetry to a file:

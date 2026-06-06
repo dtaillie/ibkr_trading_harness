@@ -93,8 +93,9 @@ This roadmap is broader context; the queue is the current execution order.
 
 - Provide install scripts for user-level systemd services and timers.
 - Maintain the current generic local supervisor for public plugin-runner jobs,
-  and extend it from interval scheduling into richer market-hours loops where
-  needed.
+  including managed-process restart policies for exited children and stale
+  `runner_status.json` heartbeats, and extend it from interval scheduling into
+  richer market-hours loops where needed.
 - Add health checks for gateway connectivity, API connectivity, market-data
   permissions, stale bars, stale account snapshots, and stuck child processes.
 - Add local status commands that show active strategies, current positions,
