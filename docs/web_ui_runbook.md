@@ -95,6 +95,10 @@ strategy is publishing status but no archived artifact is loaded.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+Use the Runs workflow cards first when you know the review job: Current State,
+Open Orders, Positions, Event Timeline, Run Search, or Loaded Artifacts. They
+route directly into the focused Runs, Performance, or Workbench views behind
+that evidence.
 Use Run Comparison filters for status, action, mode, and summary availability
 to compare replay, simulated-paper, paper, or other session groups before
 opening individual artifacts.
