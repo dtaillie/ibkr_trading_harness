@@ -6172,6 +6172,129 @@ function countBy(rows, key) {
   return counts;
 }
 
+function dataUniverseRows() {
+  const datasets = state.dataCatalog.datasets || [];
+  const datasetByPath = new Map(datasets.map((dataset) => [dataset.path, dataset]));
+  const summaries = state.dataCatalog.symbol_summaries || [];
+  if (summaries.length) {
+    return summaries.map((summary) => ({
+      symbol: text(summary.symbol),
+      best: datasetByPath.get(summary.best_path) || { path: summary.best_path },
+      file_count: Number(summary.file_count || 0),
+      row_count: Number(summary.row_count || 0),
+      assets: (summary.asset_classes || []).map(text).filter((value) => value !== "n/a").sort(),
+      sources: (summary.sources || []).map(text).filter((value) => value !== "n/a").sort(),
+      bars: (summary.bar_sizes || []).map(text).filter((value) => value !== "n/a").sort(),
+      sessions: (summary.storage_sessions || []).map(text).filter((value) => value !== "n/a").sort(),
+      qualities: summary.quality_counts || {},
+      first_day: summary.first_timestamp,
+      last_day: summary.last_timestamp,
+      best_quality_status: text(summary.best_quality_status),
+      best_rows: Number(summary.best_rows || 0),
+    }));
+  }
+  return Array.from(symbolBrowserGroups()).map(([symbol, rows]) => {
+    const ranges = timestampRangeFromDatasets(rows);
+    const best = rows[0] || {};
+    return {
+      symbol,
+      best,
+      file_count: rows.length,
+      row_count: rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0),
+      assets: Array.from(new Set(rows.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort(),
+      sources: Array.from(new Set(rows.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
+      bars: Array.from(new Set(rows.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
+      sessions: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
+      qualities: countBy(rows, "quality_status"),
+      first_day: ranges.start,
+      last_day: ranges.end,
+      best_quality_status: text(best.quality_status),
+      best_rows: Number(best.rows || 0),
+    };
+  });
+}
+
+function renderDataUniversePanel() {
+  if (!$("data-universe-title") || !$("data-universe-cards") || !$("data-universe-symbols")) return;
+  const rows = dataUniverseRows();
+  const fileCount = rows.reduce((sum, item) => sum + Number(item.file_count || 0), 0);
+  const rowCount = rows.reduce((sum, item) => sum + Number(item.row_count || 0), 0);
+  const latestMillis = rows
+    .map((item) => timestampMillis(item.last_day) || 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+  const qualityIssueSymbols = rows.filter((item) => Number(item.qualities.bad || 0) || Number(item.qualities.warn || 0));
+  const multiFileSymbols = rows.filter((item) => Number(item.file_count || 0) >= 2);
+  const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 4);
+  const barTop = topCountEntries(countArrayValues(rows, "bars"), 4);
+  const sessionTop = topCountEntries(countArrayValues(rows, "sessions"), 4);
+  const assetsTop = topCountEntries(countArrayValues(rows, "assets"), 4);
+  const topSymbols = rows.slice()
+    .sort((left, right) => Number(right.row_count || 0) - Number(left.row_count || 0) || Number(right.file_count || 0) - Number(left.file_count || 0))
+    .slice(0, 6);
+  let nextAction = "Browse";
+  let note = "Search symbols, inspect a file, compare related histories, or send selected datasets to Workbench.";
+  if (!rows.length) {
+    nextAction = "Configure Roots";
+    note = "No saved-data universe is visible yet. Configure data roots or run a fetch job, then refresh Data Library.";
+  } else if (qualityIssueSymbols.length) {
+    nextAction = "Review Quality";
+    note = `${numberText(qualityIssueSymbols.length, 0)} symbol${qualityIssueSymbols.length === 1 ? "" : "s"} have warn/bad files. Review diagnostics before replay.`;
+  } else if (!multiFileSymbols.length && rows.length > 1) {
+    nextAction = "Compare Symbols";
+    note = "The universe has multiple symbols. Use Compare for overlapping date windows or fetch additional bar sizes for same-symbol checks.";
+  }
+  $("data-universe-title").textContent = rows.length
+    ? `${numberText(rows.length, 0)} scanned symbol${rows.length === 1 ? "" : "s"}`
+    : "No universe loaded";
+  $("data-universe-note").textContent = rows.length
+    ? `${numberText(fileCount, 0)} files / ${numberText(rowCount, 0)} rows. ${note}`
+    : note;
+  const cards = [
+    {
+      label: "Latest Data",
+      status: latestMillis ? "ok" : rows.length ? "warn" : "bad",
+      title: latestMillis ? new Date(latestMillis).toISOString().slice(0, 10) : "n/a",
+      note: latestMillis ? `Most recent saved timestamp across scanned symbols. Next: ${nextAction}.` : "No timestamp range was found.",
+    },
+    {
+      label: "Sources",
+      status: sourceTop.length ? "ok" : rows.length ? "warn" : "bad",
+      title: sourceTop.length ? sourceTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") : "none",
+      note: assetsTop.length ? `Assets: ${assetsTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ")}.` : "No asset/source metadata found.",
+    },
+    {
+      label: "Bars And Sessions",
+      status: barTop.length || sessionTop.length ? "ok" : rows.length ? "warn" : "bad",
+      title: barTop.length ? barTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") : "none",
+      note: sessionTop.length ? `Sessions: ${sessionTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ")}.` : "No storage-session metadata found.",
+    },
+    {
+      label: "Replay Readiness",
+      status: !rows.length ? "bad" : qualityIssueSymbols.length ? "warn" : "ok",
+      title: qualityIssueSymbols.length ? `${numberText(qualityIssueSymbols.length, 0)} review` : rows.length ? "Ready To Inspect" : "No Data",
+      note: multiFileSymbols.length
+        ? `${numberText(multiFileSymbols.length, 0)} symbol${multiFileSymbols.length === 1 ? "" : "s"} have multiple files for same-symbol comparisons.`
+        : "Inspect representative files before using this universe in Workbench.",
+    },
+  ];
+  $("data-universe-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-universe-symbols").innerHTML = topSymbols.length
+    ? topSymbols.map((item) => `
+      <button type="button" class="data-universe-symbol" data-home-action="filter" data-symbol="${escapeHtml(item.symbol)}">
+        <strong>${escapeHtml(item.symbol)}</strong>
+        <span>${escapeHtml(numberText(item.file_count, 0))} files / ${escapeHtml(numberText(item.row_count, 0))} rows</span>
+        <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")} / ${escapeHtml(countSummary(item.qualities))}</small>
+      </button>
+    `).join("")
+    : `<div class="empty-card"><strong>No symbols to rank</strong><span>Refresh Data Library after adding saved data roots.</span></div>`;
+}
+
 function timestampRangeFromDatasets(datasets) {
   const starts = (datasets || []).map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
   const ends = (datasets || []).map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
@@ -6443,6 +6566,7 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Bars", catalog.bar_size_counts || countBy(datasets, "bar_size")),
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
   ].join("");
+  renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
 }
@@ -14637,6 +14761,13 @@ function init() {
   $("data-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
   $("data-home-shortlist").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataHomeShortlistAction(target).catch((err) => {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-universe-symbols").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataHomeShortlistAction(target).catch((err) => {
