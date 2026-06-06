@@ -531,6 +531,10 @@ strategy-private.
     - partial; the screenshot smoke can now run `--check-layout` to verify
       each top-level view at desktop and mobile widths for horizontal viewport
       overflow and clipped core UI text.
+    - partial; screenshot smoke now captures every deep-linked focus lens for
+      Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
+      Operations, and Help at desktop and mobile widths, so focused subviews
+      are protected by the same layout gate as top-level pages.
   - empty-state smoke tests for no status, no data roots, no runs, and no saved
     drafts
     - partial; `scripts/smoke_dashboard.py --scenario empty` now exercises a
@@ -556,9 +560,9 @@ strategy-private.
       contrast checks against dashboard tokens.
   - no overlapping text in tables, cards, charts, or mobile navigation
     - partial; CI now runs the screenshot smoke with layout checks against
-      seeded desktop and mobile views. The gate covers viewport overflow and
-      clipped core dashboard text; richer pixel-level overlap detection remains
-      future work.
+      seeded desktop and mobile top-level/focus-lens views. The gate covers
+      viewport overflow and clipped core dashboard text; richer pixel-level
+      overlap detection remains future work.
 
 ## P0: Data Library and saved-data visibility
 

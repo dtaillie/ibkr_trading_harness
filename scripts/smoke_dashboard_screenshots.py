@@ -25,7 +25,42 @@ from scripts.cloud_status_server import DEFAULT_DASHBOARD_DIR, create_server
 from scripts.smoke_dashboard import post_seed_status, write_seed_data, write_seed_fetch_manifest
 
 
-VIEWS = ("overview", "performance", "data", "fetch", "workbench", "runs", "operations", "help")
+VIEW_TARGETS = (
+    ("overview", "overview"),
+    ("overview_activity", "overview/activity"),
+    ("overview_diagnostics", "overview/diagnostics"),
+    ("performance", "performance"),
+    ("performance_trades", "performance/trades"),
+    ("performance_rollups", "performance/rollups"),
+    ("performance_diagnostics", "performance/diagnostics"),
+    ("data", "data"),
+    ("data_browse", "data/browse"),
+    ("data_inspect", "data/inspect"),
+    ("data_compare", "data/compare"),
+    ("data_diagnostics", "data/diagnostics"),
+    ("fetch", "fetch"),
+    ("fetch_jobs", "fetch/jobs"),
+    ("fetch_detail", "fetch/detail"),
+    ("workbench", "workbench"),
+    ("workbench_builder", "workbench/builder"),
+    ("workbench_run", "workbench/run"),
+    ("workbench_artifacts", "workbench/artifacts"),
+    ("runs", "runs"),
+    ("runs_state", "runs/state"),
+    ("runs_table", "runs/runs"),
+    ("runs_events", "runs/events"),
+    ("operations", "operations"),
+    ("operations_paper", "operations/paper"),
+    ("operations_remote", "operations/remote"),
+    ("operations_control", "operations/control"),
+    ("operations_diagnostics", "operations/diagnostics"),
+    ("help", "help"),
+    ("help_pages", "help/pages"),
+    ("help_workflows", "help/workflows"),
+    ("help_data", "help/data"),
+    ("help_boundary", "help/boundary"),
+    ("help_docs", "help/docs"),
+)
 VIEWPORTS = {
     "desktop": (1366, 900),
     "mobile": (390, 844),
@@ -45,7 +80,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     const text = (element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
     return `${element.tagName.toLowerCase()}${id}${klass}${text ? ` "${text}"` : ""}`;
   };
-  const activeView = location.hash.replace(/^#/, "") || "overview";
+  const activePath = location.hash.replace(/^#/, "") || "overview";
+  const activeView = activePath.split("/")[0] || "overview";
   const activeNav = document.querySelector(`.nav-link[data-view-target="${activeView}"]`);
   if (activeNav && activeNav.getAttribute("aria-current") !== "page") {
     failures.push({
@@ -505,13 +541,14 @@ def run_screenshot_smoke(
             post_seed_status(base_url)
         captures = []
         layout_checks = []
-        for view in VIEWS:
+        for target_id, target_hash in VIEW_TARGETS:
             for label, (width, height) in VIEWPORTS.items():
-                url = f"{base_url}/#{view}"
-                output = out_dir / f"{view}_{label}.png"
+                url = f"{base_url}/#{target_hash}"
+                output = out_dir / f"{target_id}_{label}.png"
                 captures.append(
                     {
-                        "view": view,
+                        "view": target_id,
+                        "hash": target_hash,
                         "viewport": label,
                         **capture_png(
                             chrome=chrome,
@@ -525,7 +562,8 @@ def run_screenshot_smoke(
                 )
                 if check_layout_enabled:
                     layout_checks.append({
-                        "view": view,
+                        "view": target_id,
+                        "hash": target_hash,
                         "viewport": label,
                         **check_layout(
                             chrome=chrome,
@@ -550,7 +588,7 @@ def run_screenshot_smoke(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Screenshot-smoke dashboard top-level pages")
+    parser = argparse.ArgumentParser(description="Screenshot-smoke dashboard pages and focused subviews")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--state-dir", type=Path, default=None)
