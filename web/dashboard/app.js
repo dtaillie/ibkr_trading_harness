@@ -6128,6 +6128,18 @@ function approvalPreviewCommand(preview, artifacts) {
   return `python3 scripts/approve_order_preview.py ${shellQuote(previewFile)} --approval-id ${shellQuote(approvalId)}`;
 }
 
+function approvalPreviewCanApprove(preview, artifacts) {
+  const status = text(preview && preview.approval_status).toLowerCase();
+  return Boolean(
+    artifacts
+    && artifacts.order_preview_file
+    && preview
+    && preview.approval_id
+    && preview.approval_digest
+    && ["required", "approval_required"].includes(status)
+  );
+}
+
 function csvCell(value) {
   const raw = value === null || value === undefined ? "" : String(value);
   return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
@@ -11465,9 +11477,14 @@ function renderWorkbenchArtifacts() {
   $("artifact-order-previews-body").innerHTML = orderPreviews.length
     ? orderPreviews.map((preview) => {
         const command = approvalPreviewCommand(preview, artifacts);
-        const commandCell = command
-          ? `<button type="button" class="secondary copy-approval-command" data-command="${escapeHtml(command)}">Copy</button>`
-          : `<span class="muted">n/a</span>`;
+        const actions = [];
+        if (approvalPreviewCanApprove(preview, artifacts)) {
+          actions.push(`<button type="button" class="approve-order-preview" data-approval-id="${escapeHtml(preview.approval_id)}">Approve</button>`);
+        }
+        if (command) {
+          actions.push(`<button type="button" class="secondary copy-approval-command" data-command="${escapeHtml(command)}">Copy</button>`);
+        }
+        const actionCell = actions.length ? `<span class="button-pair">${actions.join("")}</span>` : `<span class="muted">n/a</span>`;
         return row([
           escapeHtml(preview.timestamp),
           statusText(preview.approval_status || (preview.approval_required ? "required" : "preview")),
@@ -11480,7 +11497,7 @@ function renderWorkbenchArtifacts() {
           escapeHtml(money(preview.estimated_notional)),
           escapeHtml(money(preview.equity)),
           `<span class="mono">${escapeHtml(preview.approval_file)}</span>`,
-          commandCell,
+          actionCell,
           escapeHtml(preview.tag),
         ]);
       }).join("")
@@ -13848,6 +13865,32 @@ async function loadRunArtifacts(runId, options = {}) {
     : `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
+async function approveOrderPreview(approvalId) {
+  const artifacts = state.configArtifacts || {};
+  if (!artifacts.order_preview_file) throw new Error("No order preview file is loaded");
+  const preview = (artifacts.order_previews || []).find((item) => text(item.approval_id) === text(approvalId));
+  if (!approvalPreviewCanApprove(preview, artifacts)) {
+    throw new Error("Selected preview is not approval-required or is missing approval metadata");
+  }
+  const label = `${text(preview.side)} ${text(preview.symbol)} ${money(preview.estimated_notional)}`;
+  if (!window.confirm(`Approve held order preview ${approvalId}?\n\n${label}\n\nThis writes a local approval file only. Review broker/account state before rerunning or continuing the runner.`)) {
+    return;
+  }
+  const response = await fetchJson("/order_preview_approval", {
+    method: "POST",
+    body: JSON.stringify({
+      preview_file: artifacts.order_preview_file,
+      approval_id: approvalId,
+      approver: "dashboard-operator",
+    }),
+  });
+  preview.approval_status = "approved_file";
+  preview.approval_file = (response.approval || {}).approval_file || preview.approval_file;
+  preview.approval_file_exists = true;
+  renderWorkbenchArtifacts();
+  $("last-refresh").textContent = `Approval file written: ${text((response.approval || {}).approval_file)}`;
+}
+
 async function loadCompletedRunOutput(run, draftId, options = {}) {
   const action = text(run && run.action);
   const status = text(run && run.status);
@@ -14967,12 +15010,20 @@ function init() {
   }
   $("artifact-order-previews-body").addEventListener("click", (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || !target.classList.contains("copy-approval-command")) return;
-    copyText(target.dataset.command || "").then(() => {
-      $("last-refresh").textContent = `Approval command copied: ${new Date().toLocaleString()}`;
-    }).catch((err) => {
-      $("last-refresh").textContent = `Copy failed: ${err.message}`;
-    });
+    if (!(target instanceof HTMLElement)) return;
+    if (target.classList.contains("copy-approval-command")) {
+      copyText(target.dataset.command || "").then(() => {
+        $("last-refresh").textContent = `Approval command copied: ${new Date().toLocaleString()}`;
+      }).catch((err) => {
+        $("last-refresh").textContent = `Copy failed: ${err.message}`;
+      });
+      return;
+    }
+    if (target.classList.contains("approve-order-preview")) {
+      approveOrderPreview(target.dataset.approvalId || "").catch((err) => {
+        $("last-refresh").textContent = `Approval failed: ${err.message}`;
+      });
+    }
   });
   $("remote-nodes-body").addEventListener("click", (event) => {
     const target = event.target;

@@ -3955,6 +3955,7 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
     state_dir = tmp_path / "state"
     artifact_dir = state_dir / "run_artifacts" / "approval-run"
     artifact_dir.mkdir(parents=True)
+    approval_file = artifact_dir / "order_approvals" / "abc123.approved.json"
     (artifact_dir / "summary.json").write_text(
         json.dumps({"mode": "simulated_paper", "approval_required_orders": 1, "final_equity": 10000.0}),
         encoding="utf-8",
@@ -3967,7 +3968,8 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
             "approval_required": True,
             "approval_status": "required",
             "approval_id": "abc123",
-            "approval_file": "paper_logs/workbench/order_approvals/abc123.approved.json",
+            "approval_digest": "digest-abc123",
+            "approval_file": str(approval_file),
             "status": "preview",
             "symbol": "SPY",
             "side": "buy",
@@ -4011,12 +4013,43 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
         preview = payload["order_previews"][0]
         assert preview["approval_status"] == "required"
         assert preview["approval_id"] == "abc123"
+        assert preview["approval_digest"] == "digest-abc123"
         assert preview["approval_file"].endswith("abc123.approved.json")
         assert preview["symbol"] == "SPY"
         assert preview["estimated_notional"] == 1500.75
         assert preview["equity"] == 10000.0
         assert "metadata" not in preview
         assert "positions" not in preview
+
+        approval = post_json(
+            base,
+            "/order_preview_approval",
+            {
+                "preview_file": str(artifact_dir / "order_previews.jsonl"),
+                "approval_id": "abc123",
+                "approver": "test-operator",
+            },
+        )
+        assert approval["ok"] is True
+        assert approval["approval"]["approval_id"] == "abc123"
+        assert approval["approval"]["symbol"] == "SPY"
+        assert approval_file.exists()
+        approval_payload = json.loads(approval_file.read_text(encoding="utf-8"))
+        assert approval_payload["action"] == "approve"
+        assert approval_payload["approval_id"] == "abc123"
+        assert approval_payload["approval_digest"] == "digest-abc123"
+        assert approval_payload["approver"] == "test-operator"
+
+        with pytest.raises(error.HTTPError) as exc_info:
+            post_json(
+                base,
+                "/order_preview_approval",
+                {
+                    "preview_file": str(artifact_dir / "order_previews.jsonl"),
+                    "approval_id": "abc123",
+                },
+            )
+        assert exc_info.value.code == 400
     finally:
         server.shutdown()
         server.server_close()

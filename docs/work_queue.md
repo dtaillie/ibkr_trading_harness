@@ -1484,9 +1484,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     run is launched with `--approve-orders` or a matching local approval file
     is present. Each preview now has a deterministic `approval_id`, full digest,
     and expected approval-file path, and `scripts/approve_order_preview.py`
-    writes the matching approval JSON for one held preview. Dashboard
-    performance and artifact summaries surface approval-hold counts. Richer
-    dashboard-native interactive approval flows remain open.
+    writes the matching approval JSON for one held preview. The dashboard can
+    now also write one validated local approval file from the Order Previews
+    artifact table after explicit operator confirmation. Dashboard performance
+    and artifact summaries surface approval-hold counts.
   - partial; archived/draft run artifact loading now preserves bounded
     `order_previews.jsonl` rows, sanitizes approval preview details, and the
     Runs artifact view shows a dedicated Order Previews table with approval IDs

@@ -118,6 +118,11 @@ that evidence.
 Use Run Comparison filters for status, action, mode, and summary availability
 to compare replay, simulated-paper, paper, or other session groups before
 opening individual artifacts.
+When a run uses `execution.require_order_approval`, open Run Artifacts and
+review Order Previews before approving anything. The Approve action writes the
+validated local approval file for one held preview after confirmation; the
+Copy action still gives the equivalent terminal command. This does not bypass
+the runner's digest check and it does not submit an order by itself.
 
 Open Operations when reviewing remote-control activity. Use Export Audit CSV
 to download sanitized command queue, cancel, and result events together with

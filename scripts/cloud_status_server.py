@@ -705,6 +705,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON download",
     },
     {
+        "method": "POST",
+        "path": "/order_preview_approval",
+        "category": "runs",
+        "description": "Write one local approval file for a held order preview after validating its preview digest.",
+        "response": "JSON approval result",
+    },
+    {
         "method": "GET",
         "path": "/workbench_status",
         "category": "workbench",
@@ -7016,6 +7023,7 @@ def summarize_order_preview_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "approval_required": bool(row.get("approval_required")),
         "approval_status": row.get("approval_status"),
         "approval_id": row.get("approval_id"),
+        "approval_digest": row.get("approval_digest"),
         "approval_file": row.get("approval_file"),
         "status": row.get("status"),
         "symbol": row.get("symbol"),
@@ -7841,6 +7849,117 @@ def read_json_body(handler: BaseHTTPRequestHandler, *, max_bytes: int = 1_000_00
         json_response(handler, 400, {"error": "payload must be a JSON object"})
         return None
     return payload
+
+
+def read_jsonl_objects(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            payload = json.loads(line)
+            if isinstance(payload, dict):
+                rows.append(payload)
+    return rows
+
+
+def safe_order_preview_path(state_dir: Path, raw_path: Any) -> Path:
+    raw = str(raw_path or "").strip()
+    if not raw:
+        raise ValueError("preview_file is required")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = ROOT / path
+    resolved = path.resolve()
+    allowed_roots = [
+        ROOT.resolve(),
+        config_draft_run_artifacts_root(state_dir).resolve(),
+    ]
+    if resolved.name != "order_previews.jsonl":
+        raise ValueError("preview_file must be order_previews.jsonl")
+    if not any(resolved.is_relative_to(root) for root in allowed_roots):
+        raise ValueError("preview_file is outside allowed local roots")
+    if not resolved.exists() or not resolved.is_file():
+        raise ValueError(f"preview_file not found: {display_path(resolved)}")
+    return resolved
+
+
+def safe_approval_output_path(state_dir: Path, preview: dict[str, Any]) -> Path:
+    approval_id = str(preview.get("approval_id") or "").strip()
+    if not approval_id:
+        raise ValueError("preview is missing approval_id")
+    raw = str(preview.get("approval_file") or "").strip()
+    if not raw:
+        raise ValueError("preview is missing approval_file")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = ROOT / path
+    resolved = path.resolve()
+    expected_name = f"{approval_id}.approved.json"
+    allowed_roots = [
+        (ROOT / "paper_logs").resolve(),
+        config_draft_run_artifacts_root(state_dir).resolve(),
+    ]
+    if resolved.name != expected_name:
+        raise ValueError("approval_file name does not match approval_id")
+    if not any(resolved.is_relative_to(root) for root in allowed_roots):
+        raise ValueError("approval_file is outside allowed local approval roots")
+    return resolved
+
+
+def build_order_preview_approval(preview: dict[str, Any], *, approver: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "action": "approve",
+        "approval_id": preview.get("approval_id"),
+        "approval_digest": preview.get("approval_digest"),
+        "approved_at": utc_now(),
+        "approver": approver,
+        "symbol": preview.get("symbol"),
+        "side": preview.get("side"),
+        "quantity": preview.get("quantity"),
+        "cash_quantity": preview.get("cash_quantity"),
+        "estimated_notional": preview.get("estimated_notional"),
+        "tag": preview.get("tag"),
+    }
+
+
+def approve_order_preview_from_payload(state_dir: Path, payload: dict[str, Any], *, auth_role: str = "") -> dict[str, Any]:
+    preview_file = safe_order_preview_path(state_dir, payload.get("preview_file"))
+    approval_id = str(payload.get("approval_id") or "").strip()
+    if not approval_id:
+        raise ValueError("approval_id is required")
+    force = bool(payload.get("force", False))
+    approver = str(payload.get("approver") or auth_role or "dashboard-operator").strip()[:80] or "dashboard-operator"
+    rows = read_jsonl_objects(preview_file)
+    matches = [row for row in rows if str(row.get("approval_id") or "") == approval_id]
+    if not matches:
+        raise ValueError("approval_id not found in preview_file")
+    preview = matches[-1]
+    if not preview.get("approval_digest"):
+        raise ValueError("preview is missing approval_digest")
+    if str(preview.get("approval_status") or "").lower() not in {"required", "approval_required"}:
+        raise ValueError(f"preview does not require approval: {preview.get('approval_status')}")
+    approval_file = safe_approval_output_path(state_dir, preview)
+    approval = build_order_preview_approval(preview, approver=approver)
+    approval_file.parent.mkdir(parents=True, exist_ok=True)
+    if approval_file.exists() and not force:
+        raise ValueError(f"approval file already exists: {display_path(approval_file)}")
+    tmp = approval_file.with_name(f".{approval_file.name}.{os.getpid()}.tmp")
+    with tmp.open("w") as f:
+        json.dump(approval, f, indent=2, sort_keys=True)
+        f.write("\n")
+    tmp.replace(approval_file)
+    return {
+        "approval_id": approval_id,
+        "approval_file": display_path(approval_file),
+        "preview_file": display_path(preview_file),
+        "approved_at": approval["approved_at"],
+        "approver": approver,
+        "symbol": preview.get("symbol"),
+        "side": preview.get("side"),
+        "estimated_notional": finite_float(preview.get("estimated_notional")),
+    }
 
 
 def save_status(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -8866,6 +8985,48 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, {"ok": True, "run": result})
+            return
+        if self.path == "/order_preview_approval":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            auth_context = getattr(self, "auth_context", {}) or {}
+            try:
+                result = approve_order_preview_from_payload(
+                    self.state_dir,
+                    payload,
+                    auth_role=str(auth_context.get("role") or ""),
+                )
+            except ValueError as exc:
+                append_command_audit(
+                    self.state_dir,
+                    {
+                        "event": "order_preview_approval_rejected",
+                        "error": str(exc),
+                        "auth_role": str(auth_context.get("role") or ""),
+                        "action": "order_preview_approval",
+                        "action_class": "control",
+                        "status": "rejected",
+                        "param_keys": sorted(str(key) for key in payload),
+                    },
+                    signature_env=self.command_audit_signature_env,
+                )
+                json_response(self, 400, {"error": str(exc)})
+                return
+            append_command_audit(
+                self.state_dir,
+                {
+                    "event": "order_preview_approved",
+                    "auth_role": str(auth_context.get("role") or ""),
+                    "action": "order_preview_approval",
+                    "action_class": "control",
+                    "status": "completed",
+                    "param_keys": ["approval_id", "preview_file"],
+                    "approval_id": result.get("approval_id"),
+                },
+                signature_env=self.command_audit_signature_env,
+            )
+            json_response(self, 200, {"ok": True, "approval": result})
             return
         if self.path == "/workbench_cleanup":
             payload = read_json_body(self)
