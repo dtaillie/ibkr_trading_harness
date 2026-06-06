@@ -119,14 +119,30 @@ from configured publisher/dashboard CIDRs.
 network boundary example. It allows SSH from management CIDRs, HTTPS from the
 publisher/dashboard CIDRs, and no public access to the receiver's app port.
 
+`ops/cloud/digitalocean-firewall-status-receiver.example.tf` is the same
+boundary shape for a DigitalOcean Droplet: SSH from management CIDRs, HTTPS
+from publisher/dashboard CIDRs, and no receiver app port exposed.
+
+`ops/cloud/status-receiver.Dockerfile.example` builds a public-safe hosted
+receiver image. The Fly and Render examples below both reference it.
+
 Good low-cost provider shapes:
 
 - VPS: install Docker, run the compose file, put nginx or Caddy in front.
 - AWS EC2: attach a security group equivalent to the Terraform example, bind
   the receiver to localhost, and expose only the HTTPS reverse proxy.
-- Fly.io/Render/Railway-style app: run the same Python command, set
-  `TRADING_STATUS_TOKEN`, and attach persistent storage for
-  `paper_logs/cloud_status_server`.
+- DigitalOcean Droplet: attach a Cloud Firewall equivalent to the Terraform
+  example, bind the receiver to localhost, and expose only the HTTPS reverse
+  proxy.
+- Fly.io app: copy `ops/cloud/fly-status-receiver.example.toml` to `fly.toml`,
+  create a small persistent volume mounted at
+  `/app/paper_logs/cloud_status_server`, set `TRADING_STATUS_TOKEN`, and deploy
+  the example Dockerfile. The template uses Fly's documented `http_service`
+  `internal_port` pattern for the app port.
+- Render app: copy `ops/cloud/render-status-receiver.example.yaml` to
+  `render.yaml`, set secrets in Render, and attach a persistent disk at
+  `/app/paper_logs/cloud_status_server`. The template uses Render's Blueprint
+  YAML shape for a Docker-backed web service.
 - Home machine over VPN: skip the hosted receiver and expose the local
   dashboard only over Tailscale/WireGuard.
 
@@ -237,6 +253,29 @@ substitute for off-host immutable storage or provider-level retention controls;
 ship or back up the audit file to storage whose write permissions are separate
 from the receiver host if the service is internet-facing.
 
+### Off-Host Audit Retention Sketch
+
+`ops/cloud/sync-command-audit.example.sh` is a dry-run-first helper for copying
+`paper_logs/cloud_status_server/command_audit.jsonl` to off-host storage with
+either `aws s3 cp` or `rclone copyto`:
+
+```bash
+AUDIT_DEST=s3://example-bucket/algo-trade/audit/receiver-a/command_audit.jsonl \
+  ops/cloud/sync-command-audit.example.sh
+```
+
+After verifying the destination and retention policy:
+
+```bash
+AUDIT_DEST=s3://example-bucket/algo-trade/audit/receiver-a/command_audit.jsonl \
+  APPLY=1 \
+  ops/cloud/sync-command-audit.example.sh
+```
+
+Use bucket/object retention controls such as versioning, object lock, lifecycle
+retention, or a separate storage identity. The helper only copies the file; the
+provider storage policy is what makes retention harder to tamper with.
+
 Run the worker once:
 
 ```bash
@@ -312,3 +351,10 @@ Keep private:
 - paper/live configs
 - raw runtime logs
 - research outputs
+
+## Provider Docs Referenced
+
+- Fly app configuration: https://fly.io/docs/reference/configuration/
+- Render Blueprint YAML: https://render.com/docs/blueprint-spec
+- DigitalOcean firewall resource:
+  https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs/resources/firewall.html

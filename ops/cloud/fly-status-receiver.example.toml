@@ -1,0 +1,36 @@
+# EXAMPLE ONLY. Fly.io app config for the hosted sanitized status receiver.
+#
+# Copy this to fly.toml, replace app/region, create a volume, and set secrets:
+#   fly volumes create status_receiver_state --size 1 --region ord
+#   fly secrets set TRADING_STATUS_TOKEN='replace-with-a-long-random-value'
+#   fly secrets set TRADING_COMMAND_AUDIT_HMAC_KEY='replace-with-a-long-random-value'
+#
+# Keep command scopes conservative. Do not deploy broker credentials or private
+# strategy configs to the Fly app.
+
+app = "algo-trade-status-receiver-example"
+primary_region = "ord"
+
+[build]
+  dockerfile = "ops/cloud/status-receiver.Dockerfile.example"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+
+[http_service]
+  internal_port = 8765
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[mounts]]
+  source = "status_receiver_state"
+  destination = "/app/paper_logs/cloud_status_server"
+  processes = ["app"]
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

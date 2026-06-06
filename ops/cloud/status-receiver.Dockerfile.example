@@ -1,0 +1,43 @@
+# EXAMPLE ONLY. Build image for a hosted sanitized status receiver.
+#
+# Keep broker credentials, private strategy plugins, tuned configs, raw logs,
+# and local data caches out of images built from this Dockerfile.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY config/cloud_status_hosted.example.yaml /app/config/cloud_status_hosted.example.yaml
+COPY docs/blog_public_ibkr_harness_draft.md /app/docs/blog_public_ibkr_harness_draft.md
+COPY docs/cloud_monitoring_deployment.md /app/docs/cloud_monitoring_deployment.md
+COPY docs/configuration_privacy.md /app/docs/configuration_privacy.md
+COPY docs/failed_order_diagnosis_runbook.md /app/docs/failed_order_diagnosis_runbook.md
+COPY docs/ibkr_gateway_runbook.md /app/docs/ibkr_gateway_runbook.md
+COPY docs/market_data_permissions_runbook.md /app/docs/market_data_permissions_runbook.md
+COPY docs/paper_trading_runbook.md /app/docs/paper_trading_runbook.md
+COPY docs/public_framework_roadmap.md /app/docs/public_framework_roadmap.md
+COPY docs/public_quickstart.md /app/docs/public_quickstart.md
+COPY docs/publication_readiness.md /app/docs/publication_readiness.md
+COPY docs/service_restart_runbook.md /app/docs/service_restart_runbook.md
+COPY docs/web_ui_runbook.md /app/docs/web_ui_runbook.md
+COPY examples /app/examples
+COPY framework /app/framework
+COPY live/__init__.py /app/live/__init__.py
+COPY live/broker_adapters.py /app/live/broker_adapters.py
+COPY live/fetch_crypto_history.py /app/live/fetch_crypto_history.py
+COPY live/fetch_history.py /app/live/fetch_history.py
+COPY live/fetch_manifest.py /app/live/fetch_manifest.py
+COPY live/ibkr_broker.py /app/live/ibkr_broker.py
+COPY live/ibkr_data.py /app/live/ibkr_data.py
+COPY live/plugin_runner.py /app/live/plugin_runner.py
+COPY scripts/cloud_status_server.py /app/scripts/cloud_status_server.py
+COPY web /app/web
+COPY core.py /app/core.py
+
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8765
+
+CMD ["python", "scripts/cloud_status_server.py", "--config", "config/cloud_status_hosted.example.yaml"]

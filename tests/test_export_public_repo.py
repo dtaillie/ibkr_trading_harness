@@ -33,6 +33,11 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "README.md").exists()
     assert (dest / "scripts" / "export_public_repo.py").exists()
     assert (dest / "scripts" / "smoke_dashboard.py").exists()
+    assert (dest / "ops" / "cloud" / "status-receiver.Dockerfile.example").exists()
+    assert (dest / "ops" / "cloud" / "fly-status-receiver.example.toml").exists()
+    assert (dest / "ops" / "cloud" / "render-status-receiver.example.yaml").exists()
+    assert (dest / "ops" / "cloud" / "digitalocean-firewall-status-receiver.example.tf").exists()
+    assert (dest / "ops" / "cloud" / "sync-command-audit.example.sh").exists()
 
 
 def test_export_public_repo_requires_force_for_existing_destination(tmp_path: Path):

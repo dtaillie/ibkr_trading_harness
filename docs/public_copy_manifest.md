@@ -19,11 +19,16 @@ pushing this working tree.
   - `scripts/cloud_status_server.py`
   - `config/cloud_status.example.yaml`
   - `config/cloud_status_hosted.example.yaml`
+  - `ops/cloud/status-receiver.Dockerfile.example`
   - `ops/cloud/status-receiver.compose.example.yaml`
   - `ops/cloud/nginx-status-receiver.example.conf`
   - `ops/cloud/caddy-status-receiver.example.Caddyfile`
   - `ops/cloud/ufw-status-receiver.example.sh`
   - `ops/cloud/aws-security-group-status-receiver.example.tf`
+  - `ops/cloud/digitalocean-firewall-status-receiver.example.tf`
+  - `ops/cloud/fly-status-receiver.example.toml`
+  - `ops/cloud/render-status-receiver.example.yaml`
+  - `ops/cloud/sync-command-audit.example.sh`
 - Safe remote command prototype:
   - `scripts/command_worker.py`
   - `config/remote_control.example.yaml`

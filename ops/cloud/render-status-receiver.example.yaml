@@ -1,0 +1,29 @@
+# EXAMPLE ONLY. Render Blueprint for a hosted sanitized status receiver.
+#
+# Copy to render.yaml in a public-safe repo, replace the service name/region,
+# and set TRADING_STATUS_TOKEN plus optional TRADING_COMMAND_AUDIT_HMAC_KEY in
+# Render's environment/secrets UI or a private env group.
+#
+# This service should receive sanitized status only. Do not mount broker
+# credentials, raw paper_logs, private strategy plugins, or local data caches.
+
+services:
+  - type: web
+    name: algo-trade-status-receiver-example
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./ops/cloud/status-receiver.Dockerfile.example
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: false
+    envVars:
+      - key: TRADING_STATUS_TOKEN
+        sync: false
+      - key: TRADING_COMMAND_AUDIT_HMAC_KEY
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: status-receiver-state
+      mountPath: /app/paper_logs/cloud_status_server
+      sizeGB: 1

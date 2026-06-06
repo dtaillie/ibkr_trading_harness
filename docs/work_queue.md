@@ -980,6 +980,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     reverse proxies, a dry-run-first UFW host-firewall script, and an AWS
     security-group Terraform sketch. Remaining gap: deployment recipes for
     other providers and stronger off-host audit retention.
+  - partial; provider-specific examples now also include a reusable hosted
+    receiver Dockerfile, Fly app config, Render Blueprint config, DigitalOcean
+    Cloud Firewall Terraform sketch, and a dry-run-first off-host command-audit
+    sync helper. Remaining gap: manual hardening review against a real chosen
+    provider/account before any internet-facing deployment.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity
@@ -1156,6 +1161,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `/command_audit_export`, so bounded sanitized queue/cancel/result audit rows
     can be reviewed offline with the current hash-chain and signature status
     columns.
+  - partial; public cloud examples now include
+    `ops/cloud/sync-command-audit.example.sh` for dry-run-first upload of the
+    server-side command audit JSONL to separate object storage. Actual
+    immutability still depends on provider retention controls such as object
+    lock/versioning and a separate storage identity.
 - Keep initial commands low-risk:
   - pause
   - resume
