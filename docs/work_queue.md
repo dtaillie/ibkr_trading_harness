@@ -1293,6 +1293,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     through `decimals`, `prefix`, `suffix`, and `unit` metadata, and Run
     Artifacts applies those hints in Plugin Result Fields and Result Coverage
     instead of showing only raw scalar values.
+  - partial; Run Artifacts now adds a Plugin Result Snapshot card grid that
+    turns declared `result_fields` into compact latest-value cards with
+    coverage, formatted values, timestamps, symbols, and help text before the
+    dense plugin coverage/result tables.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

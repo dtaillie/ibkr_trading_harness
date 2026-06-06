@@ -13037,6 +13037,7 @@ function renderArtifactPluginCoverage(artifacts) {
   const summary = artifacts.plugin_result_summary || {};
   const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
   const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
+  renderArtifactPluginResultSnapshot(artifacts, coverageRows, decisionCount);
   $("artifact-plugin-coverage-note").textContent = coverageRows.length
     ? `${numberText(summary.emitted_field_count || 0, 0)} / ${numberText(summary.declared_field_count || coverageRows.length, 0)} declared field${coverageRows.length === 1 ? "" : "s"} emitted in ${numberText(decisionCount, 0)} loaded decision${decisionCount === 1 ? "" : "s"}`
     : "No declared plugin result fields to measure";
@@ -13058,6 +13059,48 @@ function renderArtifactPluginCoverage(artifacts) {
         ]);
       }).join("")
     : row([`<span class="muted">Declare result_fields in the plugin registry to summarize artifact diagnostics.</span>`, "", "", "", ""]);
+}
+
+function renderArtifactPluginResultSnapshot(artifacts, coverageRows = [], decisionCount = 0) {
+  if (!$("artifact-plugin-result-snapshot")) return;
+  const declaredFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
+  if (!declaredFields.length) {
+    $("artifact-plugin-result-snapshot").innerHTML = `
+      <div class="empty-card">
+        <span>Plugin Results</span>
+        <strong>No Declared Fields</strong>
+        <small>Declare public-safe result_fields in the plugin registry to build custom result cards.</small>
+      </div>
+    `;
+    return;
+  }
+  const coverageByName = new Map((coverageRows || []).map((item) => [text(item.name), item]));
+  const cards = declaredFields
+    .slice()
+    .sort((left, right) => Number(left.order || 999) - Number(right.order || 999) || text(left.label || left.name).localeCompare(text(right.label || right.name)))
+    .slice(0, 8)
+    .map((field) => {
+      const coverage = coverageByName.get(text(field.name)) || {};
+      const emitted = Number(coverage.emitted_count || 0);
+      const status = emitted ? coverage.status || "ok" : decisionCount ? "warn" : "waiting";
+      const value = emitted ? pluginResultFieldValue({ ...field, ...coverage }, coverage.latest_value) : "n/a";
+      const latest = coverage.latest_timestamp ? `Latest ${timestampAgeLabel(coverage.latest_timestamp)}.` : "No emitted value in loaded decisions.";
+      const help = text(field.help || field.description || "");
+      const symbols = (coverage.latest_symbols || []).length ? ` Symbols ${(coverage.latest_symbols || []).join(", ")}.` : "";
+      return {
+        status,
+        label: text(field.label || field.name),
+        value,
+        note: `${emitted ? `${numberText(emitted, 0)} / ${numberText(decisionCount, 0)} decisions. ` : ""}${latest}${symbols}${help && help !== "n/a" ? ` ${help}` : ""}`,
+      };
+    });
+  $("artifact-plugin-result-snapshot").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {}) {
