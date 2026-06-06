@@ -210,6 +210,63 @@ def validate_nonnegative_float_map(value: Any, field: str, errors: list[str]) ->
         validate_nonnegative_float(raw_value, f"{field}[{raw_key}]", errors)
 
 
+SIM_COST_MODEL_FIELDS = {
+    "sim_slippage_bps",
+    "sim_buy_slippage_bps",
+    "sim_sell_slippage_bps",
+    "sim_market_impact_bps_per_10k",
+    "sim_commission_bps",
+    "sim_commission_per_share",
+    "sim_min_commission",
+    "sim_max_commission_pct",
+}
+
+
+def validate_sim_cost_models(value: Any, errors: list[str]) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        errors.append("execution.sim_cost_models must be a mapping")
+        return
+    for raw_name, raw_model in value.items():
+        name = str(raw_name).strip()
+        if not name:
+            errors.append("execution.sim_cost_models contains an empty model name")
+            continue
+        if not isinstance(raw_model, dict):
+            errors.append(f"execution.sim_cost_models[{raw_name}] must be a mapping")
+            continue
+        unknown = sorted(set(raw_model) - SIM_COST_MODEL_FIELDS)
+        if unknown:
+            errors.append(f"execution.sim_cost_models[{raw_name}] contains unsupported fields: {unknown}")
+        for field, raw_field_value in raw_model.items():
+            if field not in SIM_COST_MODEL_FIELDS:
+                continue
+            validate_nonnegative_float(
+                raw_field_value,
+                f"execution.sim_cost_models[{raw_name}].{field}",
+                errors,
+                positive=field == "sim_max_commission_pct",
+            )
+
+
+def normalize_sim_cost_models(value: Any) -> dict[str, dict[str, float]]:
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, dict[str, float]] = {}
+    for raw_name, raw_model in value.items():
+        name = str(raw_name).strip().lower()
+        if not name or not isinstance(raw_model, dict):
+            continue
+        model: dict[str, float] = {}
+        for field, raw_field_value in raw_model.items():
+            if field in SIM_COST_MODEL_FIELDS and raw_field_value is not None:
+                model[field] = float(raw_field_value)
+        if model:
+            out[name] = model
+    return out
+
+
 def parse_session_time(raw: Any, *, field: str) -> datetime_time:
     value = str(raw or "").strip()
     for fmt in ("%H:%M", "%H:%M:%S"):
@@ -448,6 +505,7 @@ def validate_config(
     validate_nonnegative_float(execution_cfg.get("sim_commission_per_share"), "execution.sim_commission_per_share", errors)
     validate_nonnegative_float(execution_cfg.get("sim_min_commission"), "execution.sim_min_commission", errors)
     validate_nonnegative_float(execution_cfg.get("sim_max_commission_pct"), "execution.sim_max_commission_pct", errors, positive=True)
+    validate_sim_cost_models(execution_cfg.get("sim_cost_models"), errors)
     validate_nonnegative_float(execution_cfg.get("sim_short_borrow_bps_annual"), "execution.sim_short_borrow_bps_annual", errors)
     validate_nonnegative_float_map(
         execution_cfg.get("sim_short_borrow_bps_annual_by_symbol"),
@@ -1101,30 +1159,59 @@ class SimulatedExecutor:
         self.commission_per_share = float(execution_cfg.get("sim_commission_per_share", 0.0))
         self.min_commission = float(execution_cfg.get("sim_min_commission", 0.0))
         self.max_commission_pct = execution_cfg.get("sim_max_commission_pct")
+        self.cost_models = normalize_sim_cost_models(execution_cfg.get("sim_cost_models") or {})
         self.short_borrow_bps_annual = float(execution_cfg.get("sim_short_borrow_bps_annual", 0.0))
         self.short_borrow_bps_annual_by_symbol = {
             str(symbol).upper(): float(rate)
             for symbol, rate in (execution_cfg.get("sim_short_borrow_bps_annual_by_symbol") or {}).items()
         }
 
-    def slippage_for(self, *, side: str, requested_notional: float | None) -> float:
-        if side == "buy" and self.buy_slippage_bps is not None:
+    @staticmethod
+    def cost_model_key(intent: OrderIntent) -> str | None:
+        metadata = intent.metadata if isinstance(intent.metadata, dict) else {}
+        for key in ("cost_model", "sim_cost_model", "venue", "execution_venue"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value).strip().lower()
+        return None
+
+    def cost_model_for(self, intent: OrderIntent) -> tuple[str | None, dict[str, Any]]:
+        key = self.cost_model_key(intent)
+        if key and key in self.cost_models:
+            return key, self.cost_models[key]
+        return key, {}
+
+    def slippage_for(self, *, side: str, requested_notional: float | None, model: dict[str, Any] | None = None) -> float:
+        model = model or {}
+        if side == "buy" and "sim_buy_slippage_bps" in model:
+            base = float(model["sim_buy_slippage_bps"])
+        elif side == "sell" and "sim_sell_slippage_bps" in model:
+            base = float(model["sim_sell_slippage_bps"])
+        elif "sim_slippage_bps" in model:
+            base = float(model["sim_slippage_bps"])
+        elif side == "buy" and self.buy_slippage_bps is not None:
             base = float(self.buy_slippage_bps)
         elif side == "sell" and self.sell_slippage_bps is not None:
             base = float(self.sell_slippage_bps)
         else:
             base = self.slippage_bps
         notional = max(0.0, float(requested_notional or 0.0))
-        impact = (notional / 10000.0) * self.market_impact_bps_per_10k
+        impact_bps = float(model.get("sim_market_impact_bps_per_10k", self.market_impact_bps_per_10k))
+        impact = (notional / 10000.0) * impact_bps
         return base + impact
 
-    def commission_for(self, *, notional: float, quantity: float) -> float:
-        commission = notional * self.commission_bps / 10000.0
-        commission += abs(quantity) * self.commission_per_share
-        if self.min_commission > 0:
-            commission = max(commission, self.min_commission)
-        if self.max_commission_pct is not None:
-            commission = min(commission, notional * float(self.max_commission_pct) / 100.0)
+    def commission_for(self, *, notional: float, quantity: float, model: dict[str, Any] | None = None) -> float:
+        model = model or {}
+        commission_bps = float(model.get("sim_commission_bps", self.commission_bps))
+        commission_per_share = float(model.get("sim_commission_per_share", self.commission_per_share))
+        min_commission = float(model.get("sim_min_commission", self.min_commission))
+        max_commission_pct = model.get("sim_max_commission_pct", self.max_commission_pct)
+        commission = notional * commission_bps / 10000.0
+        commission += abs(quantity) * commission_per_share
+        if min_commission > 0:
+            commission = max(commission, min_commission)
+        if max_commission_pct is not None:
+            commission = min(commission, notional * float(max_commission_pct) / 100.0)
         return commission
 
     def equity(self, prices: dict[str, float]) -> float:
@@ -1264,7 +1351,9 @@ class SimulatedExecutor:
 
         requested_notional = estimate_intent_notional(intent, float(price))
         fill_price = float(price)
-        slippage_bps = self.slippage_for(side=side, requested_notional=requested_notional)
+        requested_cost_model, cost_model = self.cost_model_for(intent)
+        applied_cost_model = requested_cost_model if cost_model else None
+        slippage_bps = self.slippage_for(side=side, requested_notional=requested_notional, model=cost_model)
         if side == "buy":
             fill_price *= 1.0 + slippage_bps / 10000.0
         else:
@@ -1280,7 +1369,7 @@ class SimulatedExecutor:
             return None, "quantity must be positive"
 
         notional = quantity * fill_price
-        commission = self.commission_for(notional=notional, quantity=quantity)
+        commission = self.commission_for(notional=notional, quantity=quantity, model=cost_model)
         current_qty = self.positions.get(intent.symbol, 0.0)
         delta_qty = quantity if side == "buy" else -quantity
 
@@ -1315,6 +1404,8 @@ class SimulatedExecutor:
             "price": fill_price,
             "commission": commission,
             "slippage_bps": slippage_bps,
+            "cost_model": applied_cost_model,
+            "requested_cost_model": requested_cost_model,
             "realized_pnl": realized,
             "cumulative_realized_pnl": self.realized_pnl,
             "average_cost_after": avg_after,

@@ -16,6 +16,7 @@ class OrderOncePlugin:
         self.quantity = config.get("quantity")
         self.cash_quantity = config.get("cash_quantity", 1000.0)
         self.repeat = bool(config.get("repeat", False))
+        self.metadata = dict(config.get("metadata") or {})
         self.did_order = False
         self.fills: list[dict[str, Any]] = []
 
@@ -30,6 +31,7 @@ class OrderOncePlugin:
                     quantity=self.quantity,
                     cash_quantity=self.cash_quantity,
                     tag="fixture_buy_once",
+                    metadata=self.metadata,
                 )
             )
             self.did_order = True

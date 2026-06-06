@@ -1437,8 +1437,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     caps, side-specific slippage, simple size-based market-impact slippage,
     commission bps, per-share commission, minimum commission, and max
     commission caps. Simulated shorts can now accrue global or per-symbol
-    annual borrow fees over elapsed account-snapshot time. Venue-specific cost
-    models remain open.
+    annual borrow fees over elapsed account-snapshot time. Simulated execution
+    now also supports optional `execution.sim_cost_models`, selected by
+    public-safe order-intent metadata such as `venue` or `cost_model`, so
+    venue/model-specific slippage and commission schedules can be tested
+    without changing plugin code.
 - Add broker-agnostic execution adapters so private configs can choose IBKR,
   file-based simulation, or future broker integrations without changing
   strategy plugins.

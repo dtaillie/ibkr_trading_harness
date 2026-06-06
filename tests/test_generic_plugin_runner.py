@@ -354,6 +354,75 @@ def test_simulated_paper_applies_richer_commission_and_slippage_schedule(tmp_pat
     assert account[0]["average_costs"]["SPY"] == pytest.approx(100.402)
 
 
+def test_simulated_paper_applies_intent_metadata_cost_model(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={
+            "symbol": "SPY",
+            "quantity": 10,
+            "cash_quantity": None,
+            "metadata": {"venue": "ZEROHASH"},
+        },
+        execution={
+            "sim_slippage_bps": 1,
+            "sim_commission_bps": 1,
+            "sim_cost_models": {
+                "zerohash": {
+                    "sim_slippage_bps": 30,
+                    "sim_market_impact_bps_per_10k": 5,
+                    "sim_commission_bps": 10,
+                    "sim_commission_per_share": 0.05,
+                    "sim_min_commission": 2.0,
+                }
+            },
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
+    assert fills[0]["requested_cost_model"] == "zerohash"
+    assert fills[0]["cost_model"] == "zerohash"
+    assert fills[0]["slippage_bps"] == pytest.approx(30.5)
+    assert fills[0]["price"] == pytest.approx(100.305)
+    assert fills[0]["commission"] == pytest.approx(2.0)
+    assert result.final_cash == pytest.approx(10000.0 - (10 * 100.305) - 2.0)
+
+
+def test_validate_config_rejects_invalid_sim_cost_model(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        execution={
+            "sim_cost_models": {
+                "": {"sim_commission_bps": 1},
+                "arca": {"sim_commission_bps": -1, "unsupported": 2},
+            },
+        },
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    message = str(exc.value)
+    assert "execution.sim_cost_models contains an empty model name" in message
+    assert "execution.sim_cost_models[arca].sim_commission_bps must be >= 0" in message
+    assert "execution.sim_cost_models[arca] contains unsupported fields: ['unsupported']" in message
+
+
 def test_simulated_paper_caps_commission_by_notional_pct(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

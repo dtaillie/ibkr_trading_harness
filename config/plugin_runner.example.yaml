@@ -60,6 +60,15 @@ execution:
   sim_commission_per_share: 0
   sim_min_commission: 0
   sim_max_commission_pct: 1
+  # Optional venue/model-specific overrides. A plugin can request one with
+  # OrderIntent.metadata.venue or metadata.cost_model; unspecified fields fall
+  # back to the global settings above.
+  sim_cost_models:
+    example_venue:
+      sim_slippage_bps: 0
+      sim_commission_bps: 0
+      sim_commission_per_share: 0
+      sim_min_commission: 0
   sim_short_borrow_bps_annual: 0
   sim_short_borrow_bps_annual_by_symbol: {}
 
