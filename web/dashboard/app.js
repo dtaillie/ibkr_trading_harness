@@ -8708,6 +8708,7 @@ function renderDataDetail() {
     $("data-detail-focus-gap").disabled = !detail.path || !largestDataDetailGap(detail);
   }
   renderDataDetailNavigator(detail);
+  renderDataDetailAssistant(detail, timezoneMode);
   renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
   renderDataDetailRangeStats(detail, timezoneMode);
@@ -8977,6 +8978,207 @@ function useDataDetailInWorkbench() {
     if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
   }, 50);
   $("last-refresh").textContent = `Selected ${text(detail.symbol || path)} for Workbench simulation`;
+}
+
+function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
+  if (!$("data-detail-assistant-title") || !$("data-detail-assistant-cards") || !$("data-detail-assistant-actions")) return;
+  const path = detail && detail.path;
+  if (!path) {
+    $("data-detail-assistant-title").textContent = "Open a saved file";
+    $("data-detail-assistant-note").textContent = "Use Jump to Symbol, Symbol Browser, or a catalog row to inspect saved history before simulating.";
+    $("data-detail-assistant-cards").innerHTML = [
+      {
+        status: "bad",
+        title: "No File",
+        label: "Readiness",
+        note: "No saved dataset is loaded.",
+      },
+      {
+        status: "warn",
+        title: "Pick Symbol",
+        label: "Next Action",
+        note: "Open the best scanned file or inspect a specific catalog row.",
+      },
+    ].map((card) => `
+      <div class="action-card status-${escapeHtml(card.status)}">
+        <span>${statusText(card.status)}</span>
+        <strong>${escapeHtml(card.title)}</strong>
+        <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+      </div>
+    `).join("");
+    $("data-detail-assistant-actions").innerHTML = dataDetailAssistantActionsHtml([
+      {
+        action: "workbench",
+        status: "bad",
+        title: "Use In Workbench",
+        note: "Disabled until a saved file is open.",
+        disabled: true,
+      },
+      {
+        action: "compare",
+        status: "bad",
+        title: "Compare Symbol",
+        note: "Disabled until an opened file has a catalog symbol.",
+        disabled: true,
+      },
+    ]);
+    return;
+  }
+  const coverage = detail.coverage || {};
+  const quality = detail.quality || {};
+  const viewer = detail.viewer || {};
+  const qualityStatus = text(quality.quality_status || "unknown");
+  const warnings = Array.isArray(quality.quality_warnings) ? quality.quality_warnings : [];
+  const nullCounts = quality.null_counts || {};
+  const nullRows = Object.values(nullCounts).reduce((total, value) => total + (Number(value) || 0), 0);
+  const duplicateRows = finiteNumber(coverage.duplicate_timestamps) || 0;
+  const missingIntervals = finiteNumber(coverage.estimated_missing_intervals) || 0;
+  const largestGap = largestDataDetailGap(detail);
+  const rows = finiteNumber(detail.rows) ?? finiteNumber(viewer.available_rows) ?? 0;
+  const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
+  const blocked = qualityStatus === "bad" || duplicateRows > 0 || rows <= 1 || viewerStatus === "unavailable";
+  const needsReview = !blocked && (
+    qualityStatus === "warn" ||
+    warnings.length > 0 ||
+    nullRows > 0 ||
+    missingIntervals > 0 ||
+    viewerStatus === "empty_range"
+  );
+  const readinessStatus = blocked ? "bad" : needsReview ? "warn" : "ok";
+  const readinessTitle = blocked ? "Blocked" : needsReview ? "Review" : "Ready";
+  const readinessNote = blocked
+    ? "Fix bad quality, duplicates, unavailable rows, or a one-row file before replay."
+    : needsReview
+      ? "Replay is possible, but inspect gaps, nulls, warnings, or the selected chart range first."
+      : "No obvious replay blockers were found in this saved file.";
+  const matchingFiles = (state.dataCatalog.datasets || [])
+    .filter((dataset) => text(dataset.symbol).toUpperCase() === text(detail.symbol).toUpperCase() && dataset.path);
+  const gapTitle = largestGap
+    ? `${interval(largestGap.gap_seconds)} gap`
+    : missingIntervals
+      ? `${numberText(missingIntervals, 0)} missing`
+      : "No Gaps";
+  const cards = [
+    {
+      status: readinessStatus,
+      title: readinessTitle,
+      label: "Simulation",
+      note: readinessNote,
+    },
+    {
+      status: rows > 1 ? "ok" : "bad",
+      title: numberText(rows, 0),
+      label: "Rows",
+      note: timeRangeLabel(coverage.first_timestamp || viewer.first_timestamp, coverage.last_timestamp || viewer.last_timestamp, timezoneMode),
+    },
+    {
+      status: largestGap || missingIntervals ? "warn" : "ok",
+      title: gapTitle,
+      label: "Gaps",
+      note: missingIntervals
+        ? `${numberText(missingIntervals, 0)} estimated missing interval${missingIntervals === 1 ? "" : "s"}.`
+        : "No estimated missing intervals in this detail response.",
+    },
+    {
+      status: duplicateRows > 0 ? "bad" : nullRows > 0 ? "warn" : "ok",
+      title: `${numberText(duplicateRows, 0)} dup / ${numberText(nullRows, 0)} null`,
+      label: "Integrity",
+      note: warnings.length ? warnings.slice(0, 2).join("; ") : "No quality warnings reported.",
+    },
+    {
+      status: viewerStatus === "empty_range" || viewerStatus === "unavailable" ? "bad" : viewer.sampled ? "warn" : "ok",
+      title: viewer.sampled ? "Sampled" : viewerStatus === "empty_range" ? "Empty" : "Full",
+      label: "Chart",
+      note: `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} filtered rows.`,
+    },
+  ];
+  const bestAction = blocked
+    ? "Clean or refetch before using this file in a replay."
+    : needsReview
+      ? largestGap
+        ? "Focus the largest gap, then decide whether this range is acceptable."
+        : "Review quality tables before sending the file to Workbench."
+      : "Use this file in Workbench or compare sibling files for the same symbol.";
+  $("data-detail-assistant-title").textContent = `${text(detail.symbol)} ${text(detail.bar_size)} ${readinessTitle}`;
+  $("data-detail-assistant-note").textContent = `${text(detail.source)} / ${text(detail.storage_session)} - ${bestAction}`;
+  $("data-detail-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-detail-assistant-actions").innerHTML = dataDetailAssistantActionsHtml([
+    {
+      action: "workbench",
+      status: blocked ? "warn" : "ok",
+      title: "Use In Workbench",
+      note: blocked ? "Still selectable, but quality blockers should be fixed first." : "Select this file and range in the Config Builder.",
+      disabled: false,
+    },
+    {
+      action: "gap",
+      status: largestGap ? "warn" : "ok",
+      title: "Focus Largest Gap",
+      note: largestGap ? `Zoom to ${interval(largestGap.gap_seconds)} missing-data region.` : "No returned gap is available to focus.",
+      disabled: !largestGap,
+    },
+    {
+      action: "export-range",
+      status: "ok",
+      title: "Export Range CSV",
+      note: "Download the current date range with normalized timestamps.",
+      disabled: false,
+    },
+    {
+      action: "compare",
+      status: matchingFiles.length >= 2 ? "ok" : "warn",
+      title: "Compare Symbol Files",
+      note: matchingFiles.length >= 2
+        ? `Load up to ${numberText(Math.min(matchingFiles.length, MAX_DATA_COMPARE_DATASETS), 0)} ${text(detail.symbol)} files in Compare.`
+        : "Need at least two catalog files for this symbol.",
+      disabled: matchingFiles.length < 2,
+    },
+  ]);
+}
+
+function dataDetailAssistantActionsHtml(actions = []) {
+  return actions.map((item) => `
+    <button class="data-detail-assistant-action status-${escapeHtml(item.status)}" data-data-detail-assistant-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+async function handleDataDetailAssistantAction(action) {
+  const detail = state.dataDetail || {};
+  if (action === "workbench") {
+    useDataDetailInWorkbench();
+    return;
+  }
+  if (action === "gap") {
+    await focusDataDetailLargestGap();
+    return;
+  }
+  if (action === "export-range") {
+    await downloadDataDetailRangeCsv();
+    return;
+  }
+  if (action === "compare") {
+    const symbol = text(detail.symbol).toUpperCase();
+    if (!symbol || symbol === "N/A") {
+      $("data-detail-assistant-note").innerHTML = `<span class="status-bad">Opened file does not have a comparable symbol</span>`;
+      return;
+    }
+    $("data-symbol-browser-input").value = symbol;
+    renderSymbolBrowser();
+    await compareSelectedSymbolDatasets();
+    navigateToDataLens("compare");
+  }
 }
 
 function renderDataDetailOverview(detail, timezoneMode = "utc") {
@@ -16197,6 +16399,16 @@ function init() {
   $("data-detail-focus-gap").addEventListener("click", () => {
     focusDataDetailLargestGap().catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-data-detail-assistant-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    handleDataDetailAssistantAction(button.dataset.dataDetailAssistantAction || "").catch((err) => {
+      $("data-detail-assistant-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-detail-symbol").addEventListener("keydown", (event) => {

@@ -1598,6 +1598,7 @@ section {
 
 .data-search-assistant,
 .data-directory-assistant,
+.data-detail-assistant,
 .control-assistant,
 .performance-trade-assistant,
 .performance-rollup-assistant,
@@ -1618,6 +1619,8 @@ section {
 .data-search-assistant > div:first-child span,
 .data-directory-assistant > div:first-child strong,
 .data-directory-assistant > div:first-child span,
+.data-detail-assistant > div:first-child strong,
+.data-detail-assistant > div:first-child span,
 .control-assistant > div:first-child strong,
 .control-assistant > div:first-child span,
 .performance-trade-assistant > div:first-child strong,
@@ -1633,6 +1636,7 @@ section {
 
 .data-search-assistant > div:first-child strong,
 .data-directory-assistant > div:first-child strong,
+.data-detail-assistant > div:first-child strong,
 .control-assistant > div:first-child strong,
 .performance-trade-assistant > div:first-child strong,
 .performance-rollup-assistant > div:first-child strong,
@@ -1645,6 +1649,7 @@ section {
 
 .data-search-assistant > div:first-child > span:last-of-type,
 .data-directory-assistant > div:first-child > span:last-of-type,
+.data-detail-assistant > div:first-child > span:last-of-type,
 .control-assistant > div:first-child > span:last-of-type,
 .performance-trade-assistant > div:first-child > span:last-of-type,
 .performance-rollup-assistant > div:first-child > span:last-of-type,
@@ -1659,6 +1664,7 @@ section {
 
 .data-search-cards,
 .data-directory-assistant-cards,
+.data-detail-assistant-cards,
 .control-assistant-cards,
 .performance-trade-assistant-cards,
 .performance-rollup-assistant-cards,
@@ -1672,6 +1678,7 @@ section {
 
 .data-search-actions,
 .data-directory-assistant-actions,
+.data-detail-assistant-actions,
 .control-assistant-actions,
 .performance-trade-assistant-actions,
 .performance-rollup-assistant-actions,
@@ -1685,6 +1692,7 @@ section {
 
 .data-search-action-card,
 .data-directory-action-card,
+.data-detail-assistant-action,
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
@@ -1707,6 +1715,9 @@ section {
 .data-directory-action-card strong,
 .data-directory-action-card span,
 .data-directory-action-card small,
+.data-detail-assistant-action strong,
+.data-detail-assistant-action span,
+.data-detail-assistant-action small,
 .control-assistant-action strong,
 .control-assistant-action span,
 .control-assistant-action small,
@@ -1730,6 +1741,8 @@ section {
 .data-search-action-card small,
 .data-directory-action-card span,
 .data-directory-action-card small,
+.data-detail-assistant-action span,
+.data-detail-assistant-action small,
 .control-assistant-action span,
 .control-assistant-action small,
 .performance-trade-assistant-action span,
@@ -1760,9 +1773,21 @@ section {
   justify-content: flex-end;
 }
 
+.data-detail-assistant-action {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+}
+
+.data-detail-assistant-action:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
+.data-detail-assistant-action,
 .workbench-builder-assistant-action,
 .help-next-action {
   color: var(--text);
@@ -1772,6 +1797,7 @@ section {
 .control-assistant-action span,
 .performance-trade-assistant-action span,
 .performance-rollup-assistant-action span,
+.data-detail-assistant-action span,
 .workbench-builder-assistant-action span,
 .help-next-action span {
   min-width: 0;
@@ -1780,6 +1806,7 @@ section {
 .control-assistant-action strong,
 .performance-trade-assistant-action strong,
 .performance-rollup-assistant-action strong,
+.data-detail-assistant-action strong,
 .workbench-builder-assistant-action strong,
 .help-next-action strong {
   color: var(--text);
@@ -1789,6 +1816,7 @@ section {
 .control-assistant-action b,
 .performance-trade-assistant-action b,
 .performance-rollup-assistant-action b,
+.data-detail-assistant-action b,
 .workbench-builder-assistant-action b,
 .help-next-action b {
   white-space: nowrap;
@@ -3304,6 +3332,10 @@ footer {
   .data-directory-assistant-cards,
   .data-directory-assistant-actions,
   .data-directory-action-card,
+  .data-detail-assistant,
+  .data-detail-assistant-cards,
+  .data-detail-assistant-actions,
+  .data-detail-assistant-action,
   .fetch-search-assistant,
   .fetch-search-cards,
   .fetch-search-actions,

@@ -811,6 +811,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail now publishes explicit viewer status, omitted point
       counts, and a Viewer health card so users can tell whether a chart is
       full, sampled, empty, or unavailable.
+    - partial; Data Detail now has a Detail Assistant that summarizes
+      simulation readiness, coverage, gaps, nulls/duplicates, viewer state, and
+      direct next actions before the user reaches the raw charts and tables.
     - partial; Data Detail now exposes `/data_detail_export` and an Export
       Range CSV action that downloads the selected date range with normalized
       UTC timestamps and original file columns, bounded by a server row cap.
