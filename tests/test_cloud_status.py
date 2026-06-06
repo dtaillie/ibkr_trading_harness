@@ -700,6 +700,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html
+        assert "use-data-detail-workbench" in html
         assert "export-data-missing-intervals" in html
         assert "nav-performance" in html
         assert "performance-context-note" in html

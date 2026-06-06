@@ -666,6 +666,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       a `--data-root` flag, a replay-starter command, and a full-file inferred
       missing-interval CSV. Fully generated strategy-specific replay commands
       still come from saved Workbench drafts.
+    - partial; Data Detail can now send the opened saved file and selected date
+      window into Workbench instead of requiring users to reselect the dataset
+      manually before generating a replay or simulated-paper draft.
   - flag suspicious files before they are used in a strategy replay
     - done for Workbench-generated drafts; selected dataset quality is visible
       before draft generation, `/data_alignment`/draft alignment payloads carry
@@ -677,6 +680,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail now has Saved Data Viewer triage cards that show
       catalog file/symbol counts, the currently opened file, chart sampling
       state, enabled actions, and the next action before lower-level details.
+    - partial; Data Detail now has a Use In Workbench action that selects the
+      opened saved file in the Workbench Config Builder, carries over the
+      viewer date range when available, and jumps directly to the simulation
+      setup flow.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

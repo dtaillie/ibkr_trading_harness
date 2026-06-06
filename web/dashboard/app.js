@@ -5558,6 +5558,7 @@ function renderDataDetail() {
   $("copy-data-path").disabled = !detail.path;
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
+  $("use-data-detail-workbench").disabled = !detail.path;
   $("export-data-missing-intervals").disabled = !detail.path;
   renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
@@ -5624,6 +5625,54 @@ function renderDataDetail() {
         escapeHtml(interval(item.gap_seconds)),
       ])).join("")
     : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
+}
+
+function dateInputValueFromTimestamp(value) {
+  const millis = timestampMillis(value);
+  return millis === null ? "" : new Date(millis).toISOString().slice(0, 10);
+}
+
+function dataDetailWorkbenchDateRange(detail) {
+  const coverage = (detail && detail.coverage) || {};
+  const viewer = (detail && detail.viewer) || {};
+  return {
+    start: $("data-detail-start").value || dateInputValueFromTimestamp(viewer.first_timestamp || coverage.first_timestamp),
+    end: $("data-detail-end").value || dateInputValueFromTimestamp(viewer.last_timestamp || coverage.last_timestamp),
+  };
+}
+
+function useDataDetailInWorkbench() {
+  const detail = state.dataDetail || {};
+  const path = detail.path || state.dataDetailPath;
+  if (!path) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Open a saved dataset first</span>`;
+    return;
+  }
+  const datasetSelect = $("config-dataset");
+  if (!datasetSelect) return;
+  let found = false;
+  for (const option of datasetSelect.options) {
+    option.selected = option.value === path;
+    if (option.value === path) found = true;
+  }
+  if (!found) {
+    const label = `${text(detail.symbol)} ${text(detail.bar_size)} [${text((detail.quality || {}).quality_status || "unknown")}] - ${path}`;
+    const option = document.createElement("option");
+    option.value = path;
+    option.textContent = label;
+    option.selected = true;
+    datasetSelect.appendChild(option);
+  }
+  const range = dataDetailWorkbenchDateRange(detail);
+  if ($("config-start-date")) $("config-start-date").value = range.start;
+  if ($("config-end-date")) $("config-end-date").value = range.end;
+  renderConfigLivePanels();
+  navigateToView("workbench");
+  window.setTimeout(() => {
+    const target = $("config-form");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, 50);
+  $("last-refresh").textContent = `Selected ${text(detail.symbol || path)} for Workbench simulation`;
 }
 
 function renderDataDetailOverview(detail, timezoneMode = "utc") {
@@ -5712,7 +5761,7 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
       title: detailPath ? "Available" : "Disabled",
       label: "Actions",
       note: detailPath
-        ? "Copy path, data-root flag, replay starter, or export missing intervals."
+        ? "Copy path, data-root flag, replay starter, send to Workbench, or export missing intervals."
         : "Actions enable after a saved file is opened.",
     },
     {
@@ -10662,6 +10711,7 @@ function init() {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
+  $("use-data-detail-workbench").addEventListener("click", useDataDetailInWorkbench);
   $("export-data-missing-intervals").addEventListener("click", () => {
     downloadDataMissingIntervalsCsv().catch((err) => {
       $("last-refresh").textContent = `Missing interval export failed: ${err.message}`;
