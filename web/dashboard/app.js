@@ -9513,6 +9513,7 @@ function renderCommandAudit() {
   $("command-audit-note").textContent = events.length
     ? `${events.length} latest sanitized command audit events. ${integrityText}`
     : `No command audit events have been recorded yet. ${integrityText}`;
+  renderCommandAuditHealth(events, integrity);
   $("command-audit-body").innerHTML = events.length
     ? events.slice(-30).reverse().map((event) => row([
         escapeHtml(event.audited_at),
@@ -9526,6 +9527,55 @@ function renderCommandAudit() {
         event.error ? `<span class="status-bad">${escapeHtml(event.error)}</span>` : "",
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function renderCommandAuditHealth(events = [], integrity = {}) {
+  if (!$("command-audit-health")) return;
+  const latest = events.slice().reverse()[0] || events[0] || null;
+  const status = text(integrity.status || "unknown");
+  const signatureStatus = text(integrity.signature_status || "disabled");
+  const checked = Number(integrity.checked_records || 0);
+  const signed = Number(integrity.signed_records || 0);
+  const unsigned = Number(integrity.unsigned_records || 0);
+  const legacy = Number(integrity.legacy_records || 0);
+  const signatureTotal = signed + unsigned;
+  const cards = [
+    {
+      status: status === "ok" ? "ok" : checked ? "bad" : "warn",
+      label: "Hash Chain",
+      title: status,
+      note: checked ? `${numberText(checked, 0)} checked; ${numberText(legacy, 0)} legacy rows.` : "No hash-chained records checked yet.",
+    },
+    {
+      status: signatureStatus === "ok" ? "ok" : signatureStatus === "disabled" ? "warn" : "bad",
+      label: "Signature",
+      title: signatureStatus,
+      note: signatureTotal
+        ? `${numberText(signed, 0)} signed / ${numberText(unsigned, 0)} unsigned${integrity.signature_key_env ? ` via ${text(integrity.signature_key_env)}` : ""}.`
+        : "HMAC signing is disabled or no signed records exist yet.",
+    },
+    {
+      status: latest ? latest.error ? "bad" : latest.status === "rejected" ? "warn" : "ok" : "warn",
+      label: "Latest Event",
+      title: latest ? text(latest.event || latest.action || "event") : "none",
+      note: latest
+        ? `${text(latest.node_id)} / ${text(latest.action)} / ${text(latest.status || "recorded")} / ${timestampAgeLabel(latest.audited_at)}`
+        : "No sanitized command audit rows are loaded.",
+    },
+    {
+      status: integrity.off_host_retention === true ? "ok" : "warn",
+      label: "Retention",
+      title: integrity.off_host_retention === true ? "Off-host" : "Local",
+      note: "Export CSV or use ops/cloud/sync-command-audit.example.sh for dry-run-first off-host retention.",
+    },
+  ];
+  $("command-audit-health").innerHTML = cards.map((card) => `
+    <div class="health-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderAll() {

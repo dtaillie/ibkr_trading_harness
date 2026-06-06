@@ -972,6 +972,10 @@ section {
   box-shadow: var(--surface-shadow);
 }
 
+.command-audit-health {
+  margin: 12px 0;
+}
+
 .operations-home-panel {
   display: grid;
   grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr);

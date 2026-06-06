@@ -1077,6 +1077,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     local paper-monitor readiness, Gateway/API reachability, remote-node
     freshness, command-audit integrity/signature status, and alerts before the
     detailed remote/control tables.
+  - partial; Operations now has Command Audit Health cards that surface
+    hash-chain status, HMAC signature coverage, latest sanitized command
+    event, and local/off-host retention next steps before the dense audit rows.
 - Add alerts:
   - missed heartbeat
   - Gateway login required
@@ -1236,6 +1239,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; server-side command audit rows are now hash-chained and
     `/command_audit` reports integrity status, checked records, legacy rows,
     latest hash, and bounded errors.
+    - partial; the Operations dashboard now renders those integrity fields as
+      Command Audit Health cards so audit-chain and signature problems are
+      visible without reading raw JSON or table rows.
   - partial; hosted receivers can now set
     `dashboard.command_audit_signature_env` to sign new server-side command
     audit rows with an HMAC secret kept in the environment. `/command_audit`

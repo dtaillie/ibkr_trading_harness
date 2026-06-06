@@ -815,6 +815,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-detail-note" in html
         assert "remote-node-history-body" in html
         assert "command-audit-note" in html
+        assert "command-audit-health" in html
         assert "command-audit-body" in html
         assert "export-command-audit-csv" in html
         assert "Signature" in html
