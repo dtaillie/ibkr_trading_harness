@@ -752,6 +752,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail charts now render gap bands/markers over the price
       area for returned gap rows, while still listing the exact gap intervals
       in the table below the chart.
+    - partial; Data Detail now has a Focus Largest Gap action that applies the
+      selected file's largest returned gap as the chart/table date range, so
+      suspicious missing-data regions can be inspected without manual date
+      entry.
   - sampled and full-resolution modes
     - partial; sampled mode is default and full mode is available when the
       selected range fits the bounded point limit

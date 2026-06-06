@@ -726,6 +726,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-detail-symbol-load" in html
         assert "data-detail-prev" in html
         assert "data-detail-next" in html
+        assert "data-detail-focus-gap" in html
         assert "data-detail-nav-note" in html
         assert "data-detail-viewer-note" in html
         assert "data-detail-range-preset" in html

@@ -7639,6 +7639,9 @@ function renderDataDetail() {
   $("use-data-detail-workbench").disabled = !detail.path;
   $("export-data-detail-range").disabled = !detail.path;
   $("export-data-missing-intervals").disabled = !detail.path;
+  if ($("data-detail-focus-gap")) {
+    $("data-detail-focus-gap").disabled = !detail.path || !largestDataDetailGap(detail);
+  }
   renderDataDetailNavigator(detail);
   renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
@@ -13015,6 +13018,41 @@ function dataDetailCoverageRange(detail = state.dataDetail || {}) {
   return { start, end };
 }
 
+function largestDataDetailGap(detail = state.dataDetail || {}) {
+  const gaps = (detail && detail.gaps) || [];
+  const valid = gaps.filter((gap) => gap && gap.from_timestamp && gap.to_timestamp);
+  if (!valid.length) return null;
+  return valid.slice().sort((left, right) => {
+    const rightScore = finiteNumber(right.gap_seconds) ?? finiteNumber(right.estimated_missing_intervals) ?? 0;
+    const leftScore = finiteNumber(left.gap_seconds) ?? finiteNumber(left.estimated_missing_intervals) ?? 0;
+    return rightScore - leftScore;
+  })[0];
+}
+
+async function focusDataDetailLargestGap() {
+  const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
+  if (!path) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Open a saved dataset before focusing a gap</span>`;
+    return;
+  }
+  const gap = largestDataDetailGap();
+  if (!gap) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">No returned gaps are available for the current saved file</span>`;
+    return;
+  }
+  const start = dateInputValueFromTimestamp(gap.from_timestamp);
+  const end = dateInputValueFromTimestamp(gap.to_timestamp);
+  if (!start || !end) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Largest gap timestamps could not be converted to a date range</span>`;
+    return;
+  }
+  $("data-detail-start").value = start;
+  $("data-detail-end").value = end;
+  $("data-detail-range-preset").value = "custom";
+  await loadDataDetail(path);
+  $("last-refresh").textContent = `Focused largest gap: ${start} to ${end}`;
+}
+
 async function applyDataDetailRangePreset() {
   const preset = $("data-detail-range-preset").value || "custom";
   if (preset === "custom") return;
@@ -14016,6 +14054,11 @@ function init() {
   $("data-detail-next").addEventListener("click", () => {
     openAdjacentDataDetail(1).catch((err) => {
       $("data-detail-nav-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-focus-gap").addEventListener("click", () => {
+    focusDataDetailLargestGap().catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-detail-symbol").addEventListener("keydown", (event) => {
