@@ -9,6 +9,7 @@ It does not read broker credentials and it does not execute commands.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -81,6 +82,83 @@ def freshness_record(timestamp: Any, *, now: datetime, max_age_seconds: Any = No
         "max_age_seconds": max_age,
         "stale": stale,
     }
+
+
+def local_audit_hash_payload(payload: dict[str, Any]) -> str:
+    normalized = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"prev_hash", "record_hash"}
+    }
+    return json.dumps(normalized, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def local_audit_record_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(local_audit_hash_payload(payload).encode("utf-8")).hexdigest()
+
+
+def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "missing" if not path.exists() else "empty",
+        "checked_records": 0,
+        "legacy_records": 0,
+        "invalid_records": 0,
+        "total_records": 0,
+        "latest_hash": "",
+        "max_records": max_records,
+        "truncated": False,
+        "errors": [],
+    }
+    if not path.exists():
+        return result
+    previous_hash = ""
+    try:
+        with path.open() as f:
+            for line_no, line in enumerate(f, start=1):
+                if result["total_records"] >= max_records:
+                    result["truncated"] = True
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                result["total_records"] += 1
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    result["invalid_records"] += 1
+                    if len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": str(exc)})
+                    continue
+                if not isinstance(row, dict):
+                    result["invalid_records"] += 1
+                    if len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": "audit row is not an object"})
+                    continue
+                record_hash = row.get("record_hash")
+                if not record_hash:
+                    result["legacy_records"] += 1
+                    continue
+                if str(row.get("prev_hash") or "") != previous_hash:
+                    if len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": "prev_hash mismatch"})
+                computed = local_audit_record_hash(row)
+                if str(record_hash) != computed:
+                    if len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": "record_hash mismatch"})
+                result["checked_records"] += 1
+                previous_hash = str(record_hash)
+                result["latest_hash"] = previous_hash
+    except OSError as exc:
+        result["status"] = "error"
+        result["errors"].append({"line": None, "error": str(exc)})
+        return result
+    if result["errors"] or result["invalid_records"]:
+        result["status"] = "broken"
+    elif result["checked_records"]:
+        result["status"] = "ok"
+    elif result["legacy_records"]:
+        result["status"] = "legacy"
+    return result
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -525,11 +603,16 @@ def summarize_remote_control(remote_cfg: dict[str, Any], *, now: datetime) -> tu
     max_events = int(audit_cfg.get("max_events", 50))
     if max_events <= 0:
         max_events = 50
+    max_integrity_records = int(audit_cfg.get("max_integrity_records", 5000))
+    if max_integrity_records <= 0:
+        max_integrity_records = 5000
     max_age_seconds = audit_cfg.get("max_age_seconds")
+    integrity = verify_local_audit(log_path, max_records=max_integrity_records)
     record: dict[str, Any] = {
         "enabled": enabled,
         "audit_log": str(log_path),
         "audit_exists": log_path.exists(),
+        "integrity": integrity,
         "event_counts": {},
         "result_status_counts": {},
         "post_status_counts": {},
@@ -540,6 +623,12 @@ def summarize_remote_control(remote_cfg: dict[str, Any], *, now: datetime) -> tu
     }
     if not enabled:
         return record, alerts
+    if integrity.get("status") == "broken":
+        alerts.append({
+            "level": "warn",
+            "kind": "remote_control_audit_integrity",
+            "message": "local remote-control audit hash chain is broken or unreadable",
+        })
     if not log_path.exists():
         return record, alerts
     try:

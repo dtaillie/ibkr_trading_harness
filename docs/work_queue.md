@@ -1571,7 +1571,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; command worker now enforces a local command cap, action risk
     metadata, explicit local enable markers for launcher actions, and local
     hash-chained audit records for completed/rejected commands and poll
-    failures
+    failures. The status publisher now verifies that local audit hash chain,
+    emits a warning on tampering/broken rows, and Operations shows local audit
+    integrity beside remote-control freshness.
   - partial; receiver now rate-limits command queue requests per node and writes
     sanitized queue/cancel/result audit events to an append-only JSONL file with
     a bounded `/command_audit` endpoint. Explicit duplicate `command_id` values

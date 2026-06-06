@@ -12371,13 +12371,17 @@ function renderRemoteControl() {
   const remote = (state.status && state.status.remote_control) || {};
   const latest = remote.latest_event || {};
   const latestResult = latest.result || {};
+  const integrity = remote.integrity || {};
+  const integrityStatus = text(integrity.status || (remote.audit_exists ? "unknown" : "missing"));
   const latestLabel = latest.event
     ? `${text(latest.event)} ${text(latestResult.action)} ${text(latestResult.status)}`
     : "none";
+  const integrityDetail = `${numberText(integrity.checked_records, 0)} checked / ${numberText(integrity.legacy_records, 0)} legacy`;
   $("remote-control-body").innerHTML = row([
     remote.enabled ? statusText(remote.audit_exists ? "ok" : "waiting") : statusText("disabled"),
     escapeHtml(latestLabel),
     `<span class="${statusClass((remote.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((remote.freshness || {}).age_seconds))}</span>`,
+    `<span class="${statusClass(integrityStatus === "ok" ? "ok" : integrityStatus === "broken" ? "bad" : "warn")}">${escapeHtml(integrityStatus)}</span><br><span class="muted">${escapeHtml(integrityDetail)}</span>`,
     jsonDrilldown(remote.result_status_counts || {}, countSummary(remote.result_status_counts || {})),
     jsonDrilldown(remote.post_status_counts || {}, countSummary(remote.post_status_counts || {})),
     escapeHtml(remote.audit_log),

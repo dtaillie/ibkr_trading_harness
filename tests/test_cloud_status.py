@@ -14,7 +14,7 @@ import yaml
 
 from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
-from scripts.command_worker import audit_record_hash, execute_command, poll_once
+from scripts.command_worker import append_audit, audit_record_hash, execute_command, poll_once
 from scripts.publish_status import collect_status, gateway_alerts, post_status, publish_status
 
 
@@ -482,9 +482,47 @@ def test_collect_status_summarizes_remote_control_audit(tmp_path):
 
     assert payload["status"] == "ok"
     assert payload["remote_control"]["audit_exists"] is True
+    assert payload["remote_control"]["integrity"]["status"] == "legacy"
+    assert payload["remote_control"]["integrity"]["legacy_records"] == 2
     assert payload["remote_control"]["event_counts"] == {"command_result": 2}
     assert payload["remote_control"]["result_status_counts"] == {"completed": 2}
     assert payload["remote_control"]["post_status_counts"] == {"ok": 2}
+
+
+def test_collect_status_verifies_remote_control_audit_hash_chain(tmp_path):
+    audit_log = tmp_path / "audit.jsonl"
+    config = {"audit": {"log_file": str(audit_log)}}
+    append_audit(config, {"event": "command_result", "result": {"action": "request_status", "status": "completed"}})
+    append_audit(config, {"event": "poll_failed", "result": {"action": "poll", "status": "failed", "error": "down"}})
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "remote_control": {
+            "enabled": True,
+            "audit": {"log_file": str(audit_log), "max_events": 10},
+        },
+    })
+
+    assert payload["remote_control"]["integrity"]["status"] == "ok"
+    assert payload["remote_control"]["integrity"]["checked_records"] == 2
+    assert payload["remote_control"]["integrity"]["legacy_records"] == 0
+    assert payload["remote_control"]["latest_event"]["event"] == "poll_failed"
+    assert any(alert["kind"] == "remote_control_poll_failed" for alert in payload["alerts"])
+
+    rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    rows[0]["event"] = "tampered"
+    audit_log.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+
+    tampered = collect_status({
+        "node_id": "test-node",
+        "remote_control": {
+            "enabled": True,
+            "audit": {"log_file": str(audit_log), "max_events": 10},
+        },
+    })
+
+    assert tampered["remote_control"]["integrity"]["status"] == "broken"
+    assert any(alert["kind"] == "remote_control_audit_integrity" for alert in tampered["alerts"])
 
 
 def test_collect_status_warns_on_stale_run(tmp_path):
@@ -974,6 +1012,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-artifacts-note" in html
         assert "remote-node-artifacts-body" in html
         assert "remote-node-history-body" in html
+        assert "Local Integrity" in html
         assert "command-audit-note" in html
         assert "command-audit-health" in html
         assert "command-audit-body" in html
