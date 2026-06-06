@@ -847,6 +847,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       scanned symbol universe by file/row count, latest saved timestamp,
       sources, assets, bar sizes, storage sessions, replay-readiness, and
       top symbols with direct filter actions.
+    - partial; the main Saved Data table search now has a Search Assistant
+      that summarizes visible/hidden rows, matched symbols, quality, source/bar
+      breakdowns, and catalog-backed Filter, Inspect, Compare, and Diagnose
+      actions for likely symbol matches.
     - partial; Data Library now has a first-screen Data Source Map that
       translates configured and suggested root diagnostics into visible,
       hidden/capped, parser-error, unavailable, and not-scanned root states

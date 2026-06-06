@@ -5746,6 +5746,111 @@ function recommendedDataRows(filteredRows = []) {
     .slice(0, 6);
 }
 
+function renderDataSearchAssistant(filteredRows = []) {
+  if (!$("data-search-title") || !$("data-search-cards") || !$("data-search-actions")) return;
+  const datasets = state.dataCatalog.datasets || [];
+  const filters = dataCatalogFilters();
+  const query = String(filters.text || "").trim().toUpperCase();
+  const hiddenCount = Math.max(0, datasets.length - filteredRows.length);
+  const exactSymbols = new Set(filteredRows.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const qualityCounts = countBy(filteredRows, "quality_status");
+  const sourceCounts = countBy(filteredRows, "source");
+  const barCounts = countBy(filteredRows, "bar_size");
+  const bestMatch = filteredRows.find((dataset) => dataset.path) || null;
+  const suggestions = symbolQuickPickSuggestions(query, symbolBrowserGroups(), query ? 5 : 4);
+  const activeFacets = [
+    filters.quality ? `quality ${filters.quality}` : "",
+    filters.bar ? `bar ${filters.bar}` : "",
+    filters.asset ? `asset ${filters.asset}` : "",
+    filters.source ? `source ${filters.source}` : "",
+    filters.session ? `session ${filters.session}` : "",
+  ].filter(Boolean);
+  let title = "No search applied";
+  let note = "Use search and facets to narrow saved files, then inspect, compare, or diagnose a symbol.";
+  if (query || activeFacets.length) {
+    title = `${numberText(filteredRows.length, 0)} matching file${filteredRows.length === 1 ? "" : "s"}`;
+    note = filteredRows.length
+      ? `${numberText(exactSymbols.size, 0)} symbol${exactSymbols.size === 1 ? "" : "s"} match ${[query, ...activeFacets].filter(Boolean).join(" / ")}.`
+      : `No saved files match ${[query, ...activeFacets].filter(Boolean).join(" / ")}. Diagnose can check roots and fetch manifests for a symbol.`;
+  } else if (datasets.length) {
+    title = `${numberText(datasets.length, 0)} searchable saved file${datasets.length === 1 ? "" : "s"}`;
+    note = "Start from a ticker, source, bar size, storage session, quality state, or local path.";
+  }
+  $("data-search-title").textContent = title;
+  $("data-search-note").textContent = note;
+  const cards = [
+    {
+      label: "Visible Now",
+      status: filteredRows.length ? "ok" : datasets.length ? "warn" : "bad",
+      title: `${numberText(filteredRows.length, 0)} / ${numberText(datasets.length, 0)}`,
+      note: hiddenCount ? `${numberText(hiddenCount, 0)} files hidden by current filters.` : "No files are hidden by current filters.",
+    },
+    {
+      label: "Symbols",
+      status: exactSymbols.size ? "ok" : filteredRows.length ? "warn" : "bad",
+      title: numberText(exactSymbols.size, 0),
+      note: exactSymbols.size ? `${Array.from(exactSymbols).slice(0, 5).join(", ")}${exactSymbols.size > 5 ? "..." : ""}` : "No matching symbols in catalog rows.",
+    },
+    {
+      label: "Quality",
+      status: Number(qualityCounts.bad || 0) ? "bad" : Number(qualityCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      title: countSummary(qualityCounts),
+      note: Number(qualityCounts.bad || 0) || Number(qualityCounts.warn || 0)
+        ? "Review warn/bad files before replay."
+        : filteredRows.length ? "Matching rows are currently ok-quality." : "No quality counts to show.",
+    },
+    {
+      label: "Source And Bar",
+      status: filteredRows.length ? "ok" : "warn",
+      title: topCountEntries(sourceCounts, 2).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none",
+      note: topCountEntries(barCounts, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "No bar-size metadata in matches.",
+    },
+  ];
+  $("data-search-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const suggestionButtons = suggestions.map((summary) => {
+    const exactRows = symbolBrowserGroups().get(text(summary.symbol)) || [];
+    const canCompare = exactRows.filter((dataset) => dataset.path).length >= 2;
+    return `
+      <div class="data-search-action-card">
+        <div>
+          <strong>${escapeHtml(summary.symbol)}</strong>
+          <span>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows</span>
+          <small>${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")} / ${qualityBadge(summary.quality_status)}</small>
+        </div>
+        <div>
+          <button type="button" data-home-action="filter" data-symbol="${escapeHtml(summary.symbol)}">Filter</button>
+          <button type="button" class="secondary" data-home-action="inspect" data-symbol="${escapeHtml(summary.symbol)}">Inspect</button>
+          <button type="button" class="secondary" data-home-action="compare" data-symbol="${escapeHtml(summary.symbol)}"${canCompare ? "" : " disabled"}>Compare</button>
+          <button type="button" class="secondary" data-home-action="diagnose" data-symbol="${escapeHtml(summary.symbol)}">Diagnose</button>
+        </div>
+      </div>
+    `;
+  });
+  $("data-search-actions").innerHTML = suggestionButtons.length
+    ? suggestionButtons.join("")
+    : bestMatch
+      ? `
+        <div class="data-search-action-card">
+          <div>
+            <strong>${escapeHtml(text(bestMatch.symbol))}</strong>
+            <span>${escapeHtml(text(bestMatch.bar_size))} / ${escapeHtml(text(bestMatch.source))} / ${escapeHtml(numberText(bestMatch.rows, 0))} rows</span>
+            <small>${escapeHtml(rangeLabel(bestMatch.first_timestamp, bestMatch.last_timestamp))}</small>
+          </div>
+          <div>
+            <button type="button" data-home-action="inspect" data-symbol="${escapeHtml(text(bestMatch.symbol))}" data-path="${escapeHtml(bestMatch.path)}">Inspect</button>
+            <button type="button" class="secondary" data-home-action="filter" data-symbol="${escapeHtml(text(bestMatch.symbol))}">Filter</button>
+          </div>
+        </div>
+      `
+      : `<div class="empty-card"><strong>No quick actions</strong><span>Clear filters, raise the catalog limit, or diagnose a typed symbol.</span></div>`;
+}
+
 function renderSymbolBrowser() {
   const groups = symbolBrowserGroups();
   const symbols = Array.from(groups.keys()).sort();
@@ -6423,6 +6528,7 @@ function renderDataCatalog() {
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
   renderDataHome(filtered);
+  renderDataSearchAssistant(filtered);
   renderSymbolBrowser();
   renderSymbolDirectory();
   $("data-catalog-body").innerHTML = filtered.length
@@ -7037,6 +7143,13 @@ async function handleDataHomeShortlistAction(target) {
   }
   if (action === "compare") {
     await compareSelectedSymbolDatasets();
+  }
+  if (action === "diagnose") {
+    if (!symbol) {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">Select a symbol to diagnose</span>`;
+      return;
+    }
+    await diagnoseSelectedSymbol();
   }
 }
 
@@ -14768,6 +14881,13 @@ function init() {
     });
   });
   $("data-universe-symbols").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataHomeShortlistAction(target).catch((err) => {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-search-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataHomeShortlistAction(target).catch((err) => {
