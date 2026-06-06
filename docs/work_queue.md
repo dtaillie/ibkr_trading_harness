@@ -177,6 +177,9 @@ strategy-private.
     latest decision
     - partial; Overview now shows the latest bounded decision/order/fill
       timeline from telemetry
+    - partial; the Overview timeline is now current-telemetry-day aware,
+      showing today's decision/order/fill events first with a recent-event
+      fallback when no current-day events have been published.
 - Add a Strategy Performance page with charts and summaries:
   - current active strategy selector
   - current strategy snapshot independent of historical run comparison tables

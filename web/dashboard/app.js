@@ -2239,10 +2239,16 @@ function renderOverviewAlerts() {
 }
 
 function renderOverviewTimeline() {
-  const events = runEventRows().slice(0, 10);
-  $("overview-timeline-note").textContent = events.length
-    ? `${events.length} recent event${events.length === 1 ? "" : "s"}`
-    : "No recent telemetry events";
+  const allEvents = runEventRows();
+  const reference = overviewReferenceTime(allEvents, state.status || {});
+  const day = utcDayKey(reference);
+  const dayEvents = day ? allEvents.filter((event) => utcDayKey(event.timestamp) === day) : [];
+  const events = (dayEvents.length ? dayEvents : allEvents).slice(0, 12);
+  $("overview-timeline-note").textContent = dayEvents.length
+    ? `${day} UTC / ${numberText(dayEvents.length, 0)} current-day event${dayEvents.length === 1 ? "" : "s"}`
+    : allEvents.length
+      ? `No current-day events; showing ${numberText(events.length, 0)} latest recent event${events.length === 1 ? "" : "s"}`
+      : "No recent telemetry events";
   $("overview-timeline-body").innerHTML = events.length
     ? events.map((event) => row([
         escapeHtml(event.timestamp),
@@ -2252,7 +2258,7 @@ function renderOverviewTimeline() {
         escapeHtml(event.symbol),
         escapeHtml(event.detail),
       ])).join("")
-    : row([`<span class="muted">No signals, orders, or fills have been published yet.</span>`, "", "", "", "", ""]);
+    : row([`<span class="muted">No signals, orders, or fills have been published for the current telemetry day.</span>`, "", "", "", "", ""]);
 }
 
 function renderMetrics() {
