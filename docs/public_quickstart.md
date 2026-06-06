@@ -381,8 +381,8 @@ receiver behind HTTPS or a private VPN and keep broker credentials on the local
 machine. Hosted configs can also set `dashboard.network_access` to restrict
 direct receiver clients to localhost, VPN, or known management networks. See
 `docs/cloud_monitoring_deployment.md` for the full deployment shape, including
-example nginx/Caddy reverse proxies, UFW host-firewall rules, and an AWS
-security-group sketch. For internet-facing receivers, pair
+example nginx/Caddy reverse proxies, UFW host-firewall rules, and AWS,
+DigitalOcean, GCP, and Azure network-boundary sketches. For internet-facing receivers, pair
 `ops/cloud/sync-command-audit.example.sh` with a separate retention target; the
 AWS S3 Object Lock sketch is in
 `ops/cloud/aws-s3-command-audit-retention.example.tf`.

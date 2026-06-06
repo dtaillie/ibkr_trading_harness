@@ -1302,12 +1302,15 @@ QQQ show up, treat that as a bug until proven otherwise.
     provider-specific firewall/IaC examples.
   - partial; public-safe network-boundary examples now include nginx and Caddy
     reverse proxies, a dry-run-first UFW host-firewall script, and an AWS
-    security-group Terraform sketch. Remaining gap: deployment recipes for
-    other providers and stronger off-host audit retention.
+    security-group Terraform sketch. Provider boundary examples now also cover
+    DigitalOcean Cloud Firewalls, Google Cloud firewall rules, and Azure NSG
+    rules. Remaining gap: stronger off-host audit retention and real-account
+    hardening review before internet exposure.
   - partial; provider-specific examples now also include a reusable hosted
     receiver Dockerfile, Fly app config, Render Blueprint config, DigitalOcean
-    Cloud Firewall Terraform sketch, and a dry-run-first off-host command-audit
-    sync helper. Remaining gap: manual hardening review against a real chosen
+    Cloud Firewall Terraform sketch, GCP firewall Terraform sketch, Azure NSG
+    Terraform sketch, and a dry-run-first off-host command-audit sync helper.
+    Remaining gap: manual hardening review against a real chosen
     provider/account before any internet-facing deployment.
 - Add read-only remote monitoring pages:
   - current strategy state

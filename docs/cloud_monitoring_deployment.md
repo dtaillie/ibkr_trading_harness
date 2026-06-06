@@ -130,6 +130,16 @@ point, not a substitute for provider/account hardening.
 boundary shape for a DigitalOcean Droplet: SSH from management CIDRs, HTTPS
 from publisher/dashboard CIDRs, and no receiver app port exposed.
 
+`ops/cloud/gcp-firewall-status-receiver.example.tf` is the same boundary shape
+for a Google Cloud VM using target network tags: SSH from management CIDRs and
+HTTPS from publisher/dashboard CIDRs. Review existing VPC firewall rules, such
+as broad default SSH allowances, before relying on it.
+
+`ops/cloud/azure-nsg-status-receiver.example.tf` is the same boundary shape for
+an Azure VM subnet or NIC: an NSG with inbound SSH from management CIDRs and
+HTTPS from publisher/dashboard CIDRs. Attach the NSG to the intended subnet or
+network interface and review any broader inherited rules before relying on it.
+
 `ops/cloud/status-receiver.Dockerfile.example` builds a public-safe hosted
 receiver image. The Fly and Render examples below both reference it.
 
@@ -141,6 +151,12 @@ Good low-cost provider shapes:
 - DigitalOcean Droplet: attach a Cloud Firewall equivalent to the Terraform
   example, bind the receiver to localhost, and expose only the HTTPS reverse
   proxy.
+- Google Cloud VM: apply a firewall boundary equivalent to the Terraform
+  example, bind the receiver to localhost, and expose only the HTTPS reverse
+  proxy.
+- Azure VM: attach an NSG equivalent to the Terraform example to the receiver
+  subnet or NIC, bind the receiver to localhost, and expose only the HTTPS
+  reverse proxy.
 - Fly.io app: copy `ops/cloud/fly-status-receiver.example.toml` to `fly.toml`,
   create a small persistent volume mounted at
   `/app/paper_logs/cloud_status_server`, set `TRADING_STATUS_TOKEN`, and deploy
@@ -376,5 +392,10 @@ Keep private:
 - Render Blueprint YAML: https://render.com/docs/blueprint-spec
 - DigitalOcean firewall resource:
   https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs/resources/firewall.html
+- GCP firewall resource:
+  https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall
+- Azure Network Security Group resources:
+  https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group
+  https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_rule
 - AWS S3 Object Lock:
   https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
