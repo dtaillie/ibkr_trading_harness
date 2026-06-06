@@ -268,7 +268,9 @@ matrix rows offline.
    blockers, and warnings, and it can jump directly to Validate, Run, or Open
    Results. Use Run Selected to stay in Workbench after completion, or Run +
    Performance to run replay/simulated paper and land on the Performance page
-   after artifacts load.
+   after artifacts load. The Selected Draft Commands panel summarizes the
+   chosen draft, validation state, selected action, and execution boundary
+   before the raw copyable `live/plugin_runner.py` commands.
 9. After a completed replay or simulated-paper run, the dashboard loads the
    exact archived run artifacts when available and refreshes run comparison and
    performance rollups. If a run fails or only validates, stay in Workbench Run

@@ -11732,8 +11732,15 @@ function selectedRunDraftCommands() {
   };
 }
 
+function runCommandBoundaryNote(action) {
+  if (action === "validate") return "Validation only; imports the plugin and checks config without replaying bars or submitting orders.";
+  if (action === "replay") return "Replay only; evaluates saved bars and writes artifacts without broker orders.";
+  if (action === "simulated_paper") return "Local simulated paper; uses runner accounting and artifacts without touching a broker.";
+  return "Choose validate, replay, or simulated paper before running a saved draft.";
+}
+
 function renderWorkbenchRunCommands() {
-  if (!$("workbench-run-command-note") || !$("workbench-run-commands")) return;
+  if (!$("workbench-run-command-note") || !$("workbench-run-commands") || !$("workbench-run-command-cards")) return;
   const draft = selectedRunDraft();
   const commands = selectedRunDraftCommands();
   const validation = selectedRunDraftValidation();
@@ -11742,6 +11749,45 @@ function renderWorkbenchRunCommands() {
   $("workbench-run-command-note").textContent = draft
     ? `${text(draft.draft_id)} local commands${validation ? validation.valid ? " / validation passed" : " / validation failed" : " / validation unchecked"}`
     : "Select a saved draft to copy local plugin-runner commands.";
+  const cards = [
+    {
+      status: draft ? "ok" : "bad",
+      title: draft ? text(draft.draft_id) : "No draft",
+      label: "Selected Draft",
+      note: draft && draft.path ? `Local YAML: ${text(draft.path)}` : "Generate and save a draft before running.",
+    },
+    {
+      status: validation ? validation.valid ? "ok" : "bad" : draft ? "warn" : "waiting",
+      title: validation ? validation.valid ? "Passed" : "Failed" : "Unchecked",
+      label: "Validation",
+      note: validation
+        ? validation.valid
+          ? "The saved draft passed server validation."
+          : "Fix validation errors before trusting a replay or simulated-paper run."
+        : "Run Validate Drafts or choose validate before replaying.",
+    },
+    {
+      status: commands[runAction] ? "ok" : draft ? "warn" : "waiting",
+      title: text(runAction || "n/a"),
+      label: "Selected Action",
+      note: commands[runAction]
+        ? "The highlighted command below matches the Run form action."
+        : "Choose an available local plugin-runner action.",
+    },
+    {
+      status: runAction === "validate" || runAction === "replay" ? "ok" : runAction === "simulated_paper" ? "warn" : "waiting",
+      title: runAction === "validate" || runAction === "replay" ? "No broker orders" : runAction === "simulated_paper" ? "Simulated only" : "Choose action",
+      label: "Boundary",
+      note: runCommandBoundaryNote(runAction),
+    },
+  ];
+  $("workbench-run-command-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
   $("workbench-run-commands").innerHTML = commandEntries.length
     ? commandEntries.map(([name, command]) => {
         const recommended = (runAction === "validate" && name === "validate")

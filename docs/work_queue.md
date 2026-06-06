@@ -1324,6 +1324,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     and simulated-paper `live/plugin_runner.py` commands for the selected saved
     draft, including the current max-steps setting, so users do not have to
     return to the generated YAML panel to run a saved draft locally.
+  - partial; the Workbench Run command panel now has summary cards for selected
+    draft, validation state, selected action, and execution boundary before the
+    raw copyable commands, making the generic public runner path easier to
+    understand without reading source.
 - Add a guided "simulate from saved data" path:
   - choose one or more scanned symbols
   - choose a date range
