@@ -4268,6 +4268,114 @@ function renderDataHomeShortlist(filteredRows = []) {
   }).join("");
 }
 
+function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
+  const rootPath = text(root.display_path || root.path);
+  const rootPathLower = rootPath.toLowerCase();
+  const summary = rootSummaries.find((item) => {
+    const values = [item.path, item.display_path, item.root].map(text).map((value) => value.toLowerCase());
+    return values.includes(rootPathLower);
+  }) || {};
+  const visibleRows = datasets.filter((dataset) => {
+    const datasetRoot = text(dataset.root).toLowerCase();
+    const datasetPath = text(dataset.path).toLowerCase();
+    return datasetRoot === rootPathLower || datasetPath.startsWith(`${rootPathLower}/`);
+  });
+  return {
+    catalogVisible: visibleRows.length || Number(summary.parsed_count || 0),
+    candidateCount: Number(summary.candidate_count || root.data_file_count || 0),
+    parsedCount: Number(summary.parsed_count || visibleRows.length || 0),
+    parseErrors: Number(summary.parse_error_count || 0),
+    unsupported: Number(summary.unsupported_file_count || 0),
+    capped: Boolean(summary.scan_capped || summary.not_scanned_reason === "global catalog limit reached"),
+    reason: text(summary.not_scanned_reason || summary.error || ""),
+  };
+}
+
+function renderDataSourceMap() {
+  if (!$("data-source-map") || !$("data-source-map-note")) return;
+  const diagnostics = state.diagnostics || {};
+  const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
+  const rootSummaries = catalog.root_summaries || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const cards = [];
+  for (const root of roots) {
+    const summary = rootCatalogSummary(root, rootSummaries, datasets);
+    const diskFiles = Number(root.data_file_count || summary.candidateCount || 0);
+    const hiddenFiles = Math.max(0, diskFiles - summary.catalogVisible);
+    let status = "ok";
+    let title = "Catalog visible";
+    let action = "Filter";
+    let actionKind = "filter";
+    if (!root.exists || !root.is_dir) {
+      status = "bad";
+      title = "Root unavailable";
+      action = "Copy YAML";
+      actionKind = "copy-roots";
+    } else if (summary.parseErrors) {
+      status = "bad";
+      title = "Parser errors";
+      action = "Scan Diagnostics";
+      actionKind = "scan";
+    } else if (!diskFiles) {
+      status = "warn";
+      title = "No saved files";
+      action = "Fetch Jobs";
+      actionKind = "fetch";
+    } else if (!summary.catalogVisible || hiddenFiles || summary.capped) {
+      status = "warn";
+      title = summary.capped ? "Catalog capped" : "Some files hidden";
+      action = summary.capped ? "Raise Limit" : "Storage Audit";
+      actionKind = summary.capped ? "raise-limit" : "audit";
+    }
+    const detailParts = [
+      `${numberText(diskFiles, 0)} disk file${diskFiles === 1 ? "" : "s"}`,
+      `${numberText(summary.catalogVisible, 0)} catalog-visible`,
+      hiddenFiles ? `${numberText(hiddenFiles, 0)} hidden` : "",
+      summary.parseErrors ? `${numberText(summary.parseErrors, 0)} parser errors` : "",
+      summary.unsupported ? `${numberText(summary.unsupported, 0)} unsupported` : "",
+    ].filter(Boolean);
+    cards.push({
+      status,
+      title,
+      root: root.display_path || root.path,
+      scope: `${text(root.scope)} / ${text(root.scope_note)}`,
+      detail: detailParts.join(" / "),
+      reason: summary.reason,
+      action,
+      actionKind,
+    });
+  }
+  for (const root of suggestedRoots) {
+    cards.push({
+      status: "warn",
+      title: "Suggested root not scanned",
+      root: root.display_path || root.path,
+      scope: `${text(root.scope)} / ${text(root.scope_note)}`,
+      detail: `${numberText(root.data_file_count, 0)} saved file${Number(root.data_file_count || 0) === 1 ? "" : "s"} found outside configured roots`,
+      reason: "Add this path to dashboard.data_roots or copy the generated YAML block.",
+      action: "Copy YAML",
+      actionKind: "copy-roots",
+    });
+  }
+  $("data-source-map-note").textContent = cards.length
+    ? `${numberText(roots.length, 0)} configured / ${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"}`
+    : "No configured or suggested data roots loaded";
+  $("data-source-map").innerHTML = cards.length
+    ? cards.slice(0, 12).map((card) => `
+      <div class="action-card status-${escapeHtml(card.status)}">
+        <span>${escapeHtml(card.title)}</span>
+        <strong>${escapeHtml(card.detail)}</strong>
+        <small class="mono">${escapeHtml(text(card.root))}</small>
+        <small>${escapeHtml(card.scope)}</small>
+        ${card.reason && card.reason !== "n/a" ? `<small>${escapeHtml(card.reason)}</small>` : ""}
+        <button type="button" class="secondary" data-source-map-action="${escapeHtml(card.actionKind)}" data-root-query="${escapeHtml(text(card.root))}">${escapeHtml(card.action)}</button>
+      </div>
+    `).join("")
+    : `<div class="empty-card"><strong>No data roots mapped</strong><span>Configure dashboard.data_roots or run a fetch job, then refresh Data Library.</span></div>`;
+}
+
 function selectedSymbolBrowserPath() {
   return $("data-symbol-browser-dataset").value || (selectedSymbolBrowserDatasets()[0] || {}).path || "";
 }
@@ -4457,6 +4565,7 @@ function renderDataLibrarySummary() {
         </div>
       `).join("")
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
+  renderDataSourceMap();
   renderDataLibraryGuide({
     catalog,
     datasets,
@@ -4469,6 +4578,34 @@ function renderDataLibrarySummary() {
     symbols,
   });
   renderDataCatalogScanDiagnostics();
+}
+
+function handleDataSourceMapAction(target) {
+  const action = String(target.dataset.sourceMapAction || "");
+  const rootQuery = String(target.dataset.rootQuery || "").trim();
+  if (action === "filter") {
+    $("data-filter-text").value = rootQuery;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    $("last-refresh").textContent = `Data Library filtered to ${rootQuery}`;
+    return;
+  }
+  if (action === "copy-roots") {
+    copyDataRootsYaml();
+    return;
+  }
+  if (action === "fetch") {
+    navigateToView("fetch");
+    return;
+  }
+  if (action === "raise-limit") {
+    $("data-catalog-limit").focus();
+    $("last-refresh").textContent = "Increase Rows to scan, then refresh Data Library";
+    return;
+  }
+  const targetId = action === "scan" ? "data-catalog-scan-body" : "data-storage-audit-list";
+  const element = $(targetId);
+  if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function renderDataLibraryGuide(context = {}) {
@@ -9655,6 +9792,11 @@ function init() {
     handleDataHomeShortlistAction(target).catch((err) => {
       $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("data-source-map").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataSourceMapAction(target);
   });
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);

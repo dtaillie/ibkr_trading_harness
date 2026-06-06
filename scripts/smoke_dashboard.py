@@ -327,6 +327,8 @@ def run_smoke(
             "data-home-next-step",
             "data-home-breakdown",
             "data-home-shortlist",
+            "data-source-map-note",
+            "data-source-map",
             "data-home-clear-filters",
             "data-home-inspect-top",
             "data-home-open-workbench",

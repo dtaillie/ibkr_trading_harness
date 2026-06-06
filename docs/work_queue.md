@@ -643,6 +643,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.
+    - partial; Data Library now has a first-screen Data Source Map that
+      translates configured and suggested root diagnostics into visible,
+      hidden/capped, parser-error, unavailable, and not-scanned root states
+      with direct actions for filtering, audit, scan diagnostics, fetch jobs,
+      scan-limit review, and root YAML copying.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.
