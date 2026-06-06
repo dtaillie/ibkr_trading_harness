@@ -52,7 +52,9 @@ This roadmap is broader context; the queue is the current execution order.
   public-safe `strategy_fields` that render for the selected plugin and are
   serialized into generated drafts. The Workbench enforces required fields,
   numeric min/max bounds, select choices, and unknown-key rejection for those
-  fields. Deeper plugin-authored validation remains future work.
+  fields, and plugin-authored validation hooks run before generated YAML is
+  saved. Richer inline display of plugin-authored field messages remains future
+  work.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow
   constraints, commission schedules, and slippage models. The public runner now

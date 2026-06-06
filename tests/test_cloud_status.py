@@ -3862,6 +3862,81 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_config_draft_rejects_plugin_authored_validation(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: validated_demo",
+                "    label: Validated demo",
+                "    spec: tests.fixtures.validated_plugin:create_strategy",
+                "    status: private_local",
+                "    visibility: private_local",
+                "    strategy_fields:",
+                "      - name: symbol",
+                "        label: Symbol",
+                "        kind: text",
+                "        default: ''",
+                "      - name: threshold",
+                "        label: Threshold",
+                "        kind: number",
+                "        default: 1.0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "state"
+    server = create_server(
+        "127.0.0.1",
+        0,
+        state_dir,
+        data_roots=[data_root],
+        plugin_registry_paths=[registry],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        draft_req = request.Request(
+            f"{base}/config_draft",
+            data=json.dumps({
+                "name": "Invalid Plugin Hook Draft",
+                "plugin_id": "validated_demo",
+                "mode": "replay",
+                "strategy": {"symbol": "", "threshold": 1.5},
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "history_bars": 1,
+                "max_steps": 1,
+                "max_orders_per_run": 1,
+                "max_notional_per_order": 100,
+                "max_quantity": 10,
+                "max_cash_quantity": 100,
+                "max_gross_exposure_pct": 0.05,
+                "allow_quality_warnings": True,
+                "save": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(draft_req, timeout=5)
+            raise AssertionError("expected plugin validator response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert "metadata.strategy_plugin config: strategy.symbol must be a non-empty string" in payload["error"]
+        assert not (state_dir / "config_drafts" / "Invalid_Plugin_Hook_Draft.yaml").exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_config_draft_rejects_data_outside_roots(tmp_path):
     data_root = tmp_path / "data"
     other_root = tmp_path / "other"

@@ -1057,7 +1057,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     into generated drafts. Workbench draft generation and saved-draft
     validation now enforce those field definitions for required fields,
     numeric min/max bounds, select choices, and unknown strategy keys. Deeper
-    plugin-authored validation messages in the Workbench remain open.
+    plugin-authored validation hooks now run during Workbench draft generation
+    and saved-draft validation, so invalid plugin-specific configs are rejected
+    before local YAML is saved. Richer inline per-field display of those
+    plugin-authored messages remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

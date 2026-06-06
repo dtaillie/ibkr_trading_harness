@@ -4613,6 +4613,8 @@ def build_config_draft(
         action="validate",
         plugins=available_plugins,
     )
+    if errors:
+        raise ValueError("; ".join(errors))
     saved_path = None
     if bool(payload.get("save", False)):
         drafts_dir = state_dir / "config_drafts"
