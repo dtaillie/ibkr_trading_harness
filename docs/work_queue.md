@@ -1032,6 +1032,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now has client-side search, status/kind filters, and
       sort controls so long completed/active manifest histories are easier to
       scan for failed jobs, recent jobs, large pulls, and output paths.
+    - partial; the Jobs lens now includes a Fetch Search Assistant that
+      summarizes visible/hidden jobs, status/kind mix, recovery pressure,
+      output visibility, retry/pacing pressure, and recommended manifests with
+      direct Inspect, Status, and Kind filter actions before the dense table.
     - partial; Fetch Jobs can copy configured manifest roots as a
       `dashboard.fetch_manifest_roots` YAML block for local dashboard config.
     - partial; Fetch Jobs now exposes `/fetch_manifests_export` and an Export

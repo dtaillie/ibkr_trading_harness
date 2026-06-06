@@ -8938,6 +8938,7 @@ function renderFetchJobs() {
   renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchWorkflowLauncher({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
+  renderFetchSearchAssistant(manifests, filteredManifests);
   const errors = payload.errors || [];
   const errorRows = errors.map((item) => row([
     escapeHtml(item.path),
@@ -8995,6 +8996,148 @@ function renderFetchJobs() {
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
     : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function fetchManifestOutputIssueCount(item) {
+  return (
+    Number(item.output_missing_file_count || 0) +
+    Number(item.output_outside_data_roots_count || 0) +
+    Number(item.output_no_path_count || 0) +
+    Number(item.output_unsupported_file_count || 0)
+  );
+}
+
+function fetchManifestLabel(item) {
+  return text(item.job_id || item.path || "fetch job");
+}
+
+function recommendedFetchManifests(filteredManifests = []) {
+  return (filteredManifests || [])
+    .slice()
+    .sort((left, right) => {
+      const leftIssue = fetchManifestIssueCount(left) + fetchManifestOutputIssueCount(left);
+      const rightIssue = fetchManifestIssueCount(right) + fetchManifestOutputIssueCount(right);
+      if (leftIssue !== rightIssue) return rightIssue - leftIssue;
+      const activeDelta = Number(!fetchJobTerminal(right.status)) - Number(!fetchJobTerminal(left.status));
+      if (activeDelta) return activeDelta;
+      const leftTime = timestampMillis(left.finished_at || left.started_at) || 0;
+      const rightTime = timestampMillis(right.finished_at || right.started_at) || 0;
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      return fetchManifestLabel(left).localeCompare(fetchManifestLabel(right));
+    })
+    .slice(0, 5);
+}
+
+function renderFetchSearchAssistant(manifests = [], filteredManifests = []) {
+  if (!$("fetch-search-title") || !$("fetch-search-cards") || !$("fetch-search-actions")) return;
+  const filters = fetchJobFilters();
+  const activeLabels = [
+    filters.text ? `search ${filters.text}` : "",
+    filters.status ? `status ${filters.status}` : "",
+    filters.kind ? `kind ${filters.kind}` : "",
+  ].filter(Boolean);
+  const hidden = Math.max(0, manifests.length - filteredManifests.length);
+  const activeJobs = filteredManifests.filter((item) => !fetchJobTerminal(item.status));
+  const reviewJobs = filteredManifests.filter((item) => fetchManifestIssueCount(item) > 0 || fetchManifestOutputIssueCount(item) > 0);
+  const visibleOutputs = filteredManifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = filteredManifests.reduce((sum, item) => sum + fetchManifestOutputIssueCount(item), 0);
+  const retryEvents = filteredManifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = filteredManifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const statusCounts = countBy(filteredManifests, "status");
+  const kindCounts = countBy(filteredManifests, "kind");
+  $("fetch-search-title").textContent = manifests.length
+    ? activeLabels.length
+      ? `${numberText(filteredManifests.length, 0)} matching fetch job${filteredManifests.length === 1 ? "" : "s"}`
+      : `${numberText(manifests.length, 0)} searchable fetch job${manifests.length === 1 ? "" : "s"}`
+    : "No jobs loaded";
+  $("fetch-search-note").textContent = manifests.length
+    ? activeLabels.length
+      ? `${activeLabels.join(" / ")}. ${numberText(hidden, 0)} job${hidden === 1 ? "" : "s"} hidden by current filters.`
+      : "Use the filters to find failed pulls, active manifests, visible outputs, or a specific symbol/path."
+    : "Run a fetcher that writes JSON manifests or configure dashboard.fetch_manifest_roots.";
+  const cards = [
+    {
+      label: "Visible Jobs",
+      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "bad",
+      title: `${numberText(filteredManifests.length, 0)} / ${numberText(manifests.length, 0)}`,
+      note: hidden ? `${numberText(hidden, 0)} hidden by filters.` : "All loaded jobs are visible.",
+    },
+    {
+      label: "Status / Kind",
+      status: filteredManifests.length ? "ok" : "warn",
+      title: countSummary(statusCounts),
+      note: `Kinds: ${countSummary(kindCounts)}.`,
+    },
+    {
+      label: "Recovery Pressure",
+      status: reviewJobs.length ? "warn" : filteredManifests.length ? "ok" : "bad",
+      title: numberText(reviewJobs.length, 0),
+      note: reviewJobs.length
+        ? "Open a recommended job to see recovery plan, resume command, and output visibility."
+        : filteredManifests.length ? "No matching job has summarized errors or output path issues." : "No matching jobs to review.",
+    },
+    {
+      label: "Output Visibility",
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : filteredManifests.length ? "warn" : "bad",
+      title: `${numberText(visibleOutputs, 0)} visible`,
+      note: outputIssues ? `${numberText(outputIssues, 0)} output path issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can move into Data Library from Fetch Detail.",
+    },
+    {
+      label: "Active / Pace",
+      status: activeJobs.length || retryEvents || pacingWaits ? "warn" : filteredManifests.length ? "ok" : "bad",
+      title: `${numberText(activeJobs.length, 0)} active`,
+      note: `${numberText(retryEvents, 0)} retries / ${numberText(pacingWaits, 0)} pacing waits in matching jobs.`,
+    },
+  ];
+  $("fetch-search-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const recommendations = recommendedFetchManifests(filteredManifests);
+  $("fetch-search-actions").innerHTML = recommendations.length
+    ? recommendations.map((item) => {
+        const issueCount = fetchManifestIssueCount(item) + fetchManifestOutputIssueCount(item);
+        const visible = Number(item.output_visible_count || item.visible_output_count || 0);
+        const status = issueCount ? "warn" : fetchJobTerminal(item.status) ? "ok" : "warn";
+        return `
+          <div class="fetch-search-action-card status-${escapeHtml(status)}">
+            <div>
+              <span>${statusText(status)}</span>
+              <strong>${escapeHtml(fetchManifestLabel(item))}</strong>
+              <small>${escapeHtml(text(item.kind))} / ${escapeHtml(text(item.status))} / ${escapeHtml(text(item.bar_size))} / ${escapeHtml(rangeLabel(item.range_start, item.range_end || item.duration || item.months))}</small>
+              <small>${escapeHtml(numberText(item.rows, 0))} rows / visible outputs ${escapeHtml(numberText(visible, 0))} / issues ${escapeHtml(numberText(issueCount, 0))}</small>
+            </div>
+            <div>
+              <button type="button" data-fetch-search-action="inspect" data-job-id="${escapeHtml(item.job_id)}">Inspect</button>
+              <button type="button" class="secondary" data-fetch-search-action="status" data-status="${escapeHtml(text(item.status))}">Status</button>
+              <button type="button" class="secondary" data-fetch-search-action="kind" data-kind="${escapeHtml(text(item.kind))}">Kind</button>
+            </div>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No recommended fetch jobs</strong><span>Clear filters or configure manifest roots to load fetch jobs.</span></div>`;
+}
+
+function handleFetchSearchAction(target) {
+  const action = String(target.dataset.fetchSearchAction || "");
+  if (action === "inspect") {
+    loadFetchManifestDetail(target.dataset.jobId || "").catch((err) => {
+      $("last-refresh").textContent = `Fetch manifest detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "status") {
+    $("fetch-filter-status").value = target.dataset.status || "";
+    renderFetchJobs();
+    return;
+  }
+  if (action === "kind") {
+    $("fetch-filter-kind").value = target.dataset.kind || "";
+    renderFetchJobs();
+  }
 }
 
 function fetchOutputVisibilityHtml(item) {
@@ -14914,6 +15057,11 @@ function init() {
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);
   $("fetch-filter-kind").addEventListener("change", renderFetchJobs);
   $("fetch-filter-sort").addEventListener("change", renderFetchJobs);
+  $("fetch-search-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-fetch-search-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleFetchSearchAction(target);
+  });
   $("copy-fetch-roots-yaml").addEventListener("click", copyFetchManifestRootsYaml);
   $("export-fetch-manifests-csv").addEventListener("click", () => {
     downloadFetchManifestsCsv().catch((err) => {
