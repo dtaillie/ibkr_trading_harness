@@ -1754,6 +1754,85 @@ section {
   justify-content: flex-end;
 }
 
+.runs-search-assistant {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
+  gap: 12px;
+  margin: 4px 0 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
+.runs-search-assistant > div:first-child strong,
+.runs-search-assistant > div:first-child span {
+  display: block;
+}
+
+.runs-search-assistant > div:first-child strong {
+  margin-top: 8px;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.runs-search-assistant > div:first-child > span:last-of-type {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.runs-search-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.runs-search-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.runs-search-action-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfffc;
+}
+
+.runs-search-action-card strong,
+.runs-search-action-card span,
+.runs-search-action-card small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.runs-search-action-card span,
+.runs-search-action-card small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.runs-search-action-card > div:last-child {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .breakdown-group {
   min-width: 0;
 }
@@ -3100,12 +3179,17 @@ footer {
   .fetch-search-assistant,
   .fetch-search-cards,
   .fetch-search-actions,
-  .fetch-search-action-card {
+  .fetch-search-action-card,
+  .runs-search-assistant,
+  .runs-search-cards,
+  .runs-search-actions,
+  .runs-search-action-card {
     grid-template-columns: 1fr;
   }
 
   .data-search-action-card > div:last-child,
-  .fetch-search-action-card > div:last-child {
+  .fetch-search-action-card > div:last-child,
+  .runs-search-action-card > div:last-child {
     justify-content: flex-start;
   }
 

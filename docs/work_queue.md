@@ -358,6 +358,10 @@ strategy-private.
     - partial; the Runs page now has client-side search, status/mode filters,
       and sort controls for current published run telemetry, plus search,
       type/status filters, and sorting for the recent run-event timeline.
+    - partial; the Runs lens now has a Run Search Assistant that summarizes
+      visible/hidden runs, status/mode mix, freshness, execution activity, and
+      recommended runs with direct Events, Status, and Mode actions before the
+      dense run table.
     - partial; Runs now puts the searchable run table behind an explicit Runs
       focus lens so it is reachable without forcing current-state and event
       tables into the same scroll path.

@@ -11990,6 +11990,7 @@ function renderRuns() {
   renderRunsTriage();
   renderRunsWorkflowLauncher();
   renderRunsAccountBoundary();
+  renderRunsSearchAssistant(runs, visibleRuns);
   $("runs-table-note").textContent = `${numberText(visibleRuns.length, 0)} shown / ${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}`;
   $("runs-body").innerHTML = visibleRuns.length
     ? visibleRuns.map((run) => {
@@ -12008,6 +12009,160 @@ function renderRuns() {
         ]);
       }).join("")
     : row([`<span class="muted">No published runs match the current filters.</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function runsFilterState() {
+  return {
+    text: ($("runs-filter-text").value || "").trim().toLowerCase(),
+    status: $("runs-filter-status").value || "",
+    mode: $("runs-filter-mode").value || "",
+    sort: $("runs-filter-sort").value || "age_asc",
+  };
+}
+
+function runMetricsNumber(run, key) {
+  return Number(((run || {}).metrics || {})[key] || 0);
+}
+
+function runsNestedCount(rows, getter) {
+  const counts = {};
+  for (const item of rows || []) {
+    const value = text(getter(item));
+    if (!value || value === "n/a") continue;
+    counts[value] = (counts[value] || 0) + 1;
+  }
+  return counts;
+}
+
+function recommendedRuns(filtered = []) {
+  return (filtered || [])
+    .slice()
+    .sort((left, right) => {
+      const leftRejects = runMetricsNumber(left, "rejections");
+      const rightRejects = runMetricsNumber(right, "rejections");
+      if (leftRejects !== rightRejects) return rightRejects - leftRejects;
+      const leftFills = runMetricsNumber(left, "fills");
+      const rightFills = runMetricsNumber(right, "fills");
+      if (leftFills !== rightFills) return rightFills - leftFills;
+      const leftOrders = runMetricsNumber(left, "orders");
+      const rightOrders = runMetricsNumber(right, "orders");
+      if (leftOrders !== rightOrders) return rightOrders - leftOrders;
+      const leftAge = Number((left.freshness || {}).age_seconds);
+      const rightAge = Number((right.freshness || {}).age_seconds);
+      if (Number.isFinite(leftAge) && Number.isFinite(rightAge) && leftAge !== rightAge) return leftAge - rightAge;
+      return text(left.id).localeCompare(text(right.id));
+    })
+    .slice(0, 5);
+}
+
+function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
+  if (!$("runs-search-title") || !$("runs-search-cards") || !$("runs-search-actions")) return;
+  const filters = runsFilterState();
+  const activeLabels = [
+    filters.text ? `search ${filters.text}` : "",
+    filters.status ? `status ${filters.status}` : "",
+    filters.mode ? `mode ${filters.mode}` : "",
+  ].filter(Boolean);
+  const hidden = Math.max(0, runs.length - visibleRuns.length);
+  const statusCounts = runsNestedCount(visibleRuns, (run) => run.status);
+  const modeCounts = runsNestedCount(visibleRuns, (run) => (run.metrics || {}).mode);
+  const staleRuns = visibleRuns.filter((run) => (run.freshness || {}).stale);
+  const decisions = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "decisions"), 0);
+  const orders = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "orders"), 0);
+  const fills = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "fills"), 0);
+  const rejects = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "rejections"), 0);
+  const newestAge = visibleRuns
+    .map((run) => Number((run.freshness || {}).age_seconds))
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right)[0];
+  $("runs-search-title").textContent = runs.length
+    ? activeLabels.length
+      ? `${numberText(visibleRuns.length, 0)} matching run${visibleRuns.length === 1 ? "" : "s"}`
+      : `${numberText(runs.length, 0)} searchable run${runs.length === 1 ? "" : "s"}`
+    : "No runs loaded";
+  $("runs-search-note").textContent = runs.length
+    ? activeLabels.length
+      ? `${activeLabels.join(" / ")}. ${numberText(hidden, 0)} run${hidden === 1 ? "" : "s"} hidden by filters.`
+      : "Use the filters to find stale, rejected, filled, active, replay, shadow, paper, or simulated-paper runs."
+    : "No current published run telemetry is available yet.";
+  const cards = [
+    {
+      label: "Visible Runs",
+      status: visibleRuns.length ? "ok" : runs.length ? "warn" : "bad",
+      title: `${numberText(visibleRuns.length, 0)} / ${numberText(runs.length, 0)}`,
+      note: hidden ? `${numberText(hidden, 0)} hidden by filters.` : "All published runs are visible.",
+    },
+    {
+      label: "Status / Mode",
+      status: visibleRuns.length ? "ok" : "warn",
+      title: countSummary(statusCounts),
+      note: `Modes: ${countSummary(modeCounts)}.`,
+    },
+    {
+      label: "Freshness",
+      status: staleRuns.length ? "warn" : visibleRuns.length ? "ok" : "bad",
+      title: Number.isFinite(newestAge) ? age(newestAge) : "n/a",
+      note: staleRuns.length
+        ? `${numberText(staleRuns.length, 0)} visible run${staleRuns.length === 1 ? "" : "s"} marked stale.`
+        : "No visible run is marked stale.",
+    },
+    {
+      label: "Execution",
+      status: rejects ? "bad" : fills ? "ok" : orders ? "warn" : visibleRuns.length ? "warn" : "bad",
+      title: `${numberText(fills, 0)} fills / ${numberText(rejects, 0)} rejects`,
+      note: `${numberText(orders, 0)} orders and ${numberText(decisions, 0)} decisions across visible runs.`,
+    },
+  ];
+  $("runs-search-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const recommendations = recommendedRuns(visibleRuns);
+  $("runs-search-actions").innerHTML = recommendations.length
+    ? recommendations.map((run) => {
+        const metrics = run.metrics || {};
+        const runRejects = Number(metrics.rejections || 0);
+        const runFills = Number(metrics.fills || 0);
+        const status = runRejects ? "bad" : (run.freshness || {}).stale ? "warn" : runFills ? "ok" : "warn";
+        return `
+          <div class="runs-search-action-card status-${escapeHtml(status)}">
+            <div>
+              <span>${statusText(status)}</span>
+              <strong>${escapeHtml(text(run.id))}</strong>
+              <small>${escapeHtml(text(run.status))} / ${escapeHtml(text(metrics.mode))} / age ${escapeHtml(age((run.freshness || {}).age_seconds))}</small>
+              <small>${escapeHtml(numberText(metrics.decisions, 0))} decisions / ${escapeHtml(numberText(metrics.orders, 0))} orders / ${escapeHtml(numberText(metrics.fills, 0))} fills / ${escapeHtml(numberText(metrics.rejections, 0))} rejects</small>
+            </div>
+            <div>
+              <button type="button" data-runs-search-action="events" data-run-id="${escapeHtml(text(run.id))}">Events</button>
+              <button type="button" class="secondary" data-runs-search-action="status" data-status="${escapeHtml(text(run.status))}">Status</button>
+              <button type="button" class="secondary" data-runs-search-action="mode" data-mode="${escapeHtml(text(metrics.mode))}">Mode</button>
+            </div>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No recommended runs</strong><span>Clear filters or wait for published run telemetry.</span></div>`;
+}
+
+function handleRunsSearchAction(target) {
+  const action = String(target.dataset.runsSearchAction || "");
+  if (action === "events") {
+    $("run-events-filter-text").value = target.dataset.runId || "";
+    renderRunEvents();
+    navigateToRunsLens("events");
+    return;
+  }
+  if (action === "status") {
+    $("runs-filter-status").value = target.dataset.status || "";
+    renderRuns();
+    return;
+  }
+  if (action === "mode") {
+    $("runs-filter-mode").value = target.dataset.mode || "";
+    renderRuns();
+  }
 }
 
 function renderRunsFilterOptions(runs) {
@@ -15077,6 +15232,11 @@ function init() {
   $("runs-filter-status").addEventListener("change", renderRuns);
   $("runs-filter-mode").addEventListener("change", renderRuns);
   $("runs-filter-sort").addEventListener("change", renderRuns);
+  $("runs-search-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-search-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRunsSearchAction(target);
+  });
   $("run-events-filter-text").addEventListener("input", renderRunEvents);
   $("run-events-filter-type").addEventListener("change", renderRunEvents);
   $("run-events-filter-status").addEventListener("change", renderRunEvents);
