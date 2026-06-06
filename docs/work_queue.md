@@ -443,6 +443,10 @@ strategy-private.
       sanitized dashboard state and links users to the right page for missing
       telemetry, Gateway/API checks, unreadable data roots, catalog caps,
       missing fetch manifests, and missing Workbench drafts.
+    - partial; Help Home now also includes state-aware workflow cards for
+      Monitor Today, Read Performance, Inspect Data, Build Simulation,
+      Troubleshoot, and Publish Safely, giving first-time users a compact route
+      into the right dashboard page before reading the longer guide sections.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots

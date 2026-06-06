@@ -191,6 +191,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".runs-workflow-grid small",
     ".operations-workflow-grid strong",
     ".operations-workflow-grid small",
+    ".help-workflow-grid strong",
+    ".help-workflow-grid small",
     ".overview-performance-main strong",
     ".overview-performance-main span",
     ".overview-performance-tiles strong",

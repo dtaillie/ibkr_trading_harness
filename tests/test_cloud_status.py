@@ -661,6 +661,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-source-map-note" in html
         assert "data-source-map" in html
         assert "help-start-panel" in html
+        assert "help-workflows" in html
         assert "Pick the page by the question" in html
         assert "data-symbol-count" in html
         assert "data-file-count" in html

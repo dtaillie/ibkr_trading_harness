@@ -1111,6 +1111,7 @@ section {
 .workbench-workflow-grid,
 .runs-workflow-grid,
 .operations-workflow-grid,
+.help-workflow-grid,
 .broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1458,6 +1459,11 @@ section {
 }
 
 .operations-workflow-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin: 12px 0 18px;
+}
+
+.help-workflow-grid {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin: 12px 0 18px;
 }

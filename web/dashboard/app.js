@@ -1264,6 +1264,111 @@ function renderHelpSetupGaps() {
       <small>${escapeHtml(item.label)} - ${escapeHtml(item.note)}</small>
     </a>
   `).join("");
+  renderHelpWorkflowLauncher(items);
+}
+
+function helpWorkflowCards(setupItems = helpSetupGapItems()) {
+  const runs = (state.status && state.status.runs) || [];
+  const events = runEventRows();
+  const openOrders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const draftRows = (state.configDrafts && state.configDrafts.drafts) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
+  const badSetup = setupItems.filter((item) => item.status === "bad");
+  const warnSetup = setupItems.filter((item) => item.status === "warn");
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const runEvidence = runs.length || events.length || accountRows.length;
+  const simulationReady = datasets.length && (draftRows.length || workbenchRuns.length || artifactLoaded);
+  const firstSetupIssue = badSetup[0] || warnSetup[0] || null;
+  return [
+    {
+      label: "Monitor Today",
+      title: runs.length ? `${numberText(runs.length, 0)} Runs` : "No Telemetry",
+      value: latestReject ? "reject visible" : latestFill ? "fill visible" : latestDecision ? "decision visible" : openOrders.length ? "open orders" : "start here",
+      status: latestReject ? "bad" : openOrders.length ? "warn" : runs.length ? "ok" : "bad",
+      detail: runs.length
+        ? "Use Overview for current health, mode, latest signal/fill, positions, and the fastest next action."
+        : "Start with Overview and Operations to determine whether a runner is publishing current telemetry.",
+      href: workflowHref("overview", runs.length ? "home" : "diagnostics"),
+      cta: "Overview",
+    },
+    {
+      label: "Read Performance",
+      title: accountRows.length ? "Account Path" : source.has_data ? "Limited Source" : "No Source",
+      value: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : source.source_type || "missing",
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : runEvidence ? "warn" : "bad",
+      detail: accountRows.length
+        ? "Open Performance for latest-session PnL, equity curve, drawdown, returns, trades, and rollups."
+        : "Performance needs account snapshots or run artifacts before return and drawdown views become useful.",
+      href: workflowHref("performance", source.has_data ? "home" : "diagnostics"),
+      cta: "Performance",
+    },
+    {
+      label: "Inspect Data",
+      title: datasets.length ? `${numberText(datasets.length, 0)} Files` : "No Files",
+      value: manifests.length ? `${numberText(manifests.length, 0)} fetches` : "data roots",
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "bad",
+      detail: datasets.length
+        ? "Use Data Library for symbols, saved-file charts, quality checks, comparisons, and visibility diagnostics."
+        : manifests.length ? "Fetch manifests exist; use Fetch Jobs and Data Library to understand output visibility." : "Configure data roots or run a fetch before simulation workflows can start.",
+      href: workflowHref("data", datasets.length ? "browse" : "diagnostics"),
+      cta: "Data",
+    },
+    {
+      label: "Build Simulation",
+      title: simulationReady ? "Ready" : datasets.length ? "Needs Draft" : "Needs Data",
+      value: draftRows.length ? `${numberText(draftRows.length, 0)} drafts` : workbenchRuns.length ? `${numberText(workbenchRuns.length, 0)} runs` : "workbench",
+      status: simulationReady ? "ok" : datasets.length ? "warn" : "bad",
+      detail: datasets.length
+        ? "Use Workbench to select files, preview alignment, build a public-safe draft, validate it, and run replay."
+        : "Simulation starts after Data Library can see saved historical files.",
+      href: workflowHref("workbench", datasets.length ? "builder" : "home"),
+      cta: "Workbench",
+    },
+    {
+      label: "Troubleshoot",
+      title: firstSetupIssue ? firstSetupIssue.title : "Setup Looks Clean",
+      value: badSetup.length ? `${numberText(badSetup.length, 0)} blockers` : warnSetup.length ? `${numberText(warnSetup.length, 0)} warnings` : "no gaps",
+      status: badSetup.length ? "bad" : warnSetup.length ? "warn" : "ok",
+      detail: firstSetupIssue
+        ? `${text(firstSetupIssue.label)}: ${text(firstSetupIssue.note)}`
+        : "Current setup-gap checks have no visible blockers; use Operations for paper, Gateway, remote, and command health.",
+      href: firstSetupIssue ? firstSetupIssue.href : workflowHref("operations", "paper"),
+      cta: firstSetupIssue ? "Fix Gap" : "Operations",
+    },
+    {
+      label: "Publish Safely",
+      title: "Boundary Guide",
+      value: "public/private",
+      status: "ok",
+      detail: "Use the Boundary and Docs lenses for public examples, ignored private configs, publication checks, and runbook links.",
+      href: workflowHref("help", "boundary"),
+      cta: "Boundary",
+    },
+  ];
+}
+
+function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
+  const container = $("help-workflows");
+  if (!container) return;
+  const cards = helpWorkflowCards(setupItems);
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
+  `).join("");
 }
 
 function latestTelemetryRun() {

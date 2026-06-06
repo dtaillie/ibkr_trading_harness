@@ -68,6 +68,9 @@ Monitor Today, Review Performance, Browse Saved Data, Build And Simulate,
 Inspect Runs And Orders, and Fix Setup. Each card is generated from current
 public-safe telemetry and saved-data state, then links directly to the focused
 dashboard page for that job.
+When the right page is unclear, open Help Home. The Help workflow cards provide
+state-aware routes for Monitor Today, Read Performance, Inspect Data, Build
+Simulation, Troubleshoot, and Publish Safely.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.
