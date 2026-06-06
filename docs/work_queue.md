@@ -782,8 +782,7 @@ QQQ show up, treat that as a bug until proven otherwise.
       last week, last month, and last three months, derived from the opened
       file's timestamp coverage before manual Start/End tuning.
   - symbol picker that can load every scanned symbol, not just public examples
-    - partial; every scanned catalog row can be inspected, richer typeahead
-      symbol picking remains open
+    - partial; every scanned catalog row can be inspected.
     - partial; Data Library now has a catalog-fed Symbol Browser with a
       typeahead symbol input, best-file selector, one-click table filter,
       diagnose action, and direct Data Detail inspection for scanned files.
@@ -802,6 +801,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       summarizes the active symbol, action file, coverage, quality, and direct
       Filter/Inspect/Workbench/Compare/Diagnose actions, reducing ambiguity
       after typeahead or dataset-selector changes.
+    - done; Symbol Browser typeahead and quick-pick suggestions now support
+      source, bar-size, storage-session, and quality facets, with clear hidden
+      by facets states and a Clear Facets action while leaving global catalog
+      symbol completion unfiltered.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe

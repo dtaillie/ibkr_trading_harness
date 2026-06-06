@@ -6079,9 +6079,9 @@ function renderDataFilterOptions(datasets) {
   makeOptions("data-filter-session", (datasets || []).map((item) => item.storage_session));
 }
 
-function symbolBrowserGroups() {
+function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
   const groups = new Map();
-  for (const dataset of (state.dataCatalog.datasets || [])) {
+  for (const dataset of (datasets || [])) {
     const symbol = text(dataset.symbol);
     if (symbol === "n/a") continue;
     if (!groups.has(symbol)) groups.set(symbol, []);
@@ -6102,12 +6102,66 @@ function symbolBrowserGroups() {
   return groups;
 }
 
-function renderCatalogSymbolDatalists(symbols) {
-  const optionsHtml = symbols.map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
-  for (const id of ["data-symbol-browser-options", "data-filter-symbol-options"]) {
-    const datalist = $(id);
-    if (datalist) datalist.innerHTML = optionsHtml;
-  }
+function symbolBrowserFacetControls() {
+  return {
+    source: (($("data-symbol-browser-source") || {}).value || ""),
+    bar: (($("data-symbol-browser-bar") || {}).value || ""),
+    session: (($("data-symbol-browser-session") || {}).value || ""),
+    quality: (($("data-symbol-browser-quality") || {}).value || ""),
+  };
+}
+
+function datasetMatchesSymbolBrowserFacets(dataset, facets = symbolBrowserFacetControls()) {
+  return (!facets.source || text(dataset.source) === facets.source)
+    && (!facets.bar || text(dataset.bar_size) === facets.bar)
+    && (!facets.session || text(dataset.storage_session) === facets.session)
+    && (!facets.quality || text(dataset.quality_status) === facets.quality);
+}
+
+function symbolBrowserFilteredDatasets() {
+  const facets = symbolBrowserFacetControls();
+  return (state.dataCatalog.datasets || []).filter((dataset) => datasetMatchesSymbolBrowserFacets(dataset, facets));
+}
+
+function symbolBrowserFilteredGroups() {
+  return symbolBrowserGroups(symbolBrowserFilteredDatasets());
+}
+
+function symbolBrowserFacetSummary(facets = symbolBrowserFacetControls()) {
+  return [
+    facets.source ? `source ${facets.source}` : "",
+    facets.bar ? `bar ${facets.bar}` : "",
+    facets.session ? `session ${facets.session}` : "",
+    facets.quality ? `quality ${facets.quality}` : "",
+  ].filter(Boolean);
+}
+
+function renderSymbolBrowserFacetOptions(datasets = state.dataCatalog.datasets || []) {
+  const makeOptions = (id, values) => {
+    const select = $(id);
+    if (!select) return;
+    const current = select.value || "";
+    const options = Array.from(new Set((values || []).map(text).filter((value) => value && value !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) {
+      select.value = current;
+    }
+  };
+  makeOptions("data-symbol-browser-source", datasets.map((item) => item.source));
+  makeOptions("data-symbol-browser-bar", datasets.map((item) => item.bar_size));
+  makeOptions("data-symbol-browser-session", datasets.map((item) => item.storage_session));
+  makeOptions("data-symbol-browser-quality", datasets.map((item) => item.quality_status));
+}
+
+function renderCatalogSymbolDatalists(browserSymbols, catalogSymbols = browserSymbols) {
+  const renderOptions = (symbols) => (symbols || []).map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
+  const browserDatalist = $("data-symbol-browser-options");
+  if (browserDatalist) browserDatalist.innerHTML = renderOptions(browserSymbols);
+  const catalogDatalist = $("data-filter-symbol-options");
+  if (catalogDatalist) catalogDatalist.innerHTML = renderOptions(catalogSymbols);
 }
 
 function selectedSymbolBrowserSymbol() {
@@ -6117,7 +6171,7 @@ function selectedSymbolBrowserSymbol() {
 function selectedSymbolBrowserDatasets() {
   const symbol = selectedSymbolBrowserSymbol();
   if (!symbol) return [];
-  return symbolBrowserGroups().get(symbol) || [];
+  return symbolBrowserFilteredGroups().get(symbol) || [];
 }
 
 function symbolGroupSummary(symbol, rows) {
@@ -6256,13 +6310,13 @@ function selectSymbolBrowserSymbol(symbol) {
 }
 
 function topSymbolBrowserSuggestion() {
-  const groups = symbolBrowserGroups();
+  const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   return (suggestions[0] || {}).symbol || "";
 }
 
 function activeSymbolTypeaheadSuggestion() {
-  const groups = symbolBrowserGroups();
+  const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   if (!suggestions.length) return "";
   const index = Math.max(0, Math.min(state.symbolTypeaheadActiveIndex || 0, suggestions.length - 1));
@@ -6270,7 +6324,7 @@ function activeSymbolTypeaheadSuggestion() {
 }
 
 function moveSymbolTypeaheadSelection(delta) {
-  const groups = symbolBrowserGroups();
+  const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   if (!suggestions.length) return "";
   state.symbolTypeaheadActiveIndex = ((state.symbolTypeaheadActiveIndex || 0) + delta + suggestions.length) % suggestions.length;
@@ -6413,22 +6467,29 @@ function renderDataSearchAssistant(filteredRows = []) {
 }
 
 function renderSymbolBrowser() {
-  const groups = symbolBrowserGroups();
+  const allGroups = symbolBrowserGroups();
+  renderSymbolBrowserFacetOptions(state.dataCatalog.datasets || []);
+  const groups = symbolBrowserFilteredGroups();
   const symbols = Array.from(groups.keys()).sort();
+  const allSymbols = Array.from(allGroups.keys()).sort();
   const input = $("data-symbol-browser-input");
   const datasetSelect = $("data-symbol-browser-dataset");
   const previousSymbol = selectedSymbolBrowserSymbol();
-  renderCatalogSymbolDatalists(symbols);
+  renderCatalogSymbolDatalists(symbols, allSymbols);
   if (!previousSymbol && symbols.length) input.value = symbols[0];
   const activeSymbol = selectedSymbolBrowserSymbol();
   renderSymbolProfile(activeSymbol);
   renderSymbolTypeahead(groups, activeSymbol);
   renderSymbolQuickPicks(groups, activeSymbol);
+  const facetLabels = symbolBrowserFacetSummary();
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
     renderSymbolSelectionPanel(previousSymbol);
-    $("data-symbol-browser-note").innerHTML = `<span class="status-warn">No catalog files match ${escapeHtml(previousSymbol)}</span>`;
-    $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No exact match</strong><span>Choose a quick pick above, or use Diagnose to check unconfigured roots and fetch manifests for this symbol.</span></div>`;
+    const fullCatalogHint = allGroups.has(previousSymbol)
+      ? "This symbol exists in the catalog, but not under the current source/bar/session/quality facets."
+      : "Choose a quick pick above, or use Diagnose to check unconfigured roots and fetch manifests for this symbol.";
+    $("data-symbol-browser-note").innerHTML = `<span class="status-warn">No catalog files match ${escapeHtml(previousSymbol)}${facetLabels.length ? ` under ${escapeHtml(facetLabels.join(" / "))}` : ""}</span>`;
+    $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No exact match</strong><span>${escapeHtml(fullCatalogHint)}</span></div>`;
     return;
   }
   const selected = selectedSymbolBrowserDatasets();
@@ -6439,8 +6500,10 @@ function renderSymbolBrowser() {
   replaceOptions(datasetSelect, datasetOptions);
   renderSymbolSelectionPanel(activeSymbol);
   $("data-symbol-browser-note").textContent = symbols.length
-    ? `${numberText(symbols.length, 0)} unique scanned symbols; ${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"} for ${text(selectedSymbolBrowserSymbol())}`
-    : "No scanned symbols loaded";
+    ? `${numberText(symbols.length, 0)} matching scanned symbols${facetLabels.length ? ` after ${facetLabels.join(" / ")}` : ""}; ${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"} for ${text(selectedSymbolBrowserSymbol())}`
+    : facetLabels.length
+      ? `No scanned symbols match ${facetLabels.join(" / ")}`
+      : "No scanned symbols loaded";
   $("data-symbol-browser-matches").innerHTML = selected.length
     ? selected.slice(0, 6).map((dataset) => `
         <button type="button" class="symbol-match-card" data-path="${escapeHtml(dataset.path)}">
@@ -6455,7 +6518,8 @@ function renderSymbolBrowser() {
 
 function symbolProfileModel(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
-  const rows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
+  const rows = normalized ? (symbolBrowserFilteredGroups().get(normalized) || []) : [];
+  const allRows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
   const best = rows[0] || null;
   const range = timestampRangeFromDatasets(rows);
   const totalRows = rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
@@ -6470,6 +6534,7 @@ function symbolProfileModel(symbol) {
   return {
     symbol: normalized,
     rows,
+    allRows,
     best,
     range,
     totalRows,
@@ -6493,7 +6558,9 @@ function renderSymbolProfile(symbol) {
   $("data-symbol-profile-note").textContent = hasRows
     ? `${numberText(model.rows.length, 0)} file${model.rows.length === 1 ? "" : "s"} / ${numberText(model.totalRows, 0)} rows / ${model.assets.join(", ") || "unknown asset"}`
     : hasQuery
-      ? "No scanned file matches this symbol. Diagnose can check configured roots, suggested roots, and fetch manifests."
+      ? model.allRows.length
+        ? "This symbol exists in the catalog, but current Symbol Browser facets hide every file."
+        : "No scanned file matches this symbol. Diagnose can check configured roots, suggested roots, and fetch manifests."
       : "Pick a scanned symbol to summarize saved history, quality, and next actions.";
   for (const id of ["data-symbol-profile-inspect", "data-symbol-profile-workbench", "data-symbol-profile-filter"]) {
     $(id).disabled = !hasRows;
@@ -6549,7 +6616,7 @@ function renderSymbolProfile(symbol) {
         <button type="button" class="secondary symbol-profile-file-open" data-path="${escapeHtml(dataset.path)}">Open</button>
       </div>
     `).join("")
-    : `<div class="empty-card"><strong>${hasQuery ? "Symbol not visible" : "Choose a symbol"}</strong><span>${hasQuery ? "Run Diagnose to see whether files exist outside configured roots or fetch jobs returned no data." : "Use typeahead, quick picks, or the Symbol Directory."}</span></div>`;
+    : `<div class="empty-card"><strong>${hasQuery ? "Symbol not visible" : "Choose a symbol"}</strong><span>${hasQuery ? (model.allRows.length ? "Clear or broaden Symbol Browser facets to show this symbol's catalog files." : "Run Diagnose to see whether files exist outside configured roots or fetch jobs returned no data.") : "Use typeahead, quick picks, or the Symbol Directory."}</span></div>`;
 }
 
 function symbolDirectoryControls() {
@@ -7650,7 +7717,9 @@ function renderSymbolSelectionPanel(symbol) {
   $("data-symbol-selection-note").textContent = hasRows
     ? `${numberText(model.rows.length, 0)} saved file${model.rows.length === 1 ? "" : "s"} / ${numberText(model.totalRows, 0)} rows. Actions use ${text((selectedDataset || {}).bar_size)} ${text((selectedDataset || {}).source)} unless noted.`
     : hasQuery
-      ? "This symbol is not in the current catalog. Diagnose can check configured roots, suggested roots, and fetch manifests."
+      ? model.allRows.length
+        ? "This symbol exists in the catalog, but current Symbol Browser facets hide every file."
+        : "This symbol is not in the current catalog. Diagnose can check configured roots, suggested roots, and fetch manifests."
       : "Type a ticker, choose a quick pick, or browse the Symbol Directory to load a saved-data symbol.";
   const buttonStates = {
     "data-symbol-selection-filter": hasRows,
@@ -7672,7 +7741,7 @@ function renderSymbolSelectionPanel(symbol) {
       title: hasQuery ? model.symbol : "n/a",
       note: hasRows
         ? `${numberText(model.rows.length, 0)} files in the current catalog.`
-        : hasQuery ? "No exact saved-data match is visible." : "No symbol query entered.",
+        : hasQuery ? (model.allRows.length ? "Exact symbol is hidden by Symbol Browser facets." : "No exact saved-data match is visible.") : "No symbol query entered.",
     },
     {
       status: selectedDataset ? "ok" : "bad",
@@ -17771,6 +17840,21 @@ function init() {
   $("data-symbol-browser-dataset").addEventListener("change", () => {
     renderSymbolSelectionPanel(selectedSymbolBrowserSymbol());
     renderSymbolProfile(selectedSymbolBrowserSymbol());
+  });
+  for (const id of ["data-symbol-browser-source", "data-symbol-browser-bar", "data-symbol-browser-session", "data-symbol-browser-quality"]) {
+    $(id).addEventListener("change", () => {
+      state.symbolTypeaheadActiveIndex = 0;
+      renderSymbolBrowser();
+    });
+  }
+  $("data-symbol-browser-clear-facets").addEventListener("click", () => {
+    $("data-symbol-browser-source").value = "";
+    $("data-symbol-browser-bar").value = "";
+    $("data-symbol-browser-session").value = "";
+    $("data-symbol-browser-quality").value = "";
+    state.symbolTypeaheadActiveIndex = 0;
+    renderSymbolBrowser();
+    $("last-refresh").textContent = "Symbol Browser facets cleared";
   });
   $("data-symbol-browser-input").addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
