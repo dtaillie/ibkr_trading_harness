@@ -64,7 +64,8 @@ orders/fills/rejects/alerts.
 Generic plugin-runner executions also write `performance_rollups.json` beside
 `summary.json`, giving each run its own durable daily, monthly, and yearly
 account-equity summaries even when the dashboard status receiver is not
-running.
+running. Open a run in Runs to inspect the Runner Rollups and Runner Period
+Rollups tables loaded from that artifact, or export the run artifacts JSON.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.

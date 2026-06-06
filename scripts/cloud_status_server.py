@@ -6260,6 +6260,86 @@ def summarize_account_artifact(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_performance_rollup_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "day": row.get("day"),
+        "mode": row.get("mode"),
+        "snapshot_count": row.get("snapshot_count"),
+        "account_start_time": row.get("account_start_time"),
+        "account_end_time": row.get("account_end_time"),
+        "start_equity": finite_float(row.get("start_equity")),
+        "end_equity": finite_float(row.get("end_equity")),
+        "daily_return_pct": finite_float(row.get("daily_return_pct")),
+        "max_gross_exposure": finite_float(row.get("max_gross_exposure")),
+        "max_abs_net_exposure": finite_float(row.get("max_abs_net_exposure")),
+        "max_position_count": row.get("max_position_count"),
+        "realized_pnl": finite_float(row.get("realized_pnl")),
+        "unrealized_pnl": finite_float(row.get("unrealized_pnl")),
+        "total_pnl": finite_float(row.get("total_pnl")),
+        "total_commission": finite_float(row.get("total_commission")),
+        "total_borrow_fees": finite_float(row.get("total_borrow_fees")),
+    }
+
+
+def summarize_performance_period_rollup_row(row: dict[str, Any], *, period: str) -> dict[str, Any]:
+    return {
+        "period": period,
+        "label": row.get("label"),
+        "first_day": row.get("first_day"),
+        "last_day": row.get("last_day"),
+        "day_count": row.get("day_count"),
+        "snapshot_count": row.get("snapshot_count"),
+        "start_equity": finite_float(row.get("start_equity")),
+        "end_equity": finite_float(row.get("end_equity")),
+        "total_return_pct": finite_float(row.get("total_return_pct")),
+        "max_gross_exposure": finite_float(row.get("max_gross_exposure")),
+        "max_abs_net_exposure": finite_float(row.get("max_abs_net_exposure")),
+        "max_position_count": row.get("max_position_count"),
+    }
+
+
+def summarize_performance_rollups_artifact(payload: dict[str, Any] | None, *, limit: int) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "rollups": [],
+            "period_rollups": {"month": [], "year": []},
+            "count": 0,
+            "total": 0,
+        }
+    daily_rows = [
+        summarize_performance_rollup_row(row)
+        for row in (payload.get("rollups") if isinstance(payload.get("rollups"), list) else [])
+        if isinstance(row, dict)
+    ]
+    period_payload = payload.get("period_rollups") if isinstance(payload.get("period_rollups"), dict) else {}
+    month_rows = [
+        summarize_performance_period_rollup_row(row, period="month")
+        for row in (period_payload.get("month") if isinstance(period_payload.get("month"), list) else [])
+        if isinstance(row, dict)
+    ]
+    year_rows = [
+        summarize_performance_period_rollup_row(row, period="year")
+        for row in (period_payload.get("year") if isinstance(period_payload.get("year"), list) else [])
+        if isinstance(row, dict)
+    ]
+    return {
+        "available": True,
+        "schema_version": payload.get("schema_version"),
+        "source": payload.get("source"),
+        "mode": payload.get("mode"),
+        "generated_at": payload.get("generated_at"),
+        "summary": payload.get("summary") if isinstance(payload.get("summary"), dict) else {},
+        "rollups": daily_rows[:limit],
+        "period_rollups": {
+            "month": month_rows[:limit],
+            "year": year_rows[:limit],
+        },
+        "count": min(len(daily_rows), limit),
+        "total": len(daily_rows),
+    }
+
+
 def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
     summary = summary or {}
     timestamps = []
@@ -6579,6 +6659,7 @@ def load_config_draft_artifacts(
         raise ValueError("; ".join(errors))
     output_dir = safe_workbench_output_dir(config)
     summary = read_json_file(output_dir / "summary.json")
+    performance_rollups_raw = read_json_file(output_dir / "performance_rollups.json")
     decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
@@ -6589,12 +6670,14 @@ def load_config_draft_artifacts(
         "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
         "summary": summary,
         "performance": performance_from_account(account_raw, summary),
+        "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
             "decisions": len(decisions_raw),
             "orders": len(orders_raw),
             "fills": len(fills_raw),
             "account": len(account_raw),
             "order_previews": len(previews_raw),
+            "performance_rollups": 1 if performance_rollups_raw else 0,
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
@@ -6637,6 +6720,7 @@ def load_config_draft_run_artifacts(
     if not path.exists() or not path.is_dir():
         raise ValueError(f"run artifacts not found: {record.get('run_id')}")
     summary = read_json_file(path / "summary.json")
+    performance_rollups_raw = read_json_file(path / "performance_rollups.json")
     decisions_raw = read_jsonl_tail(path / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
@@ -6651,12 +6735,14 @@ def load_config_draft_run_artifacts(
         "artifact_path": str(path),
         "summary": summary,
         "performance": performance_from_account(account_raw, summary),
+        "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
             "decisions": len(decisions_raw),
             "orders": len(orders_raw),
             "fills": len(fills_raw),
             "account": len(account_raw),
             "order_previews": len(previews_raw),
+            "performance_rollups": 1 if performance_rollups_raw else 0,
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],

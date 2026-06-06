@@ -3038,7 +3038,17 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["run_id"] == replay["run_id"]
         assert run_artifacts["draft_id"] == "Run_Draft"
         assert run_artifacts["summary"]["mode"] == "replay"
-        assert run_artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "order_previews": 0, "orders": 0}
+        assert run_artifacts["counts"] == {
+            "account": 2,
+            "decisions": 2,
+            "fills": 0,
+            "order_previews": 0,
+            "orders": 0,
+            "performance_rollups": 1,
+        }
+        assert run_artifacts["performance_rollups"]["available"] is True
+        assert run_artifacts["performance_rollups"]["rollups"][0]["day"] == "2026-01-02"
+        assert run_artifacts["performance_rollups"]["period_rollups"]["month"][0]["label"] == "2026-01"
         assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in run_artifacts["decisions"][0]
         assert "diagnostics" not in run_artifacts["decisions"][0]
@@ -3068,7 +3078,16 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
         assert artifacts["summary"]["mode"] == "replay"
-        assert artifacts["counts"] == {"account": 2, "decisions": 2, "fills": 0, "order_previews": 0, "orders": 0}
+        assert artifacts["counts"] == {
+            "account": 2,
+            "decisions": 2,
+            "fills": 0,
+            "order_previews": 0,
+            "orders": 0,
+            "performance_rollups": 1,
+        }
+        assert artifacts["performance_rollups"]["available"] is True
+        assert artifacts["performance_rollups"]["rollups"][0]["snapshot_count"] == 2
         assert artifacts["performance"]["account_snapshot_count"] == 2
         assert artifacts["performance"]["initial_equity"] == 25000.0
         assert artifacts["performance"]["total_return_pct"] == 0.0

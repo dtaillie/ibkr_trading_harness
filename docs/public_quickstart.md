@@ -304,7 +304,9 @@ results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
 Generic plugin-runner runs write `performance_rollups.json` beside
 `summary.json`, so each run carries durable daily, monthly, and yearly
-account-equity summaries in addition to dashboard-level status rollups.
+account-equity summaries in addition to dashboard-level status rollups. Runs
+loads those rows in Runner Rollups / Runner Period Rollups, and Export JSON
+includes the sanitized rollup artifact.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.
 The dashboard also persists the latest sanitized status rollups under

@@ -8535,6 +8535,43 @@ function renderWorkbenchArtifacts() {
         escapeHtml(item.detail),
       ])).join("")
     : row([`<span class="muted">No decisions, orders, fills, or account snapshots in this artifact.</span>`, "", "", "", ""]);
+  const performanceRollups = artifacts.performance_rollups || {};
+  const dailyRollups = performanceRollups.rollups || [];
+  const periodRollups = performanceRollups.period_rollups || {};
+  const periodRows = [
+    ...(periodRollups.month || []),
+    ...(periodRollups.year || []),
+  ];
+  $("artifact-performance-rollups-note").textContent = performanceRollups.available
+    ? `${numberText(dailyRollups.length, 0)} shown / ${numberText(performanceRollups.total || dailyRollups.length, 0)} runner-owned day rollup${(performanceRollups.total || dailyRollups.length) === 1 ? "" : "s"}`
+    : "No performance_rollups.json artifact loaded";
+  $("artifact-performance-rollups-body").innerHTML = dailyRollups.length
+    ? dailyRollups.map((item) => row([
+        escapeHtml(item.day),
+        escapeHtml(text(item.mode)),
+        escapeHtml(numberText(item.snapshot_count, 0)),
+        escapeHtml(pctText(item.daily_return_pct)),
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(money(item.max_gross_exposure)),
+        escapeHtml(money(item.total_pnl)),
+      ])).join("")
+    : row([`<span class="muted">Runner-owned rollups appear when performance_rollups.json is archived with the run.</span>`, "", "", "", "", "", "", ""]);
+  $("artifact-performance-period-rollups-note").textContent = performanceRollups.available
+    ? `${numberText(periodRows.length, 0)} runner-owned month/year period rollup${periodRows.length === 1 ? "" : "s"}`
+    : "No runner-owned period rollups loaded";
+  $("artifact-performance-period-rollups-body").innerHTML = periodRows.length
+    ? periodRows.map((item) => row([
+        escapeHtml(text(item.period)),
+        escapeHtml(text(item.label)),
+        escapeHtml(numberText(item.day_count, 0)),
+        escapeHtml(pctText(item.total_return_pct)),
+        escapeHtml(money(item.start_equity)),
+        escapeHtml(money(item.end_equity)),
+        escapeHtml(numberText(item.snapshot_count, 0)),
+        escapeHtml(numberText(item.max_position_count, 0)),
+      ])).join("")
+    : row([`<span class="muted">No month/year rollups in this artifact.</span>`, "", "", "", "", "", "", ""]);
 
   const decisions = artifacts.decisions || [];
   const drilldowns = strategyDrilldownRows(decisions);

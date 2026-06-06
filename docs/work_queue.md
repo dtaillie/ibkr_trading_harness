@@ -273,8 +273,10 @@ strategy-private.
   - partial; generic plugin-runner runs now write runner-owned
     `performance_rollups.json` artifacts beside `summary.json`, with daily,
     monthly, and yearly account-equity rollups derived from the run's account
-    snapshots. Specialized/private runners still need to publish the same
-    generic artifact if they do not use `live/plugin_runner.py`.
+    snapshots. Archived Run Artifacts now load and render those runner-owned
+    daily/month/year rollups and include them in artifact JSON exports.
+    Specialized/private runners still need to publish the same generic artifact
+    if they do not use `live/plugin_runner.py`.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.
