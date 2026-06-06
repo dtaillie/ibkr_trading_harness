@@ -239,6 +239,62 @@ LAYOUT_CHECK_SCRIPT = r"""
       });
     }
   }
+  const overlapContainers = [
+    ".status-grid",
+    ".health-grid",
+    ".action-card-grid",
+    ".overview-workflow-grid",
+    ".performance-workflow-grid",
+    ".data-workflow-grid",
+    ".fetch-workflow-grid",
+    ".workbench-workflow-grid",
+    ".runs-workflow-grid",
+    ".operations-workflow-grid",
+    ".help-workflow-grid",
+    ".overview-glance-cards",
+    ".overview-performance-tiles",
+    ".performance-home-tiles",
+    ".data-detail-range-stats",
+    ".data-compare-stats",
+    ".metric-grid",
+    ".chart-grid"
+  ].join(",");
+  const rectOverlap = (left, right) => {
+    const x = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
+    const y = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
+    return { x, y, area: x * y };
+  };
+  const comparableSurface = (element) => (
+    visible(element) &&
+    !element.closest(".table-wrap") &&
+    !element.closest(".calendar-scroll") &&
+    window.getComputedStyle(element).position !== "absolute"
+  );
+  for (const container of document.querySelectorAll(overlapContainers)) {
+    if (!visible(container)) continue;
+    const children = Array.from(container.children).filter(comparableSurface);
+    for (let leftIndex = 0; leftIndex < children.length; leftIndex += 1) {
+      const left = children[leftIndex];
+      const leftRect = left.getBoundingClientRect();
+      for (let rightIndex = leftIndex + 1; rightIndex < children.length; rightIndex += 1) {
+        const right = children[rightIndex];
+        const rightRect = right.getBoundingClientRect();
+        const overlap = rectOverlap(leftRect, rightRect);
+        if (overlap.x > 3 && overlap.y > 3 && overlap.area > 24) {
+          failures.push({
+            type: "surface-overlap",
+            container: label(container),
+            left: label(left),
+            right: label(right),
+            overlapX: Math.round(overlap.x),
+            overlapY: Math.round(overlap.y),
+            overlapArea: Math.round(overlap.area),
+            view: activeView,
+          });
+        }
+      }
+    }
+  }
   return {
     ok: failures.length === 0,
     failures,
@@ -472,9 +528,89 @@ def start_debug_chrome(chrome: str, width: int, height: int) -> tuple[subprocess
         f"--window-size={width},{height}",
         "about:blank",
     ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
     wait_for_json(f"http://127.0.0.1:{chrome_port}/json/version", timeout=8)
     return process, chrome_port, profile
+
+
+class LayoutChecker:
+    def __init__(self, *, chrome: str, width: int, height: int, settle_seconds: float) -> None:
+        self.width = width
+        self.height = height
+        self.settle_seconds = settle_seconds
+        self.process, self.chrome_port, self.profile = start_debug_chrome(chrome, width, height)
+        self.client: DevToolsClient | None = None
+        target = chrome_target(self.chrome_port, "about:blank")
+        websocket_url = target.get("webSocketDebuggerUrl")
+        if not websocket_url:
+            self.close()
+            raise RuntimeError("Chrome target missing websocket URL for layout check")
+        self.client = DevToolsClient(websocket_url)
+        self.client.send("Runtime.enable")
+        self.client.send("Page.enable")
+        self.client.send("Emulation.setDeviceMetricsOverride", {
+            "width": self.width,
+            "height": self.height,
+            "deviceScaleFactor": 1,
+            "mobile": self.width < 600,
+        })
+
+    def navigate(self, url: str) -> None:
+        if self.client is None:
+            raise RuntimeError("layout checker is closed")
+        self.client.send("Page.navigate", {"url": url})
+        time.sleep(self.settle_seconds)
+
+    def capture_png(self, *, output: Path, min_bytes: int) -> dict:
+        if self.client is None:
+            raise RuntimeError("layout checker is closed")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        result = self.client.send("Page.captureScreenshot", {
+            "format": "png",
+            "captureBeyondViewport": False,
+        })
+        png_data = base64.b64decode(result.get("data") or "")
+        output.write_bytes(png_data)
+        size = output.stat().st_size
+        if size < min_bytes:
+            raise RuntimeError(f"Screenshot is too small ({size} bytes): {output}")
+        if png_data[:8] != b"\x89PNG\r\n\x1a\n":
+            raise RuntimeError(f"Screenshot is not a PNG: {output}")
+        return {"path": str(output), "bytes": size, "width": self.width, "height": self.height}
+
+    def check_current(self, url: str) -> dict:
+        if self.client is None:
+            raise RuntimeError("layout checker is closed")
+        result = self.client.send("Runtime.evaluate", {
+            "expression": LAYOUT_CHECK_SCRIPT,
+            "returnByValue": True,
+            "awaitPromise": True,
+        })
+        value = ((result.get("result") or {}).get("value")) or {}
+        if not value.get("ok"):
+            failures = value.get("failures") or []
+            sample = json.dumps(failures[:8], indent=2, sort_keys=True)
+            raise RuntimeError(f"layout check failed for {url} {self.width}x{self.height}: {sample}")
+        return value
+
+    def check(self, url: str) -> dict:
+        self.navigate(url)
+        return self.check_current(url)
+
+    def close(self) -> None:
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait(timeout=5)
+        try:
+            self.profile.cleanup()
+        except OSError:
+            shutil.rmtree(self.profile.name, ignore_errors=True)
 
 
 def check_layout(
@@ -485,48 +621,11 @@ def check_layout(
     height: int,
     settle_seconds: float,
 ) -> dict:
-    process, chrome_port, profile = start_debug_chrome(chrome, width, height)
-    client: DevToolsClient | None = None
+    checker = LayoutChecker(chrome=chrome, width=width, height=height, settle_seconds=settle_seconds)
     try:
-        target = chrome_target(chrome_port, url)
-        websocket_url = target.get("webSocketDebuggerUrl")
-        if not websocket_url:
-            raise RuntimeError(f"Chrome target missing websocket URL for {url}")
-        client = DevToolsClient(websocket_url)
-        client.send("Runtime.enable")
-        client.send("Page.enable")
-        client.send("Emulation.setDeviceMetricsOverride", {
-            "width": width,
-            "height": height,
-            "deviceScaleFactor": 1,
-            "mobile": width < 600,
-        })
-        client.send("Page.navigate", {"url": url})
-        time.sleep(settle_seconds)
-        result = client.send("Runtime.evaluate", {
-            "expression": LAYOUT_CHECK_SCRIPT,
-            "returnByValue": True,
-            "awaitPromise": True,
-        })
-        value = ((result.get("result") or {}).get("value")) or {}
-        if not value.get("ok"):
-            failures = value.get("failures") or []
-            sample = json.dumps(failures[:8], indent=2, sort_keys=True)
-            raise RuntimeError(f"layout check failed for {url} {width}x{height}: {sample}")
-        return value
+        return checker.check(url)
     finally:
-        if client is not None:
-            client.close()
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-        try:
-            profile.cleanup()
-        except OSError:
-            shutil.rmtree(profile.name, ignore_errors=True)
+        checker.close()
 
 
 def run_screenshot_smoke(
@@ -556,6 +655,7 @@ def run_screenshot_smoke(
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    browser_pages: dict[str, LayoutChecker] = {}
     try:
         base_url = f"http://{host}:{server.server_address[1]}"
         if scenario == "seeded":
@@ -566,19 +666,22 @@ def run_screenshot_smoke(
             for label, (width, height) in VIEWPORTS.items():
                 url = f"{base_url}/#{target_hash}"
                 output = out_dir / f"{target_id}_{label}.png"
+                page = browser_pages.get(label)
+                if page is None:
+                    page = LayoutChecker(
+                        chrome=chrome,
+                        width=width,
+                        height=height,
+                        settle_seconds=settle_seconds,
+                    )
+                    browser_pages[label] = page
+                page.navigate(url)
                 captures.append(
                     {
                         "view": target_id,
                         "hash": target_hash,
                         "viewport": label,
-                        **capture_png(
-                            chrome=chrome,
-                            url=url,
-                            output=output,
-                            width=width,
-                            height=height,
-                            min_bytes=min_bytes,
-                        ),
+                        **page.capture_png(output=output, min_bytes=min_bytes),
                     }
                 )
                 if check_layout_enabled:
@@ -586,13 +689,7 @@ def run_screenshot_smoke(
                         "view": target_id,
                         "hash": target_hash,
                         "viewport": label,
-                        **check_layout(
-                            chrome=chrome,
-                            url=url,
-                            width=width,
-                            height=height,
-                            settle_seconds=settle_seconds,
-                        ),
+                        **page.check_current(url),
                     })
         return {
             "base_url": base_url,
@@ -604,6 +701,8 @@ def run_screenshot_smoke(
             "layout_checks": layout_checks,
         }
     finally:
+        for page in browser_pages.values():
+            page.close()
         server.shutdown()
         server.server_close()
 
@@ -618,7 +717,7 @@ def main() -> None:
     parser.add_argument("--chrome", default=None, help="Chrome/Chromium executable name or path")
     parser.add_argument("--scenario", choices=("seeded", "empty"), default="seeded", help="Dashboard state to screenshot.")
     parser.add_argument("--min-bytes", type=int, default=2_000)
-    parser.add_argument("--check-layout", action="store_true", help="Fail if visible core UI text overflows or the page creates horizontal viewport overflow.")
+    parser.add_argument("--check-layout", action="store_true", help="Fail if visible core UI text overflows, the page creates horizontal viewport overflow, or bounded card/grid surfaces overlap.")
     parser.add_argument("--settle-seconds", type=float, default=1.5, help="Seconds to wait before running layout checks after navigation.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

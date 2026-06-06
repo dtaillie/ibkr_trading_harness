@@ -588,8 +588,9 @@ strategy-private.
   - no overlapping text in tables, cards, charts, or mobile navigation
     - partial; CI now runs the screenshot smoke with layout checks against
       seeded desktop and mobile top-level/focus-lens views. The gate covers
-      viewport overflow and clipped core dashboard text; richer pixel-level
-      overlap detection remains future work.
+      viewport overflow, clipped core dashboard text, and bounded direct-child
+      surface overlap across the dashboard's main grid/card containers. Richer
+      pixel-level overlap detection remains future work.
 
 ## P0: Data Library and saved-data visibility
 
