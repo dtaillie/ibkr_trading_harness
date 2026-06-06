@@ -732,6 +732,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html
         assert "use-data-detail-workbench" in html
+        assert "export-data-detail-range" in html
         assert "export-data-missing-intervals" in html
         assert "nav-performance" in html
         assert "performance-context-note" in html
@@ -957,6 +958,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
+        assert ("GET", "/data_detail_export") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_minute_heatmap_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
@@ -2460,6 +2462,32 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         assert filtered["price_stats"]["start_close"] == 101.0
         assert filtered["price_stats"]["end_close"] == 102.0
         assert len(filtered["preview"]) == 2
+
+        with request.urlopen(
+            f"{base}/data_detail_export?"
+            f"path={data_file}&start=2026-01-02T14:35:00Z&end=2026-01-02T14:50:00Z&max_rows=10",
+            timeout=5,
+        ) as resp:
+            range_csv_body = resp.read().decode("utf-8")
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert "SPY_5min_sample_range.csv" in resp.headers["Content-Disposition"]
+        range_exported = list(csv.DictReader(io.StringIO(range_csv_body)))
+        assert [row["normalized_timestamp"] for row in range_exported] == [
+            "2026-01-02T14:35:00+00:00",
+            "2026-01-02T14:50:00+00:00",
+        ]
+        assert range_exported[0]["path"] == str(data_file)
+        assert range_exported[0]["symbol"] == "SPY"
+        assert range_exported[0]["close"] == "101.0"
+        assert range_exported[1]["volume"] == "1500"
+
+        try:
+            request.urlopen(f"{base}/data_detail_export?path={data_file}&max_rows=1", timeout=5)
+            raise AssertionError("expected data detail export cap response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            capped_export = json.loads(exc.read().decode("utf-8"))
+        assert "above export max_rows 1" in capped_export["error"]
 
         with request.urlopen(
             f"{base}/data_detail?"

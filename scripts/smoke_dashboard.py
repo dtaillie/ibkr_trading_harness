@@ -399,6 +399,7 @@ def run_smoke(
             "copy-data-root-flag",
             "copy-data-replay-command",
             "use-data-detail-workbench",
+            "export-data-detail-range",
             "data-compare-form",
             "data-compare-filter",
             "data-compare-filter-note",
@@ -572,6 +573,8 @@ def run_smoke(
             "data_symbol_diagnostic",
             "data_catalog_scan_export",
             "data_detail",
+            "data_detail_export",
+            "downloadDataDetailRangeCsv",
             "data_detail_available",
             "dataDetailHealthCards",
             "dataDetailNavigationModel",
@@ -837,6 +840,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_gap_summary")
         if ("GET", "/data_gap_summary_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_gap_summary_export")
+        if ("GET", "/data_detail_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_detail_export")
         if ("GET", "/data_missing_intervals_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_missing_intervals_export")
         if ("GET", "/data_minute_heatmap_export") not in endpoint_paths:
@@ -944,6 +949,9 @@ def run_smoke(
                 raise RuntimeError("data detail viewer payload is invalid")
             if "missing_intervals" not in detail or "missing_interval_limit" not in detail:
                 raise RuntimeError("data detail missing-interval drilldown payload is invalid")
+            detail_csv = fetch_text(base_url, f"/data_detail_export?path={datasets[0]['path']}&max_rows=100")
+            if "normalized_timestamp,path,symbol" not in detail_csv:
+                raise RuntimeError("data detail range CSV header is missing")
             diagnostic = fetch_json(base_url, f"/data_symbol_diagnostic?symbol={datasets[0]['symbol']}&limit=5")
             if diagnostic.get("status") != "visible":
                 raise RuntimeError("symbol diagnostic did not find the sample dataset")

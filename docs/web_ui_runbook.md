@@ -159,6 +159,10 @@ Compare, Filter, and Diagnose actions.
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.
 
+Use Export Range CSV from Data Detail when you want the selected saved-file
+date range as bounded bar data with normalized UTC timestamps and the original
+file columns. Narrow Start/End before exporting very large 1-minute histories.
+
 Use Export Scan CSV when you want configured-root parser errors, unsupported
 files, catalog caps, scan timings, and skipped-file samples in an offline table.
 

@@ -623,6 +623,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail now publishes explicit viewer status, omitted point
       counts, and a Viewer health card so users can tell whether a chart is
       full, sampled, empty, or unavailable.
+    - partial; Data Detail now exposes `/data_detail_export` and an Export
+      Range CSV action that downloads the selected date range with normalized
+      UTC timestamps and original file columns, bounded by a server row cap.
   - compare two or more symbols on the same time range
     - partial; Data Library now has a saved-data comparison panel and
       `/data_compare` endpoint for normalized close paths over one date range
@@ -694,6 +697,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       a `--data-root` flag, a replay-starter command, and a full-file inferred
       missing-interval CSV. Fully generated strategy-specific replay commands
       still come from saved Workbench drafts.
+    - partial; Data Detail can now export the current saved-file date range as
+      bounded bar data, separating actual row export from catalog metadata and
+      missing-interval exports.
     - partial; Data Detail can now send the opened saved file and selected date
       window into Workbench instead of requiring users to reselect the dataset
       manually before generating a replay or simulated-paper draft.

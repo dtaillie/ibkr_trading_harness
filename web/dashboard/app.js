@@ -5792,6 +5792,7 @@ function renderDataDetail() {
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
   $("use-data-detail-workbench").disabled = !detail.path;
+  $("export-data-detail-range").disabled = !detail.path;
   $("export-data-missing-intervals").disabled = !detail.path;
   renderDataDetailNavigator(detail);
   renderDataDetailOverview(detail, timezoneMode);
@@ -10800,6 +10801,33 @@ async function downloadDataMinuteHeatmapCsv() {
   $("last-refresh").textContent = `Minute heatmap CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataDetailRangeCsv() {
+  const detail = state.dataDetail || {};
+  const path = detail.path || state.dataDetailPath || "";
+  if (!path) {
+    $("last-refresh").textContent = "Open a saved dataset before exporting the Data Detail range";
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set("path", path);
+  const start = $("data-detail-start").value || "";
+  const end = $("data-detail-end").value || "";
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const body = await fetchText(`/data_detail_export?${params.toString()}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const symbol = text(detail.symbol || "saved_data").replace(/[^A-Za-z0-9_.-]+/g, "_");
+  link.href = url;
+  link.download = `${symbol}_data_detail_range.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Data Detail range CSV exported: ${new Date().toLocaleString()}`;
+}
+
 function downloadDataCompareCsv() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
@@ -11485,6 +11513,11 @@ function init() {
     });
   });
   $("use-data-detail-workbench").addEventListener("click", useDataDetailInWorkbench);
+  $("export-data-detail-range").addEventListener("click", () => {
+    downloadDataDetailRangeCsv().catch((err) => {
+      $("last-refresh").textContent = `Data Detail range export failed: ${err.message}`;
+    });
+  });
   $("export-data-missing-intervals").addEventListener("click", () => {
     downloadDataMissingIntervalsCsv().catch((err) => {
       $("last-refresh").textContent = `Missing interval export failed: ${err.message}`;

@@ -257,6 +257,7 @@ MAX_DATA_DETAIL_POINTS = 1000
 MAX_DATA_GAP_ROWS = 200
 MAX_DATA_MISSING_INTERVAL_ROWS = 1000
 MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS = 1000000
+MAX_DATA_DETAIL_EXPORT_ROWS = 250000
 MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
@@ -474,6 +475,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
         "response": "JSON symbol visibility diagnosis",
+    },
+    {
+        "method": "GET",
+        "path": "/data_detail_export",
+        "category": "data",
+        "description": "Download the current saved-data detail date range as normalized CSV.",
+        "response": "CSV download",
     },
     {
         "method": "GET",
@@ -4677,6 +4685,93 @@ def data_missing_intervals_csv(
     return output.getvalue(), f"{safe_name}_missing_intervals.csv"
 
 
+def data_detail_range_csv(
+    raw_path: str,
+    *,
+    data_roots: list[Path],
+    start: str | None = None,
+    end: str | None = None,
+    max_rows: int = MAX_DATA_DETAIL_EXPORT_ROWS,
+) -> tuple[str, str]:
+    if max_rows < 1 or max_rows > MAX_DATA_DETAIL_EXPORT_ROWS:
+        raise ValueError(f"max_rows must be between 1 and {MAX_DATA_DETAIL_EXPORT_ROWS}")
+    start_ts = parse_optional_utc_timestamp(start)
+    end_ts = parse_optional_utc_timestamp(end, end_of_day=True)
+    if start_ts is not None and end_ts is not None and start_ts > end_ts:
+        raise ValueError("start must be before end")
+    path, rel_path = data_path_allowed(raw_path, data_roots)
+    df, _fmt = read_data_file(path)
+    ts_col = timestamp_column(df)
+    raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
+    if raw_ts is None:
+        raise ValueError("data file has no timestamp column")
+
+    parsed = pd.Series(parse_datetime_utc(raw_ts), index=df.index)
+    scoped = df.copy()
+    scoped.insert(0, "normalized_timestamp", parsed)
+    scoped = scoped.dropna(subset=["normalized_timestamp"]).sort_values("normalized_timestamp")
+    if start_ts is not None:
+        scoped = scoped[scoped["normalized_timestamp"] >= start_ts]
+    if end_ts is not None:
+        scoped = scoped[scoped["normalized_timestamp"] <= end_ts]
+    filtered_rows = int(len(scoped))
+    if filtered_rows > max_rows:
+        raise ValueError(
+            f"selected range has {filtered_rows} rows, above export max_rows {max_rows}; "
+            "narrow the date range or raise max_rows within the configured cap"
+        )
+
+    symbol = infer_symbol(path, df)
+    asset_class = infer_asset_class(path, symbol)
+    metadata_fields = [
+        "path",
+        "symbol",
+        "canonical_symbol",
+        "asset_class",
+        "source",
+        "bar_size",
+        "storage_session",
+        "adjustment_status",
+        "source_timezone",
+    ]
+    original_fields = [str(col) for col in df.columns]
+    fieldnames = [
+        "normalized_timestamp",
+        *metadata_fields,
+        *[field for field in original_fields if field != "normalized_timestamp"],
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    metadata = {
+        "path": rel_path,
+        "symbol": symbol,
+        "canonical_symbol": canonical_symbol(symbol, asset_class),
+        "asset_class": asset_class,
+        "source": infer_data_source(path),
+        "bar_size": infer_bar_size(path, df),
+        "storage_session": infer_storage_session(path, df, asset_class),
+        "adjustment_status": infer_adjustment_status(path, df, asset_class),
+        "source_timezone": source_timezone_label(raw_ts),
+    }
+    for _idx, row_item in scoped.iterrows():
+        exported = {
+            "normalized_timestamp": row_item["normalized_timestamp"].isoformat(),
+            **metadata,
+        }
+        for field in original_fields:
+            value = row_item.get(field)
+            if pd.isna(value):
+                exported[field] = ""
+            elif isinstance(value, pd.Timestamp):
+                exported[field] = value.isoformat()
+            else:
+                exported[field] = value
+        writer.writerow({field: compact_csv_value(exported.get(field)) for field in fieldnames})
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(rel_path).stem).strip("_") or "data"
+    return output.getvalue(), f"{safe_name}_range.csv"
+
+
 def build_data_detail(
     raw_path: str,
     *,
@@ -8314,6 +8409,40 @@ class StatusHandler(BaseHTTPRequestHandler):
                 csv_body, filename = data_missing_intervals_csv(
                     raw_path,
                     data_roots=self.data_roots,
+                    max_rows=max_rows,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename=filename,
+                content_type="text/csv; charset=utf-8",
+            )
+            return
+        if parsed.path == "/data_detail_export":
+            if not self.require_auth():
+                return
+            raw_path = str(params.get("path", [""])[0]).strip()
+            if not raw_path:
+                json_response(self, 400, {"error": "path is required"})
+                return
+            try:
+                max_rows = parse_int_param(
+                    params,
+                    "max_rows",
+                    default=MAX_DATA_DETAIL_EXPORT_ROWS,
+                    maximum=MAX_DATA_DETAIL_EXPORT_ROWS,
+                )
+                start = str(params.get("start", [""])[0]).strip()
+                end = str(params.get("end", [""])[0]).strip()
+                csv_body, filename = data_detail_range_csv(
+                    raw_path,
+                    data_roots=self.data_roots,
+                    start=start,
+                    end=end,
                     max_rows=max_rows,
                 )
             except (TypeError, ValueError) as exc:

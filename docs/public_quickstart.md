@@ -267,7 +267,9 @@ coverage by symbol, or Export Coverage CSV to download symbol/date coverage
 rows for offline review. Use Export Gap CSV to download aggregate timestamp-gap
 and calendar-gap rows. Use Export Minute CSV to download intraday hour and
 date/hour completeness rows. Use Export Compare CSV after Compare Saved Data to
-download normalized close-return paths by symbol and timestamp. Use Find Missing Symbol to diagnose whether a ticker is visible,
+download normalized close-return paths by symbol and timestamp. Use Export
+Range CSV in Data Detail to download the selected saved-file date range with
+normalized UTC timestamps and original file columns. Use Find Missing Symbol to diagnose whether a ticker is visible,
 outside the catalog limit, in an unconfigured root, malformed, only present in
 fetch errors, or absent. Use Jump to Symbol in Data Detail to open the
 catalog's best matching saved file for a ticker without searching the full
@@ -378,6 +380,7 @@ The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
 quality summary without exporting full bar data. From Data Detail, Export
+Range CSV downloads the selected date range as bounded bar data, while Export
 Missing CSV downloads inferred missing expected timestamps for the selected
 saved file so gap audits can be reviewed offline.
 The Config Builder section can generate and validate plugin-runner YAML from
