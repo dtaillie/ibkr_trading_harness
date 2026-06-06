@@ -1598,7 +1598,8 @@ section {
 
 .data-search-assistant,
 .control-assistant,
-.performance-trade-assistant {
+.performance-trade-assistant,
+.performance-rollup-assistant {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
   gap: 12px;
@@ -1615,13 +1616,16 @@ section {
 .control-assistant > div:first-child strong,
 .control-assistant > div:first-child span,
 .performance-trade-assistant > div:first-child strong,
-.performance-trade-assistant > div:first-child span {
+.performance-trade-assistant > div:first-child span,
+.performance-rollup-assistant > div:first-child strong,
+.performance-rollup-assistant > div:first-child span {
   display: block;
 }
 
 .data-search-assistant > div:first-child strong,
 .control-assistant > div:first-child strong,
-.performance-trade-assistant > div:first-child strong {
+.performance-trade-assistant > div:first-child strong,
+.performance-rollup-assistant > div:first-child strong {
   margin-top: 8px;
   font-size: 22px;
   line-height: 1.15;
@@ -1629,7 +1633,8 @@ section {
 
 .data-search-assistant > div:first-child > span:last-of-type,
 .control-assistant > div:first-child > span:last-of-type,
-.performance-trade-assistant > div:first-child > span:last-of-type {
+.performance-trade-assistant > div:first-child > span:last-of-type,
+.performance-rollup-assistant > div:first-child > span:last-of-type {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -1639,7 +1644,8 @@ section {
 
 .data-search-cards,
 .control-assistant-cards,
-.performance-trade-assistant-cards {
+.performance-trade-assistant-cards,
+.performance-rollup-assistant-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
@@ -1648,7 +1654,8 @@ section {
 
 .data-search-actions,
 .control-assistant-actions,
-.performance-trade-assistant-actions {
+.performance-trade-assistant-actions,
+.performance-rollup-assistant-actions {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1657,7 +1664,8 @@ section {
 
 .data-search-action-card,
 .control-assistant-action,
-.performance-trade-assistant-action {
+.performance-trade-assistant-action,
+.performance-rollup-assistant-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -1677,7 +1685,10 @@ section {
 .control-assistant-action small,
 .performance-trade-assistant-action strong,
 .performance-trade-assistant-action span,
-.performance-trade-assistant-action small {
+.performance-trade-assistant-action small,
+.performance-rollup-assistant-action strong,
+.performance-rollup-assistant-action span,
+.performance-rollup-assistant-action small {
   display: block;
   overflow-wrap: anywhere;
 }
@@ -1687,7 +1698,9 @@ section {
 .control-assistant-action span,
 .control-assistant-action small,
 .performance-trade-assistant-action span,
-.performance-trade-assistant-action small {
+.performance-trade-assistant-action small,
+.performance-rollup-assistant-action span,
+.performance-rollup-assistant-action small {
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
@@ -1702,24 +1715,28 @@ section {
 }
 
 .control-assistant-action,
-.performance-trade-assistant-action {
+.performance-trade-assistant-action,
+.performance-rollup-assistant-action {
   color: var(--text);
   text-align: left;
 }
 
 .control-assistant-action span,
-.performance-trade-assistant-action span {
+.performance-trade-assistant-action span,
+.performance-rollup-assistant-action span {
   min-width: 0;
 }
 
 .control-assistant-action strong,
-.performance-trade-assistant-action strong {
+.performance-trade-assistant-action strong,
+.performance-rollup-assistant-action strong {
   color: var(--text);
   font-size: 13px;
 }
 
 .control-assistant-action b,
-.performance-trade-assistant-action b {
+.performance-trade-assistant-action b,
+.performance-rollup-assistant-action b {
   white-space: nowrap;
 }
 
@@ -3239,7 +3256,11 @@ footer {
   .performance-trade-assistant,
   .performance-trade-assistant-cards,
   .performance-trade-assistant-actions,
-  .performance-trade-assistant-action {
+  .performance-trade-assistant-action,
+  .performance-rollup-assistant,
+  .performance-rollup-assistant-cards,
+  .performance-rollup-assistant-actions,
+  .performance-rollup-assistant-action {
     grid-template-columns: 1fr;
   }
 

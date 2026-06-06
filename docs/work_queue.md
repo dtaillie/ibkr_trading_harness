@@ -82,6 +82,10 @@ strategy-private.
   - partial; Performance Trades now includes a Trade Ledger Assistant that
     summarizes open lots, realized PnL, win/loss state, largest loss, active
     filters, and direct table/Runs actions before the dense trade table.
+  - partial; Performance Rollups now includes a Rollup Review Assistant that
+    compares live/paper status-history rollups with archived run rollups,
+    highlights best/worst days and periods, and offers direct review/export
+    actions before the dense rollup tables.
   - partial; Data Library now has Home / Browse / Inspect / Compare /
     Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
     root visibility, catalog browsing, saved-file inspection, comparisons, and

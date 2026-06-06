@@ -4880,6 +4880,7 @@ function renderPerformanceWorkflowLauncher(context) {
 function renderPerformanceRollups() {
   const payload = state.performanceRollups || {};
   const rollups = payload.rollups || [];
+  renderPerformanceRollupAssistant();
   $("performance-rollups-note").textContent = payload.generated_at
     ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} total day rows`
     : "No daily rollups loaded";
@@ -4900,6 +4901,170 @@ function renderPerformanceRollups() {
           : "",
       ])).join("")
     : row([`<span class="muted">No archived account artifacts have daily equity snapshots yet.</span>`, "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function performancePeriodRows(payload = {}) {
+  const periodRollups = payload.period_rollups || {};
+  return [
+    ...(periodRollups.month || []).map((item) => ({ ...item, periodLabel: `Month ${item.label}`, periodType: "month" })),
+    ...(periodRollups.year || []).map((item) => ({ ...item, periodLabel: `Year ${item.label}`, periodType: "year" })),
+  ];
+}
+
+function bestRollupRow(rows, key) {
+  return (rows || [])
+    .filter((item) => finiteNumber(item[key]) !== null)
+    .sort((left, right) => Number(right[key]) - Number(left[key]))[0] || null;
+}
+
+function worstRollupRow(rows, key) {
+  return (rows || [])
+    .filter((item) => finiteNumber(item[key]) !== null)
+    .sort((left, right) => Number(left[key]) - Number(right[key]))[0] || null;
+}
+
+function latestRollupRow(rows) {
+  const copy = (rows || []).slice();
+  copy.sort((left, right) => String(right.day || right.last_day || "").localeCompare(String(left.day || left.last_day || "")));
+  return copy[0] || null;
+}
+
+function renderPerformanceRollupAssistant() {
+  if (!$("performance-rollup-assistant-title") || !$("performance-rollup-assistant-cards") || !$("performance-rollup-assistant-actions")) return;
+  const statusPayload = state.statusEquityRollups || {};
+  const statusRows = statusPayload.rollups || [];
+  const statusPeriodRows = performancePeriodRows(statusPayload);
+  const runPayload = state.performanceRollups || {};
+  const runRows = runPayload.rollups || [];
+  const runPeriodRows = performancePeriodRows(runPayload);
+  const hasStatus = Boolean(statusRows.length || statusPeriodRows.length);
+  const hasArchived = Boolean(runRows.length || runPeriodRows.length);
+  const latestStatus = latestRollupRow(statusRows);
+  const latestRun = latestRollupRow(runRows);
+  const bestStatus = bestRollupRow(statusRows, "daily_return_pct");
+  const worstStatus = worstRollupRow(statusRows, "daily_return_pct");
+  const bestPeriod = bestRollupRow([...statusPeriodRows, ...runPeriodRows], "total_return_pct");
+  const alertCount = statusRows.reduce((sum, item) => sum + Number(item.alert_count || 0), 0);
+  const rejectionCount = [...statusRows, ...runRows].reduce((sum, item) => sum + Number(item.rejection_count || 0), 0);
+  let title = "No Rollups Loaded";
+  let note = "Publish status snapshots during paper/live sessions or load saved run artifacts to populate rollups.";
+  if (hasStatus) {
+    title = "Live/Paper Rollups Available";
+    note = latestStatus
+      ? `Latest status day ${text(latestStatus.day)} returned ${pctText(latestStatus.daily_return_pct)} with ${numberText(latestStatus.snapshot_count, 0)} snapshots.`
+      : "Status-history period summaries are available.";
+  } else if (hasArchived) {
+    title = "Archived Run Rollups Available";
+    note = latestRun
+      ? `Latest archived day ${text(latestRun.day)} returned ${pctText(latestRun.daily_return_pct)} from saved account artifacts.`
+      : "Archived month/year summaries are available.";
+  }
+  if (alertCount || rejectionCount) {
+    note += ` ${numberText(alertCount, 0)} status alert${alertCount === 1 ? "" : "s"} and ${numberText(rejectionCount, 0)} rejection${rejectionCount === 1 ? "" : "s"} need context.`;
+  }
+  $("performance-rollup-assistant-title").textContent = title;
+  $("performance-rollup-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: hasStatus ? "ok" : "warn",
+      label: "Status Days",
+      title: numberText(statusRows.length, 0),
+      note: latestStatus ? `${text(latestStatus.node_id)} / ${text(latestStatus.mode)} / ${text(latestStatus.day)}.` : "No paper/live status day rows.",
+    },
+    {
+      status: hasArchived ? "ok" : "warn",
+      label: "Archived Days",
+      title: numberText(runRows.length, 0),
+      note: latestRun ? `${text(latestRun.draft_id)} / ${text(latestRun.day)}.` : "No archived run day rows.",
+    },
+    {
+      status: bestStatus ? "ok" : "warn",
+      label: "Best Status Day",
+      title: bestStatus ? pctText(bestStatus.daily_return_pct) : "n/a",
+      note: bestStatus ? `${text(bestStatus.day)} / ${text(bestStatus.node_id)}.` : "Needs status-history day returns.",
+    },
+    {
+      status: worstStatus ? Number(worstStatus.daily_return_pct) < 0 ? "bad" : "ok" : "warn",
+      label: "Worst Status Day",
+      title: worstStatus ? pctText(worstStatus.daily_return_pct) : "n/a",
+      note: worstStatus ? `${text(worstStatus.day)} / ${text(worstStatus.node_id)}.` : "Needs status-history day returns.",
+    },
+    {
+      status: bestPeriod ? "ok" : "warn",
+      label: "Best Period",
+      title: bestPeriod ? pctText(bestPeriod.total_return_pct) : "n/a",
+      note: bestPeriod ? `${text(bestPeriod.periodLabel)} / ${rangeLabel(bestPeriod.first_day, bestPeriod.last_day)}.` : "No month/year summary rows.",
+    },
+  ];
+  $("performance-rollup-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const actions = [
+    {
+      action: "status",
+      title: "Review Status Days",
+      note: hasStatus ? "Jump to live/paper status-history day rows." : "No status-history rows are loaded yet.",
+      label: "Status",
+      disabled: !statusRows.length,
+    },
+    {
+      action: "periods",
+      title: "Review Periods",
+      note: statusPeriodRows.length || runPeriodRows.length ? "Jump to month/year summaries." : "No period summaries are loaded yet.",
+      label: "Periods",
+      disabled: !(statusPeriodRows.length || runPeriodRows.length),
+    },
+    {
+      action: "archived",
+      title: "Review Archived Runs",
+      note: hasArchived ? "Jump to saved run daily rollups." : "No archived run daily rollups are loaded yet.",
+      label: "Archived",
+      disabled: !runRows.length,
+    },
+    {
+      action: "export-status",
+      title: "Export Status CSV",
+      note: hasStatus ? "Download public-safe status day and period rows." : "Export an empty CSV template from the endpoint.",
+      label: "Export",
+      disabled: false,
+    },
+  ];
+  $("performance-rollup-assistant-actions").innerHTML = actions.map((action) => `
+    <button type="button" class="performance-rollup-assistant-action ${action.disabled ? "secondary" : ""}" data-performance-rollup-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handlePerformanceRollupAssistantAction(action) {
+  if (action === "status") {
+    $("performance-status-rollups-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing live/paper status day rollups";
+    return;
+  }
+  if (action === "periods") {
+    const statusPeriodRows = performancePeriodRows(state.statusEquityRollups || {});
+    const target = statusPeriodRows.length ? "performance-status-period-rollups-body" : "performance-period-rollups-body";
+    $(target).scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing performance period rollups";
+    return;
+  }
+  if (action === "archived") {
+    $("performance-rollups-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing archived run day rollups";
+    return;
+  }
+  downloadStatusRollupsCsv().catch((err) => {
+    $("last-refresh").textContent = `Status rollups CSV export failed: ${err.message}`;
+  });
 }
 
 function renderStatusEquityRollups() {
@@ -15897,6 +16062,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-trade-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceTradeAssistantAction(target.dataset.performanceTradeAction || "");
+  });
+  $("performance-rollup-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-rollup-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceRollupAssistantAction(target.dataset.performanceRollupAction || "");
   });
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
