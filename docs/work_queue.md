@@ -1422,6 +1422,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     Export Detail CSV button for the selected remote node, covering sanitized
     summary, bounded history, latest runs, alerts, supervisors, and recent
     decision/order/fill rows without raw logs or strategy diagnostics.
+  - partial; the status publisher now includes bounded artifact evidence for
+    generic runner output directories, and Remote Node Detail plus its CSV
+    export show expected public artifact file presence, byte counts, modified
+    times, and JSONL row counts without posting raw artifact contents or logs.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

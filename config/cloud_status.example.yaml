@@ -20,6 +20,9 @@ runs:
     # max_account_age_seconds: 300
     # Optional position expectation: any, flat, or positioned.
     # expected_position_state: any
+    # Status publishing includes bounded artifact evidence by default:
+    # expected public artifact file names, byte counts, modified times, and
+    # JSONL row counts. Raw artifact payloads and log text are not posted.
     recent_events:
       enabled: true
       max_rows: 5

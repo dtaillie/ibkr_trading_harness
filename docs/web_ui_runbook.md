@@ -126,6 +126,13 @@ Use Operations workflow cards first when the task is operational: Paper
 Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, or
 Diagnostics. They route into the Paper, Remote, Control, or Diagnostics lenses
 without scanning the full operations surface.
+In Operations Remote, Remote Node Detail shows bounded artifact evidence for
+published runs when the status publisher can see a generic runner output
+directory. This evidence is limited to expected public artifact filenames,
+presence, byte counts, modified times, and JSONL row counts. It is useful for
+answering "did the remote runner produce the files I need to inspect locally?"
+without posting raw logs, raw artifacts, credentials, or private diagnostics to
+the receiver.
 
 ## Review a Completed Fetch
 

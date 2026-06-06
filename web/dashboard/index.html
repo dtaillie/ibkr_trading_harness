@@ -2795,6 +2795,11 @@
           <strong id="remote-detail-alert-count">0</strong>
           <span id="remote-detail-alert-note">No alerts loaded</span>
         </div>
+        <div class="data-library-card">
+          <span class="eyebrow">Artifact Evidence</span>
+          <strong id="remote-detail-artifact-count">0</strong>
+          <span id="remote-detail-artifact-note">No artifact evidence loaded</span>
+        </div>
       </div>
       <div id="remote-node-run-health" class="health-grid remote-node-run-health"></div>
       <div class="filter-row">
@@ -2841,6 +2846,27 @@
                 </tr>
               </thead>
               <tbody id="remote-node-runs-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <h2>Run Artifact Evidence</h2>
+            <span id="remote-node-artifacts-note" class="section-note">Bounded public-safe file evidence from published runs</span>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Files</th>
+                  <th>Rows</th>
+                  <th>Bytes</th>
+                  <th>Latest</th>
+                  <th>Missing</th>
+                </tr>
+              </thead>
+              <tbody id="remote-node-artifacts-body"></tbody>
             </table>
           </div>
         </div>

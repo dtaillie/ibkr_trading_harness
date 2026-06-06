@@ -1188,6 +1188,36 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
             "latest_data_time": run.get("latest_data_time"),
             "latest_decision_time": run.get("last_decision_time"),
         })
+        artifact_evidence = run.get("artifact_evidence") or {}
+        if artifact_evidence:
+            rows.append({
+                "row_type": "artifact_evidence",
+                "node_id": node,
+                "run_id": run.get("id"),
+                "status": "available" if artifact_evidence.get("available") else "missing",
+                "generated_at": artifact_evidence.get("latest_modified_at"),
+                "detail": compact_csv_value({
+                    "existing_count": artifact_evidence.get("existing_count"),
+                    "missing_count": artifact_evidence.get("missing_count"),
+                    "total_bytes": artifact_evidence.get("total_bytes"),
+                    "jsonl_row_count": artifact_evidence.get("jsonl_row_count"),
+                }),
+            })
+            for item in artifact_evidence.get("files") or []:
+                if not isinstance(item, dict):
+                    continue
+                rows.append({
+                    "row_type": "artifact_file",
+                    "node_id": node,
+                    "run_id": run.get("id"),
+                    "status": "present" if item.get("exists") else "missing",
+                    "generated_at": item.get("modified_at"),
+                    "detail": compact_csv_value({
+                        "name": item.get("name"),
+                        "bytes": item.get("bytes"),
+                        "row_count": item.get("row_count"),
+                    }),
+                })
         for event_type, key in (("decision", "recent_decisions"), ("order", "recent_orders"), ("fill", "recent_fills")):
             for event in run.get(key) or []:
                 if not isinstance(event, dict):
@@ -1228,6 +1258,38 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
     return out.getvalue()
 
 
+def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(evidence, dict):
+        return None
+    files = []
+    for item in evidence.get("files") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name or "/" in name or "\\" in name:
+            continue
+        files.append({
+            "name": name[:80],
+            "exists": bool(item.get("exists")),
+            "bytes": int(item.get("bytes") or 0),
+            "row_count": int(item.get("row_count") or 0) if item.get("row_count") is not None else None,
+            "modified_at": item.get("modified_at"),
+        })
+        if len(files) >= 25:
+            break
+    return {
+        "schema_version": evidence.get("schema_version"),
+        "available": bool(evidence.get("available")),
+        "expected_count": int(evidence.get("expected_count") or len(files)),
+        "existing_count": int(evidence.get("existing_count") or 0),
+        "missing_count": int(evidence.get("missing_count") or 0),
+        "total_bytes": int(evidence.get("total_bytes") or 0),
+        "jsonl_row_count": int(evidence.get("jsonl_row_count") or 0),
+        "latest_modified_at": evidence.get("latest_modified_at"),
+        "files": files,
+    }
+
+
 def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
     metrics = run.get("metrics") or {}
     recent = run.get("recent_events") or {}
@@ -1252,6 +1314,7 @@ def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
         "recent_decisions": recent.get("decisions", [])[:10] if isinstance(recent, dict) else [],
         "recent_orders": recent.get("orders", [])[:10] if isinstance(recent, dict) else [],
         "recent_fills": recent.get("fills", [])[:10] if isinstance(recent, dict) else [],
+        "artifact_evidence": sanitize_remote_artifact_evidence(run.get("artifact_evidence")),
     }
 
 
@@ -7612,8 +7675,11 @@ def load_config_draft_run_artifacts(
     config: dict[str, Any] | None = None
     draft_id = str(record.get("draft_id") or "").strip()
     if draft_id:
-        draft_path = config_draft_path(state_dir, draft_id)
-        if draft_path.exists():
+        try:
+            draft_path = config_draft_path(state_dir, draft_id)
+        except ValueError:
+            draft_path = None
+        if draft_path and draft_path.exists():
             try:
                 config = read_yaml_mapping(draft_path)
             except Exception:

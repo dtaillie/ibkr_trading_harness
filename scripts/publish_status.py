@@ -28,6 +28,24 @@ from scripts.summarize_plugin_run import summarize_recent_run_events, summarize_
 
 
 SCHEMA_VERSION = 1
+RUN_ARTIFACT_FILES = (
+    "summary.json",
+    "runner_status.json",
+    "performance_rollups.json",
+    "plugin_contract.json",
+    "decisions.jsonl",
+    "orders.jsonl",
+    "fills.jsonl",
+    "account.jsonl",
+    "order_previews.jsonl",
+)
+RUN_ARTIFACT_JSONL_FILES = {
+    "decisions.jsonl",
+    "orders.jsonl",
+    "fills.jsonl",
+    "account.jsonl",
+    "order_previews.jsonl",
+}
 
 
 def utc_now() -> str:
@@ -156,6 +174,7 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
             "status": "missing",
             "metrics": None,
             "recent_events": None,
+            "artifact_evidence": None,
             "error": None,
         }
         if not run_path.exists():
@@ -167,6 +186,7 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
             runs.append(record)
             continue
         try:
+            record["artifact_evidence"] = summarize_artifact_evidence(run_path)
             record["metrics"] = summarize_run(run_path)
             record["status"] = "ok"
             metrics = record["metrics"] or {}
@@ -443,6 +463,58 @@ def load_recent_jsonl(path: Path, *, max_rows: int) -> list[dict[str, Any]]:
             raise ValueError(f"{path}:{lineno} must contain a JSON object")
         rows.append(data)
     return rows
+
+
+def count_nonempty_lines(path: Path) -> int | None:
+    try:
+        with path.open("rb") as f:
+            return sum(1 for line in f if line.strip())
+    except OSError:
+        return None
+
+
+def summarize_artifact_evidence(run_path: Path) -> dict[str, Any]:
+    files: list[dict[str, Any]] = []
+    existing_count = 0
+    total_bytes = 0
+    jsonl_row_count = 0
+    latest_modified_at = None
+    for name in RUN_ARTIFACT_FILES:
+        path = run_path / name
+        exists = path.exists() and path.is_file()
+        row: dict[str, Any] = {
+            "name": name,
+            "exists": exists,
+            "bytes": 0,
+            "modified_at": None,
+        }
+        if exists:
+            stat = path.stat()
+            row["bytes"] = stat.st_size
+            row["modified_at"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+            existing_count += 1
+            total_bytes += stat.st_size
+            if latest_modified_at is None or str(row["modified_at"]) > latest_modified_at:
+                latest_modified_at = str(row["modified_at"])
+            if name in RUN_ARTIFACT_JSONL_FILES:
+                line_count = count_nonempty_lines(path)
+                row["row_count"] = line_count
+                if line_count is not None:
+                    jsonl_row_count += line_count
+        elif name in RUN_ARTIFACT_JSONL_FILES:
+            row["row_count"] = 0
+        files.append(row)
+    return {
+        "schema_version": 1,
+        "available": bool(run_path.exists() and run_path.is_dir()),
+        "expected_count": len(RUN_ARTIFACT_FILES),
+        "existing_count": existing_count,
+        "missing_count": len(RUN_ARTIFACT_FILES) - existing_count,
+        "total_bytes": total_bytes,
+        "jsonl_row_count": jsonl_row_count,
+        "latest_modified_at": latest_modified_at,
+        "files": files,
+    }
 
 
 def summarize_remote_control(remote_cfg: dict[str, Any], *, now: datetime) -> tuple[dict[str, Any], list[dict[str, str]]]:

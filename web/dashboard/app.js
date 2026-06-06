@@ -12761,6 +12761,20 @@ function remoteNodeActivityEvents(runs) {
   return events.sort((left, right) => (timestampMillis(eventTimestamp(right)) || 0) - (timestampMillis(eventTimestamp(left)) || 0));
 }
 
+function remoteRunArtifactEvidenceRows(runs) {
+  return (runs || [])
+    .map((runItem) => ({ run: runItem, evidence: runItem.artifact_evidence || null }))
+    .filter((item) => item.evidence);
+}
+
+function remoteArtifactMissingNames(evidence) {
+  const missing = (evidence.files || [])
+    .filter((item) => !item.exists)
+    .map((item) => item.name)
+    .filter(Boolean);
+  return missing.length ? missing.slice(0, 4).join(", ") : "none";
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
@@ -12873,6 +12887,9 @@ function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
 function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
   if (!$("remote-node-run-health")) return;
   const selected = Boolean(detail.node_id);
+  const artifactRows = remoteRunArtifactEvidenceRows(runs);
+  const artifactExisting = artifactRows.reduce((sum, item) => sum + Number(item.evidence.existing_count || 0), 0);
+  const artifactMissing = artifactRows.reduce((sum, item) => sum + Number(item.evidence.missing_count || 0), 0);
   const statusCounts = countBy(runs, "status");
   const failedCount = runs.filter((runItem) => ["failed", "timeout", "error", "rejected"].includes(text(runItem.status).toLowerCase())).length;
   const completedCount = runs.filter((runItem) => text(runItem.status).toLowerCase() === "completed").length;
@@ -12923,6 +12940,14 @@ function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
         : "Run summaries did not publish final equity.",
     },
     {
+      status: !selected ? "bad" : artifactRows.length ? artifactMissing ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      label: "Artifact Evidence",
+      title: artifactRows.length ? `${numberText(artifactExisting, 0)} files` : "none",
+      note: artifactRows.length
+        ? `${numberText(artifactRows.length, 0)} run${artifactRows.length === 1 ? "" : "s"} published bounded artifact evidence; ${numberText(artifactMissing, 0)} expected file${artifactMissing === 1 ? "" : "s"} missing.`
+        : "Status publisher did not include artifact evidence for these latest runs.",
+    },
+    {
       status: "warn",
       label: "Cloud Boundary",
       title: "Sanitized",
@@ -12946,6 +12971,9 @@ function renderRemoteNodeDetail() {
   const alerts = detail.alerts || [];
   const history = detail.history || [];
   const activity = remoteNodeActivityEvents(runs);
+  const artifactRows = remoteRunArtifactEvidenceRows(runs);
+  const artifactFileCount = artifactRows.reduce((sum, item) => sum + Number(item.evidence.existing_count || 0), 0);
+  const artifactRowCount = artifactRows.reduce((sum, item) => sum + Number(item.evidence.jsonl_row_count || 0), 0);
   const activityFilter = remoteDetailActivityFilter();
   const filteredActivity = activityFilter ? activity.filter((event) => event.type === activityFilter) : activity;
   const latestActivity = activity[0] || {};
@@ -12968,6 +12996,15 @@ function renderRemoteNodeDetail() {
   $("remote-detail-alert-note").textContent = detail.node_id
     ? `${numberText(alerts.length, 0)} latest alert${alerts.length === 1 ? "" : "s"}`
     : "No node selected";
+  if ($("remote-detail-artifact-count")) {
+    $("remote-detail-artifact-count").textContent = numberText(artifactFileCount, 0);
+    $("remote-detail-artifact-count").className = statusClass(artifactRows.length ? "ok" : detail.node_id ? "warn" : "unknown");
+  }
+  if ($("remote-detail-artifact-note")) {
+    $("remote-detail-artifact-note").textContent = artifactRows.length
+      ? `${numberText(artifactRows.length, 0)} run${artifactRows.length === 1 ? "" : "s"} / ${numberText(artifactRowCount, 0)} JSONL row${artifactRowCount === 1 ? "" : "s"}`
+      : detail.node_id ? "No artifact evidence published by latest run summaries" : "No node selected";
+  }
   renderRemoteNodeRunHealth(detail, runs, activity);
   const pairs = detail.node_id
     ? [
@@ -13006,6 +13043,23 @@ function renderRemoteNodeDetail() {
         escapeHtml(timestampAgeLabel(runItem.last_decision_time)),
       ])).join("")
     : row([`<span class="muted">No latest run summaries in this node snapshot.</span>`, "", "", "", "", ""]);
+  if ($("remote-node-artifacts-note")) {
+    $("remote-node-artifacts-note").textContent = artifactRows.length
+      ? `${numberText(artifactRows.length, 0)} bounded run artifact evidence summar${artifactRows.length === 1 ? "y" : "ies"}; file names, row counts, and sizes only.`
+      : "No artifact evidence was published for the selected node.";
+  }
+  if ($("remote-node-artifacts-body")) {
+    $("remote-node-artifacts-body").innerHTML = artifactRows.length
+      ? artifactRows.map(({ run: runItem, evidence }) => row([
+          escapeHtml(runItem.id),
+          escapeHtml(`${numberText(evidence.existing_count, 0)} / ${numberText(evidence.expected_count, 0)}`),
+          escapeHtml(numberText(evidence.jsonl_row_count, 0)),
+          escapeHtml(bytes(evidence.total_bytes)),
+          escapeHtml(timestampAgeLabel(evidence.latest_modified_at)),
+          escapeHtml(remoteArtifactMissingNames(evidence)),
+        ])).join("")
+      : row([`<span class="muted">${runs.length ? "Latest runs do not include artifact evidence yet. Update scripts/publish_status.py on the publishing node." : "No latest run summaries in this node snapshot."}</span>`, "", "", "", "", ""]);
+  }
   $("remote-node-alerts-body").innerHTML = alerts.length
     ? alerts.map((alert) => row([
         statusText(alert.level === "warn" ? "warn" : alert.level),

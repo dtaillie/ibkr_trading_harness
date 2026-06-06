@@ -46,6 +46,14 @@ python3 scripts/publish_status.py \
 
 Open `http://127.0.0.1:8765/`.
 
+When a configured run points at a generic runner output directory, the status
+publisher includes bounded artifact evidence: expected public artifact
+filenames, existence, byte counts, modified times, and JSONL row counts. The
+receiver and Operations Remote page display that evidence so a remote user can
+tell whether a run produced inspectable local artifacts. It does not publish
+raw artifact contents, stdout/stderr tails, credentials, or private strategy
+diagnostics.
+
 ## Private Remote Access Options
 
 Prefer private networking before exposing the dashboard publicly:
