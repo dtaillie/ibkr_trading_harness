@@ -1337,6 +1337,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     replay/simulated-paper drafts, using the same run path but opening the
     Performance page after completed artifacts load so the guided workflow has
     a one-click finish.
+  - partial; Workbench Artifacts now has an Artifacts Assistant that summarizes
+    loaded run identity, return/drawdown evidence, execution counts, plugin
+    result-field coverage, rollups, held order previews, and direct
+    Performance/Runs/Log/Export actions before dense artifact tables.
   - partial; before generating a draft, Workbench Selected Data Actions now
     let users re-open the selected file in Data Detail or compare the selected
     files over the configured Workbench date range, closing the loop between
