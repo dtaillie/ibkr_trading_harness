@@ -237,6 +237,12 @@ small `worker.max_commands_per_poll`, and require a local enable marker for
 launcher actions such as `run_supervisor_once`. With the example config, the
 worker rejects launcher commands until
 `paper_logs/control/remote_commands.enabled` exists on the trading machine.
+Worker-side audit rows are hash-chained as they are appended to
+`paper_logs/remote_control/audit.jsonl`. The status publisher verifies that
+local chain on each publish, bounded by
+`remote_control.audit.max_integrity_records`, and the Operations page reports
+local audit integrity beside remote-control freshness. Broken or unreadable
+local audit rows raise a `remote_control_audit_integrity` warning.
 The receiver also records sanitized queue/cancel/result events in
 `paper_logs/cloud_status_server/command_audit.jsonl`, exposes them through
 `/command_audit`, offers a CSV download through `/command_audit_export`, and

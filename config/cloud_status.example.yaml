@@ -37,6 +37,8 @@ remote_control:
   audit:
     log_file: paper_logs/remote_control/audit.jsonl
     max_events: 50
+    # Max local audit rows to verify for hash-chain integrity per status publish.
+    max_integrity_records: 5000
     # max_age_seconds: 300
 
 publish:

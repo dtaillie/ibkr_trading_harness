@@ -627,7 +627,11 @@ By default the worker writes local audit records to
 deployments; it preserves local command history even if posting results to the
 cloud endpoint fails. `scripts/publish_status.py` summarizes that audit file so
 poll failures, command failures, and result-post failures are visible in the
-dashboard.
+dashboard. Local worker audit rows are hash-chained as they are appended, and
+the status publisher verifies the chain on each publish using
+`remote_control.audit.max_integrity_records` from the status config. Operations
+shows the local integrity state beside remote-control freshness and raises a
+warning if the local audit chain is broken or unreadable.
 
 The example worker config also limits command bursts with
 `worker.max_commands_per_poll`. Commands over that local limit are rejected and
@@ -657,10 +661,14 @@ the HMAC value in the service environment, not in config or source control.
 
 Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,
-`run_supervisor_once`, `pause_runner`, and `resume_runner`. `run_supervisor_once`
-can launch configured local jobs and is only enabled when present in
-`allowed_actions`; remove it for monitoring-only deployments. The dashboard
-receiver must also allow the action class or action through
+`flatten_simulated_positions`, `restart_child_process`,
+`run_supervisor_once`, `pause_runner`, and `resume_runner`.
+`flatten_simulated_positions` only operates on configured file-backed local
+broker state. `restart_child_process` writes a configured supervisor job
+restart marker and lets the local supervisor own the process restart.
+`run_supervisor_once` can launch configured local jobs and is only enabled when
+present in `allowed_actions`; remove it for monitoring-only deployments. The
+dashboard receiver must also allow the action class or action through
 `dashboard.command_scopes`. The example config also requires
 `paper_logs/control/remote_commands.enabled` before launcher actions run, so
 the local machine must be deliberately armed first. Pause/resume
