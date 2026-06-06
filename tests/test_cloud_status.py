@@ -904,6 +904,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-broker-boundary" in html
         assert "config-form" in html
         assert "config-form-fields" in html
+        assert "config-preview-draft" in html
         assert "config-builder-readiness" in html
         assert "config-builder-actions" in html
         assert "config-data-actions-note" in html
@@ -952,6 +953,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/command_audit_export") in endpoints
         assert ("GET", "/workbench_snapshot_export") in endpoints
         assert ("GET", "/workbench_endpoints") in endpoints
+        assert ("POST", "/config_draft_preview") in endpoints
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
@@ -2811,6 +2813,38 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert broker_adapters["ibkr"]["known_paper_ports"] == [4002, 7497]
         assert broker_adapters["file"]["requires_static_prices"] is True
         assert "not a market simulator" in broker_adapters["file"]["boundary"]
+
+        preview_req = request.Request(
+            f"{base}/config_draft_preview",
+            data=json.dumps({
+                "name": "Preview Draft",
+                "plugin_id": "no_edge_template",
+                "mode": "replay",
+                "strategy": {"example_parameter": True},
+                "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                "starting_cash": 10000,
+                "history_bars": 20,
+                "risk_preset": "demo_minimal",
+                "max_steps": 5,
+                "max_orders_per_run": 1,
+                "max_notional_per_order": 100,
+                "max_quantity": 10,
+                "max_cash_quantity": 100,
+                "max_gross_exposure_pct": 0.05,
+                "save": True,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(preview_req, timeout=5) as resp:
+            preview_payload = json.loads(resp.read().decode("utf-8"))
+
+        preview = preview_payload["draft"]
+        assert preview["name"] == "Preview_Draft"
+        assert preview["validation"] == {"valid": True, "errors": []}
+        assert preview["saved_path"] is None
+        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in preview["yaml"]
+        assert not (state_dir / "config_drafts" / "Preview_Draft.yaml").exists()
 
         draft_req = request.Request(
             f"{base}/config_draft",

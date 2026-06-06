@@ -554,6 +554,13 @@ PUBLIC_ENDPOINTS = (
         "response": "JSON draft with YAML and validation",
     },
     {
+        "method": "POST",
+        "path": "/config_draft_preview",
+        "category": "config",
+        "description": "Preview and validate a public workbench config draft without saving it.",
+        "response": "JSON unsaved draft with YAML and validation",
+    },
+    {
         "method": "GET",
         "path": "/config_drafts",
         "category": "config",
@@ -8043,6 +8050,19 @@ class StatusHandler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
+                plugins = load_config_builder_plugins(self.plugin_registry_paths)
+                result = build_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots, plugins=plugins)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, {"ok": True, "draft": result})
+            return
+        if self.path == "/config_draft_preview":
+            payload = read_json_body(self)
+            if payload is None:
+                return
+            try:
+                payload = {**payload, "save": False}
                 plugins = load_config_builder_plugins(self.plugin_registry_paths)
                 result = build_config_draft(payload, state_dir=self.state_dir, data_roots=self.data_roots, plugins=plugins)
             except ValueError as exc:

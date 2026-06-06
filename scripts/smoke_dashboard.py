@@ -449,6 +449,7 @@ def run_smoke(
             "workbench-home-run",
             "workbench-stepper",
             "workbench-guide",
+            "config-preview-draft",
             "workbench-result-title",
             "workbench-result-note",
             "workbench-result-open-performance",
@@ -542,6 +543,8 @@ def run_smoke(
         js = fetch_text(base_url, "/dashboard/app.js")
         required_js_tokens = [
             "config_draft_yaml",
+            "config_draft_preview",
+            "submitConfigDraft",
             "download-draft-yaml",
             "config_drafts_export",
             "config_draft_validations",
@@ -852,6 +855,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_storage_audit_export")
         if ("POST", "/data_compare") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_compare")
+        if ("POST", "/config_draft_preview") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing config_draft_preview")
         if ("GET", "/config_draft_daily_rollups") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing config_draft_daily_rollups")
         if ("GET", "/docs/{name}") not in endpoint_paths:

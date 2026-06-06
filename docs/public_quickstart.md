@@ -400,6 +400,10 @@ remain editable and the presets are not trading recommendations.
 Generated drafts include a Data Alignment section with common timestamp count,
 overlap coverage, common range, per-symbol timestamp counts, and cadence or
 overlap warnings. You can preview that alignment before saving a draft.
+Use Preview Draft to run the same validation and inspect generated YAML,
+alignment, plugin boundary, and local commands without writing a file. Enable
+Save draft locally and use Generate / Save only after the preview looks
+acceptable.
 If you enable "Save draft locally", the YAML is written under the dashboard
 state directory. Saved drafts can be reopened for YAML, validation status, and
 copyable local command snippets when they still validate as public workbench

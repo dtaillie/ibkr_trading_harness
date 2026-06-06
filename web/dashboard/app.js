@@ -10136,14 +10136,12 @@ async function refresh() {
   renderAll();
 }
 
-async function generateConfigDraft(event) {
-  event.preventDefault();
+function configDraftRequestPayload({ saveOverride = null } = {}) {
   const selected = selectedConfigDatasets();
   if (!selected.length) {
-    handleConfigDraftError(new Error("Select at least one saved dataset first"));
-    return;
+    throw new Error("Select at least one saved dataset first");
   }
-  const payload = {
+  return {
     name: $("config-name").value,
     plugin_id: $("config-plugin").value,
     mode: $("config-mode").value,
@@ -10168,9 +10166,13 @@ async function generateConfigDraft(event) {
     sim_slippage_bps: $("config-slippage").value,
     sim_commission_bps: $("config-commission").value,
     allow_quality_warnings: $("config-allow-quality-warnings").checked,
-    save: $("config-save").checked,
+    save: saveOverride === null ? $("config-save").checked : Boolean(saveOverride),
   };
-  const response = await fetchJson("/config_draft", {
+}
+
+async function submitConfigDraft({ previewOnly = false } = {}) {
+  const payload = configDraftRequestPayload({ saveOverride: previewOnly ? false : null });
+  const response = await fetchJson(previewOnly ? "/config_draft_preview" : "/config_draft", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -10188,7 +10190,14 @@ async function generateConfigDraft(event) {
   renderRunComparison();
   renderWorkbenchStatus();
   renderCleanupPlan();
-  $("last-refresh").textContent = `Config draft generated: ${new Date().toLocaleString()}`;
+  $("last-refresh").textContent = previewOnly
+    ? `Config draft preview generated: ${new Date().toLocaleString()}`
+    : `Config draft generated: ${new Date().toLocaleString()}`;
+}
+
+async function generateConfigDraft(event) {
+  event.preventDefault();
+  await submitConfigDraft({ previewOnly: false });
 }
 
 async function previewConfigAlignment() {
@@ -11348,6 +11357,11 @@ function init() {
   });
   $("config-form").addEventListener("submit", (event) => {
     generateConfigDraft(event).catch((err) => {
+      handleConfigDraftError(err);
+    });
+  });
+  $("config-preview-draft").addEventListener("click", () => {
+    submitConfigDraft({ previewOnly: true }).catch((err) => {
       handleConfigDraftError(err);
     });
   });

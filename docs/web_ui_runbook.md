@@ -191,9 +191,12 @@ rows from the Minute Coverage Heatmap.
 5. Read Compatibility Review. It combines schema versions, plugin boundary,
    selected data quality, alignment coverage, saved-draft validation, and the
    next action in one place.
-6. Generate and validate the draft.
-7. Run replay or simulated paper.
-8. Open the result from the Runs or Workbench table and inspect Performance.
+6. Use Preview Draft to validate and inspect generated YAML, alignment,
+   plugin boundary, and local commands without saving.
+7. Use Generate / Save after enabling Save draft locally when the preview is
+   acceptable.
+8. Run replay or simulated paper.
+9. Open the result from the Runs or Workbench table and inspect Performance.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded

@@ -979,6 +979,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality issues, comparison readiness, and range, with direct actions
     to inspect the first selected file, compare selected files, or return to
     Data Library.
+  - partial; Workbench now has a Preview Draft action backed by
+    `/config_draft_preview`, which runs the same server validation, alignment,
+    plugin-boundary, and command generation path while returning unsaved YAML
+    for review before a local draft file is written.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
