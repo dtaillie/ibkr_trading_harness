@@ -1600,7 +1600,8 @@ section {
 .control-assistant,
 .performance-trade-assistant,
 .performance-rollup-assistant,
-.workbench-builder-assistant {
+.workbench-builder-assistant,
+.help-next-assistant {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
   gap: 12px;
@@ -1621,7 +1622,9 @@ section {
 .performance-rollup-assistant > div:first-child strong,
 .performance-rollup-assistant > div:first-child span,
 .workbench-builder-assistant > div:first-child strong,
-.workbench-builder-assistant > div:first-child span {
+.workbench-builder-assistant > div:first-child span,
+.help-next-assistant > div:first-child strong,
+.help-next-assistant > div:first-child span {
   display: block;
 }
 
@@ -1629,7 +1632,8 @@ section {
 .control-assistant > div:first-child strong,
 .performance-trade-assistant > div:first-child strong,
 .performance-rollup-assistant > div:first-child strong,
-.workbench-builder-assistant > div:first-child strong {
+.workbench-builder-assistant > div:first-child strong,
+.help-next-assistant > div:first-child strong {
   margin-top: 8px;
   font-size: 22px;
   line-height: 1.15;
@@ -1639,7 +1643,8 @@ section {
 .control-assistant > div:first-child > span:last-of-type,
 .performance-trade-assistant > div:first-child > span:last-of-type,
 .performance-rollup-assistant > div:first-child > span:last-of-type,
-.workbench-builder-assistant > div:first-child > span:last-of-type {
+.workbench-builder-assistant > div:first-child > span:last-of-type,
+.help-next-assistant > div:first-child > span:last-of-type {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -1651,7 +1656,8 @@ section {
 .control-assistant-cards,
 .performance-trade-assistant-cards,
 .performance-rollup-assistant-cards,
-.workbench-builder-assistant-cards {
+.workbench-builder-assistant-cards,
+.help-next-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
@@ -1662,7 +1668,8 @@ section {
 .control-assistant-actions,
 .performance-trade-assistant-actions,
 .performance-rollup-assistant-actions,
-.workbench-builder-assistant-actions {
+.workbench-builder-assistant-actions,
+.help-next-actions {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1673,7 +1680,8 @@ section {
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
-.workbench-builder-assistant-action {
+.workbench-builder-assistant-action,
+.help-next-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -1699,7 +1707,10 @@ section {
 .performance-rollup-assistant-action small,
 .workbench-builder-assistant-action strong,
 .workbench-builder-assistant-action span,
-.workbench-builder-assistant-action small {
+.workbench-builder-assistant-action small,
+.help-next-action strong,
+.help-next-action span,
+.help-next-action small {
   display: block;
   overflow-wrap: anywhere;
 }
@@ -1713,7 +1724,9 @@ section {
 .performance-rollup-assistant-action span,
 .performance-rollup-assistant-action small,
 .workbench-builder-assistant-action span,
-.workbench-builder-assistant-action small {
+.workbench-builder-assistant-action small,
+.help-next-action span,
+.help-next-action small {
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
@@ -1730,7 +1743,8 @@ section {
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
-.workbench-builder-assistant-action {
+.workbench-builder-assistant-action,
+.help-next-action {
   color: var(--text);
   text-align: left;
 }
@@ -1738,14 +1752,16 @@ section {
 .control-assistant-action span,
 .performance-trade-assistant-action span,
 .performance-rollup-assistant-action span,
-.workbench-builder-assistant-action span {
+.workbench-builder-assistant-action span,
+.help-next-action span {
   min-width: 0;
 }
 
 .control-assistant-action strong,
 .performance-trade-assistant-action strong,
 .performance-rollup-assistant-action strong,
-.workbench-builder-assistant-action strong {
+.workbench-builder-assistant-action strong,
+.help-next-action strong {
   color: var(--text);
   font-size: 13px;
 }
@@ -1753,8 +1769,14 @@ section {
 .control-assistant-action b,
 .performance-trade-assistant-action b,
 .performance-rollup-assistant-action b,
-.workbench-builder-assistant-action b {
+.workbench-builder-assistant-action b,
+.help-next-action b {
   white-space: nowrap;
+}
+
+.help-next-action.primary-help-action {
+  border-color: var(--accent);
+  background: #f4fbf7;
 }
 
 .fetch-search-assistant {
@@ -3281,7 +3303,11 @@ footer {
   .workbench-builder-assistant,
   .workbench-builder-assistant-cards,
   .workbench-builder-assistant-actions,
-  .workbench-builder-assistant-action {
+  .workbench-builder-assistant-action,
+  .help-next-assistant,
+  .help-next-cards,
+  .help-next-actions,
+  .help-next-action {
     grid-template-columns: 1fr;
   }
 

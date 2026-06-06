@@ -479,6 +479,10 @@ strategy-private.
       Monitor Today, Read Performance, Inspect Data, Build Simulation,
       Troubleshoot, and Publish Safely, giving first-time users a compact route
       into the right dashboard page before reading the longer guide sections.
+    - partial; Help Home now adds a state-aware Next Step assistant that
+      recommends one primary route from setup blockers, telemetry, saved data,
+      draft availability, and performance evidence before showing workflow
+      cards or reference material.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots

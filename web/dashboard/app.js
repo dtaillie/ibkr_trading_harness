@@ -1389,6 +1389,7 @@ function renderHelpSetupGaps() {
     </a>
   `).join("");
   renderHelpWorkflowLauncher(items);
+  renderHelpNextAssistant(items);
 }
 
 function helpWorkflowCards(setupItems = helpSetupGapItems()) {
@@ -1476,6 +1477,101 @@ function helpWorkflowCards(setupItems = helpSetupGapItems()) {
       cta: "Boundary",
     },
   ];
+}
+
+function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
+  const workflows = helpWorkflowCards(setupItems);
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const runs = (state.status && state.status.runs) || [];
+  const events = runEventRows();
+  const source = latestArtifactPerformance();
+  const badSetup = setupItems.filter((item) => item.status === "bad");
+  const warnSetup = setupItems.filter((item) => item.status === "warn");
+  let primary = workflows.find((card) => card.label === "Monitor Today") || workflows[0];
+  let title = "Check Current Health";
+  let note = "Start in Overview to confirm whether a runner is publishing telemetry and whether the latest state is fresh.";
+  if (badSetup.length) {
+    primary = workflows.find((card) => card.label === "Troubleshoot") || primary;
+    title = "Fix Setup First";
+    note = `${text(badSetup[0].label)} is blocking the workflow: ${text(badSetup[0].note)}`;
+  } else if (!datasets.length) {
+    primary = workflows.find((card) => card.label === "Inspect Data") || primary;
+    title = "Make Saved Data Visible";
+    note = "Data Library needs configured roots and visible CSV/parquet files before replay setup is useful.";
+  } else if (!drafts.length) {
+    primary = workflows.find((card) => card.label === "Build Simulation") || primary;
+    title = "Build A Replay Draft";
+    note = "Saved data is visible; use Workbench to select files, preview alignment, generate a draft, and validate it.";
+  } else if (runs.length || events.length) {
+    primary = workflows.find((card) => card.label === "Monitor Today") || primary;
+    title = "Review Current Run";
+    note = "Runner telemetry exists; use Overview first, then Performance or Runs when a number needs evidence.";
+  } else if (source.has_data) {
+    primary = workflows.find((card) => card.label === "Read Performance") || primary;
+    title = "Read Saved Performance";
+    note = "A saved artifact source is loaded; inspect Performance for returns, drawdown, trades, and rollups.";
+  } else if (warnSetup.length) {
+    primary = workflows.find((card) => card.label === "Troubleshoot") || primary;
+    title = "Review Setup Warnings";
+    note = `${text(warnSetup[0].label)} has a warning: ${text(warnSetup[0].note)}`;
+  }
+  const supportCards = [
+    {
+      status: badSetup.length ? "bad" : warnSetup.length ? "warn" : "ok",
+      label: "Setup",
+      title: badSetup.length ? `${numberText(badSetup.length, 0)} blockers` : warnSetup.length ? `${numberText(warnSetup.length, 0)} warnings` : "Ready",
+      note: badSetup[0] ? text(badSetup[0].title) : warnSetup[0] ? text(warnSetup[0].title) : "No visible setup blockers.",
+    },
+    {
+      status: runs.length || events.length ? "ok" : "warn",
+      label: "Telemetry",
+      title: runs.length ? `${numberText(runs.length, 0)} runs` : events.length ? `${numberText(events.length, 0)} events` : "None",
+      note: runs.length || events.length ? "Current run evidence is available." : "No current run telemetry is visible.",
+    },
+    {
+      status: datasets.length ? "ok" : "bad",
+      label: "Data",
+      title: numberText(datasets.length, 0),
+      note: datasets.length ? "Saved data is visible to the dashboard." : "No saved data is catalog-visible.",
+    },
+    {
+      status: drafts.length ? "ok" : datasets.length ? "warn" : "bad",
+      label: "Workbench",
+      title: drafts.length ? `${numberText(drafts.length, 0)} drafts` : "No drafts",
+      note: drafts.length ? "Saved drafts can be validated or run." : datasets.length ? "Create a replay draft next." : "Workbench needs visible data first.",
+    },
+  ];
+  const actions = [
+    primary,
+    workflows.find((card) => card.label === "Inspect Data"),
+    workflows.find((card) => card.label === "Build Simulation"),
+    workflows.find((card) => card.label === "Publish Safely"),
+  ].filter(Boolean);
+  return { title, note, primary, supportCards, actions };
+}
+
+function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {
+  if (!$("help-next-title") || !$("help-next-cards") || !$("help-next-actions")) return;
+  const model = helpNextAssistantModel(setupItems);
+  $("help-next-title").textContent = model.title;
+  $("help-next-note").textContent = model.note;
+  $("help-next-cards").innerHTML = model.supportCards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-next-actions").innerHTML = model.actions.map((action, index) => `
+    <a class="help-next-action ${index === 0 ? "primary-help-action" : ""} status-${escapeHtml(action.status)}" href="${escapeHtml(action.href)}">
+      <span>
+        <strong>${escapeHtml(index === 0 ? `Recommended: ${action.label}` : action.label)}</strong>
+        <small>${escapeHtml(action.detail)}</small>
+      </span>
+      <b>${escapeHtml(action.cta)}</b>
+    </a>
+  `).join("");
 }
 
 function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
