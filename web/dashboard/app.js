@@ -6184,6 +6184,7 @@ function renderDataCompareControls() {
   }
   updateCompareSelectionFromSelect();
   const selectedCount = state.dataCompareSelectedPaths.length;
+  if ($("use-data-compare-workbench")) $("use-data-compare-workbench").disabled = selectedCount === 0;
   const activeFilters = [
     filter ? `"${filter}"` : "",
     facets.asset,
@@ -6264,6 +6265,37 @@ function clearCompareSelection() {
   }
   renderDataCompareControls();
   $("last-refresh").textContent = "Compare selection cleared";
+}
+
+function useDataCompareInWorkbench() {
+  const selected = selectedCompareDatasets();
+  if (!selected.length) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">Select at least one saved dataset before sending to Workbench</span>`;
+    return;
+  }
+  const datasetSelect = $("config-dataset");
+  if (!datasetSelect) return;
+  const selectedPaths = new Set(selected.map((dataset) => dataset.path));
+  for (const option of datasetSelect.options) {
+    option.selected = selectedPaths.has(option.value);
+  }
+  for (const dataset of selected) {
+    if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
+    const option = document.createElement("option");
+    option.value = dataset.path;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`;
+    option.selected = true;
+    datasetSelect.appendChild(option);
+  }
+  if ($("config-start-date")) $("config-start-date").value = $("data-compare-start").value || "";
+  if ($("config-end-date")) $("config-end-date").value = $("data-compare-end").value || "";
+  renderConfigLivePanels();
+  navigateToView("workbench");
+  window.setTimeout(() => {
+    const target = $("workbench-stepper") || $("config-form");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, 50);
+  $("last-refresh").textContent = `Selected ${numberText(selected.length, 0)} compared dataset${selected.length === 1 ? "" : "s"} for Workbench simulation`;
 }
 
 function renderDataCompare() {
@@ -11108,6 +11140,7 @@ function init() {
     });
   });
   $("copy-data-compare-json").addEventListener("click", copyDataCompareJson);
+  $("use-data-compare-workbench").addEventListener("click", useDataCompareInWorkbench);
   $("export-data-compare-csv").addEventListener("click", downloadDataCompareCsv);
   $("export-workbench-snapshot").addEventListener("click", () => {
     downloadWorkbenchSnapshot().catch((err) => {

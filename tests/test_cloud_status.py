@@ -699,6 +699,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-compare-select-shown" in html
         assert "data-compare-clear" in html
         assert "copy-data-compare-json" in html
+        assert "use-data-compare-workbench" in html
         assert "export-data-compare-csv" in html
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html

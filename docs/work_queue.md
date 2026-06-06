@@ -664,6 +664,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.
+    - partial; Compare Saved Data can now send the selected compared datasets
+      and date window directly into the Workbench Config Builder, closing the
+      compare-to-simulation workflow without reselecting files manually.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred
