@@ -21,6 +21,7 @@ const state = {
   endpointMap: { endpoints: [] },
   configOptions: { plugins: [], modes: [], defaults: {} },
   configDraft: null,
+  configDraftErrors: [],
   alignmentPreview: null,
   configDrafts: { drafts: [], errors: [] },
   draftValidations: { validations: [] },
@@ -6032,14 +6033,16 @@ function renderConfigField(field) {
     field.plugin_id ? "plugin-strategy-field" : "",
     field.wide ? "wide-field" : "",
   ].filter(Boolean).join(" ");
+  const fieldPath = field.plugin_id && field.name ? `strategy.${field.name}` : field.name || field.id;
+  const validation = `<small class="field-validation-message" data-field-error-for="${escapeHtml(fieldPath)}" hidden></small>`;
   if (field.kind === "select") {
     const multiple = field.multiple ? " multiple" : "";
     const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
     const required = field.required ? " required" : "";
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}${required}></select>${help}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}${required}></select>${help}${validation}</label>`;
   }
   if (field.kind === "checkbox") {
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox"><span>${label}</span>${help}${validation}</label>`;
   }
   const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
   const attrs = [
@@ -6050,7 +6053,7 @@ function renderConfigField(field) {
     field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
     field.required ? "required" : "",
   ].filter(Boolean).join(" ");
-  return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><input ${attrs}>${help}</label>`;
+  return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><input ${attrs}>${help}${validation}</label>`;
 }
 
 function updatePluginStrategyFields() {
@@ -6136,10 +6139,14 @@ function renderConfigBuilder() {
   renderConfigBrokerBoundary();
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
+  renderConfigValidationMessages();
 
   const draft = state.configDraft;
   if (!draft) {
-    $("config-validation").innerHTML = `<span class="muted">Select datasets, review quality/alignment, then Generate.</span>`;
+    const draftErrors = normalizeConfigDraftErrors(state.configDraftErrors || []);
+    $("config-validation").innerHTML = draftErrors.length
+      ? `<span class="status-bad">invalid</span> <span class="muted">${escapeHtml(draftErrors.join("; "))}</span>`
+      : `<span class="muted">Select datasets, review quality/alignment, then Generate.</span>`;
     $("config-yaml").value = "";
     $("config-commands").innerHTML = `<dt>Next</dt><dd><span class="muted">Generate a draft to get local validate/replay commands.</span></dd>`;
     renderConfigAlignment(state.alignmentPreview || {});
@@ -6157,6 +6164,108 @@ function renderConfigBuilder() {
       )).join("")
     : "";
   renderConfigAlignment(draft.alignment || {});
+}
+
+function configFieldLabel(path) {
+  const selectedPlugin = selectedConfigPlugin();
+  const strategyMatch = String(path || "").match(/^strategy\.([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (strategyMatch) {
+    const field = (selectedPlugin.strategy_fields || []).find((item) => item.name === strategyMatch[1]);
+    return field ? text(field.label || field.name) : `Strategy ${strategyMatch[1]}`;
+  }
+  const formField = ((state.configOptions || {}).form_schema || []).find((field) => field.name === path || field.id === path);
+  return formField ? text(formField.label || formField.name || formField.id) : text(path);
+}
+
+function configErrorPath(message) {
+  const raw = String(message || "");
+  const strategyMatch = raw.match(/\bstrategy\.([A-Za-z_][A-Za-z0-9_]*)\b/);
+  if (strategyMatch) return `strategy.${strategyMatch[1]}`;
+  const pathMatch = raw.match(/\b(metadata|data|runner|account|risk|costs|session|execution)\.([A-Za-z_][A-Za-z0-9_]*)\b/);
+  if (pathMatch) return `${pathMatch[1]}.${pathMatch[2]}`;
+  if (/plugin/i.test(raw)) return "plugin";
+  if (/dataset|data|quality|alignment|timestamp|file/i.test(raw)) return "data";
+  if (/risk|order|notional|exposure|cash|quantity/i.test(raw)) return "risk";
+  if (/session|timezone|weekday/i.test(raw)) return "session";
+  if (/runner|output|mode/i.test(raw)) return "runner";
+  return "draft";
+}
+
+function normalizeConfigDraftErrors(errorOrMessages) {
+  const rawMessages = Array.isArray(errorOrMessages)
+    ? errorOrMessages
+    : [errorOrMessages && errorOrMessages.message ? errorOrMessages.message : errorOrMessages];
+  const normalized = [];
+  for (const raw of rawMessages) {
+    const withoutStatus = String(raw || "")
+      .replace(/^\d{3}\s+[A-Za-z ]+:\s*/, "")
+      .trim();
+    for (const part of withoutStatus.split(/\s*;\s*/)) {
+      const message = part.trim();
+      if (message && !normalized.includes(message)) normalized.push(message);
+    }
+  }
+  return normalized;
+}
+
+function validationMessageGroups() {
+  const messages = normalizeConfigDraftErrors(state.configDraftErrors || []);
+  const groups = new Map();
+  for (const message of messages) {
+    const path = configErrorPath(message);
+    if (!groups.has(path)) groups.set(path, []);
+    groups.get(path).push(message);
+  }
+  return Array.from(groups.entries()).map(([path, messagesForPath]) => ({ path, messages: messagesForPath }));
+}
+
+function clearFieldValidationMessages() {
+  for (const label of document.querySelectorAll(".field-has-error")) {
+    label.classList.remove("field-has-error");
+  }
+  for (const item of document.querySelectorAll(".field-validation-message")) {
+    item.textContent = "";
+    item.hidden = true;
+  }
+}
+
+function renderFieldValidationMessages(groups) {
+  clearFieldValidationMessages();
+  for (const group of groups) {
+    const messageEl = Array.from(document.querySelectorAll(".field-validation-message"))
+      .find((item) => item instanceof HTMLElement && item.dataset.fieldErrorFor === group.path);
+    if (!(messageEl instanceof HTMLElement)) continue;
+    messageEl.textContent = group.messages.join("; ");
+    messageEl.hidden = false;
+    const label = messageEl.closest("label");
+    if (label) label.classList.add("field-has-error");
+  }
+}
+
+function renderConfigValidationMessages() {
+  if (!$("config-validation-messages") || !$("config-validation-message-note")) return;
+  const groups = validationMessageGroups();
+  renderFieldValidationMessages(groups);
+  const total = groups.reduce((count, group) => count + group.messages.length, 0);
+  $("config-validation-message-note").textContent = total
+    ? `${numberText(total, 0)} message${total === 1 ? "" : "s"} from draft validation`
+    : "No validation messages";
+  $("config-validation-messages").innerHTML = groups.length
+    ? groups.map((group) => `
+        <div class="validation-message-card">
+          <span>${escapeHtml(group.path)}</span>
+          <strong>${escapeHtml(configFieldLabel(group.path))}</strong>
+          <small>${escapeHtml(group.messages.join("; "))}</small>
+        </div>
+      `).join("")
+    : `<div class="empty-card"><span>Ready</span><strong>No Draft Errors</strong><small>Generate a draft to run server-side validation for selected data and plugin fields.</small></div>`;
+}
+
+function handleConfigDraftError(error) {
+  state.configDraft = null;
+  state.configDraftErrors = normalizeConfigDraftErrors(error);
+  renderConfigBuilder();
+  $("last-refresh").textContent = `Config draft failed: ${error.message}`;
 }
 
 function renderConfigBuilderReadiness() {
@@ -8357,7 +8466,7 @@ async function generateConfigDraft(event) {
   event.preventDefault();
   const selected = selectedConfigDatasets();
   if (!selected.length) {
-    $("config-validation").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
+    handleConfigDraftError(new Error("Select at least one saved dataset first"));
     return;
   }
   const payload = {
@@ -8392,6 +8501,7 @@ async function generateConfigDraft(event) {
     body: JSON.stringify(payload),
   });
   state.configDraft = response.draft;
+  state.configDraftErrors = [];
   state.alignmentPreview = response.draft ? response.draft.alignment || null : null;
   if (response.draft && response.draft.saved_path) {
     state.configDrafts = await fetchJson("/config_drafts");
@@ -9408,7 +9518,7 @@ function init() {
   });
   $("config-form").addEventListener("submit", (event) => {
     generateConfigDraft(event).catch((err) => {
-      $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+      handleConfigDraftError(err);
     });
   });
   $("config-form").addEventListener("input", renderConfigLivePanels);

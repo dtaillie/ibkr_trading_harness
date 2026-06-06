@@ -928,6 +928,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench Run Draft now has triage cards summarizing saved drafts,
     validation coverage, failed/completed runs, selected-draft state, loaded
     artifacts, and the next action before the dense draft/run tables.
+  - partial; Config Builder now has a Validation Messages panel that groups
+    server/plugin draft-generation errors by config area and annotates matching
+    plugin strategy fields inline when messages reference `strategy.<field>`.
+    Deeper per-plugin custom formatting remains future polish.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:
@@ -1059,8 +1063,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     numeric min/max bounds, select choices, and unknown strategy keys. Deeper
     plugin-authored validation hooks now run during Workbench draft generation
     and saved-draft validation, so invalid plugin-specific configs are rejected
-    before local YAML is saved. Richer inline per-field display of those
-    plugin-authored messages remains open.
+    before local YAML is saved. The Workbench now groups server/plugin
+    draft-generation errors in a Validation Messages panel and annotates
+    matching plugin strategy fields inline when messages reference
+    `strategy.<field>`; richer plugin-defined custom display remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

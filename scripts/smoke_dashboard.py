@@ -418,6 +418,8 @@ def run_smoke(
             "config-compatibility-note",
             "config-compatibility-cards",
             "config-compatibility-detail",
+            "config-validation-message-note",
+            "config-validation-messages",
             "config-broker-boundary-note",
             "config-broker-boundary",
             "config-data-quality-note",
