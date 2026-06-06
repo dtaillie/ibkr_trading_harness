@@ -86,11 +86,14 @@ Open Fetch Jobs, choose a manifest, then inspect Fetch Detail. Use Copy Resume
 Command when a run has failed or missing work. Use Show Outputs in Data Library
 when produced files are visible under configured data roots; this filters Data
 Library to the selected fetch job's output set so you can inspect or compare
-those files without manually searching paths. Use Copy Output Paths when you
-want the same visible output set as newline-separated local paths for a script,
-config edit, or manual audit. Use Export Detail CSV when you want one offline
-file containing the selected job's symbol, output, error, retry, and pacing
-rows, including Data Library visibility labels for produced files.
+those files without manually searching paths. Use Use Outputs In Workbench when
+the visible output set is ready to become replay input; it selects those files
+in Config Builder and carries the manifest date range when available. Use Copy
+Output Paths when you want the same visible output set as newline-separated
+local paths for a script, config edit, or manual audit. Use Export Detail CSV
+when you want one offline file containing the selected job's symbol, output,
+error, retry, and pacing rows, including Data Library visibility labels for
+produced files.
 
 Use Fetch Recovery Plan before retrying. It translates the selected manifest's
 recovery status into concrete next steps: fix market-data permissions, fix
@@ -126,7 +129,9 @@ typed catalog symbol, and Select Shown chooses the visible comparison set up to
 the 8-dataset comparison cap. From Symbol Browser, Compare preselects matching
 saved files for the typed symbol, loads the normalized comparison chart, and
 jumps to the comparison workflow. Copy Compare JSON copies the exact request
-body that the dashboard will send to `/data_compare`.
+body that the dashboard will send to `/data_compare`. Use In Workbench sends
+the selected comparison set plus the compare date window directly into Config
+Builder.
 
 Use Symbol Directory when you want to browse discovered symbols without already
 knowing the ticker. It can search by symbol, asset, source, bar size, quality,
@@ -157,7 +162,10 @@ rows from the Minute Coverage Heatmap.
    date range.
    Use Jump to Symbol in Data Detail when you know the ticker but not the
    exact saved file path.
-2. Open Workbench and select one or more saved datasets.
+   Use In Workbench from Data Detail when a single opened file and viewer
+   window are ready to simulate.
+2. Open Workbench and select one or more saved datasets, or use one of the
+   direct handoffs from Data Detail, Compare Saved Data, or Fetch Detail.
 3. Choose a public example plugin or a private local plugin from an ignored
    registry.
 4. Preview alignment before generating a draft.

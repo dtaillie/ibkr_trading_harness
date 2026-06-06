@@ -353,6 +353,9 @@ strategy-private.
     - partial; Help now starts with a question-driven Start Here panel that
       routes users to current health, performance, saved data, simulation, run
       drilldowns, and operations diagnostics before dense reference cards.
+    - partial; Help and the Web UI runbook now document the direct workflow
+      shortcuts from Data Detail, Compare Saved Data, and Fetch Detail into
+      Workbench, plus the Workbench result shortcuts into Performance and Runs.
   - empty states that explain what to do next instead of showing blank tables
     - partial; Help now has a dynamic Current Setup Gaps panel that reads
       sanitized dashboard state and links users to the right page for missing

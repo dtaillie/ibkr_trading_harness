@@ -850,6 +850,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "doc-link-grid" in html
         assert "Data To Simulation Fast Path" in html
         assert "Inspect Saved Historical Data" in html
+        assert "Workflow Shortcuts" in html
+        assert "Fetch to Workbench" in html
         assert "data-detail-overview-note" in html
         assert "data-detail-overview" in html
         assert "Public Publishing Boundary" in html

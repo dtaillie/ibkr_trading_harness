@@ -480,6 +480,8 @@ def run_smoke(
             "endpoint-map-body",
             "Page Guide",
             "Inspect Saved Historical Data",
+            "Workflow Shortcuts",
+            "Fetch to Workbench",
             "Updated",
             "Public Publishing Boundary",
             "Web UI Runbook",
