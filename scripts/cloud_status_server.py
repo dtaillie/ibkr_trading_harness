@@ -147,6 +147,7 @@ CONFIG_BUILDER_PLUGINS = (
                 "label": "Example Parameter",
                 "kind": "checkbox",
                 "default": True,
+                "description": "Example-only toggle that proves plugin fields render and serialize.",
                 "help": "Demonstrates plugin-specific config wiring only.",
             },
         ],
@@ -155,9 +156,10 @@ CONFIG_BUILDER_PLUGINS = (
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
-CONFIG_FORM_SCHEMA_VERSION = 3
+CONFIG_FORM_SCHEMA_VERSION = 4
 CONFIG_GUIDE_SCHEMA_VERSION = 1
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
+PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
@@ -4184,6 +4186,37 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
     return plugin
 
 
+def normalize_plugin_strategy_field_options(raw_options: Any, *, plugin_id: str, field_name: str) -> list[dict[str, str]]:
+    if not isinstance(raw_options, list) or not raw_options:
+        raise ValueError(f"plugin {plugin_id} strategy_fields[{field_name}].options must be a non-empty list")
+    normalized: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for idx, raw_option in enumerate(raw_options, start=1):
+        if isinstance(raw_option, dict):
+            raw_value = raw_option.get("value", raw_option.get("id"))
+            raw_label = raw_option.get("label", raw_value)
+            raw_description = raw_option.get("description", raw_option.get("help", ""))
+        else:
+            raw_value = raw_option
+            raw_label = raw_option
+            raw_description = ""
+        value = "" if raw_value is None else str(raw_value).strip()
+        if not value:
+            raise ValueError(f"plugin {plugin_id} strategy_fields[{field_name}].options[{idx}].value is required")
+        if value in seen:
+            raise ValueError(f"plugin {plugin_id} strategy_fields[{field_name}].options contains duplicate value {value}")
+        seen.add(value)
+        option = {
+            "value": value,
+            "label": str(raw_label if raw_label is not None else value).strip() or value,
+        }
+        description = str(raw_description or "").strip()
+        if description:
+            option["description"] = description
+        normalized.append(option)
+    return normalized
+
+
 def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list[dict[str, Any]]:
     if raw_fields is None:
         return []
@@ -4214,7 +4247,11 @@ def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list
             "plugin_id": plugin_id,
             "help": str(raw.get("help") or "").strip(),
             "required": bool(raw.get("required", False)),
+            "_source_order": idx,
         }
+        for key in PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS:
+            if raw.get(key) is not None:
+                field[key] = str(raw[key]).strip()
         for key in ("default", "min", "max", "step"):
             if key in raw:
                 field[key] = raw[key]
@@ -4229,13 +4266,20 @@ def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list
                 raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].min must be <= max")
         if raw.get("wide") is not None:
             field["wide"] = bool(raw["wide"])
+        if raw.get("advanced") is not None:
+            field["advanced"] = bool(raw["advanced"])
+        if raw.get("order") is not None:
+            try:
+                field["order"] = float(raw["order"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].order must be numeric") from exc
         if raw.get("options") is not None:
-            options = raw["options"]
-            if not isinstance(options, list) or not options:
-                raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].options must be a non-empty list")
-            field["options"] = options
+            field["options"] = normalize_plugin_strategy_field_options(raw["options"], plugin_id=plugin_id, field_name=name)
         normalized.append(field)
-    return normalized
+    sorted_fields = sorted(normalized, key=lambda field: (float(field.get("order", field["_source_order"])), int(field["_source_order"])))
+    for field in sorted_fields:
+        field.pop("_source_order", None)
+    return sorted_fields
 
 
 def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:

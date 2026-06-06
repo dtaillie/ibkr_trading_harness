@@ -48,13 +48,14 @@ This roadmap is broader context; the queue is the current execution order.
     a clean operator-requested loop exit. Richer process supervision remains
     open.
 - Extend config validation into versioned schemas with richer per-plugin checks.
-  The Workbench form schema is now v3 and plugin registry entries can expose
+  The Workbench form schema is now v4 and plugin registry entries can expose
   public-safe `strategy_fields` that render for the selected plugin and are
   serialized into generated drafts. The Workbench enforces required fields,
   numeric min/max bounds, select choices, and unknown-key rejection for those
   fields, and plugin-authored validation hooks run before generated YAML is
-  saved. Richer inline display of plugin-authored field messages remains future
-  work.
+  saved. Public-safe plugin field metadata can also include display hints such
+  as descriptions, placeholders, units, affixes, advanced badges, ordering, and
+  select-option descriptions.
 - Add optional order previews and manual approval hooks for paper/live mode.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow
   constraints, commission schedules, and slippage models. The public runner now

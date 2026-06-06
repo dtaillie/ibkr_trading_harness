@@ -1192,9 +1192,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; plugin registry entries can now expose public-safe
     `strategy_fields`, the Workbench renders fields for the selected plugin,
     and generated drafts write only those allowlisted values under `strategy`.
-    The form schema version was bumped to v3 after adding `required`,
-    numeric min/max, select-options validation, unknown-key rejection, and
-    saved-draft strategy revalidation for those fields.
+    The form schema version was bumped to v4 after adding `required`,
+    numeric min/max, select-options validation, unknown-key rejection,
+    saved-draft strategy revalidation, and display-only metadata for those
+    fields, including descriptions, placeholders, units, affixes, advanced
+    badges, ordering, and select-option descriptions.
   - partial; Workbench guide step metadata is now schema-driven through
     `/config_options.guide_steps` and exported workbench snapshots include
     `guide_schema_version` for downstream UI/schema compatibility checks.
@@ -1216,7 +1218,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Config Builder now has a Validation Messages panel that groups
     server/plugin draft-generation errors by config area and annotates matching
     plugin strategy fields inline when messages reference `strategy.<field>`.
-    Deeper per-plugin custom formatting remains future polish.
+    Plugin-authored field display now also supports public-safe descriptions,
+    placeholders, units, affixes, advanced badges, ordering, and select-option
+    descriptions. Deeper per-plugin custom result formatting remains future
+    polish.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:
@@ -1413,7 +1418,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     before local YAML is saved. The Workbench now groups server/plugin
     draft-generation errors in a Validation Messages panel and annotates
     matching plugin strategy fields inline when messages reference
-    `strategy.<field>`; richer plugin-defined custom display remains open.
+    `strategy.<field>`. The Workbench form schema is now v4, with
+    public-safe plugin display metadata for descriptions, placeholders, units,
+    affixes, advanced badges, ordering, and select-option descriptions. Richer
+    plugin-defined custom result display remains open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

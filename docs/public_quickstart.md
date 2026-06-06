@@ -446,10 +446,12 @@ metadata for your own machine without publishing strategy logic. The Workbench
 can render public-safe `strategy_fields` from that plugin metadata and writes
 those allowlisted values into the generated `strategy` section. It rejects
 unknown strategy keys and enforces public-safe field metadata such as required,
-numeric min/max, and select choices before saving or validating drafts. Keep
-real edge, tuned defaults, and private-only parameters in ignored local
-registries. The Workbench uses replay/shadow/simulated-paper modes; it does
-not submit broker orders.
+numeric min/max, and select choices before saving or validating drafts. Field
+metadata can include display-only descriptions, placeholders, units, affixes,
+advanced labels, ordering, and select-option descriptions. Keep real edge,
+tuned defaults, and private-only parameters in ignored local registries. The
+Workbench uses replay/shadow/simulated-paper modes; it does not submit broker
+orders.
 Duplicate symbols and duplicate paths are rejected before YAML is saved.
 Risk presets fill example guardrail and simulated-cost fields, but the fields
 remain editable and the presets are not trading recommendations.

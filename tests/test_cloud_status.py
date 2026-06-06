@@ -2883,7 +2883,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert plugin_ids == {"no_edge_template"}
         plugin = options["plugins"][0]
         assert options["config_schema_version"] == 1
-        assert options["form_schema_version"] == 3
+        assert options["form_schema_version"] == 4
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
@@ -3517,7 +3517,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
             snapshot = json.loads(resp.read().decode("utf-8"))
         assert snapshot["schema_version"] == 1
         assert snapshot["config_schema_version"] == 1
-        assert snapshot["form_schema_version"] == 3
+        assert snapshot["form_schema_version"] == 4
         assert snapshot["guide_schema_version"] == 1
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
@@ -3527,7 +3527,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["config_options"]["risk_presets"]
         assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file"}
         assert snapshot["config_options"]["config_schema_version"] == 1
-        assert snapshot["config_options"]["form_schema_version"] == 3
+        assert snapshot["config_options"]["form_schema_version"] == 4
         assert snapshot["config_options"]["guide_schema_version"] == 1
         assert snapshot["config_options"]["guide_steps"][0]["id"] == "data"
         assert snapshot["run_comparison"]["count"] == 0
@@ -4075,6 +4075,9 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
                 "        label: Local Flag",
                 "        kind: checkbox",
                 "        default: false",
+                "        description: Public-safe display metadata for the local flag.",
+                "        help: Toggle only demonstrates Workbench rendering.",
+                "        advanced: true",
             ]
         )
         + "\n",
@@ -4101,6 +4104,8 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         assert plugins["local_demo"]["source"] == "local_registry"
         assert plugins["local_demo"]["source_path"] == str(registry.resolve())
         assert plugins["local_demo"]["strategy_fields"][0]["name"] == "local_flag"
+        assert plugins["local_demo"]["strategy_fields"][0]["description"] == "Public-safe display metadata for the local flag."
+        assert plugins["local_demo"]["strategy_fields"][0]["advanced"] is True
         assert str(registry.resolve()) in options["plugin_registry_paths"]
 
         draft_req = request.Request(
@@ -4162,15 +4167,25 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
                 "        min: 0.1",
                 "        max: 1.0",
                 "        step: 0.05",
+                "        description: Public-safe threshold display text.",
+                "        placeholder: '0.50'",
+                "        unit: score",
+                "        prefix: '>='",
+                "        suffix: normalized",
+                "        advanced: true",
+                "        order: 10",
                 "      - name: mode",
                 "        label: Mode",
                 "        kind: select",
                 "        required: true",
+                "        order: 20",
                 "        options:",
                 "          - value: conservative",
                 "            label: Conservative",
+                "            description: Lower example activity.",
                 "          - value: active",
                 "            label: Active",
+                "            description: Higher example activity.",
             ]
         )
         + "\n",
@@ -4187,6 +4202,21 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
     thread.start()
     try:
         base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/config_options", timeout=5) as resp:
+            options = json.loads(resp.read().decode("utf-8"))
+        fields = {
+            field["name"]: field
+            for field in options["form_schema"]
+            if field.get("plugin_id") == "bounded_demo"
+        }
+        assert options["form_schema_version"] == 4
+        assert fields["threshold"]["description"] == "Public-safe threshold display text."
+        assert fields["threshold"]["placeholder"] == "0.50"
+        assert fields["threshold"]["unit"] == "score"
+        assert fields["threshold"]["prefix"] == ">="
+        assert fields["threshold"]["suffix"] == "normalized"
+        assert fields["threshold"]["advanced"] is True
+        assert fields["mode"]["options"][0]["description"] == "Lower example activity."
 
         def post_draft(strategy: dict, *, name: str = "Bounded Draft", save: bool = False):
             return request.Request(

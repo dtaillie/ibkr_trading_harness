@@ -781,6 +781,76 @@ button.secondary {
   line-height: 1.35;
 }
 
+.builder-form .field-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.builder-form .field-title > span:first-child {
+  min-width: 0;
+}
+
+.builder-form .field-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.builder-form .field-meta span {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft-panel);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.builder-form .field-description {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.builder-form .field-input-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.builder-form .field-input-row input {
+  min-width: 0;
+  width: 100%;
+}
+
+.builder-form .field-affix {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.builder-form .advanced-field {
+  border-left: 3px solid rgba(75, 94, 170, 0.34);
+  padding-left: 8px;
+}
+
+.builder-form .checkbox-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
+}
+
+.builder-form .checkbox-field small,
+.builder-form .checkbox-field .field-validation-message {
+  grid-column: 1 / -1;
+}
+
 .builder-form .field-validation-message {
   color: var(--bad);
   font-weight: 700;

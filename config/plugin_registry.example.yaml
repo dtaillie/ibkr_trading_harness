@@ -16,4 +16,6 @@ plugins:
         label: Example Parameter
         kind: checkbox
         default: false
+        description: Example-only toggle that proves plugin field rendering.
         help: Public-safe wiring example only; do not publish tuned values.
+        advanced: false

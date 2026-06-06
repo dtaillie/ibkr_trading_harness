@@ -9354,7 +9354,7 @@ function replaceOptions(select, options) {
     ? new Set(Array.from(select.selectedOptions).map((option) => option.value))
     : new Set([select.value]);
   select.innerHTML = options.map((option) => (
-    `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+    `<option value="${escapeHtml(option.value)}"${option.description ? ` title="${escapeHtml(option.description)}"` : ""}>${escapeHtml(option.label)}</option>`
   )).join("");
   let restored = false;
   for (const option of select.options) {
@@ -9391,7 +9391,10 @@ function configFormOptionRows(field, options) {
   }
   return (field.options || []).map((option) => ({
     value: option.value ?? option.id ?? option,
-    label: option.label ?? option.value ?? option.id ?? option,
+    label: option.description
+      ? `${option.label ?? option.value ?? option.id ?? option} - ${option.description}`
+      : option.label ?? option.value ?? option.id ?? option,
+    description: option.description || "",
   }));
 }
 
@@ -9413,15 +9416,44 @@ function configSectionOrder(section, metadataById = configSectionMetadataById())
   return Number.isFinite(value) ? value : 999;
 }
 
+function configFieldTitle(field, label) {
+  const meta = [];
+  if (field.required) meta.push("Required");
+  if (field.unit) meta.push(`Unit: ${field.unit}`);
+  if (field.advanced) meta.push("Advanced");
+  const metaHtml = meta.length
+    ? `<span class="field-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`
+    : "";
+  return `<span class="field-title"><span>${label}</span>${metaHtml}</span>`;
+}
+
+function configFieldDescription(field) {
+  const description = field.description
+    ? `<small class="field-description">${escapeHtml(field.description)}</small>`
+    : "";
+  const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
+  return `${description}${help}`;
+}
+
+function configFieldInputAffix(field, inputHtml) {
+  const prefix = field.prefix ? `<span class="field-affix">${escapeHtml(field.prefix)}</span>` : "";
+  const suffix = field.suffix || field.unit;
+  const suffixHtml = suffix ? `<span class="field-affix">${escapeHtml(suffix)}</span>` : "";
+  if (!prefix && !suffixHtml) return inputHtml;
+  return `<span class="field-input-row">${prefix}${inputHtml}${suffixHtml}</span>`;
+}
+
 function renderConfigField(field) {
   const id = escapeHtml(field.id);
   const label = escapeHtml(field.label || field.name || field.id);
-  const help = field.help ? `<small>${escapeHtml(field.help)}</small>` : "";
+  const title = configFieldTitle(field, label);
+  const help = configFieldDescription(field);
   const pluginAttr = field.plugin_id ? ` data-plugin-id="${escapeHtml(field.plugin_id)}"` : "";
   const cls = [
     field.kind === "checkbox" ? "checkbox-field" : "",
     field.plugin_id ? "plugin-strategy-field" : "",
     field.wide ? "wide-field" : "",
+    field.advanced ? "advanced-field" : "",
   ].filter(Boolean).join(" ");
   const fieldPath = field.plugin_id && field.name ? `strategy.${field.name}` : field.name || field.id;
   const validation = `<small class="field-validation-message" data-field-error-for="${escapeHtml(fieldPath)}" hidden></small>`;
@@ -9429,21 +9461,22 @@ function renderConfigField(field) {
     const multiple = field.multiple ? " multiple" : "";
     const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
     const required = field.required ? " required" : "";
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}${required}></select>${help}${validation}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}>${title}<select id="${id}"${multiple}${size}${required}></select>${help}${validation}</label>`;
   }
   if (field.kind === "checkbox") {
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox"><span>${label}</span>${help}${validation}</label>`;
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox">${title}${help}${validation}</label>`;
   }
   const type = field.kind === "date" ? "date" : field.kind === "number" ? "number" : "text";
   const attrs = [
     `id="${id}"`,
     `type="${escapeHtml(type)}"`,
+    field.placeholder ? `placeholder="${escapeHtml(String(field.placeholder))}"` : "",
     field.min !== undefined ? `min="${escapeHtml(String(field.min))}"` : "",
     field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
     field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
     field.required ? "required" : "",
   ].filter(Boolean).join(" ");
-  return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><input ${attrs}>${help}${validation}</label>`;
+  return `<label class="${escapeHtml(cls)}"${pluginAttr}>${title}${configFieldInputAffix(field, `<input ${attrs}>`)}${help}${validation}</label>`;
 }
 
 function updatePluginStrategyFields() {
