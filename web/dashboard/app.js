@@ -2209,11 +2209,14 @@ function selectedCompareDatasets() {
 }
 
 function updateCompareSelectionFromSelect(announce = false) {
-  const selected = Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
+  const select = $("data-compare-datasets");
+  const selected = Array.from(select.selectedOptions).map((option) => option.value);
   const capped = selected.slice(0, MAX_DATA_COMPARE_DATASETS);
   state.dataCompareSelectedPaths = capped;
-  state.dataCompareSelectionCleared = capped.length === 0;
-  for (const option of $("data-compare-datasets").options) {
+  if (announce || select.options.length) {
+    state.dataCompareSelectionCleared = capped.length === 0;
+  }
+  for (const option of select.options) {
     option.selected = capped.includes(option.value);
   }
   if (announce && selected.length > MAX_DATA_COMPARE_DATASETS) {
@@ -9267,9 +9270,6 @@ function replaceOptions(select, options) {
   }
   if (!select.multiple && !restored && options.length) {
     select.value = options[0].value;
-  }
-  if (select.multiple && !restored && select.options.length) {
-    select.options[0].selected = true;
   }
 }
 

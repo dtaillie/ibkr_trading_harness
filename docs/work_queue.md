@@ -1111,8 +1111,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - inspect results
   - partial; Workbench now has a visible Simulate From Saved Data guide that
     tracks data selection, data quality, alignment, draft generation,
-    validation/run state, and artifact inspection. The form remains static;
-    schema-driven step rendering is still separate work.
+    validation/run state, and artifact inspection. The form and step metadata
+    are now schema-driven; richer plugin-authored display and help formatting
+    remain future work.
   - partial; `/config_options` now exposes `guide_schema_version` and
     `guide_steps`, and the Workbench guide consumes backend step labels/order
     while keeping dynamic readiness details in the frontend.
@@ -1137,6 +1138,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality issues, comparison readiness, and range, with direct actions
     to inspect the first selected file, compare selected files, or return to
     Data Library.
+  - partial; generated Workbench dataset multi-selects no longer auto-select
+    the first catalog file before the user chooses data, while the separate
+    Compare Saved Data view keeps its deliberate two-file starter selection.
   - partial; Workbench now has a Preview Draft action backed by
     `/config_draft_preview`, which runs the same server validation, alignment,
     plugin-boundary, and command generation path while returning unsaved YAML
