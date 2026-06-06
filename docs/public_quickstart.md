@@ -295,9 +295,11 @@ When a produced output file is under a configured data root, use Inspect Data in
 the output row to open its saved-file detail view without leaving the dashboard.
 Use Show Outputs in Data Library from Fetch Detail to filter saved-data rows to
 the files produced by the selected fetch job, or Copy Output Paths to copy the
-visible produced file paths for local scripts. Use Export Detail CSV to
-download the selected fetch job's symbol, output, error, retry, and pacing rows
-with output visibility annotations.
+visible produced file paths for local scripts. Use Compare Outputs to load two
+or more Data Library-visible fetch outputs into Compare Saved Data with the
+manifest date window. Use Export Detail CSV to download the selected fetch
+job's symbol, output, error, retry, and pacing rows with output visibility
+annotations.
 Fetch Detail's Resume Scope summarizes what a copied resume command is expected
 to skip versus retry or review, so failed fetch recovery is not just a copied
 shell command with hidden intent.

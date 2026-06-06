@@ -436,6 +436,7 @@ def run_smoke(
             "fetch-events-body",
             "copy-fetch-resume-command",
             "show-fetch-outputs-data",
+            "compare-fetch-outputs",
             "use-fetch-outputs-workbench",
             "copy-fetch-output-paths",
             "fetch-outputs-body",

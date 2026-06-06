@@ -6992,6 +6992,7 @@ function renderFetchManifestDetail() {
     : "No fetch job selected";
   $("copy-fetch-resume-command").disabled = !resumeCommand;
   $("show-fetch-outputs-data").disabled = !visibleOutputPaths.length;
+  $("compare-fetch-outputs").disabled = visibleOutputPaths.length < 2;
   $("use-fetch-outputs-workbench").disabled = !visibleOutputPaths.length;
   $("copy-fetch-output-paths").disabled = !visibleOutputPaths.length;
   $("export-fetch-detail-csv").disabled = !detail.job_id;
@@ -7148,6 +7149,33 @@ function useFetchOutputsInWorkbench() {
     if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
   }, 50);
   $("last-refresh").textContent = `Selected ${numberText(paths.length, 0)} fetch output${paths.length === 1 ? "" : "s"} for Workbench simulation`;
+}
+
+async function compareFetchOutputs() {
+  const detail = state.fetchManifestDetail || {};
+  const paths = fetchVisibleOutputPaths(detail).slice(0, MAX_DATA_COMPARE_DATASETS);
+  if (paths.length < 2) {
+    $("last-refresh").textContent = "Selected fetch needs at least two Data Library-visible outputs to compare";
+    return;
+  }
+  state.dataCompareSelectedPaths = paths;
+  state.dataCompareSelectionCleared = false;
+  $("data-compare-filter").value = "";
+  $("data-compare-asset").value = "";
+  $("data-compare-source").value = "";
+  $("data-compare-bar").value = "";
+  $("data-compare-session").value = "";
+  $("data-compare-quality").value = "";
+  $("data-compare-range-preset").value = "custom";
+  const plan = detail.plan || {};
+  const parameters = detail.parameters || {};
+  $("data-compare-start").value = dateInputValueFromTimestamp(plan.range_start || parameters.start);
+  $("data-compare-end").value = dateInputValueFromTimestamp(plan.range_end || parameters.end);
+  renderDataCompareControls();
+  await loadDataCompare();
+  navigateToView("data");
+  if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
+  $("last-refresh").textContent = `Compared ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
 
 function copyFetchVisibleOutputPaths() {
@@ -11932,6 +11960,11 @@ function init() {
     });
   });
   $("show-fetch-outputs-data").addEventListener("click", applyFetchOutputDataFilter);
+  $("compare-fetch-outputs").addEventListener("click", () => {
+    compareFetchOutputs().catch((err) => {
+      $("last-refresh").textContent = `Fetch output comparison failed: ${err.message}`;
+    });
+  });
   $("use-fetch-outputs-workbench").addEventListener("click", useFetchOutputsInWorkbench);
   $("copy-fetch-output-paths").addEventListener("click", copyFetchVisibleOutputPaths);
   $("export-fetch-detail-csv").addEventListener("click", () => {

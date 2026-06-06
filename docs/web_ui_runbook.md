@@ -95,14 +95,16 @@ Open Fetch Jobs, choose a manifest, then inspect Fetch Detail. Use Copy Resume
 Command when a run has failed or missing work. Use Show Outputs in Data Library
 when produced files are visible under configured data roots; this filters Data
 Library to the selected fetch job's output set so you can inspect or compare
-those files without manually searching paths. Use Use Outputs In Workbench when
-the visible output set is ready to become replay input; it selects those files
-in Config Builder and carries the manifest date range when available. Use Copy
-Output Paths when you want the same visible output set as newline-separated
-local paths for a script, config edit, or manual audit. Use Export Detail CSV
-when you want one offline file containing the selected job's symbol, output,
-error, retry, and pacing rows, including Data Library visibility labels for
-produced files.
+those files without manually searching paths. Use Compare Outputs when at least
+two produced files are Data Library-visible and you want the normalized
+comparison chart loaded with the manifest date window. Use Use Outputs In
+Workbench when the visible output set is ready to become replay input; it
+selects those files in Config Builder and carries the manifest date range when
+available. Use Copy Output Paths when you want the same visible output set as
+newline-separated local paths for a script, config edit, or manual audit. Use
+Export Detail CSV when you want one offline file containing the selected job's
+symbol, output, error, retry, and pacing rows, including Data Library
+visibility labels for produced files.
 Fetch Detail also shows Resume Scope, a public-safe estimate of completed
 symbols or output paths that will be skipped and failed, no-data, or pending
 work that should be retried or reviewed before running the copied command.
