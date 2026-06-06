@@ -687,6 +687,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       opened saved file in the Workbench Config Builder, carries over the
       viewer date range when available, and jumps directly to the simulation
       setup flow.
+    - partial; Data Detail now has previous/next catalog navigation for the
+      current filtered saved-data set, with full-catalog fallback when the
+      opened file is outside active filters, so users can browse saved history
+      without returning to dense catalog rows.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

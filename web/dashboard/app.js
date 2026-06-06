@@ -5755,6 +5755,7 @@ function renderDataDetail() {
   $("copy-data-replay-command").disabled = !detail.path;
   $("use-data-detail-workbench").disabled = !detail.path;
   $("export-data-missing-intervals").disabled = !detail.path;
+  renderDataDetailNavigator(detail);
   renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
   const pairs = [
@@ -5820,6 +5821,55 @@ function renderDataDetail() {
         escapeHtml(interval(item.gap_seconds)),
       ])).join("")
     : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
+}
+
+function dataDetailNavigationModel(detail = {}) {
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const path = String(detail.path || state.dataDetailPath || "");
+  const filteredRows = filteredDataCatalog(datasets).filter((dataset) => dataset.path);
+  let rows = filteredRows;
+  let scope = "current filters";
+  let index = path ? rows.findIndex((dataset) => String(dataset.path || "") === path) : -1;
+  if (path && index < 0) {
+    rows = sortDataCatalogRows(datasets, dataCatalogFilters().sort).filter((dataset) => dataset.path);
+    scope = "all catalog files";
+    index = rows.findIndex((dataset) => String(dataset.path || "") === path);
+  }
+  return {
+    rows,
+    scope,
+    index,
+    current: index >= 0 ? rows[index] : null,
+    previous: index > 0 ? rows[index - 1] : null,
+    next: index >= 0 && index < rows.length - 1 ? rows[index + 1] : null,
+  };
+}
+
+function renderDataDetailNavigator(detail = {}) {
+  if (!$("data-detail-prev") || !$("data-detail-next") || !$("data-detail-nav-note")) return;
+  const model = dataDetailNavigationModel(detail);
+  $("data-detail-prev").disabled = !model.previous;
+  $("data-detail-next").disabled = !model.next;
+  $("data-detail-prev").dataset.path = model.previous ? text(model.previous.path) : "";
+  $("data-detail-next").dataset.path = model.next ? text(model.next.path) : "";
+  if (!model.rows.length) {
+    $("data-detail-nav-note").textContent = "No catalog files are available for previous/next navigation.";
+  } else if (model.index >= 0) {
+    $("data-detail-nav-note").textContent = `File ${numberText(model.index + 1, 0)} of ${numberText(model.rows.length, 0)} in ${model.scope}.`;
+  } else {
+    $("data-detail-nav-note").textContent = `${numberText(model.rows.length, 0)} catalog file${model.rows.length === 1 ? "" : "s"} available; open one to browse adjacent files.`;
+  }
+}
+
+async function openAdjacentDataDetail(direction) {
+  const model = dataDetailNavigationModel(state.dataDetail || {});
+  const target = direction < 0 ? model.previous : model.next;
+  if (!target || !target.path) {
+    $("data-detail-nav-note").textContent = direction < 0 ? "No previous catalog file in this browse set." : "No next catalog file in this browse set.";
+    return;
+  }
+  await loadDataDetail(target.path, { resetControls: true });
+  $("data-detail-nav-note").textContent = `Opened ${text(target.symbol)} ${text(target.bar_size)} from ${text(target.source)}.`;
 }
 
 function dateInputValueFromTimestamp(value) {
@@ -10860,6 +10910,16 @@ function init() {
   $("data-detail-symbol-load").addEventListener("click", () => {
     loadDataDetailForSymbol().catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-prev").addEventListener("click", () => {
+    openAdjacentDataDetail(-1).catch((err) => {
+      $("data-detail-nav-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-next").addEventListener("click", () => {
+    openAdjacentDataDetail(1).catch((err) => {
+      $("data-detail-nav-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-detail-symbol").addEventListener("keydown", (event) => {
