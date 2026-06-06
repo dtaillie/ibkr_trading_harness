@@ -30,6 +30,7 @@ def test_create_file_broker_adapter_executes_and_persists_fill(tmp_path):
         "starting_cash": 1000,
         "prices": {"SPY": 100},
         "commission_bps": 10,
+        "account_id": "paper-test",
     })
 
     broker.connect()
@@ -43,8 +44,10 @@ def test_create_file_broker_adapter_executes_and_persists_fill(tmp_path):
     assert fill.commission == 0.2
     assert broker.get_cash() == 799.8
     assert broker.get_positions() == {"SPY": 2.0}
+    assert broker.get_account_ids() == ["paper-test"]
 
     state = json.loads(state_path.read_text())
+    assert state["account_id"] == "paper-test"
     assert state["cash"] == 799.8
     assert state["positions"] == {"SPY": 2.0}
     order_rows = [json.loads(line) for line in orders_path.read_text().splitlines()]

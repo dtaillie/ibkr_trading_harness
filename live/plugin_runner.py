@@ -516,6 +516,8 @@ def validate_config(
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
     validate_bool(broker_cfg.get("allow_live_broker_port_for_paper"), "broker.allow_live_broker_port_for_paper", errors)
+    if broker_cfg.get("expected_account_id") is not None and not str(broker_cfg["expected_account_id"]).strip():
+        errors.append("broker.expected_account_id must not be empty")
     adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
     if adapter not in SUPPORTED_BROKER_ADAPTERS:
         errors.append(f"broker.adapter must be one of {sorted(SUPPORTED_BROKER_ADAPTERS)}")
@@ -1416,6 +1418,7 @@ class SimulatedExecutor:
 
 class PaperExecutor:
     def __init__(self, broker_cfg: dict[str, Any]):
+        self.expected_account_id = str(broker_cfg.get("expected_account_id") or "").strip()
         self.broker = create_broker_adapter(broker_cfg)
         self.connected = False
 
@@ -1423,6 +1426,18 @@ class PaperExecutor:
         if not self.connected:
             self.broker.connect()
             self.connected = True
+            self.verify_expected_account()
+
+    def verify_expected_account(self) -> None:
+        if not self.expected_account_id:
+            return
+        account_ids = self.broker.get_account_ids()
+        if self.expected_account_id not in account_ids:
+            observed = ", ".join(account_ids) if account_ids else "none"
+            raise ValueError(
+                "paper broker account verification failed: "
+                f"expected {self.expected_account_id}, observed {observed}"
+            )
 
     def disconnect(self) -> None:
         if self.connected:

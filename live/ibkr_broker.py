@@ -96,6 +96,10 @@ class IBKRBroker:
                 positions[sym] = float(pos.position)
         return positions
 
+    def managed_accounts(self) -> list[str]:
+        """Return account identifiers visible to the current API session."""
+        return [str(account) for account in self.ib.managedAccounts()]
+
     def submit_order(self, order: Order) -> Fill | None:
         """Submit a market order and wait for fill."""
         self.last_order_status = ""

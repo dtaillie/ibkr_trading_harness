@@ -1012,6 +1012,63 @@ def test_paper_mode_can_use_file_broker_adapter(tmp_path):
     assert broker_rows[0]["status"] == "filled"
 
 
+def test_paper_mode_verifies_expected_file_broker_account(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    broker_state = tmp_path / "file_broker_state.json"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 1, "cash_quantity": None},
+        broker={
+            "adapter": "file",
+            "account_mode": "paper",
+            "state_path": str(broker_state),
+            "account_id": "paper-a",
+            "expected_account_id": "paper-a",
+            "starting_cash": 1000,
+            "prices": {"SPY": 100},
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert result.fills == 1
+
+
+def test_paper_mode_rejects_unexpected_file_broker_account(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    broker_state = tmp_path / "file_broker_state.json"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={"symbol": "SPY", "quantity": 1, "cash_quantity": None},
+        broker={
+            "adapter": "file",
+            "account_mode": "paper",
+            "state_path": str(broker_state),
+            "account_id": "paper-a",
+            "expected_account_id": "paper-b",
+            "starting_cash": 1000,
+            "prices": {"SPY": 100},
+        },
+    )
+
+    with pytest.raises(ValueError, match="paper broker account verification failed"):
+        run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
+
+    assert not (output_dir / "fills.jsonl").exists()
+
+
 def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

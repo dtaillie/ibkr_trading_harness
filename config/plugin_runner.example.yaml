@@ -82,6 +82,9 @@ broker:
   port: 4002
   client_id: 301
   account_mode: paper
+  # Optional extra paper-safety check. Set this in ignored local configs to
+  # the paper account id expected from the broker session.
+  # expected_account_id: paper-account-id-placeholder
   allow_live_broker_port_for_paper: false
   # For local adapter plumbing tests without IBKR, copy this config privately
   # and set adapter: file with state_path/orders_path/prices.

@@ -1459,6 +1459,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,
     `7496`) unless both config and CLI explicitly opt in. More broker-native
     account verification and live-mode enablement gates remain open.
+  - partial; generic paper mode now supports optional
+    `broker.expected_account_id`, verified after broker connection and before
+    order submission for adapters that expose account ids. IBKR uses managed
+    accounts; the file-backed adapter exposes its local account id for tests
+    and demos. Live-mode enablement gates remain open.
 
 ## P2: Publication readiness
 

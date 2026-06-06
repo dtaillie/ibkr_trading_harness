@@ -113,13 +113,17 @@ python3 live/plugin_runner.py \
 Paper mode also checks broker safety before connecting. Use
 `broker.account_mode: paper` with a paper API port such as Gateway `4002` or
 TWS `7497`; known live ports are refused unless both the config and CLI use the
-explicit live-port override.
+explicit live-port override. For real broker sessions, set
+`broker.expected_account_id` in your ignored local config to make the runner
+verify the connected broker account before it submits any order.
 
 Broker execution is selected with `broker.adapter`. The public runner ships
 with `ibkr` for IBKR paper execution and `file` for local adapter plumbing tests
 that persist cash, positions, and submitted order rows to local files. The
 `file` adapter fills at configured static prices and is not a market simulator
-or a substitute for strategy validation.
+or a substitute for strategy validation. The file adapter also exposes a local
+`account_id` so tests and demos can exercise the same expected-account gate
+without connecting to IBKR.
 
 The dashboard exposes public broker capability metadata through `/config_options`
 and the Workbench Broker Boundary panel. Check that panel before paper mode: it

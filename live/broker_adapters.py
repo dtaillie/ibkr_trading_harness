@@ -72,6 +72,9 @@ class BrokerAdapter(Protocol):
     def get_positions(self) -> dict[str, float]:
         """Return current positions as symbol -> quantity."""
 
+    def get_account_ids(self) -> list[str]:
+        """Return public broker account identifiers visible to this adapter."""
+
     def submit_order(self, order: Order) -> Fill | None:
         """Submit an order and return a fill if one occurred."""
 
@@ -158,6 +161,9 @@ class IBKRBrokerAdapter:
     def get_positions(self) -> dict[str, float]:
         return self.broker.get_positions()
 
+    def get_account_ids(self) -> list[str]:
+        return self.broker.managed_accounts()
+
     def submit_order(self, order: Order) -> Fill | None:
         return self.broker.submit_order(order)
 
@@ -177,6 +183,7 @@ class FileBrokerAdapter:
         self.starting_cash = float(config.get("starting_cash", 10000.0))
         self.commission_bps = float(config.get("commission_bps", 0.0))
         self.allow_short = bool(config.get("allow_short", False))
+        self.account_id = str(config.get("account_id", "file-paper"))
         self.last_order_status = ""
         self.last_order_message = ""
         self.state: dict[str, Any] = {}
@@ -188,11 +195,13 @@ class FileBrokerAdapter:
                 "cash": self.starting_cash,
                 "positions": {},
                 "prices": self.prices,
+                "account_id": self.account_id,
                 "updated_at": datetime.now(timezone.utc),
             }
             write_json(self.state_path, state)
         state_prices = state.get("prices") if isinstance(state.get("prices"), dict) else {}
         state["prices"] = {**{str(k).upper(): float(v) for k, v in state_prices.items()}, **self.prices}
+        state.setdefault("account_id", self.account_id)
         self.state = state
 
     def disconnect(self) -> None:
@@ -210,6 +219,12 @@ class FileBrokerAdapter:
             self.connect()
         raw = self.state.get("positions") if isinstance(self.state.get("positions"), dict) else {}
         return {str(symbol).upper(): float(qty) for symbol, qty in raw.items() if abs(float(qty)) > 1e-9}
+
+    def get_account_ids(self) -> list[str]:
+        if not self.state:
+            self.connect()
+        account_id = str(self.state.get("account_id") or self.account_id).strip()
+        return [account_id] if account_id else []
 
     def price_for(self, symbol: str) -> float | None:
         prices = self.state.get("prices") if isinstance(self.state.get("prices"), dict) else {}
