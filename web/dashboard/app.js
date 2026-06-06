@@ -3094,6 +3094,17 @@ function statusRollupSeriesStats(rollups) {
   };
 }
 
+function trailingStatusRollups(rollups, days) {
+  const rows = (rollups || []).filter((item) => item.day && timestampMillis(`${item.day}T00:00:00Z`) !== null);
+  if (!rows.length) return [];
+  const latestMillis = Math.max(...rows.map((item) => timestampMillis(`${item.day}T00:00:00Z`)));
+  const cutoffMillis = latestMillis - Math.max(0, Number(days || 1) - 1) * 86400000;
+  return rows.filter((item) => {
+    const millis = timestampMillis(`${item.day}T00:00:00Z`);
+    return millis !== null && millis >= cutoffMillis && millis <= latestMillis;
+  }).sort((left, right) => String(left.day || "").localeCompare(String(right.day || "")));
+}
+
 function rollupReturnClass(value) {
   const number = finiteNumber(value);
   if (number === null) return statusClass("warn");
@@ -3106,6 +3117,86 @@ function drawdownClass(value) {
   if (number <= -10) return statusClass("bad");
   if (number < 0) return statusClass("warn");
   return statusClass("ok");
+}
+
+function livePeriodTile(label, value, detail, className) {
+  return `
+    <div class="status-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong class="${escapeHtml(className || statusClass("unknown"))}">${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `;
+}
+
+function renderPerformanceLivePeriodSummary() {
+  if (!$("performance-live-period-note") || !$("performance-live-period-cards")) return;
+  const payload = state.statusEquityRollups || {};
+  const rollups = sortedStatusRollups();
+  if (!rollups.length) {
+    $("performance-live-period-note").textContent = "No status-history equity rollups loaded";
+    $("performance-live-period-cards").innerHTML = [
+      livePeriodTile("Latest Day", "n/a", "Publish status snapshots during paper/live sessions.", statusClass("warn")),
+      livePeriodTile("Recent", "n/a", "Trailing period summaries need at least one rollup day.", statusClass("warn")),
+      livePeriodTile("All Available", "n/a", "No sanitized live/paper equity path is available yet.", statusClass("warn")),
+    ].join("");
+    return;
+  }
+  const periodRollups = payload.period_rollups || {};
+  const latestDay = rollups[rollups.length - 1];
+  const weekStats = statusRollupSeriesStats(trailingStatusRollups(rollups, 7));
+  const threeMonthStats = statusRollupSeriesStats(trailingStatusRollups(rollups, 90));
+  const allStats = statusRollupSeriesStats(rollups);
+  const latestMonth = ((periodRollups.month || [])[0]) || null;
+  const latestYear = ((periodRollups.year || [])[0]) || null;
+  const nodeCount = new Set(rollups.map((item) => text(item.node_id))).size;
+  const latestActivity = `${numberText(latestDay.order_count || 0, 0)}O / ${numberText(latestDay.fill_count || 0, 0)}F / ${numberText(latestDay.rejection_count || 0, 0)}R`;
+  $("performance-live-period-note").textContent = payload.generated_at
+    ? `${numberText(rollups.length, 0)} live/paper day row${rollups.length === 1 ? "" : "s"} from ${numberText(nodeCount, 0)} node${nodeCount === 1 ? "" : "s"}; latest ${text(payload.generated_at)}`
+    : `${numberText(rollups.length, 0)} live/paper day row${rollups.length === 1 ? "" : "s"} loaded`;
+  const tiles = [
+    livePeriodTile(
+      "Latest Day",
+      pctText(latestDay.daily_return_pct),
+      `${text(latestDay.day)} ${text(latestDay.node_id)}; ${money(latestDay.start_equity)} to ${money(latestDay.end_equity)}; ${latestActivity}.`,
+      rollupReturnClass(latestDay.daily_return_pct),
+    ),
+    livePeriodTile(
+      "Last 7 Days",
+      pctText(weekStats.total_return_pct),
+      `${text(weekStats.first_day)} to ${text(weekStats.last_day)} from status-history equity.`,
+      rollupReturnClass(weekStats.total_return_pct),
+    ),
+    livePeriodTile(
+      "Month",
+      pctText(latestMonth && latestMonth.total_return_pct),
+      latestMonth
+        ? `${text(latestMonth.label)}; ${numberText(latestMonth.day_count, 0)} day${latestMonth.day_count === 1 ? "" : "s"} / ${numberText(latestMonth.snapshot_count, 0)} snapshots.`
+        : "No monthly status-history summary yet.",
+      rollupReturnClass(latestMonth && latestMonth.total_return_pct),
+    ),
+    livePeriodTile(
+      "Last 3 Months",
+      pctText(threeMonthStats.total_return_pct),
+      `${text(threeMonthStats.first_day)} to ${text(threeMonthStats.last_day)} from trailing rollup rows.`,
+      rollupReturnClass(threeMonthStats.total_return_pct),
+    ),
+    livePeriodTile(
+      "Year",
+      pctText(latestYear && latestYear.total_return_pct),
+      latestYear
+        ? `${text(latestYear.label)}; ${numberText(latestYear.day_count, 0)} day${latestYear.day_count === 1 ? "" : "s"} / ${numberText(latestYear.snapshot_count, 0)} snapshots.`
+        : "No yearly status-history summary yet.",
+      rollupReturnClass(latestYear && latestYear.total_return_pct),
+    ),
+    livePeriodTile(
+      "All / Drawdown",
+      `${pctText(allStats.total_return_pct)} / ${pctText(allStats.max_drawdown_pct)}`,
+      `${text(allStats.first_day)} to ${text(allStats.last_day)}; drawdown from end-of-day equity.`,
+      drawdownClass(allStats.max_drawdown_pct),
+    ),
+  ];
+  $("performance-live-period-cards").innerHTML = tiles.join("");
 }
 
 function renderOverviewPerformanceSnapshot() {
@@ -3935,6 +4026,7 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceLivePeriodSummary();
   renderPerformanceStory({
     source,
     window,

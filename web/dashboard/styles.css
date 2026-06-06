@@ -1106,6 +1106,7 @@ section {
 .action-card-grid,
 .overview-workflow-grid,
 .performance-workflow-grid,
+.performance-period-summary-grid,
 .data-workflow-grid,
 .fetch-workflow-grid,
 .workbench-workflow-grid,
@@ -1214,6 +1215,10 @@ section {
 }
 
 .performance-story-section {
+  margin: 12px 0;
+}
+
+.performance-live-period-panel {
   margin: 12px 0;
 }
 

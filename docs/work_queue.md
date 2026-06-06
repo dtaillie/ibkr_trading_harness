@@ -201,8 +201,10 @@ strategy-private.
       Overview/Performance pages display realized/unrealized PnL when those
       fields are available.
   - today's return, week/month return, cumulative paper return
-    - partial; cumulative/latest artifact return is available in Performance,
-      period-specific live paper summaries are not implemented
+    - partial; cumulative/latest artifact return is available in Performance.
+      Performance Home now also shows live/paper latest-day, trailing 7-day,
+      month, trailing 3-month, year, all-available, and drawdown summaries from
+      persisted status-history rollups.
   - latest bar time, latest signal time, latest order/fill/rejection
     - partial; latest signal and fill are shown from recent events, latest bar
       and rejection need dedicated telemetry fields
@@ -300,6 +302,10 @@ strategy-private.
     session, reviewing risk, inspecting trades, opening rollups, comparing a
     benchmark, and verifying the selected source evidence, giving the page a
     task-oriented first screen before detailed charts/tables.
+  - partial; Performance Home now includes a Live / Paper Periods summary strip
+    that surfaces latest-day, recent, month/year, all-available return, and
+    drawdown from sanitized status-history equity rollups before users open the
+    rollup tables.
   - partial; Overview now surfaces a smaller current Performance Snapshot from
     status-history rollups so the common "how is it doing today/recently?"
     question is visible before entering the full Performance page.
