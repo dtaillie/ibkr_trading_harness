@@ -1085,8 +1085,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; crypto parquet discovery is covered, and minute heatmap
       completeness now carries storage-session metadata with a 24/7 crypto
       regression test. Coverage and gap summaries now carry storage-session
-      metadata with a 24/7 crypto calendar-gap fixture; broader multi-session
-      fixture coverage remains open.
+      metadata with a 24/7 crypto calendar-gap fixture. Extended-hours stock
+      fixtures now also cover catalog, coverage, gap summary, and gap CSV
+      export storage-session metadata alongside the existing RTH catalog tests.
   - malformed/skipped files with visible reasons
     - partial; parser failures and unsupported files are covered by catalog
       scan diagnostics. Catalog rows and Data Detail now also warn on malformed

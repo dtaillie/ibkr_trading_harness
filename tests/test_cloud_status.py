@@ -1931,6 +1931,58 @@ def test_cloud_status_server_serves_data_gap_summary(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_marks_extended_session_in_catalog_coverage_and_gaps(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "EXT_5min_1D_now_TRADES_SMART_rthFalse.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+                "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+                "2026-01-02T14:40:00Z,100.75,102,100.5,101.25,900",
+                "2026-01-02T15:10:00Z,101.25,102,101,101.5,900",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=5&preview_points=3", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+
+        dataset = catalog["datasets"][0]
+        assert dataset["symbol"] == "EXT"
+        assert dataset["storage_session"] == "extended"
+        assert catalog["storage_session_counts"] == {"extended": 1}
+        assert catalog["symbol_summaries"][0]["storage_sessions"] == ["extended"]
+
+        with request.urlopen(f"{base}/data_coverage?limit=5&max_symbols=5&max_dates=5", timeout=5) as resp:
+            coverage = json.loads(resp.read().decode("utf-8"))
+        assert coverage["symbols"][0]["storage_sessions"] == ["extended"]
+        assert coverage["datasets"][0]["storage_session"] == "extended"
+
+        with request.urlopen(f"{base}/data_gap_summary?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            summary = json.loads(resp.read().decode("utf-8"))
+        assert summary["gap_rows"][0]["symbol"] == "EXT"
+        assert summary["gap_rows"][0]["storage_session"] == "extended"
+        assert summary["gap_rows"][0]["estimated_missing_intervals"] > 0
+
+        with request.urlopen(f"{base}/data_gap_summary_export?catalog_limit=5&top_limit=5", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        gap_export = next(row for row in exported if row["row_type"] == "timestamp_gap")
+        assert gap_export["symbol"] == "EXT"
+        assert gap_export["storage_session"] == "extended"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_marks_crypto_calendar_gaps_as_24_7(tmp_path):
     data_root = tmp_path / "data"
     crypto_root = data_root / "cache" / "zerohash"
