@@ -13300,6 +13300,172 @@ function handleOperationsHomeAction(action) {
   if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
+function commandStatusIsFailed(status) {
+  const value = String(status || "").toLowerCase();
+  return ["failed", "error", "rejected", "cancelled", "canceled"].includes(value);
+}
+
+function newestRemoteNodeId() {
+  const nodes = ((state.remoteNodes && state.remoteNodes.nodes) || []).slice();
+  nodes.sort((left, right) => (
+    (timestampMillis(right.received_at || right.generated_at) || 0)
+    - (timestampMillis(left.received_at || left.generated_at) || 0)
+  ));
+  return nodes.length ? text(nodes[0].node_id) : "";
+}
+
+function controlAssistantModel() {
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failedResults = results.filter((result) => commandStatusIsFailed(result.status));
+  const latestResult = results.slice().reverse()[0] || null;
+  const audit = state.commandAudit || {};
+  const events = audit.events || [];
+  const integrity = audit.integrity || {};
+  const integrityStatus = String(integrity.status || "").toLowerCase();
+  const signatureStatus = String(integrity.signature_status || "").toLowerCase();
+  const auditBad = ["broken", "invalid", "error"].includes(integrityStatus) || ["invalid", "failed", "missing_key"].includes(signatureStatus);
+  const auditWarn = !auditBad && (!events.length || ["legacy", "unchecked", "missing"].includes(integrityStatus) || ["disabled", "unsigned", "mixed"].includes(signatureStatus));
+  const node = ($("command-node") && $("command-node").value.trim()) || newestRemoteNodeId();
+  let title = "Control Queue Clear";
+  let summary = "No pending or failed commands are visible; read-only status checks are the safest next action.";
+  if (!node) {
+    title = "Pick A Remote Node";
+    summary = "No node is selected and no remote node snapshot is loaded, so queued commands would not have a clear target.";
+  } else if (failedResults.length) {
+    title = "Review Failed Command";
+    summary = `${numberText(failedResults.length, 0)} recent command result${failedResults.length === 1 ? "" : "s"} failed, errored, or were rejected.`;
+  } else if (pendingCommands.length) {
+    title = "Command Pending";
+    summary = `${numberText(pendingCommands.length, 0)} command${pendingCommands.length === 1 ? "" : "s"} waiting for a worker result.`;
+  } else if (auditBad || auditWarn) {
+    title = auditBad ? "Audit Integrity Blocker" : "Audit Needs Review";
+    summary = `Receiver audit ${text(integrity.status || "not loaded")}; signature ${text(integrity.signature_status || "not loaded")}.`;
+  } else if (!commands.length && !results.length) {
+    title = "Ready For First Status Check";
+    summary = "Queue a read-only status request to confirm the worker can receive, execute, and audit controls.";
+  }
+  const cards = [
+    {
+      status: node ? "ok" : "warn",
+      label: "Target",
+      title: node || "No node",
+      note: node ? "Newest or selected remote node is available." : "Load remote snapshots or type a node ID.",
+    },
+    {
+      status: pendingCommands.length ? "warn" : "ok",
+      label: "Pending",
+      title: numberText(pendingCommands.length, 0),
+      note: pendingCommands.length ? `${text(pendingCommands[0].action)} waiting since ${text(pendingCommands[0].created_at)}.` : "No queued command is waiting.",
+    },
+    {
+      status: failedResults.length ? "bad" : latestResult ? "ok" : "warn",
+      label: "Results",
+      title: failedResults.length ? `${numberText(failedResults.length, 0)} failed` : latestResult ? text(latestResult.status || "received") : "none",
+      note: latestResult ? `${text(latestResult.action || latestResult.command_id)} / ${timestampAgeLabel(latestResult.received_at)}.` : "No command result rows loaded yet.",
+    },
+    {
+      status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
+      label: "Audit",
+      title: text(integrity.status || "not loaded"),
+      note: `${numberText(events.length, 0)} rows / signature ${text(integrity.signature_status || "n/a")}.`,
+    },
+  ];
+  const actions = [
+    {
+      action: "use-node",
+      title: node ? "Use Newest Node" : "Find Node",
+      note: node ? `Fill command target with ${node}.` : "Open Remote Nodes to inspect available targets.",
+      label: node ? "Use Node" : "Remote",
+      disabled: !node && !newestRemoteNodeId(),
+    },
+    {
+      action: "request-status",
+      title: "Queue Status Check",
+      note: "Prepare a read-only request_status command for the selected node.",
+      label: "Prepare",
+      disabled: !node,
+    },
+    {
+      action: failedResults.length ? "review-failed" : pendingCommands.length ? "review-pending" : "review-audit",
+      title: failedResults.length ? "Review Failed Result" : pendingCommands.length ? "Review Pending Command" : "Review Audit",
+      note: failedResults.length
+        ? "Jump to command results and inspect the latest failure payload."
+        : pendingCommands.length ? "Jump to queued commands before adding another control." : "Jump to command audit integrity and event rows.",
+      label: "Review",
+      disabled: false,
+    },
+    {
+      action: "export-audit",
+      title: "Export Audit CSV",
+      note: "Download sanitized command audit rows for retention or off-host review.",
+      label: "Export",
+      disabled: false,
+    },
+  ];
+  return { title, summary, cards, actions };
+}
+
+function renderControlAssistant() {
+  if (!$("control-assistant-title") || !$("control-assistant-cards") || !$("control-assistant-actions")) return;
+  const model = controlAssistantModel();
+  $("control-assistant-title").textContent = model.title;
+  $("control-assistant-summary").textContent = model.summary;
+  $("control-assistant-note").textContent = `${numberText((state.commands || []).length, 0)} queued command row${(state.commands || []).length === 1 ? "" : "s"} / ${numberText((state.results || []).length, 0)} result row${(state.results || []).length === 1 ? "" : "s"}`;
+  $("control-assistant-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("control-assistant-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="control-assistant-action ${action.disabled ? "secondary" : ""}" data-control-assistant-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleControlAssistantAction(action) {
+  const node = newestRemoteNodeId() || ($("command-node") && $("command-node").value.trim()) || "";
+  if (action === "use-node") {
+    if (node) $("command-node").value = node;
+    $("command-node").focus();
+    $("last-refresh").textContent = node ? `Command target set to ${node}` : "Open Remote Nodes to choose a command target";
+    renderControlAssistant();
+    return;
+  }
+  if (action === "request-status") {
+    if (node && !$("command-node").value.trim()) $("command-node").value = node;
+    $("command-action").value = "request_status";
+    updateCommandFields();
+    $("command-form").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Read-only request_status command prepared; review target before queueing";
+    renderControlAssistant();
+    return;
+  }
+  if (action === "review-pending") {
+    $("commands-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "review-failed") {
+    $("results-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "export-audit") {
+    exportCommandAuditCsv().catch((err) => {
+      $("last-refresh").textContent = `Command audit CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  $("command-audit-body").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 function remoteNodeFilters() {
   return {
     text: ($("remote-filter-text").value || "").trim().toLowerCase(),
@@ -13898,6 +14064,7 @@ function renderAll() {
   renderCommands();
   renderResults();
   renderCommandAudit();
+  renderControlAssistant();
   renderOperationsHome();
   renderHelpSetupGaps();
   renderPageIntro();
@@ -15207,6 +15374,11 @@ function init() {
       handleOperationsHomeAction(button.dataset.operationsHomeAction || "");
     });
   }
+  $("control-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-control-assistant-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleControlAssistantAction(target.dataset.controlAssistantAction || "");
+  });
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);

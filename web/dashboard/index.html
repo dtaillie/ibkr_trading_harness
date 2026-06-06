@@ -2946,6 +2946,22 @@
 
     <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
+        <h2>Control Assistant</h2>
+        <span id="control-assistant-note" class="section-note">Command queue, result, and audit state before issuing remote controls</span>
+      </div>
+      <section class="control-assistant">
+        <div>
+          <span class="eyebrow">Control Queue</span>
+          <strong id="control-assistant-title">No command state loaded</strong>
+          <span id="control-assistant-summary">Refresh operations telemetry before queueing commands.</span>
+        </div>
+        <div id="control-assistant-cards" class="control-assistant-cards"></div>
+        <div id="control-assistant-actions" class="control-assistant-actions"></div>
+      </section>
+    </section>
+
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
+      <div class="section-head">
         <h2>Supervisors</h2>
       </div>
       <div class="table-wrap">

@@ -97,6 +97,9 @@ strategy-private.
     lenses with deep-linkable hashes such as `#operations/control`, separating
     local readiness, remote monitoring, command controls, and maintenance
     diagnostics.
+  - partial; Operations Control now includes a Control Assistant that summarizes
+    target-node, pending-command, failed-result, and command-audit state before
+    the dense supervisors, queue, result, and audit tables.
   - partial; Help now has Home / Pages / Workflows / Data / Boundary / Docs
     lenses with deep-linkable hashes such as `#help/workflows`, separating
     first-step routing, page guide, workflow recipes, data troubleshooting,

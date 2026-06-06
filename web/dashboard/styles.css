@@ -1596,7 +1596,8 @@ section {
   line-height: 1.35;
 }
 
-.data-search-assistant {
+.data-search-assistant,
+.control-assistant {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
   gap: 12px;
@@ -1609,17 +1610,21 @@ section {
 }
 
 .data-search-assistant > div:first-child strong,
-.data-search-assistant > div:first-child span {
+.data-search-assistant > div:first-child span,
+.control-assistant > div:first-child strong,
+.control-assistant > div:first-child span {
   display: block;
 }
 
-.data-search-assistant > div:first-child strong {
+.data-search-assistant > div:first-child strong,
+.control-assistant > div:first-child strong {
   margin-top: 8px;
   font-size: 22px;
   line-height: 1.15;
 }
 
-.data-search-assistant > div:first-child > span:last-of-type {
+.data-search-assistant > div:first-child > span:last-of-type,
+.control-assistant > div:first-child > span:last-of-type {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -1627,21 +1632,24 @@ section {
   overflow-wrap: anywhere;
 }
 
-.data-search-cards {
+.data-search-cards,
+.control-assistant-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   min-width: 0;
 }
 
-.data-search-actions {
+.data-search-actions,
+.control-assistant-actions {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 8px;
 }
 
-.data-search-action-card {
+.data-search-action-card,
+.control-assistant-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -1655,13 +1663,18 @@ section {
 
 .data-search-action-card strong,
 .data-search-action-card span,
-.data-search-action-card small {
+.data-search-action-card small,
+.control-assistant-action strong,
+.control-assistant-action span,
+.control-assistant-action small {
   display: block;
   overflow-wrap: anywhere;
 }
 
 .data-search-action-card span,
-.data-search-action-card small {
+.data-search-action-card small,
+.control-assistant-action span,
+.control-assistant-action small {
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
@@ -1673,6 +1686,24 @@ section {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.control-assistant-action {
+  color: var(--text);
+  text-align: left;
+}
+
+.control-assistant-action span {
+  min-width: 0;
+}
+
+.control-assistant-action strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.control-assistant-action b {
+  white-space: nowrap;
 }
 
 .fetch-search-assistant {
@@ -3183,7 +3214,11 @@ footer {
   .runs-search-assistant,
   .runs-search-cards,
   .runs-search-actions,
-  .runs-search-action-card {
+  .runs-search-action-card,
+  .control-assistant,
+  .control-assistant-cards,
+  .control-assistant-actions,
+  .control-assistant-action {
     grid-template-columns: 1fr;
   }
 
