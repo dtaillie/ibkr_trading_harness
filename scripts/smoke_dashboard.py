@@ -347,6 +347,7 @@ def run_smoke(
             "export-data-catalog-scan-csv",
             "data-storage-audit-note",
             "data-storage-scan-limit",
+            "data-storage-visibility-summary",
             "data-storage-audit-body",
             "data-symbol-browser-input",
             "data-symbol-browser-dataset",

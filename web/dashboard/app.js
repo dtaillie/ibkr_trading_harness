@@ -4609,6 +4609,7 @@ function renderDataStorageAudit() {
   $("data-storage-audit-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  $("data-storage-visibility-summary").innerHTML = dataStorageVisibilitySummaryCards(audit);
   $("data-storage-audit-actions").innerHTML = dataStorageAuditActions(audit);
   const rows = [
     ...configuredRows.map((item) => ({ ...item, scope: "configured" })),
@@ -4641,6 +4642,65 @@ function renderDataStorageAudit() {
         ]);
       }).join("")
     : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function dataStorageVisibilitySummaryCards(audit = {}) {
+  if (!audit.generated_at) {
+    return `
+      <div class="empty-card">
+        <span>Visibility</span>
+        <strong>No Audit Loaded</strong>
+        <small>Refresh Data Library to compare disk files with catalog-visible rows.</small>
+      </div>
+    `;
+  }
+  const summary = audit.visibility_summary || {};
+  const configuredFiles = Number(audit.configured_file_count || 0);
+  const configuredVisible = Number(summary.catalog_visible_configured_file_count ?? audit.configured_visible_count ?? 0);
+  const hiddenConfigured = Number(summary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
+  const suggestedFiles = Number(summary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
+  const unsupportedFiles = Number(summary.unsupported_file_count ?? audit.unsupported_file_count ?? 0);
+  const cappedRoots = Number(summary.capped_root_count || 0);
+  const hiddenTotal = Number(summary.hidden_total_file_count ?? (hiddenConfigured + suggestedFiles));
+  const visibilityPct = finiteNumber(summary.configured_visibility_pct);
+  const hiddenStatus = hiddenTotal ? "warn" : configuredFiles ? "ok" : "bad";
+  const cards = [
+    {
+      status: configuredFiles ? hiddenConfigured ? "warn" : "ok" : suggestedFiles ? "warn" : "bad",
+      label: "Configured Visibility",
+      title: visibilityPct === null ? "n/a" : pctText(visibilityPct),
+      note: `${numberText(configuredVisible, 0)} of ${numberText(configuredFiles, 0)} configured-root saved file${configuredFiles === 1 ? "" : "s"} are catalog-visible.`,
+    },
+    {
+      status: hiddenStatus,
+      label: "Hidden From Catalog",
+      title: numberText(hiddenTotal, 0),
+      note: `${numberText(hiddenConfigured, 0)} hidden configured / ${numberText(suggestedFiles, 0)} suggested-root file${suggestedFiles === 1 ? "" : "s"}.`,
+    },
+    {
+      status: unsupportedFiles ? "warn" : "ok",
+      label: "Unsupported",
+      title: numberText(unsupportedFiles, 0),
+      note: unsupportedFiles
+        ? `${countSummary(audit.unsupported_extension_counts)} extensions are skipped by the catalog.`
+        : "No unsupported files found in audited roots.",
+    },
+    {
+      status: cappedRoots ? "warn" : "ok",
+      label: "Scan Caps",
+      title: numberText(cappedRoots, 0),
+      note: cappedRoots
+        ? `${numberText(cappedRoots, 0)} root${cappedRoots === 1 ? "" : "s"} hit the ${numberText(audit.scan_limit, 0)} per-root disk scan limit.`
+        : "No audited root hit the selected disk scan limit.",
+    },
+  ];
+  return cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function dataStorageAuditActions(audit = {}) {

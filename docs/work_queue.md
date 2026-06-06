@@ -533,6 +533,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       per file, and the dashboard table now surfaces asset/bar/source
       breakdowns per root instead of only extension/source counts.
   - compare files on disk to dashboard-visible catalog rows
+    - partial; the storage-audit endpoint now returns an explicit
+      `visibility_summary`, and Data Library renders Visibility Gap cards for
+      configured-root visibility percentage, hidden configured files,
+      suggested-root files, unsupported files, and scan caps before the dense
+      root table.
   - summarize missing symbols, malformed files, unsupported extensions, and
     capped scans
   - recommend config changes when real cache roots are absent

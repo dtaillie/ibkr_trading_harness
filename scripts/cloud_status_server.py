@@ -2110,6 +2110,14 @@ def build_data_storage_audit(
     hidden_configured_count = sum(int(row.get("hidden_file_count") or 0) for row in configured_rows)
     suggested_file_count = sum(int(row.get("file_count") or 0) for row in suggested_rows)
     unsupported_file_count = sum(int(row.get("unsupported_file_count") or 0) for row in configured_rows + suggested_rows)
+    audited_supported_file_count = configured_file_count + suggested_file_count
+    hidden_total_count = hidden_configured_count + suggested_file_count
+    capped_root_count = sum(1 for row in configured_rows + suggested_rows if row.get("scan_capped"))
+    visibility_pct = (
+        (configured_visible_count / configured_file_count) * 100
+        if configured_file_count
+        else None
+    )
     warnings = []
     if not configured_file_count:
         warnings.append("No CSV/parquet files were found under configured data roots.")
@@ -2144,6 +2152,16 @@ def build_data_storage_audit(
         "hidden_configured_file_count": hidden_configured_count,
         "suggested_file_count": suggested_file_count,
         "unsupported_file_count": unsupported_file_count,
+        "visibility_summary": {
+            "audited_supported_file_count": audited_supported_file_count,
+            "catalog_visible_configured_file_count": configured_visible_count,
+            "hidden_configured_file_count": hidden_configured_count,
+            "suggested_unconfigured_file_count": suggested_file_count,
+            "hidden_total_file_count": hidden_total_count,
+            "unsupported_file_count": unsupported_file_count,
+            "capped_root_count": capped_root_count,
+            "configured_visibility_pct": visibility_pct,
+        },
         "extension_counts": merge_count_maps(configured_rows + suggested_rows, "extension_counts"),
         "unsupported_extension_counts": merge_count_maps(configured_rows + suggested_rows, "unsupported_extension_counts"),
         "asset_class_guess_counts": merge_count_maps(configured_rows + suggested_rows, "asset_class_guess_counts"),

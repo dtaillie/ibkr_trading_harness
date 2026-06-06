@@ -636,6 +636,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-storage-scan-limit" in html
         assert "export-data-catalog-scan-csv" in html
         assert "export-data-storage-audit-csv" in html
+        assert "data-storage-visibility-summary" in html
         assert "data-storage-audit-actions" in html
         assert "data-storage-audit-body" in html
         assert "<th>Assets</th>" in html
@@ -1907,6 +1908,14 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert audit["hidden_configured_file_count"] == 1
         assert audit["suggested_file_count"] == 1
         assert audit["unsupported_file_count"] == 1
+        assert audit["visibility_summary"]["audited_supported_file_count"] == 3
+        assert audit["visibility_summary"]["catalog_visible_configured_file_count"] == 1
+        assert audit["visibility_summary"]["hidden_configured_file_count"] == 1
+        assert audit["visibility_summary"]["suggested_unconfigured_file_count"] == 1
+        assert audit["visibility_summary"]["hidden_total_file_count"] == 2
+        assert audit["visibility_summary"]["unsupported_file_count"] == 1
+        assert audit["visibility_summary"]["capped_root_count"] == 0
+        assert audit["visibility_summary"]["configured_visibility_pct"] == pytest.approx(50.0)
         assert audit["unsupported_extension_counts"] == {".txt": 1}
         assert audit["scan_duration_ms_total"] >= 0
         configured = audit["configured_roots"][0]
