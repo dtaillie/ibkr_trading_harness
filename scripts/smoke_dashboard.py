@@ -322,6 +322,8 @@ def run_smoke(
             "overview-glance-primary",
             "overview-glance-secondary",
             "overview-glance-cards",
+            "overview-workflow-note",
+            "overview-workflow-grid",
             "overview-performance-note",
             "overview-performance-result",
             "overview-performance-summary",

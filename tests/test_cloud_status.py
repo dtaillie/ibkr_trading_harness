@@ -803,6 +803,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-glance-primary" in html
         assert "overview-glance-secondary" in html
         assert "overview-glance-cards" in html
+        assert "overview-workflow-note" in html
+        assert "overview-workflow-grid" in html
+        assert "Start Here" in html
         assert "overview-performance-note" in html
         assert "overview-performance-result" in html
         assert "overview-performance-summary" in html

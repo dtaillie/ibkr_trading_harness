@@ -58,6 +58,11 @@ runner is publishing telemetry, whether Gateway/API is reachable, what mode is
 active, and when the latest decision/account/data timestamps were published.
 The page intro strip changes with each top-level view and gives the fastest
 next step plus the current public telemetry counts for that view.
+Use the Overview Start Here cards as the main workflow launcher:
+Monitor Today, Review Performance, Browse Saved Data, Build And Simulate,
+Inspect Runs And Orders, and Fix Setup. Each card is generated from current
+public-safe telemetry and saved-data state, then links directly to the focused
+dashboard page for that job.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.

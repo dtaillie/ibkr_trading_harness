@@ -3031,6 +3031,7 @@ function renderOverview() {
   });
   renderOverviewPerformanceSnapshot();
   renderOverviewGlance();
+  renderOverviewWorkflowLauncher();
   renderOverviewSessionState();
   renderRuntimeStatus();
   renderOverviewHealth();
@@ -3201,6 +3202,134 @@ function renderOverviewGlance() {
       <strong>${escapeHtml(card.value)}</strong>
       <small>${escapeHtml(card.detail)}</small>
     </div>
+  `).join("");
+}
+
+function workflowHref(target, lens = "") {
+  const view = normalizeView(target || "overview");
+  return lens ? `#${view}/${encodeURIComponent(lens)}` : `#${view}`;
+}
+
+function overviewWorkflowCards() {
+  const payload = state.status || {};
+  const runs = payload.runs || [];
+  const events = runEventRows();
+  const openOrders = currentOpenOrderRows();
+  const latestRejectedOrder = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const rollups = sortedStatusRollups();
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const draftRows = (state.configDrafts && state.configDrafts.drafts) || [];
+  const health = overviewHealthChecks();
+  const badHealth = health.filter((item) => item.status === "bad");
+  const warnHealth = health.filter((item) => item.status === "warn");
+  const glance = overviewGlanceModel();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const positions = nonzeroPositionsFromSource(source);
+  const performanceReady = accountRows.length || rollups.length;
+  const runReady = events.length || runs.length || workbenchRuns.length;
+  const setupStatus = badHealth.length ? "bad" : warnHealth.length ? "warn" : "ok";
+
+  return [
+    {
+      label: "Monitor Today",
+      title: glance.title,
+      value: payload.generated_at ? shortTimestampAgeLabel(payload.generated_at) : "missing",
+      status: glance.status,
+      detail: glance.summary,
+      href: workflowHref(glance.primary.target, glance.primary.lens || ""),
+      cta: glance.primary.label,
+    },
+    {
+      label: "Review Performance",
+      title: performanceReady ? "Results Available" : "No Result Path",
+      value: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : rollups.length ? `${numberText(rollups.length, 0)} day rows` : "empty",
+      status: performanceReady ? "ok" : runs.length ? "warn" : "bad",
+      detail: performanceReady
+        ? "Open the portfolio-first performance page for returns, drawdown, trades, and rollups."
+        : runs.length
+          ? "A run is publishing, but account/performance snapshots are not visible yet."
+          : "No current or archived performance source is loaded.",
+      href: workflowHref("performance", "home"),
+      cta: "Open Performance",
+    },
+    {
+      label: "Browse Saved Data",
+      title: datasets.length ? "Data Library Ready" : "No Data Visible",
+      value: `${numberText(datasets.length, 0)} files`,
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad",
+      detail: fetchManifests.length
+        ? `${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"} are also visible.`
+        : "Use Data Library to see configured roots, suggested roots, symbols, charts, and missing-file diagnostics.",
+      href: workflowHref("data", datasets.length ? "browse" : "diagnostics"),
+      cta: datasets.length ? "Browse Data" : "Fix Data Roots",
+    },
+    {
+      label: "Build And Simulate",
+      title: datasets.length ? "Workbench Available" : "Needs Data",
+      value: draftRows.length ? `${numberText(draftRows.length, 0)} drafts` : "no drafts",
+      status: datasets.length ? draftRows.length ? "ok" : "warn" : "bad",
+      detail: datasets.length
+        ? "Select scanned files, preview timestamp alignment, generate a public-safe draft, then run validation or replay."
+        : "The workbench needs saved datasets before it can build a useful replay or simulated-paper config.",
+      href: workflowHref("workbench", datasets.length ? "builder" : "home"),
+      cta: "Open Workbench",
+    },
+    {
+      label: "Inspect Runs And Orders",
+      title: latestRejectedOrder ? "Order Issue" : openOrders.length ? "Open Orders" : runReady ? "Run Evidence" : "No Runs Yet",
+      value: events.length ? `${numberText(events.length, 0)} events` : runs.length ? `${numberText(runs.length, 0)} runs` : "empty",
+      status: latestRejectedOrder ? "bad" : openOrders.length ? "warn" : runReady ? "ok" : "bad",
+      detail: latestRejectedOrder
+        ? `${text(latestRejectedOrder.symbol)} ${text(latestRejectedOrder.status)} needs review.`
+        : latestFill
+          ? `${text(latestFill.symbol)} fill is visible; inspect timeline and artifacts.`
+          : latestDecision
+            ? `${text(latestDecision.symbol)} decision is visible; inspect order/fill context.`
+            : "Use Runs for current account boundary, orders, fills, rejects, events, and artifacts.",
+      href: workflowHref("runs", openOrders.length || positions.length ? "state" : "runs"),
+      cta: "Open Runs",
+    },
+    {
+      label: "Fix Setup",
+      title: badHealth.length ? badHealth[0].label : warnHealth.length ? warnHealth[0].label : "Setup Looks Clean",
+      value: badHealth.length ? `${numberText(badHealth.length, 0)} blockers` : warnHealth.length ? `${numberText(warnHealth.length, 0)} warnings` : "clean",
+      status: setupStatus,
+      detail: badHealth.length
+        ? badHealth[0].detail
+        : warnHealth.length
+          ? warnHealth[0].detail
+          : "No current overview health blockers. Use Operations for Gateway, supervisors, remote nodes, and command audit.",
+      href: workflowHref(setupStatus === "ok" ? "operations" : "help", setupStatus === "ok" ? "paper" : "workflows"),
+      cta: setupStatus === "ok" ? "Open Operations" : "Open Guide",
+    },
+  ];
+}
+
+function renderOverviewWorkflowLauncher() {
+  if (!$("overview-workflow-grid") || !$("overview-workflow-note")) return;
+  const cards = overviewWorkflowCards();
+  const badCount = cards.filter((card) => card.status === "bad").length;
+  const warnCount = cards.filter((card) => card.status === "warn").length;
+  $("overview-workflow-note").textContent = badCount
+    ? `${numberText(badCount, 0)} workflow${badCount === 1 ? "" : "s"} blocked or empty`
+    : warnCount
+      ? `${numberText(warnCount, 0)} workflow${warnCount === 1 ? "" : "s"} need review`
+      : "Core workflows have usable public-safe evidence";
+  $("overview-workflow-grid").innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
   `).join("");
 }
 

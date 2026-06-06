@@ -38,6 +38,11 @@ strategy-private.
   - partial; Overview now includes a Today at a Glance panel that synthesizes
     telemetry, current-day return, trade state, saved-data visibility, and the
     next best dashboard action before the denser health/order/timeline tables.
+  - partial; Overview now includes a Start Here workflow launcher with
+    public-safe action cards for monitoring today, reviewing performance,
+    browsing saved data, building simulations, inspecting runs/orders, and
+    fixing setup. Each card reflects current telemetry/data/workbench state and
+    deep-links to the focused page for that job.
 - Define page-level user outcomes before adding more controls:
   - Overview should answer whether the current strategy is healthy in under
     ten seconds.

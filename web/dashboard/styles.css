@@ -1104,6 +1104,7 @@ section {
 .position-grid,
 .change-grid,
 .action-card-grid,
+.overview-workflow-grid,
 .broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1119,6 +1120,7 @@ section {
 .position-card,
 .change-card,
 .action-card,
+.workflow-card,
 .empty-card,
 .broker-capability-card {
   padding: 14px;
@@ -1418,6 +1420,11 @@ section {
   margin: 10px 0 12px;
 }
 
+.overview-workflow-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin: 10px 0 12px;
+}
+
 .action-card {
   display: block;
   color: inherit;
@@ -1450,6 +1457,49 @@ section {
 .action-card.status-ok {
   border-color: rgba(31, 122, 76, 0.22);
   background: #f7fbf8;
+}
+
+.workflow-card {
+  display: grid;
+  grid-template-rows: auto auto minmax(48px, 1fr) auto;
+  min-height: 184px;
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.workflow-card:hover {
+  border-color: rgba(8, 122, 82, 0.42);
+  box-shadow: var(--shadow);
+  filter: none;
+  transform: translateY(-1px);
+}
+
+.workflow-card-foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(16, 24, 19, 0.08);
+}
+
+.workflow-card-foot em {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.workflow-card-foot b {
+  flex: 0 0 auto;
+  max-width: 52%;
+  color: var(--accent-dark);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .checklist {
