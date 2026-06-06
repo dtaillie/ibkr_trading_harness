@@ -666,6 +666,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-quality-summary" in html
         assert "data-library-guide-note" in html
         assert "data-library-guide" in html
+        assert "data-catalog-health-note" in html
+        assert "data-catalog-health-cards" in html
         assert "data-catalog-scan-note" in html
         assert "data-catalog-scan-body" in html
         assert "data-storage-scan-limit" in html

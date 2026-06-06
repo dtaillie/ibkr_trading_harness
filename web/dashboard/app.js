@@ -6097,6 +6097,7 @@ function renderDataLibrarySummary() {
     symbols,
   });
   renderDataCatalogScanDiagnostics();
+  renderDataCatalogHealth();
 }
 
 function handleDataSourceMapAction(target) {
@@ -6249,6 +6250,89 @@ function renderDataCatalogScanDiagnostics() {
     : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", "", ""]);
 }
 
+function renderDataCatalogHealth() {
+  if (!$("data-catalog-health-cards") || !$("data-catalog-health-note")) return;
+  const catalog = state.dataCatalog || {};
+  const audit = state.dataStorageAudit || {};
+  const datasets = catalog.datasets || [];
+  const scanRows = catalog.root_summaries || [];
+  const auditSummary = audit.visibility_summary || {};
+  const catalogRows = Number(catalog.count ?? datasets.length ?? 0);
+  const totalRows = Number(catalog.total ?? catalogRows);
+  const symbolCount = Number(catalog.symbol_count || 0);
+  const parserErrors = Number(catalog.error_count || 0)
+    || scanRows.reduce((sum, rowItem) => sum + Number(rowItem.parse_error_count || 0), 0);
+  const unsupportedScanFiles = scanRows.reduce((sum, rowItem) => sum + Number(rowItem.unsupported_file_count || 0), 0);
+  const unsupportedAuditFiles = Number(audit.unsupported_file_count || auditSummary.unsupported_file_count || 0);
+  const unsupportedFiles = Math.max(unsupportedScanFiles, unsupportedAuditFiles);
+  const cappedCatalogRoots = scanRows.filter((rowItem) => rowItem.scan_capped).length;
+  const cappedAuditRoots = Number(auditSummary.capped_root_count || 0);
+  const cappedRoots = Math.max(cappedCatalogRoots, cappedAuditRoots);
+  const hiddenConfigured = Number(auditSummary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
+  const suggestedFiles = Number(auditSummary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
+  const hiddenTotal = Number(auditSummary.hidden_total_file_count ?? (hiddenConfigured + suggestedFiles));
+  const catalogLimit = Number(catalog.limit || 0);
+  const cards = [
+    {
+      status: catalogRows ? "ok" : "bad",
+      label: "Visible Catalog",
+      title: `${numberText(catalogRows, 0)} file${catalogRows === 1 ? "" : "s"}`,
+      note: `${numberText(symbolCount, 0)} symbol${symbolCount === 1 ? "" : "s"} / ${numberText(totalRows, 0)} total row${totalRows === 1 ? "" : "s"} from configured roots.`,
+    },
+    {
+      status: parserErrors ? "bad" : catalogRows ? "ok" : "warn",
+      label: "Malformed",
+      title: numberText(parserErrors, 0),
+      note: parserErrors
+        ? "Parser errors need file-format, timestamp, or OHLC/close column review."
+        : "No parser errors reported by the current catalog scan.",
+    },
+    {
+      status: unsupportedFiles ? "warn" : "ok",
+      label: "Unsupported",
+      title: numberText(unsupportedFiles, 0),
+      note: unsupportedFiles
+        ? "Unsupported extensions are skipped and will not appear in saved-data tables."
+        : "No unsupported saved-data files found in current scan/audit summaries.",
+    },
+    {
+      status: cappedRoots ? "warn" : "ok",
+      label: "Scan Caps",
+      title: numberText(cappedRoots, 0),
+      note: cappedRoots
+        ? `Raise catalog or disk scan limits; current catalog limit is ${numberText(catalogLimit, 0)}.`
+        : "No root reports a catalog or disk scan cap.",
+    },
+    {
+      status: hiddenTotal ? "warn" : audit.generated_at ? "ok" : "waiting",
+      label: "Hidden/Suggested",
+      title: numberText(hiddenTotal, 0),
+      note: audit.generated_at
+        ? `${numberText(hiddenConfigured, 0)} hidden configured / ${numberText(suggestedFiles, 0)} suggested-root file${suggestedFiles === 1 ? "" : "s"}.`
+        : "Run Storage Audit to compare disk files against catalog-visible files.",
+    },
+  ];
+  const nextAction = parserErrors
+    ? "Review Catalog Scan Diagnostics for malformed file samples."
+    : hiddenTotal
+      ? "Inspect Storage Audit and copy data_roots YAML for suggested roots."
+      : cappedRoots
+        ? "Raise catalog or disk scan limits, then refresh Data Library."
+        : unsupportedFiles
+          ? "Check unsupported samples before assuming files are missing."
+          : catalogRows
+            ? "Catalog health looks usable; inspect symbols or compare saved files."
+            : "Configure a saved-data root or run a fetch job, then refresh.";
+  $("data-catalog-health-note").textContent = nextAction;
+  $("data-catalog-health-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function renderDataStorageAudit() {
   const audit = state.dataStorageAudit || {};
   const configuredRows = audit.configured_roots || [];
@@ -6273,6 +6357,7 @@ function renderDataStorageAudit() {
   )).join("");
   $("data-storage-visibility-summary").innerHTML = dataStorageVisibilitySummaryCards(audit);
   $("data-storage-audit-actions").innerHTML = dataStorageAuditActions(audit);
+  renderDataCatalogHealth();
   const rows = [
     ...configuredRows.map((item) => ({ ...item, scope: "configured" })),
     ...suggestedRows.map((item) => ({ ...item, scope: "suggested" })),

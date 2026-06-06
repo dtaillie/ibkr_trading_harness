@@ -669,6 +669,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       root table.
   - summarize missing symbols, malformed files, unsupported extensions, and
     capped scans
+    - partial; Data Library Diagnostics now starts with Catalog Health cards
+      that summarize visible catalog files/symbols, parser errors, unsupported
+      files, scan caps, hidden configured files, suggested-root files, and the
+      next concrete data-visibility action before the scan/audit tables.
   - recommend config changes when real cache roots are absent
     - partial; Storage Audit now renders action cards that recommend adding
       suggested roots, raising scan limits, inspecting hidden configured-root
