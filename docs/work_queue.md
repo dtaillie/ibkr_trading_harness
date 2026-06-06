@@ -1094,6 +1094,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       catalog payloads expose those settings, the dashboard builds its row-count
       control from them, and catalog/scan/coverage/gap/heatmap/storage exports
       use the selected configured limit.
+    - done; the dashboard now distinguishes an untouched static selector value
+      from an intentional user override, so an ignored local config default is
+      honored on the first catalog scan while manual row-limit choices persist.
 
 ## P1: Public workbench usability
 

@@ -16,6 +16,7 @@ const state = {
     catalogError: "",
     diagnosticsError: "",
     diagnosticsRequested: false,
+    catalogLimitTouched: false,
     requestId: 0,
   },
   dataCompare: null,
@@ -254,7 +255,10 @@ function syncDataCatalogLimitControl() {
   const settings = dataCatalogSettings();
   const maxLimit = Math.max(settings.defaultLimit, settings.maxLimit);
   const current = Number(select.value || 0);
-  const selected = current > 0 && current <= maxLimit ? current : settings.defaultLimit;
+  const loadState = dataLibraryLoadState();
+  const selected = loadState.catalogLimitTouched && current > 0 && current <= maxLimit
+    ? current
+    : settings.defaultLimit;
   const candidates = [50, 100, 200, 500, 1000, settings.defaultLimit, maxLimit]
     .filter((value) => value > 0 && value <= maxLimit);
   const unique = Array.from(new Set(candidates)).sort((a, b) => a - b);
@@ -284,6 +288,7 @@ function dataLibraryLoadState() {
       catalogError: "",
       diagnosticsError: "",
       diagnosticsRequested: false,
+      catalogLimitTouched: false,
       requestId: 0,
     };
   }
@@ -13951,6 +13956,7 @@ function init() {
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
   $("data-compare-clear").addEventListener("click", clearCompareSelection);
   $("data-catalog-limit").addEventListener("change", () => {
+    dataLibraryLoadState().catalogLimitTouched = true;
     refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
     });
