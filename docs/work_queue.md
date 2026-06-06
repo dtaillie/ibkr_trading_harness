@@ -74,6 +74,10 @@ strategy-private.
     with deep-linkable hashes such as `#performance/trades`, keeping the
     default result/risk/chart view separate from trade tables, rollup archives,
     and metric caveats.
+  - partial; Data Library now has Home / Browse / Inspect / Compare /
+    Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
+    root visibility, catalog browsing, saved-file inspection, comparisons, and
+    storage diagnostics are no longer one continuous page.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -451,6 +455,10 @@ strategy-private.
     - partial; Performance now defaults to a Home lens with the result, story,
       latest equity, intraday session, and core charts, while Trades, Rollups,
       and Diagnostics carry the denser tables and context.
+    - partial; Data Library now defaults to a Home lens and moves symbol
+      browsing, file inspection, comparisons, and storage diagnostics into
+      explicit focus lenses instead of showing every saved-data workflow at
+      once.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
@@ -539,6 +547,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     updates.
 - Add a real Data Library page:
   - symbol search
+    - partial; the Data Library focus lens lets users start with Home, jump to
+      Browse for symbol search/table work, Inspect for saved-file charts,
+      Compare for multi-file overlays, or Diagnostics for storage/root issues.
   - asset class filter: stock, ETF, crypto, unknown
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown

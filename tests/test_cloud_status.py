@@ -644,6 +644,13 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-body" in html
         assert "data-root-cards" in html
         assert "copy-data-roots-yaml" in html
+        assert "data-lens-title" in html
+        assert "data-lens-note" in html
+        assert "data-lens-home" in html
+        assert "data-lens-browse" in html
+        assert "data-lens-inspect" in html
+        assert "data-lens-compare" in html
+        assert "data-lens-diagnostics" in html
         assert "data-home-title" in html
         assert "data-home-filtered-count" in html
         assert "data-home-breakdown" in html

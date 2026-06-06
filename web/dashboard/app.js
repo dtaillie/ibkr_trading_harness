@@ -292,6 +292,11 @@ function normalizePerformanceLens(lens) {
   return new Set(["home", "trades", "rollups", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizeDataLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "browse", "inspect", "compare", "diagnostics"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
@@ -302,6 +307,12 @@ function performanceLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "performance") return "";
   return parts.hasExplicitLens ? normalizePerformanceLens(parts.lens) : "";
+}
+
+function dataLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "data") return "";
+  return parts.hasExplicitLens ? normalizeDataLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -324,6 +335,17 @@ function selectedPerformanceLens() {
     return "home";
   }
   return normalizePerformanceLens(sessionStorage.getItem("dashboardPerformanceLens") || "home");
+}
+
+function selectedDataLens() {
+  const hashLens = dataLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "data" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeDataLens(sessionStorage.getItem("dashboardDataLens") || "home");
 }
 
 function viewFromHash() {
@@ -354,6 +376,9 @@ function setActiveView(view) {
   }
   if (targetView === "performance") {
     applyPerformanceLens(selectedPerformanceLens());
+  }
+  if (targetView === "data") {
+    applyDataLens(selectedDataLens());
   }
 }
 
@@ -472,6 +497,66 @@ function navigateToPerformanceLens(lens) {
     return;
   }
   setActiveView("performance");
+}
+
+function dataLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Root visibility, loaded symbols, best matches, and next action.",
+    },
+    browse: {
+      title: "Browse",
+      note: "Symbol browser, symbol directory, catalog filters, and saved-file table.",
+    },
+    inspect: {
+      title: "Inspect",
+      note: "Offline saved-file viewer with chart, gaps, health, exports, and Workbench handoff.",
+    },
+    compare: {
+      title: "Compare",
+      note: "Normalized saved-data overlays across symbols, files, bars, and date ranges.",
+    },
+    diagnostics: {
+      title: "Diagnostics",
+      note: "Root visibility, scan diagnostics, storage audit, coverage, gaps, and missing-symbol clues.",
+    },
+  };
+  return content[normalizeDataLens(lens)] || content.home;
+}
+
+function applyDataLens(lens) {
+  const selected = normalizeDataLens(lens);
+  sessionStorage.setItem("dashboardDataLens", selected);
+  for (const element of document.querySelectorAll('[data-view="data"], [data-data-lens]')) {
+    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view !== "data") continue;
+    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view === "data" && !element.dataset.dataLens) {
+      element.hidden = false;
+      continue;
+    }
+    const configured = String(element.dataset.dataLens || "").trim();
+    if (!configured) continue;
+    const lenses = new Set(configured.split(/\s+/).filter(Boolean));
+    element.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-data-lens-target]")) {
+    const active = normalizeDataLens(button.dataset.dataLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = dataLensContent(selected);
+  if ($("data-lens-title")) $("data-lens-title").textContent = content.title;
+  if ($("data-lens-note")) $("data-lens-note").textContent = content.note;
+}
+
+function navigateToDataLens(lens) {
+  const selected = normalizeDataLens(lens);
+  const nextHash = selected === "home" ? "#data" : `#data/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("data");
 }
 
 function pageIntroAction(id, action) {
@@ -982,7 +1067,7 @@ async function openFirstConfigDatasetDetail() {
     return;
   }
   await loadDataDetail(selected[0].path, { resetControls: true });
-  navigateToView("data");
+  navigateToDataLens("inspect");
   if ($("data-detail-form")) $("data-detail-form").scrollIntoView({ block: "start", behavior: "smooth" });
   $("last-refresh").textContent = `Opened ${text(selected[0].symbol)} from Workbench selected data`;
 }
@@ -1001,7 +1086,7 @@ async function compareConfigDatasets() {
   $("data-compare-end").value = range.end;
   renderDataCompareControls();
   await loadDataCompare();
-  navigateToView("data");
+  navigateToDataLens("compare");
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
   $("last-refresh").textContent = `Compared ${numberText(selected.length, 0)} Workbench selected dataset${selected.length === 1 ? "" : "s"}`;
 }
@@ -7273,7 +7358,7 @@ function applyFetchOutputDataFilter() {
   $("data-filter-source").value = "";
   $("data-filter-session").value = "";
   $("data-filter-sort").value = "modified_desc";
-  navigateToView("data");
+  navigateToDataLens("browse");
   renderDataCatalog();
   $("last-refresh").textContent = `Data Library filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
@@ -7338,7 +7423,7 @@ async function compareFetchOutputs() {
   $("data-compare-end").value = dateInputValueFromTimestamp(plan.range_end || parameters.end);
   renderDataCompareControls();
   await loadDataCompare();
-  navigateToView("data");
+  navigateToDataLens("compare");
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
   $("last-refresh").textContent = `Compared ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
@@ -10764,6 +10849,7 @@ async function loadDataDetail(path, { resetControls = false } = {}) {
   const response = await fetchJson(`/data_detail?${dataDetailQuery(path)}`);
   state.dataDetail = response;
   renderDataDetail();
+  if (activeView() === "data") applyDataLens("inspect");
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -10841,6 +10927,7 @@ async function loadDataCompare(event) {
   });
   state.dataCompare = response.comparison || {};
   renderDataCompare();
+  if (activeView() === "data") applyDataLens("compare");
   $("last-refresh").textContent = `Data comparison loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -10870,6 +10957,7 @@ async function diagnoseDataSymbol(event) {
   const response = await fetchJson(`/data_symbol_diagnostic?symbol=${encodeURIComponent(symbol)}&limit=${catalogLimit}`);
   state.symbolDiagnostic = response;
   renderSymbolDiagnostic();
+  if (activeView() === "data") applyDataLens("diagnostics");
   $("last-refresh").textContent = `Symbol diagnostic loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -11520,6 +11608,9 @@ function init() {
   }
   for (const button of document.querySelectorAll("[data-performance-lens-target]")) {
     button.addEventListener("click", () => navigateToPerformanceLens(button.dataset.performanceLensTarget));
+  }
+  for (const button of document.querySelectorAll("[data-data-lens-target]")) {
+    button.addEventListener("click", () => navigateToDataLens(button.dataset.dataLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 

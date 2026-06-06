@@ -841,7 +841,21 @@
           <span id="data-catalog-errors" class="section-note"></span>
         </span>
       </div>
-      <div class="data-library-summary">
+      <div class="overview-lens-bar data-lens-bar" aria-label="Data Library focus">
+        <div>
+          <span class="eyebrow">Data Focus</span>
+          <strong id="data-lens-title">Home</strong>
+          <small id="data-lens-note">Root visibility, loaded symbols, best matches, and next action.</small>
+        </div>
+        <div class="overview-lens-actions data-lens-actions" role="tablist" aria-label="Data Library focus tabs">
+          <button id="data-lens-home" class="overview-lens-button" type="button" data-data-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="data-lens-browse" class="overview-lens-button" type="button" data-data-lens-target="browse" role="tab" aria-selected="false">Browse</button>
+          <button id="data-lens-inspect" class="overview-lens-button" type="button" data-data-lens-target="inspect" role="tab" aria-selected="false">Inspect</button>
+          <button id="data-lens-compare" class="overview-lens-button" type="button" data-data-lens-target="compare" role="tab" aria-selected="false">Compare</button>
+          <button id="data-lens-diagnostics" class="overview-lens-button" type="button" data-data-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
+        </div>
+      </div>
+      <div class="data-library-summary" data-data-lens="home browse diagnostics">
         <div class="data-library-card">
           <span class="eyebrow">Configured Roots</span>
           <strong id="data-root-count">0</strong>
@@ -887,7 +901,7 @@
           <span id="data-visibility-note">The catalog only shows files under configured roots.</span>
         </div>
       </div>
-      <section class="data-home-panel">
+      <section class="data-home-panel" data-data-lens="home">
         <div class="data-home-main">
           <span class="eyebrow">Data Home</span>
           <strong id="data-home-title">No saved data loaded</strong>
@@ -919,29 +933,29 @@
         <div id="data-home-breakdown" class="data-home-breakdown"></div>
         <div id="data-home-shortlist" class="data-shortlist"></div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="home diagnostics">
         <div class="section-head">
           <h2>Data Source Map</h2>
           <span id="data-source-map-note" class="section-note">No source map loaded</span>
         </div>
         <div id="data-source-map" class="action-card-grid"></div>
       </section>
-      <div class="section-head">
+      <div class="section-head" data-data-lens="home diagnostics">
         <h2>Data Roots</h2>
         <span class="button-pair">
           <button id="copy-data-roots-yaml" class="secondary" type="button" disabled>Copy data_roots YAML</button>
           <span id="data-root-config-note" class="section-note">No data roots loaded</span>
         </span>
       </div>
-      <div id="data-root-cards" class="root-grid"></div>
-      <section class="nested-section">
+      <div id="data-root-cards" class="root-grid" data-data-lens="home diagnostics"></div>
+      <section class="nested-section" data-data-lens="home diagnostics">
         <div class="section-head">
           <h2>Data Library Guide</h2>
           <span id="data-library-guide-note" class="section-note">No data guide loaded</span>
         </div>
         <div id="data-library-guide" class="checklist"></div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="browse">
         <div class="section-head">
           <h2>Symbol Browser</h2>
           <span id="data-symbol-browser-note" class="section-note">No symbols loaded</span>
@@ -982,7 +996,7 @@
         <div id="data-symbol-quick-picks" class="symbol-quick-picks"></div>
         <div id="data-symbol-browser-matches" class="symbol-match-grid"></div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="browse">
         <div class="section-head">
           <h2>Symbol Directory</h2>
           <span class="button-pair">
@@ -1039,7 +1053,7 @@
         <div id="data-symbol-directory-summary" class="action-card-grid symbol-directory-summary"></div>
         <div id="data-symbol-directory" class="symbol-directory-grid"></div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Catalog Scan Diagnostics</h2>
           <span class="button-pair">
@@ -1066,7 +1080,7 @@
           </table>
         </div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Storage Audit</h2>
           <span class="button-pair">
@@ -1110,7 +1124,7 @@
           </table>
         </div>
       </section>
-      <section class="split nested-section">
+      <section class="split nested-section" data-data-lens="diagnostics">
         <div>
           <div class="section-head">
             <h2>Coverage</h2>
@@ -1136,7 +1150,7 @@
           <dl id="data-symbol-diagnostic-summary" class="kv wide-kv"></dl>
         </div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Gap Summary</h2>
           <span class="button-pair">
@@ -1177,7 +1191,7 @@
           </table>
         </div>
       </section>
-      <section class="nested-section">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Minute Coverage Heatmap</h2>
           <span class="button-pair">
@@ -1220,7 +1234,7 @@
           </table>
         </div>
       </section>
-      <section class="split nested-section">
+      <section class="split nested-section" data-data-lens="diagnostics">
         <div>
           <div class="section-head">
             <h2>Symbol File Candidates</h2>
@@ -1261,7 +1275,7 @@
           </div>
         </div>
       </section>
-      <div class="filter-row">
+      <div class="filter-row" data-data-lens="browse">
         <label>
           <span>Search</span>
           <input id="data-filter-text" type="search" list="data-filter-symbol-options" placeholder="Symbol or path">
@@ -1312,7 +1326,7 @@
           </select>
         </label>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" data-data-lens="browse">
         <table>
           <thead>
             <tr>
@@ -1341,7 +1355,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="data" hidden>
+    <section class="dashboard-section" data-view="data" data-data-lens="inspect" hidden>
       <div class="section-head">
         <h2>Data Detail</h2>
         <span id="data-detail-title" class="section-note">No dataset selected</span>
@@ -1475,7 +1489,7 @@
       </section>
     </section>
 
-    <section class="dashboard-section" data-view="data" hidden>
+    <section class="dashboard-section" data-view="data" data-data-lens="compare" hidden>
       <div class="section-head">
         <h2>Compare Saved Data</h2>
         <span id="data-compare-note" class="section-note">Select two or more datasets to compare normalized close paths.</span>

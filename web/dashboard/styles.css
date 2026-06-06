@@ -948,6 +948,15 @@ section {
   min-width: 392px;
 }
 
+.data-lens-bar {
+  margin: 12px 0;
+}
+
+.data-lens-actions {
+  grid-template-columns: repeat(5, minmax(86px, 1fr));
+  min-width: 470px;
+}
+
 .overview-hero {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
@@ -2508,7 +2517,16 @@ footer {
     -webkit-overflow-scrolling: touch;
   }
 
-  .performance-lens-actions .overview-lens-button {
+  .data-lens-actions {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .performance-lens-actions .overview-lens-button,
+  .data-lens-actions .overview-lens-button {
     flex: 0 0 118px;
   }
 
