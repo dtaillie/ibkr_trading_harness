@@ -1308,6 +1308,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     turns declared `result_fields` into compact latest-value cards with
     coverage, formatted values, timestamps, symbols, and help text before the
     dense plugin coverage/result tables.
+  - partial; Run Artifacts now also shows a Plugin Result Display Plan for
+    declared `result_fields`, surfacing display order, field path, kind,
+    formatting hints, latest formatted value, emitted coverage, and help text
+    before the dense result tables.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

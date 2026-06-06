@@ -294,7 +294,9 @@ display hints, which the Plugin Result Fields and Result Coverage panels use
 when rendering values. The Plugin Boundary and Result Coverage panels show the matched registry
 plugin, declared public inputs/results, emitted result counts, latest declared
 values, the runner-owned `plugin_contract.json` summary, and sanitized
-dashboard keys that are still unlabeled.
+dashboard keys that are still unlabeled. Plugin Result Display Plan shows how
+each declared result field is presented: field path, order, kind, formatting
+hints, latest formatted value, emitted coverage, and help text.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded

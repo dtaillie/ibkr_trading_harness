@@ -13086,6 +13086,18 @@ function pluginResultFieldHelp(field) {
   return parts.length ? parts.join("; ") : "n/a";
 }
 
+function pluginResultDisplayDescriptor(field) {
+  const pieces = [
+    field.order !== undefined ? `order ${numberText(field.order, 2)}` : "registry order",
+    field.kind ? `kind ${text(field.kind)}` : "",
+    field.decimals !== undefined ? `${numberText(field.decimals, 0)} decimals` : "",
+    field.prefix ? `prefix ${text(field.prefix)}` : "",
+    field.suffix ? `suffix ${text(field.suffix)}` : "",
+    field.unit ? `unit ${text(field.unit)}` : "",
+  ].filter((item) => item && item !== "n/a");
+  return pieces.join("; ") || "default text display";
+}
+
 function pluginResultFieldRows(artifacts) {
   const fields = ((artifacts.plugin || {}).result_fields || [])
     .filter((field) => field && field.name)
@@ -13231,6 +13243,7 @@ function renderArtifactPluginCoverage(artifacts) {
   const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
   const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
   renderArtifactPluginResultSnapshot(artifacts, coverageRows, decisionCount);
+  renderArtifactPluginDisplayPlan(artifacts, coverageRows, decisionCount);
   $("artifact-plugin-coverage-note").textContent = coverageRows.length
     ? `${numberText(summary.emitted_field_count || 0, 0)} / ${numberText(summary.declared_field_count || coverageRows.length, 0)} declared field${coverageRows.length === 1 ? "" : "s"} emitted in ${numberText(decisionCount, 0)} loaded decision${decisionCount === 1 ? "" : "s"}`
     : "No declared plugin result fields to measure";
@@ -13252,6 +13265,39 @@ function renderArtifactPluginCoverage(artifacts) {
         ]);
       }).join("")
     : row([`<span class="muted">Declare result_fields in the plugin registry to summarize artifact diagnostics.</span>`, "", "", "", ""]);
+}
+
+function renderArtifactPluginDisplayPlan(artifacts, coverageRows = [], decisionCount = 0) {
+  if (!$("artifact-plugin-display-plan")) return;
+  const declaredFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
+  if (!declaredFields.length) {
+    $("artifact-plugin-display-plan").innerHTML = "";
+    return;
+  }
+  const coverageByName = new Map((coverageRows || []).map((item) => [text(item.name), item]));
+  $("artifact-plugin-display-plan").innerHTML = declaredFields
+    .slice()
+    .sort((left, right) => Number(left.order || 999) - Number(right.order || 999) || text(left.label || left.name).localeCompare(text(right.label || right.name)))
+    .slice(0, 12)
+    .map((field) => {
+      const coverage = coverageByName.get(text(field.name)) || {};
+      const emitted = Number(coverage.emitted_count || 0);
+      const status = emitted ? coverage.status || "ok" : decisionCount ? "warn" : "waiting";
+      const latestValue = emitted ? pluginResultFieldValue({ ...field, ...coverage }, coverage.latest_value) : "n/a";
+      const coverageText = decisionCount
+        ? `${numberText(emitted, 0)} / ${numberText(decisionCount, 0)} decisions`
+        : "no loaded decisions";
+      const help = text(field.help || field.description || "No help text declared.");
+      return `
+        <article class="plugin-result-display-card status-${escapeHtml(status)}">
+          <span>${statusText(status)}</span>
+          <strong>${escapeHtml(text(field.label || field.name))}</strong>
+          <small class="mono">${escapeHtml(`diagnostics.dashboard.${field.name}`)}</small>
+          <p>${escapeHtml(latestValue)}</p>
+          <small>${escapeHtml(`${coverageText}; ${pluginResultDisplayDescriptor(field)}. ${help}`)}</small>
+        </article>
+      `;
+    }).join("");
 }
 
 function renderArtifactPluginResultSnapshot(artifacts, coverageRows = [], decisionCount = 0) {

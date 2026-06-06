@@ -1033,6 +1033,57 @@ button.secondary {
   line-height: 1.35;
 }
 
+.plugin-result-display-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.plugin-result-display-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.plugin-result-display-card span,
+.plugin-result-display-card small,
+.plugin-result-display-card p {
+  overflow-wrap: anywhere;
+}
+
+.plugin-result-display-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.plugin-result-display-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.plugin-result-display-card p {
+  margin: 8px 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.plugin-result-display-card small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .wide-field {
   flex: 1 1 320px;
   grid-column: 1 / -1;
