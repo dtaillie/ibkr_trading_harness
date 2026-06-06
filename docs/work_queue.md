@@ -234,6 +234,10 @@ strategy-private.
       per-symbol position details such as entry time/price, hold window, active
       exit rule, stop/target, and MAE/MFE, and position cards render them with
       derived age when runners publish those fields.
+    - partial; generic plugin-runner account snapshots now attach allowlisted
+      `diagnostics.dashboard.position_details` / `position_metadata` for open
+      symbols, so public-safe plugin context can populate those position cards
+      without exposing raw diagnostics.
   - today's event timeline from market open/current session start through the
     latest decision
     - partial; Overview now shows the latest bounded decision/order/fill

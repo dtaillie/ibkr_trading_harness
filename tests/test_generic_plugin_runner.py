@@ -248,6 +248,50 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     assert account[-1]["position_values"]["SPY"] == pytest.approx(1020.0)
 
 
+def test_simulated_paper_account_snapshots_include_public_position_details(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="tests.fixtures.order_once_plugin:create_strategy",
+        strategy={
+            "symbol": "SPY",
+            "quantity": 10,
+            "cash_quantity": None,
+            "position_details": {
+                "SPY": {
+                    "entry_time": "2026-01-02T14:30:00+00:00",
+                    "entry_price": 100.0,
+                    "expected_hold_minutes": 30,
+                    "active_exit_rule": "fixture_exit",
+                    "private_signal": "hidden",
+                    "raw_state": {"private": True},
+                },
+                "QQQ": {"entry_price": 1.0},
+            },
+        },
+    )
+
+    result = run_from_config(config_path, mode_override="simulated-paper")
+
+    assert result.fills == 1
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    first_detail = account[0]["position_details"]["SPY"]
+    assert first_detail["entry_time"] == "2026-01-02T14:30:00+00:00"
+    assert first_detail["entry_price"] == pytest.approx(100.0)
+    assert first_detail["expected_hold_minutes"] == 30
+    assert first_detail["active_exit_rule"] == "fixture_exit"
+    assert first_detail["current_price"] == pytest.approx(100.0)
+    assert "private_signal" not in first_detail
+    assert "raw_state" not in first_detail
+    assert "QQQ" not in account[0]["position_details"]
+    assert account[-1]["position_details"]["SPY"]["current_price"] == pytest.approx(102.0)
+
+
 def test_simulated_paper_tracks_realized_pnl_and_average_cost(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"

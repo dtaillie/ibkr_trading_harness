@@ -44,6 +44,20 @@ SUPPORTED_BROKER_ADAPTERS = broker_adapter_ids()
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
 KNOWN_IBKR_LIVE_PORTS = {4001, 7496}
 SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60
+PUBLIC_POSITION_DETAIL_FIELDS = (
+    "entry_time",
+    "entry_price",
+    "current_price",
+    "expected_hold_minutes",
+    "hold_until",
+    "active_exit_rule",
+    "exit_state",
+    "stop_state",
+    "stop_price",
+    "target_price",
+    "mae_pct",
+    "mfe_pct",
+)
 WEEKDAY_NAMES = {
     "mon": 0,
     "monday": 0,
@@ -864,6 +878,42 @@ def latest_prices(snapshot: dict[str, pd.DataFrame]) -> dict[str, float]:
     }
 
 
+def public_position_details_from_diagnostics(
+    diagnostics: dict[str, Any],
+    *,
+    positions: dict[str, float],
+    prices: dict[str, float],
+) -> dict[str, dict[str, Any]]:
+    dashboard = diagnostics.get("dashboard") if isinstance(diagnostics, dict) else {}
+    if not isinstance(dashboard, dict):
+        return {}
+    raw_details = dashboard.get("position_details", dashboard.get("position_metadata"))
+    if not isinstance(raw_details, dict):
+        return {}
+    open_symbols = {
+        str(symbol).upper()
+        for symbol, qty in positions.items()
+        if finite_float(qty) not in (None, 0.0)
+    }
+    details: dict[str, dict[str, Any]] = {}
+    for raw_symbol, raw_detail in raw_details.items():
+        symbol = str(raw_symbol).upper()
+        if symbol not in open_symbols or not isinstance(raw_detail, dict):
+            continue
+        public_detail: dict[str, Any] = {}
+        for field in PUBLIC_POSITION_DETAIL_FIELDS:
+            if field not in raw_detail:
+                continue
+            value = raw_detail[field]
+            if isinstance(value, (str, int, float, bool, pd.Timestamp, datetime)):
+                public_detail[field] = jsonable(value)
+        if "current_price" not in public_detail and symbol in prices:
+            public_detail["current_price"] = finite_float(prices.get(symbol))
+        if public_detail:
+            details[symbol] = public_detail
+    return details
+
+
 def account_snapshot_record(
     *,
     now: pd.Timestamp,
@@ -874,6 +924,7 @@ def account_snapshot_record(
     positions: dict[str, float],
     prices: dict[str, float],
     accounting: dict[str, Any] | None = None,
+    position_details: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     position_values = {
         symbol: float(qty) * float(prices.get(symbol, 0.0))
@@ -892,6 +943,8 @@ def account_snapshot_record(
         "gross_exposure": finite_float(gross_exposure),
         "net_exposure": finite_float(net_exposure),
     }
+    if position_details:
+        record["position_details"] = position_details
     if accounting:
         average_costs = accounting.get("average_costs") if isinstance(accounting.get("average_costs"), dict) else {}
         unrealized_by_symbol = accounting.get("unrealized_pnl_by_symbol") if isinstance(accounting.get("unrealized_pnl_by_symbol"), dict) else {}
@@ -2077,6 +2130,11 @@ def run_from_config(
             positions=positions,
             prices=final_prices,
             accounting=simulated.accounting_snapshot(final_prices) if simulated is not None else None,
+            position_details=public_position_details_from_diagnostics(
+                decision.diagnostics,
+                positions=positions,
+                prices=final_prices,
+            ),
         )
         account_records.append(account_record)
         append_jsonl(output_dir / "account.jsonl", account_record)

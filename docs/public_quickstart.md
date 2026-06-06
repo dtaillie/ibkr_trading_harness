@@ -487,7 +487,13 @@ strategy drilldowns in the dashboard, publish only sanitized fields under
 `StrategyDecision.diagnostics["dashboard"]`; the dashboard allowlists fields
 such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
 `near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,
-`stop_state`, `mae_pct`, and `mfe_pct`. Successful non-validate runs
+`stop_state`, `mae_pct`, and `mfe_pct`. For open-position cards, plugins can
+also publish public-safe per-symbol fields under
+`diagnostics.dashboard.position_details` or
+`diagnostics.dashboard.position_metadata`; the generic runner keeps only
+allowlisted values such as entry time/price, current price, hold window,
+active exit rule, stop/target, and MAE/MFE for currently open symbols.
+Successful non-validate runs
 also archive a local per-run artifact snapshot, so a comparison row can inspect
 that exact run even after a later run overwrites the draft's output directory.
 Use Log on a run row to inspect command argv, return code, duration, and

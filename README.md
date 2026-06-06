@@ -281,7 +281,10 @@ time-normalized return projections, gross/net exposure, position count, and an
 equity curve; raw strategy signal payloads are not returned by the public
 artifact view. Plugins can opt into public-safe dashboard drilldowns by placing
 sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
-diagnostics remain hidden. Successful non-validate draft runs also archive a local per-run
+diagnostics remain hidden. For open-position cards, the generic runner also
+accepts allowlisted per-symbol `position_details` / `position_metadata` under
+that dashboard diagnostics block and writes only public-safe fields for
+currently open symbols. Successful non-validate draft runs also archive a local per-run
 artifact snapshot so a comparison row can inspect the exact run even after the
 draft output directory is overwritten. Recent saved draft runs can also be
 compared side by side by return, drawdown, exposure, elapsed time, fills,

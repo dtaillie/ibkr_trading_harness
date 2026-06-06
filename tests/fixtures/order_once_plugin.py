@@ -17,6 +17,7 @@ class OrderOncePlugin:
         self.cash_quantity = config.get("cash_quantity", 1000.0)
         self.repeat = bool(config.get("repeat", False))
         self.metadata = dict(config.get("metadata") or {})
+        self.position_details = dict(config.get("position_details") or {})
         self.did_order = False
         self.fills: list[dict[str, Any]] = []
 
@@ -39,7 +40,10 @@ class OrderOncePlugin:
             timestamp=context.now,
             intents=intents,
             signal={"fixture": "order_once"},
-            diagnostics={"mode": context.mode},
+            diagnostics={
+                "mode": context.mode,
+                "dashboard": {"position_details": self.position_details} if self.position_details else {},
+            },
         )
 
     def on_fill(self, fill: dict[str, Any], context: StrategyContext) -> None:
