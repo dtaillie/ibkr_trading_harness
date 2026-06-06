@@ -1535,6 +1535,70 @@ function buildTradeLedger(fills) {
   };
 }
 
+function renderPerformanceTradeControls(ledger) {
+  if (!$("performance-trade-summary")) return ledger.rows || [];
+  const stateFilter = (($("performance-trade-filter-state") || {}).value || "").toLowerCase();
+  const sideFilter = (($("performance-trade-filter-side") || {}).value || "").toLowerCase();
+  const symbolFilter = (($("performance-trade-filter-symbol") || {}).value || "").trim().toUpperCase();
+  const rows = (ledger.rows || []).filter((trade) => (
+    (!stateFilter || String(trade.state || "").toLowerCase() === stateFilter)
+    && (!sideFilter || String(trade.side || "").toLowerCase() === sideFilter)
+    && (!symbolFilter || String(trade.symbol || "").toUpperCase().includes(symbolFilter))
+  ));
+  const openNotional = (ledger.open || []).reduce((sum, trade) => {
+    const quantity = finiteNumber(trade.quantity) || 0;
+    const price = finiteNumber(trade.entry_price) || 0;
+    return sum + Math.abs(quantity * price);
+  }, 0);
+  const closedPnl = (ledger.closed || []).reduce((sum, trade) => sum + (finiteNumber(trade.pnl) || 0), 0);
+  const winRate = ledger.stats.closed_count
+    ? (Number(ledger.stats.wins || 0) / Number(ledger.stats.closed_count || 1)) * 100
+    : null;
+  const activeFilters = [stateFilter, sideFilter, symbolFilter].filter(Boolean).length;
+  const cards = [
+    {
+      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "bad",
+      title: numberText(ledger.stats.open_count, 0),
+      label: "Open",
+      note: ledger.stats.open_count
+        ? `${money(openNotional)} entry notional still open.`
+        : "No open lots from selected fills.",
+    },
+    {
+      status: ledger.stats.closed_count ? "ok" : "warn",
+      title: numberText(ledger.stats.closed_count, 0),
+      label: "Closed",
+      note: ledger.stats.closed_count
+        ? `${money(closedPnl)} realized from matched lots.`
+        : "No closed matched lots in this period.",
+    },
+    {
+      status: winRate === null ? "warn" : Number(ledger.stats.losses || 0) ? "warn" : "ok",
+      title: winRate === null ? "n/a" : pctText(winRate),
+      label: "Win Rate",
+      note: ledger.stats.closed_count
+        ? `${numberText(ledger.stats.wins, 0)} wins / ${numberText(ledger.stats.losses, 0)} losses.`
+        : "Needs closed trades.",
+    },
+    {
+      status: rows.length ? "ok" : ledger.rows.length ? "warn" : "bad",
+      title: `${numberText(rows.length, 0)} / ${numberText(ledger.rows.length, 0)}`,
+      label: "Shown",
+      note: activeFilters
+        ? `${numberText(activeFilters, 0)} active trade filter${activeFilters === 1 ? "" : "s"}.`
+        : "No trade filters applied.",
+    },
+  ];
+  $("performance-trade-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  return rows;
+}
+
 function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
   const positions = accountRow.positions || summary.final_positions || {};
   const values = accountRow.position_values || {};
@@ -2291,11 +2355,12 @@ function renderPerformance() {
   $("performance-calendar-note").textContent = accountRows.length
     ? "Green/red daily return cells"
     : "Load archived artifacts for calendar view";
+  const shownTradeRows = renderPerformanceTradeControls(ledger);
   $("performance-trade-note").textContent = fills.length
-    ? `${numberText(ledger.stats.closed_count, 0)} closed / ${numberText(ledger.stats.open_count, 0)} open from ${numberText(fills.length, 0)} fills`
+    ? `${numberText(ledger.stats.closed_count, 0)} closed / ${numberText(ledger.stats.open_count, 0)} open from ${numberText(fills.length, 0)} fills; ${numberText(shownTradeRows.length, 0)} shown`
     : "Load artifacts with fills for trade rows";
-  $("performance-trades-body").innerHTML = ledger.rows.length
-    ? ledger.rows.slice(0, 40).map((trade) => row([
+  $("performance-trades-body").innerHTML = shownTradeRows.length
+    ? shownTradeRows.slice(0, 40).map((trade) => row([
         escapeHtml(trade.symbol),
         statusText(trade.state === "closed" ? "ok" : "warn"),
         escapeHtml(trade.side),
@@ -2305,7 +2370,7 @@ function renderPerformance() {
         trade.pnl === null ? "n/a" : `<span class="${Number(trade.pnl) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(money(trade.pnl))}</span>`,
         escapeHtml(holdDurationLabel(trade.entry_time, trade.exit_time || new Date().toISOString())),
       ])).join("")
-    : row([`<span class="muted">No fills in selected period</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">${ledger.rows.length ? "No trades match the active filters" : "No fills in selected period"}</span>`, "", "", "", "", "", "", ""]);
 
   const runs = ((state.runComparison && state.runComparison.runs) || []).slice(0, 12);
   $("performance-runs-body").innerHTML = runs.length
@@ -9498,6 +9563,9 @@ function init() {
   $("performance-home-open-workbench").addEventListener("click", () => navigateToView("workbench"));
   $("performance-home-open-data").addEventListener("click", () => navigateToView("data"));
   $("performance-period").addEventListener("change", renderPerformance);
+  $("performance-trade-filter-state").addEventListener("change", renderPerformance);
+  $("performance-trade-filter-side").addEventListener("change", renderPerformance);
+  $("performance-trade-filter-symbol").addEventListener("input", renderPerformance);
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
     if (!state.performanceBenchmarkPath) {

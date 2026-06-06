@@ -482,6 +482,29 @@
           <h2>Trades</h2>
           <span id="performance-trade-note" class="section-note">Derived from sanitized fills</span>
         </div>
+        <div id="performance-trade-summary" class="action-card-grid"></div>
+        <div class="filter-row compact-filter-row">
+          <label>
+            <span>State</span>
+            <select id="performance-trade-filter-state">
+              <option value="">All</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
+          </label>
+          <label>
+            <span>Side</span>
+            <select id="performance-trade-filter-side">
+              <option value="">All</option>
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
+          </label>
+          <label class="wide-field">
+            <span>Symbol</span>
+            <input id="performance-trade-filter-symbol" type="search" placeholder="Filter trade symbols">
+          </label>
+        </div>
         <table>
           <thead>
             <tr>

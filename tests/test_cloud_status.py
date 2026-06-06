@@ -754,6 +754,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-period" in html
         assert "performance-triage-note" in html
         assert "performance-triage-cards" in html
+        assert "performance-trade-summary" in html
+        assert "performance-trade-filter-state" in html
+        assert "performance-trade-filter-side" in html
+        assert "performance-trade-filter-symbol" in html
         assert "performance-trades-body" in html
         assert "performance-profit-factor" in html
         assert "performance-avg-win-loss" in html

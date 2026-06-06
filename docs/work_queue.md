@@ -195,6 +195,9 @@ strategy-private.
       paper/live modes.
   - open/closed trade table
     - done for selected archived artifacts with sanitized fills
+    - partial; Performance now adds open/closed/win-rate/shown summary cards
+      and state, side, and symbol filters above the sanitized fill-derived
+      trade table.
   - win/loss, average win/loss, profit factor, max drawdown, exposure, turnover
     - done for selected archived artifacts; win/loss, average win/loss, profit
       factor, max drawdown, exposure, and selected-window turnover are derived
