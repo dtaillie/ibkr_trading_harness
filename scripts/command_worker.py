@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import sys
@@ -140,13 +141,44 @@ def audit_hash_payload(payload: dict[str, Any]) -> str:
     normalized = {
         key: value
         for key, value in payload.items()
-        if key not in {"prev_hash", "record_hash"}
+        if key not in {"prev_hash", "record_hash", "row_signature", "signature_algorithm", "signature_key_env"}
     }
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def audit_record_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(audit_hash_payload(payload).encode("utf-8")).hexdigest()
+
+
+def audit_signature_payload(payload: dict[str, Any]) -> str:
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    return json.dumps(
+        {
+            "record_hash": str(payload.get("record_hash") or ""),
+            "hash_algorithm": str(payload.get("hash_algorithm") or ""),
+            "prev_hash": str(payload.get("prev_hash") or ""),
+            "audited_at": str(payload.get("audited_at") or ""),
+            "event": str(payload.get("event") or ""),
+            "action": str(result.get("action") or ""),
+            "status": str(result.get("status") or ""),
+            "command_id": str(result.get("command_id") or ""),
+            "node_id": str(result.get("node_id") or ""),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def audit_signature(payload: dict[str, Any], signature_env: str) -> str:
+    signing_material = os.getenv(signature_env)
+    if not signing_material:
+        return ""
+    return hmac.new(
+        signing_material.encode("utf-8"),
+        audit_signature_payload(payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def latest_audit_hash(path: Path) -> str:
@@ -179,8 +211,14 @@ def append_audit(config: dict[str, Any], record: dict[str, Any]) -> None:
         "audited_at": utc_now(),
         **record,
     }
+    payload["hash_algorithm"] = "sha256"
     payload["prev_hash"] = latest_audit_hash(path)
     payload["record_hash"] = audit_record_hash(payload)
+    signature_env = str((config.get("audit") or {}).get("signature_env") or "").strip()
+    if signature_env:
+        payload["signature_algorithm"] = "hmac-sha256"
+        payload["signature_key_env"] = signature_env
+        payload["row_signature"] = audit_signature(payload, signature_env)
     with path.open("a") as f:
         f.write(json.dumps(payload, sort_keys=True) + "\n")
 

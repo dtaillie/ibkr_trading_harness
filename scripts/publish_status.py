@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import socket
@@ -88,7 +89,7 @@ def local_audit_hash_payload(payload: dict[str, Any]) -> str:
     normalized = {
         key: value
         for key, value in payload.items()
-        if key not in {"prev_hash", "record_hash"}
+        if key not in {"prev_hash", "record_hash", "row_signature", "signature_algorithm", "signature_key_env"}
     }
     return json.dumps(normalized, sort_keys=True, separators=(",", ":"), default=str)
 
@@ -97,7 +98,38 @@ def local_audit_record_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(local_audit_hash_payload(payload).encode("utf-8")).hexdigest()
 
 
-def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]:
+def local_audit_signature_payload(payload: dict[str, Any]) -> str:
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    return json.dumps(
+        {
+            "record_hash": str(payload.get("record_hash") or ""),
+            "hash_algorithm": str(payload.get("hash_algorithm") or ""),
+            "prev_hash": str(payload.get("prev_hash") or ""),
+            "audited_at": str(payload.get("audited_at") or ""),
+            "event": str(payload.get("event") or ""),
+            "action": str(result.get("action") or ""),
+            "status": str(result.get("status") or ""),
+            "command_id": str(result.get("command_id") or ""),
+            "node_id": str(result.get("node_id") or ""),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def local_audit_signature(payload: dict[str, Any], signature_env: str) -> str:
+    signing_material = os.getenv(signature_env)
+    if not signing_material:
+        return ""
+    return hmac.new(
+        signing_material.encode("utf-8"),
+        local_audit_signature_payload(payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_local_audit(path: Path, *, max_records: int = 5000, signature_env: str | None = None) -> dict[str, Any]:
     result: dict[str, Any] = {
         "status": "missing" if not path.exists() else "empty",
         "checked_records": 0,
@@ -107,6 +139,10 @@ def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]
         "latest_hash": "",
         "max_records": max_records,
         "truncated": False,
+        "signature_status": "disabled" if not signature_env else ("missing_key" if not os.getenv(signature_env) else "empty"),
+        "signed_records": 0,
+        "unsigned_records": 0,
+        "signature_key_env": signature_env or "",
         "errors": [],
     }
     if not path.exists():
@@ -138,6 +174,10 @@ def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]
                 if not record_hash:
                     result["legacy_records"] += 1
                     continue
+                algorithm = str(row.get("hash_algorithm") or "")
+                if algorithm and algorithm != "sha256":
+                    if len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": f"unsupported hash algorithm: {algorithm or 'missing'}"})
                 if str(row.get("prev_hash") or "") != previous_hash:
                     if len(result["errors"]) < 10:
                         result["errors"].append({"line": line_no, "error": "prev_hash mismatch"})
@@ -145,6 +185,18 @@ def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]
                 if str(record_hash) != computed:
                     if len(result["errors"]) < 10:
                         result["errors"].append({"line": line_no, "error": "record_hash mismatch"})
+                row_signature = str(row.get("row_signature") or "")
+                if row_signature:
+                    result["signed_records"] += 1
+                    signature_algorithm = str(row.get("signature_algorithm") or "")
+                    if signature_algorithm != "hmac-sha256" and len(result["errors"]) < 10:
+                        result["errors"].append({"line": line_no, "error": f"unsupported signature algorithm: {signature_algorithm or 'missing'}"})
+                    if signature_env and os.getenv(signature_env):
+                        expected_signature = local_audit_signature(row, signature_env)
+                        if not hmac.compare_digest(expected_signature, row_signature) and len(result["errors"]) < 10:
+                            result["errors"].append({"line": line_no, "error": "row_signature mismatch"})
+                elif signature_env:
+                    result["unsigned_records"] += 1
                 result["checked_records"] += 1
                 previous_hash = str(record_hash)
                 result["latest_hash"] = previous_hash
@@ -158,6 +210,18 @@ def verify_local_audit(path: Path, *, max_records: int = 5000) -> dict[str, Any]
         result["status"] = "ok"
     elif result["legacy_records"]:
         result["status"] = "legacy"
+    if not signature_env:
+        result["signature_status"] = "disabled"
+    elif not os.getenv(signature_env):
+        result["signature_status"] = "missing_key"
+    elif any("signature" in str(error.get("error", "")) for error in result["errors"]):
+        result["signature_status"] = "bad"
+    elif result["unsigned_records"]:
+        result["signature_status"] = "warn"
+    elif result["signed_records"]:
+        result["signature_status"] = "ok"
+    elif result["checked_records"]:
+        result["signature_status"] = "empty"
     return result
 
 
@@ -607,7 +671,8 @@ def summarize_remote_control(remote_cfg: dict[str, Any], *, now: datetime) -> tu
     if max_integrity_records <= 0:
         max_integrity_records = 5000
     max_age_seconds = audit_cfg.get("max_age_seconds")
-    integrity = verify_local_audit(log_path, max_records=max_integrity_records)
+    signature_env = str(audit_cfg.get("signature_env") or "").strip() or None
+    integrity = verify_local_audit(log_path, max_records=max_integrity_records, signature_env=signature_env)
     record: dict[str, Any] = {
         "enabled": enabled,
         "audit_log": str(log_path),
@@ -628,6 +693,12 @@ def summarize_remote_control(remote_cfg: dict[str, Any], *, now: datetime) -> tu
             "level": "warn",
             "kind": "remote_control_audit_integrity",
             "message": "local remote-control audit hash chain is broken or unreadable",
+        })
+    if integrity.get("signature_status") in {"bad", "missing_key"}:
+        alerts.append({
+            "level": "warn",
+            "kind": "remote_control_audit_signature",
+            "message": f"local remote-control audit signature status is {integrity.get('signature_status')}",
         })
     if not log_path.exists():
         return record, alerts

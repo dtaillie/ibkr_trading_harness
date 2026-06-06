@@ -243,6 +243,11 @@ local chain on each publish, bounded by
 `remote_control.audit.max_integrity_records`, and the Operations page reports
 local audit integrity beside remote-control freshness. Broken or unreadable
 local audit rows raise a `remote_control_audit_integrity` warning.
+Optionally set `audit.signature_env` in the worker config and the same
+`remote_control.audit.signature_env` in the publisher config to HMAC-sign local
+worker audit rows. The Operations page reports the local signature state, and a
+bad signature or missing signing key raises a
+`remote_control_audit_signature` warning.
 The receiver also records sanitized queue/cancel/result events in
 `paper_logs/cloud_status_server/command_audit.jsonl`, exposes them through
 `/command_audit`, offers a CSV download through `/command_audit_export`, and

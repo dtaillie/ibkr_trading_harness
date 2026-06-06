@@ -12376,7 +12376,10 @@ function renderRemoteControl() {
   const latestLabel = latest.event
     ? `${text(latest.event)} ${text(latestResult.action)} ${text(latestResult.status)}`
     : "none";
-  const integrityDetail = `${numberText(integrity.checked_records, 0)} checked / ${numberText(integrity.legacy_records, 0)} legacy`;
+  const signatureDetail = integrity.signature_status
+    ? ` / local signature ${text(integrity.signature_status)}`
+    : "";
+  const integrityDetail = `${numberText(integrity.checked_records, 0)} checked / ${numberText(integrity.legacy_records, 0)} legacy${signatureDetail}`;
   $("remote-control-body").innerHTML = row([
     remote.enabled ? statusText(remote.audit_exists ? "ok" : "waiting") : statusText("disabled"),
     escapeHtml(latestLabel),
@@ -12499,9 +12502,12 @@ function operationsHomeState() {
   const localRemote = status.remote_control || {};
   const localIntegrity = localRemote.integrity || {};
   const localIntegrityStatus = String(localIntegrity.status || "").toLowerCase();
-  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus);
+  const localSignatureStatus = String(localIntegrity.signature_status || "").toLowerCase();
+  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus)
+    || ["bad", "missing_key", "invalid", "failed"].includes(localSignatureStatus);
   const localAuditWarn = !localAuditBad && Boolean(localRemote.enabled) && (
     !localIntegrityStatus || ["empty", "legacy", "missing", "unknown"].includes(localIntegrityStatus)
+    || ["warn", "disabled", "empty"].includes(localSignatureStatus)
   );
   const auditBad = localAuditBad
     || ["broken", "invalid"].includes(String(integrity.status || "").toLowerCase())
@@ -12533,7 +12539,7 @@ function operationsHomeState() {
   } else if (auditBad || auditWarn) {
     result = auditBad ? "Command Audit Broken" : "Command Audit Needs Review";
     note = integrity.status || localIntegrity.status
-      ? `Receiver ${text(integrity.status || "not loaded")}; local ${text(localIntegrity.status || "not loaded")}; signature ${text(integrity.signature_status || "not loaded")}.`
+      ? `Receiver ${text(integrity.status || "not loaded")}; local ${text(localIntegrity.status || "not loaded")}; server signature ${text(integrity.signature_status || "not loaded")}; local signature ${text(localIntegrity.signature_status || "not loaded")}.`
       : "No command audit events or integrity status loaded yet.";
     nextAction = "audit";
   } else if (alerts.length || paperWarn) {
@@ -12568,7 +12574,7 @@ function operationsHomeState() {
       label: "Audit",
       status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
       title: auditBad ? "Broken" : auditWarn ? "Review" : "OK",
-      note: `receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")} / signature ${text(integrity.signature_status || "n/a")}.`,
+      note: `receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")} / signatures ${text(integrity.signature_status || "n/a")}/${text(localIntegrity.signature_status || "n/a")}.`,
     },
     {
       label: "Alerts",
@@ -12621,9 +12627,12 @@ function operationsWorkflowCards() {
   const integrityStatus = String(integrity.status || "").toLowerCase();
   const signatureStatus = String(integrity.signature_status || "").toLowerCase();
   const localIntegrityStatus = String(localIntegrity.status || "").toLowerCase();
-  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus);
+  const localSignatureStatus = String(localIntegrity.signature_status || "").toLowerCase();
+  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus)
+    || ["bad", "missing_key", "invalid", "failed"].includes(localSignatureStatus);
   const localAuditWarn = !localAuditBad && Boolean(localRemote.enabled) && (
     !localIntegrityStatus || ["empty", "legacy", "missing", "unknown"].includes(localIntegrityStatus)
+    || ["warn", "disabled", "empty"].includes(localSignatureStatus)
   );
   const auditBad = localAuditBad || ["broken", "invalid"].includes(integrityStatus) || ["invalid", "failed"].includes(signatureStatus);
   const auditWarn = !auditBad && (

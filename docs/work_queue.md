@@ -1576,6 +1576,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     integrity beside remote-control freshness. Operations Home and its
     Command Audit workflow card now also factor local worker-audit integrity
     into first-screen audit health.
+  - progress; local command-worker audit rows can now be HMAC-signed with
+    `audit.signature_env`, and the status publisher verifies that signature via
+    `remote_control.audit.signature_env`. Operations reports local signed,
+    unsigned, missing-key, and bad-signature state separately from server-side
+    command-audit signatures.
   - partial; receiver now rate-limits command queue requests per node and writes
     sanitized queue/cancel/result audit events to an append-only JSONL file with
     a bounded `/command_audit` endpoint. Explicit duplicate `command_id` values

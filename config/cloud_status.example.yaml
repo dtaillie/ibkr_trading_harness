@@ -39,6 +39,9 @@ remote_control:
     max_events: 50
     # Max local audit rows to verify for hash-chain integrity per status publish.
     max_integrity_records: 5000
+    # Optional: verify local worker audit row HMAC signatures. This must match
+    # audit.signature_env in the command worker config.
+    # signature_env: LOCAL_COMMAND_AUDIT_HMAC_KEY
     # max_age_seconds: 300
 
 publish:

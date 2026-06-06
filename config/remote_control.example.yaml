@@ -26,6 +26,10 @@ safety:
 audit:
   enabled: true
   log_file: paper_logs/remote_control/audit.jsonl
+  # Optional: sign each local audit row with HMAC-SHA256. Set this env var on
+  # the trading machine, and configure the same env name under
+  # remote_control.audit.signature_env in the status publisher config.
+  # signature_env: LOCAL_COMMAND_AUDIT_HMAC_KEY
 
 allowed_actions:
   - flatten_simulated_positions

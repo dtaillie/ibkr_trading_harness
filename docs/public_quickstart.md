@@ -633,6 +633,12 @@ the status publisher verifies the chain on each publish using
 shows the local integrity state beside remote-control freshness and raises a
 warning if the local audit chain is broken or unreadable.
 
+For stronger local tamper evidence, set `audit.signature_env` in the command
+worker config and set the same env var name as
+`remote_control.audit.signature_env` in the status publisher config. The worker
+then adds an HMAC-SHA256 signature to each local audit row, and the publisher
+reports signed, unsigned, missing-key, or bad-signature state in Operations.
+
 The example worker config also limits command bursts with
 `worker.max_commands_per_poll`. Commands over that local limit are rejected and
 audited instead of being executed in the same sweep.

@@ -525,6 +525,74 @@ def test_collect_status_verifies_remote_control_audit_hash_chain(tmp_path):
     assert any(alert["kind"] == "remote_control_audit_integrity" for alert in tampered["alerts"])
 
 
+def test_collect_status_verifies_signed_local_remote_control_audit(tmp_path, monkeypatch):
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("LOCAL_AUDIT_HMAC_KEY", "test-secret")
+    worker_config = {"audit": {"log_file": str(audit_log), "signature_env": "LOCAL_AUDIT_HMAC_KEY"}}
+    append_audit(
+        worker_config,
+        {"event": "command_result", "result": {"action": "request_status", "status": "completed"}},
+    )
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "remote_control": {
+            "enabled": True,
+            "audit": {
+                "log_file": str(audit_log),
+                "max_events": 10,
+                "signature_env": "LOCAL_AUDIT_HMAC_KEY",
+            },
+        },
+    })
+
+    integrity = payload["remote_control"]["integrity"]
+    assert integrity["status"] == "ok"
+    assert integrity["signature_status"] == "ok"
+    assert integrity["signed_records"] == 1
+    assert integrity["unsigned_records"] == 0
+    assert integrity["signature_key_env"] == "LOCAL_AUDIT_HMAC_KEY"
+    rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert rows[0]["signature_algorithm"] == "hmac-sha256"
+    assert rows[0]["signature_key_env"] == "LOCAL_AUDIT_HMAC_KEY"
+    assert rows[0]["row_signature"]
+
+    rows[0]["row_signature"] = "0" * 64
+    audit_log.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+    tampered = collect_status({
+        "node_id": "test-node",
+        "remote_control": {
+            "enabled": True,
+            "audit": {
+                "log_file": str(audit_log),
+                "max_events": 10,
+                "signature_env": "LOCAL_AUDIT_HMAC_KEY",
+            },
+        },
+    })
+
+    tampered_integrity = tampered["remote_control"]["integrity"]
+    assert tampered_integrity["status"] == "broken"
+    assert tampered_integrity["signature_status"] == "bad"
+    assert any(error["error"] == "row_signature mismatch" for error in tampered_integrity["errors"])
+    assert any(alert["kind"] == "remote_control_audit_signature" for alert in tampered["alerts"])
+
+    monkeypatch.delenv("LOCAL_AUDIT_HMAC_KEY")
+    missing_key = collect_status({
+        "node_id": "test-node",
+        "remote_control": {
+            "enabled": True,
+            "audit": {
+                "log_file": str(audit_log),
+                "max_events": 10,
+                "signature_env": "LOCAL_AUDIT_HMAC_KEY",
+            },
+        },
+    })
+    assert missing_key["remote_control"]["integrity"]["signature_status"] == "missing_key"
+    assert any(alert["kind"] == "remote_control_audit_signature" for alert in missing_key["alerts"])
+
+
 def test_collect_status_warns_on_stale_run(tmp_path):
     run_dir = tmp_path / "run"
     old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
