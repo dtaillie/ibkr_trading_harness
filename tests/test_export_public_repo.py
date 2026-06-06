@@ -37,6 +37,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "ops" / "cloud" / "fly-status-receiver.example.toml").exists()
     assert (dest / "ops" / "cloud" / "render-status-receiver.example.yaml").exists()
     assert (dest / "ops" / "cloud" / "digitalocean-firewall-status-receiver.example.tf").exists()
+    assert (dest / "ops" / "cloud" / "aws-s3-command-audit-retention.example.tf").exists()
     assert (dest / "ops" / "cloud" / "sync-command-audit.example.sh").exists()
 
 

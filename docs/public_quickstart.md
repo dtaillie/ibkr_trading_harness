@@ -340,7 +340,10 @@ machine. Hosted configs can also set `dashboard.network_access` to restrict
 direct receiver clients to localhost, VPN, or known management networks. See
 `docs/cloud_monitoring_deployment.md` for the full deployment shape, including
 example nginx/Caddy reverse proxies, UFW host-firewall rules, and an AWS
-security-group sketch.
+security-group sketch. For internet-facing receivers, pair
+`ops/cloud/sync-command-audit.example.sh` with a separate retention target; the
+AWS S3 Object Lock sketch is in
+`ops/cloud/aws-s3-command-audit-retention.example.tf`.
 The `dashboard.data_roots` list in `config/cloud_status.example.yaml` controls
 which CSV/parquet roots are scanned. The public example points only at
 `examples/data`. For a real local setup, copy the config to an ignored local

@@ -119,6 +119,13 @@ from configured publisher/dashboard CIDRs.
 network boundary example. It allows SSH from management CIDRs, HTTPS from the
 publisher/dashboard CIDRs, and no public access to the receiver's app port.
 
+`ops/cloud/aws-s3-command-audit-retention.example.tf` is an AWS S3 Object Lock
+sketch for off-host command-audit retention. Use it with a new bucket, separate
+writer credentials, versioning, and a short default retention window before
+pointing `ops/cloud/sync-command-audit.example.sh` at the bucket prefix. Review
+AWS Object Lock rules before applying it; the Terraform file is a starting
+point, not a substitute for provider/account hardening.
+
 `ops/cloud/digitalocean-firewall-status-receiver.example.tf` is the same
 boundary shape for a DigitalOcean Droplet: SSH from management CIDRs, HTTPS
 from publisher/dashboard CIDRs, and no receiver app port exposed.
@@ -264,6 +271,17 @@ AUDIT_DEST=s3://example-bucket/algo-trade/audit/receiver-a/command_audit.jsonl \
   ops/cloud/sync-command-audit.example.sh
 ```
 
+For AWS, `ops/cloud/aws-s3-command-audit-retention.example.tf` sketches a
+separate S3 bucket with Object Lock, versioning, TLS-only access, public-access
+blocking, and narrow writer/reader principals. Upload retained copies under the
+`command-audit/` prefix, for example:
+
+```bash
+AUDIT_DEST=s3://example-audit-bucket/command-audit/receiver-a/command_audit.jsonl \
+  APPLY=1 \
+  ops/cloud/sync-command-audit.example.sh
+```
+
 After verifying the destination and retention policy:
 
 ```bash
@@ -358,3 +376,5 @@ Keep private:
 - Render Blueprint YAML: https://render.com/docs/blueprint-spec
 - DigitalOcean firewall resource:
   https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs/resources/firewall.html
+- AWS S3 Object Lock:
+  https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html

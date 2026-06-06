@@ -1496,6 +1496,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     server-side command audit JSONL to separate object storage. Actual
     immutability still depends on provider retention controls such as object
     lock/versioning and a separate storage identity.
+  - partial; AWS-focused off-host audit retention now includes
+    `ops/cloud/aws-s3-command-audit-retention.example.tf`, sketching a separate
+    Object Lock bucket, versioning, TLS-only access, public-access blocking,
+    narrow writer/reader principals, and governance-mode default retention for
+    synced command-audit copies.
 - Keep initial commands low-risk:
   - pause
   - resume

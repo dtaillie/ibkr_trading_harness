@@ -25,6 +25,7 @@ pushing this working tree.
   - `ops/cloud/caddy-status-receiver.example.Caddyfile`
   - `ops/cloud/ufw-status-receiver.example.sh`
   - `ops/cloud/aws-security-group-status-receiver.example.tf`
+  - `ops/cloud/aws-s3-command-audit-retention.example.tf`
   - `ops/cloud/digitalocean-firewall-status-receiver.example.tf`
   - `ops/cloud/fly-status-receiver.example.toml`
   - `ops/cloud/render-status-receiver.example.yaml`
