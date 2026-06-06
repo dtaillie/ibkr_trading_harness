@@ -1015,6 +1015,21 @@
           <button id="data-symbol-browser-compare" class="secondary" type="button">Compare</button>
           <button id="data-symbol-browser-diagnose" class="secondary" type="button">Diagnose</button>
         </div>
+        <section id="data-symbol-selection-panel" class="symbol-selection-panel" aria-label="Selected symbol actions">
+          <div class="symbol-selection-main">
+            <span class="eyebrow">Selected Symbol</span>
+            <strong id="data-symbol-selection-title">No symbol selected</strong>
+            <span id="data-symbol-selection-note">Type or choose a scanned symbol to filter, inspect, compare, diagnose, or send its best file to Workbench.</span>
+            <div class="hero-actions">
+              <button id="data-symbol-selection-filter" type="button" disabled>Filter Catalog</button>
+              <button id="data-symbol-selection-inspect" class="secondary" type="button" disabled>Inspect Best File</button>
+              <button id="data-symbol-selection-workbench" class="secondary" type="button" disabled>Use In Workbench</button>
+              <button id="data-symbol-selection-compare" class="secondary" type="button" disabled>Compare Files</button>
+              <button id="data-symbol-selection-diagnose" class="secondary" type="button" disabled>Diagnose</button>
+            </div>
+          </div>
+          <div id="data-symbol-selection-cards" class="symbol-selection-cards"></div>
+        </section>
         <section class="symbol-profile-panel" aria-label="Selected symbol profile">
           <div class="symbol-profile-main">
             <span class="eyebrow">Symbol Profile</span>

@@ -371,6 +371,46 @@ button.secondary {
   background: var(--panel);
 }
 
+.symbol-selection-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(320px, 1.25fr);
+  gap: 12px;
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid rgba(8, 122, 82, 0.18);
+  border-radius: 8px;
+  background: #fbfffc;
+}
+
+.symbol-selection-main,
+.symbol-selection-cards {
+  min-width: 0;
+}
+
+.symbol-selection-main strong,
+.symbol-selection-main span {
+  display: block;
+}
+
+.symbol-selection-main strong {
+  margin: 4px 0;
+  font-size: 22px;
+  line-height: 1.18;
+}
+
+.symbol-selection-main > span:last-of-type {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.symbol-selection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+}
+
 .symbol-match-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2753,6 +2793,7 @@ footer {
   .overview-lens-bar,
   .overview-glance-panel,
   .overview-performance-panel,
+  .symbol-selection-panel,
   .symbol-profile-panel,
   .builder-output,
   .overview-hero,

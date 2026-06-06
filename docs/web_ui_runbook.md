@@ -198,6 +198,10 @@ bar sizes, quality counts, and the best inspectable saved file.
 Use Symbol Browser quick picks when you only remember part of a ticker; the
 cards summarize matching symbols and select one into the existing Inspect,
 Compare, Filter, and Diagnose actions.
+The Selected Symbol strip under Symbol Browser shows the current action target,
+selected saved file, coverage, quality, and direct Filter, Inspect, Workbench,
+Compare, and Diagnose buttons, so dataset-selector changes are visible before
+you act.
 The Symbol Profile under the browser summarizes the selected symbol's saved
 files, date coverage, quality, best file, a compact best-file preview chart,
 and direct next actions: inspect, send to Workbench, compare saved files, filter

@@ -5694,6 +5694,7 @@ function renderSymbolBrowser() {
   renderSymbolQuickPicks(groups, activeSymbol);
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
+    renderSymbolSelectionPanel(previousSymbol);
     $("data-symbol-browser-note").innerHTML = `<span class="status-warn">No catalog files match ${escapeHtml(previousSymbol)}</span>`;
     $("data-symbol-browser-matches").innerHTML = `<div class="empty-card"><strong>No exact match</strong><span>Choose a quick pick above, or use Diagnose to check unconfigured roots and fetch manifests for this symbol.</span></div>`;
     return;
@@ -5704,6 +5705,7 @@ function renderSymbolBrowser() {
     label: `${text(dataset.bar_size)} ${text(dataset.source)} ${text(dataset.quality_status)} ${numberText(dataset.rows, 0)} rows`,
   }));
   replaceOptions(datasetSelect, datasetOptions);
+  renderSymbolSelectionPanel(activeSymbol);
   $("data-symbol-browser-note").textContent = symbols.length
     ? `${numberText(symbols.length, 0)} unique scanned symbols; ${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"} for ${text(selectedSymbolBrowserSymbol())}`
     : "No scanned symbols loaded";
@@ -6627,6 +6629,82 @@ function selectedSymbolBrowserPath() {
   return $("data-symbol-browser-dataset").value || (selectedSymbolBrowserDatasets()[0] || {}).path || "";
 }
 
+function selectedSymbolBrowserDataset() {
+  const selectedPath = selectedSymbolBrowserPath();
+  if (!selectedPath) return selectedSymbolBrowserDatasets()[0] || null;
+  return selectedSymbolBrowserDatasets().find((dataset) => dataset.path === selectedPath)
+    || (state.dataCatalog.datasets || []).find((dataset) => dataset.path === selectedPath)
+    || null;
+}
+
+function renderSymbolSelectionPanel(symbol) {
+  if (!$("data-symbol-selection-title")) return;
+  const model = symbolProfileModel(symbol);
+  const selectedDataset = selectedSymbolBrowserDataset() || model.best;
+  const hasRows = Boolean(model.rows.length);
+  const hasQuery = Boolean(model.symbol);
+  $("data-symbol-selection-title").textContent = hasRows
+    ? model.symbol
+    : hasQuery ? `${model.symbol} not visible` : "No symbol selected";
+  $("data-symbol-selection-note").textContent = hasRows
+    ? `${numberText(model.rows.length, 0)} saved file${model.rows.length === 1 ? "" : "s"} / ${numberText(model.totalRows, 0)} rows. Actions use ${text((selectedDataset || {}).bar_size)} ${text((selectedDataset || {}).source)} unless noted.`
+    : hasQuery
+      ? "This symbol is not in the current catalog. Diagnose can check configured roots, suggested roots, and fetch manifests."
+      : "Type a ticker, choose a quick pick, or browse the Symbol Directory to load a saved-data symbol.";
+  const buttonStates = {
+    "data-symbol-selection-filter": hasRows,
+    "data-symbol-selection-inspect": Boolean(selectedDataset && selectedDataset.path),
+    "data-symbol-selection-workbench": Boolean(selectedDataset && selectedDataset.path),
+    "data-symbol-selection-compare": model.rows.length >= 2,
+    "data-symbol-selection-diagnose": hasQuery,
+  };
+  for (const [id, enabled] of Object.entries(buttonStates)) {
+    const button = $(id);
+    if (button) button.disabled = !enabled;
+  }
+  const qualityScore = model.qualityScore;
+  const qualityStatus = qualityScore === 0 ? "ok" : qualityScore === 1 ? "warn" : qualityScore === 2 ? "bad" : "warn";
+  const cards = [
+    {
+      status: hasRows ? "ok" : hasQuery ? "warn" : "bad",
+      label: "Selection",
+      title: hasQuery ? model.symbol : "n/a",
+      note: hasRows
+        ? `${numberText(model.rows.length, 0)} files in the current catalog.`
+        : hasQuery ? "No exact saved-data match is visible." : "No symbol query entered.",
+    },
+    {
+      status: selectedDataset ? "ok" : "bad",
+      label: "Action File",
+      title: selectedDataset ? `${text(selectedDataset.bar_size)} ${text(selectedDataset.source)}` : "n/a",
+      note: selectedDataset
+        ? `${numberText(selectedDataset.rows, 0)} rows / ${text(selectedDataset.storage_session)} / ${bytes(selectedDataset.size_bytes)}`
+        : "Inspect and Workbench need a saved file.",
+    },
+    {
+      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "bad",
+      label: "Coverage",
+      title: model.range.start && model.range.end ? `${model.range.start} -> ${model.range.end}` : "n/a",
+      note: model.latestMillis ? `Latest saved bar ${new Date(model.latestMillis).toISOString().slice(0, 10)}.` : "No timestamp range loaded.",
+    },
+    {
+      status: qualityStatus,
+      label: "Quality",
+      title: hasRows ? countSummary(model.qualities) : "n/a",
+      note: qualityScore === 0
+        ? "Best-ranked files report ok quality."
+        : hasRows ? "Review warnings before simulation." : "No quality data available.",
+    },
+  ];
+  $("data-symbol-selection-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function selectCatalogDatasetInWorkbench(dataset) {
   if (!dataset || !dataset.path) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
@@ -6784,6 +6862,38 @@ async function handleSymbolProfileAction(target) {
     state.manifestPathFilter = null;
     renderDataCatalog();
     $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    return;
+  }
+  if (action === "diagnose") {
+    if (!symbol) throw new Error("Enter a symbol first");
+    $("data-symbol-input").value = symbol;
+    await diagnoseDataSymbol(new Event("submit"));
+  }
+}
+
+async function handleSymbolSelectionAction(action) {
+  const symbol = selectedSymbolBrowserSymbol();
+  const dataset = selectedSymbolBrowserDataset();
+  if (action === "filter") {
+    $("data-filter-text").value = symbol;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    return;
+  }
+  if (action === "inspect") {
+    if (!dataset || !dataset.path) throw new Error(`No inspectable file for ${symbol || "selected symbol"}`);
+    await loadDataDetail(dataset.path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded ${symbol} data detail`;
+    return;
+  }
+  if (action === "workbench") {
+    if (!dataset || !dataset.path) throw new Error(`No Workbench-ready file for ${symbol || "selected symbol"}`);
+    selectCatalogDatasetInWorkbench(dataset);
+    return;
+  }
+  if (action === "compare") {
+    await compareSelectedSymbolDatasets();
     return;
   }
   if (action === "diagnose") {
@@ -14434,6 +14544,10 @@ function init() {
     });
   });
   $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-browser-dataset").addEventListener("change", () => {
+    renderSymbolSelectionPanel(selectedSymbolBrowserSymbol());
+    renderSymbolProfile(selectedSymbolBrowserSymbol());
+  });
   $("data-symbol-browser-input").addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     const symbol = selectedSymbolBrowserDatasets().length
@@ -14498,6 +14612,19 @@ function init() {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  for (const [id, action] of [
+    ["data-symbol-selection-filter", "filter"],
+    ["data-symbol-selection-inspect", "inspect"],
+    ["data-symbol-selection-workbench", "workbench"],
+    ["data-symbol-selection-compare", "compare"],
+    ["data-symbol-selection-diagnose", "diagnose"],
+  ]) {
+    $(id).addEventListener("click", () => {
+      handleSymbolSelectionAction(action).catch((err) => {
+        $("data-symbol-selection-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+      });
+    });
+  }
   for (const id of [
     "data-symbol-profile-inspect",
     "data-symbol-profile-workbench",

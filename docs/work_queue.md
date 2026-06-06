@@ -754,6 +754,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       result list with exact/starts/contains match labels, file/row/range
       context, click selection, and Enter-to-select behavior, reducing
       dependence on browser-native datalist UI.
+    - partial; Symbol Browser now has a Selected Symbol command strip that
+      summarizes the active symbol, action file, coverage, quality, and direct
+      Filter/Inspect/Workbench/Compare/Diagnose actions, reducing ambiguity
+      after typeahead or dataset-selector changes.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe
