@@ -677,6 +677,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-typeahead" in html
         assert "data-symbol-quick-picks" in html
         assert "data-symbol-browser-compare" in html
+        assert "data-symbol-profile-title" in html
+        assert "data-symbol-profile-workbench" in html
+        assert "data-symbol-profile-files" in html
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html
         assert "export-data-symbol-directory-csv" in html

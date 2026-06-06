@@ -123,9 +123,16 @@ strategy-private.
     - partial; Data Library now includes a contextual guide that turns current
       root, catalog-cap, parser-skip, symbol, Data Detail, and Workbench
       selection state into concrete next actions.
+    - partial; Data Library now includes a Symbol Profile panel near Symbol
+      Browser that summarizes a selected symbol's files, coverage, quality,
+      best saved file, and direct Inspect, Workbench, Compare, Filter, and
+      Diagnose actions before the dense catalog table.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.
+    - partial; symbol diagnostics now bound suggested-root file counts so a
+      missing-symbol check cannot hang on very large local history roots while
+      still reporting whether the count was capped.
     - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
       block from visible manifest roots, giving users the matching config fix
       for fetch-history visibility.

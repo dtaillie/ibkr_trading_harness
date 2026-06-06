@@ -464,6 +464,69 @@ button.secondary {
   overflow-wrap: anywhere;
 }
 
+.symbol-profile-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(260px, 1.2fr);
+  gap: 12px;
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-panel);
+}
+
+.symbol-profile-main,
+.symbol-profile-file {
+  min-width: 0;
+}
+
+.symbol-profile-main strong,
+.symbol-profile-main span,
+.symbol-profile-file strong,
+.symbol-profile-file span,
+.symbol-profile-file small {
+  display: block;
+}
+
+.symbol-profile-main strong {
+  margin: 4px 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.symbol-profile-main > span:last-of-type,
+.symbol-profile-file span,
+.symbol-profile-file small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.symbol-profile-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 8px;
+}
+
+.symbol-profile-files {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.symbol-profile-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
 .symbol-match-card {
   display: block;
   min-height: 104px;
@@ -2245,6 +2308,7 @@ footer {
   .operations-home-panel,
   .overview-glance-panel,
   .overview-performance-panel,
+  .symbol-profile-panel,
   .builder-output,
   .overview-hero,
   .performance-layout,
@@ -2260,6 +2324,15 @@ footer {
 
   .symbol-match-badge {
     justify-self: start;
+  }
+
+  .symbol-profile-files {
+    grid-template-columns: 1fr;
+  }
+
+  .symbol-profile-file {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
   }
 
   .overview-status-grid,

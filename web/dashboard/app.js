@@ -4225,6 +4225,7 @@ function renderSymbolBrowser() {
   renderCatalogSymbolDatalists(symbols);
   if (!previousSymbol && symbols.length) input.value = symbols[0];
   const activeSymbol = selectedSymbolBrowserSymbol();
+  renderSymbolProfile(activeSymbol);
   renderSymbolTypeahead(groups, activeSymbol);
   renderSymbolQuickPicks(groups, activeSymbol);
   if (previousSymbol && !groups.has(previousSymbol)) {
@@ -4252,6 +4253,102 @@ function renderSymbolBrowser() {
         </button>
       `).join("")
     : `<div class="empty-card"><strong>No scanned symbols</strong><span>Add or configure historical data roots, then refresh the catalog.</span></div>`;
+}
+
+function symbolProfileModel(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  const rows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
+  const best = rows[0] || null;
+  const range = timestampRangeFromDatasets(rows);
+  const totalRows = rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+  const qualities = countBy(rows, "quality_status");
+  const sources = Array.from(new Set(rows.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort();
+  const bars = Array.from(new Set(rows.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort();
+  const assets = Array.from(new Set(rows.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort();
+  const latestMillis = rows
+    .map((dataset) => timestampMillis(dataset.last_timestamp) || timestampMillis(dataset.modified_at) || 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+  const qualityScore = rows.length ? Math.min(...rows.map((dataset) => datasetQualityRank(dataset.quality_status))) : 3;
+  return {
+    symbol: normalized,
+    rows,
+    best,
+    range,
+    totalRows,
+    qualities,
+    sources,
+    bars,
+    assets,
+    latestMillis,
+    qualityScore,
+  };
+}
+
+function renderSymbolProfile(symbol) {
+  if (!$("data-symbol-profile-title")) return;
+  const model = symbolProfileModel(symbol);
+  const hasRows = Boolean(model.rows.length);
+  const hasQuery = Boolean(model.symbol);
+  $("data-symbol-profile-title").textContent = hasRows
+    ? `${model.symbol} saved history`
+    : hasQuery ? `${model.symbol} not in current catalog` : "No symbol selected";
+  $("data-symbol-profile-note").textContent = hasRows
+    ? `${numberText(model.rows.length, 0)} file${model.rows.length === 1 ? "" : "s"} / ${numberText(model.totalRows, 0)} rows / ${model.assets.join(", ") || "unknown asset"}`
+    : hasQuery
+      ? "No scanned file matches this symbol. Diagnose can check configured roots, suggested roots, and fetch manifests."
+      : "Pick a scanned symbol to summarize saved history, quality, and next actions.";
+  for (const id of ["data-symbol-profile-inspect", "data-symbol-profile-workbench", "data-symbol-profile-filter"]) {
+    $(id).disabled = !hasRows;
+  }
+  $("data-symbol-profile-compare").disabled = model.rows.length < 2;
+  $("data-symbol-profile-diagnose").disabled = !hasQuery;
+  const qualityStatus = model.qualityScore === 0 ? "ok" : model.qualityScore === 1 ? "warn" : model.qualityScore === 2 ? "bad" : "warn";
+  const cards = [
+    {
+      status: hasRows ? "ok" : "bad",
+      label: "Files",
+      title: numberText(model.rows.length, 0),
+      note: hasRows ? `${numberText(model.totalRows, 0)} total rows across selected symbol files.` : "No catalog-visible files for this symbol.",
+    },
+    {
+      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "bad",
+      label: "Coverage",
+      title: model.range.start && model.range.end ? `${model.range.start} -> ${model.range.end}` : "n/a",
+      note: model.latestMillis ? `Latest saved bar ${new Date(model.latestMillis).toISOString().slice(0, 10)}.` : "No timestamp range loaded.",
+    },
+    {
+      status: qualityStatus,
+      label: "Quality",
+      title: hasRows ? countSummary(model.qualities) : "n/a",
+      note: qualityStatus === "ok" ? "Best available files report ok quality." : "Inspect gaps/nulls before simulation.",
+    },
+    {
+      status: model.best ? "ok" : "bad",
+      label: "Best File",
+      title: model.best ? `${text(model.best.bar_size)} ${text(model.best.source)}` : "n/a",
+      note: model.best ? `${numberText(model.best.rows, 0)} rows / ${text(model.best.storage_session)} / ${bytes(model.best.size_bytes)}` : "No inspectable file selected.",
+    },
+  ];
+  $("data-symbol-profile-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-symbol-profile-files").innerHTML = hasRows
+    ? model.rows.slice(0, 4).map((dataset) => `
+      <div class="symbol-profile-file">
+        <div>
+          <strong>${escapeHtml(text(dataset.bar_size))} ${escapeHtml(text(dataset.source))}</strong>
+          <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</span>
+          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${escapeHtml(numberText(dataset.rows, 0))} rows / ${escapeHtml(text(dataset.storage_session))}</small>
+          <small class="mono">${escapeHtml(text(dataset.path))}</small>
+        </div>
+        <button type="button" class="secondary symbol-profile-file-open" data-path="${escapeHtml(dataset.path)}">Open</button>
+      </div>
+    `).join("")
+    : `<div class="empty-card"><strong>${hasQuery ? "Symbol not visible" : "Choose a symbol"}</strong><span>${hasQuery ? "Run Diagnose to see whether files exist outside configured roots or fetch jobs returned no data." : "Use typeahead, quick picks, or the Symbol Directory."}</span></div>`;
 }
 
 function symbolDirectoryControls() {
@@ -4916,6 +5013,36 @@ function selectedSymbolBrowserPath() {
   return $("data-symbol-browser-dataset").value || (selectedSymbolBrowserDatasets()[0] || {}).path || "";
 }
 
+function selectCatalogDatasetInWorkbench(dataset) {
+  if (!dataset || !dataset.path) {
+    $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
+    return;
+  }
+  const datasetSelect = $("config-dataset");
+  if (!datasetSelect) return;
+  let found = false;
+  for (const option of datasetSelect.options) {
+    option.selected = option.value === dataset.path;
+    if (option.value === dataset.path) found = true;
+  }
+  if (!found) {
+    const option = document.createElement("option");
+    option.value = dataset.path;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`;
+    option.selected = true;
+    datasetSelect.appendChild(option);
+  }
+  if ($("config-start-date")) $("config-start-date").value = dateInputValueFromTimestamp(dataset.first_timestamp);
+  if ($("config-end-date")) $("config-end-date").value = dateInputValueFromTimestamp(dataset.last_timestamp);
+  renderConfigLivePanels();
+  navigateToView("workbench");
+  window.setTimeout(() => {
+    const target = $("workbench-stepper") || $("config-form");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, 50);
+  $("last-refresh").textContent = `Selected ${text(dataset.symbol)} for Workbench simulation`;
+}
+
 async function inspectSelectedSymbol() {
   const path = selectedSymbolBrowserPath();
   if (!path) {
@@ -5016,6 +5143,39 @@ async function handleDataHomeShortlistAction(target) {
   }
   if (action === "compare") {
     await compareSelectedSymbolDatasets();
+  }
+}
+
+async function handleSymbolProfileAction(target) {
+  const action = String(target.dataset.symbolProfileAction || "");
+  const symbol = selectedSymbolBrowserSymbol();
+  const dataset = bestCatalogDatasetForSymbol(symbol);
+  if (action === "inspect") {
+    if (!dataset || !dataset.path) throw new Error(`No inspectable file for ${symbol || "selected symbol"}`);
+    await loadDataDetail(dataset.path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded ${symbol} data detail`;
+    return;
+  }
+  if (action === "workbench") {
+    if (!dataset || !dataset.path) throw new Error(`No Workbench-ready file for ${symbol || "selected symbol"}`);
+    selectCatalogDatasetInWorkbench(dataset);
+    return;
+  }
+  if (action === "compare") {
+    await compareSelectedSymbolDatasets();
+    return;
+  }
+  if (action === "filter") {
+    $("data-filter-text").value = symbol;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    return;
+  }
+  if (action === "diagnose") {
+    if (!symbol) throw new Error("Enter a symbol first");
+    $("data-symbol-input").value = symbol;
+    await diagnoseDataSymbol(new Event("submit"));
   }
 }
 
@@ -11231,6 +11391,19 @@ function init() {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  for (const id of [
+    "data-symbol-profile-inspect",
+    "data-symbol-profile-workbench",
+    "data-symbol-profile-compare",
+    "data-symbol-profile-filter",
+    "data-symbol-profile-diagnose",
+  ]) {
+    $(id).addEventListener("click", (event) => {
+      handleSymbolProfileAction(event.currentTarget).catch((err) => {
+        $("data-symbol-profile-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+      });
+    });
+  }
   $("config-preview-alignment").addEventListener("click", () => {
     previewConfigAlignment().catch((err) => {
       $("config-alignment-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -11495,6 +11668,13 @@ function init() {
     if (!(target instanceof HTMLElement)) return;
     loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-profile-files").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".symbol-profile-file-open") : null;
+    if (!(target instanceof HTMLElement)) return;
+    loadDataDetail(target.dataset.path || "", { resetControls: true }).catch((err) => {
+      $("data-symbol-profile-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-symbol-directory").addEventListener("click", (event) => {

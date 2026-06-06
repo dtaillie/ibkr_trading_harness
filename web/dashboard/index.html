@@ -899,6 +899,22 @@
           <button id="data-symbol-browser-compare" class="secondary" type="button">Compare</button>
           <button id="data-symbol-browser-diagnose" class="secondary" type="button">Diagnose</button>
         </div>
+        <section class="symbol-profile-panel" aria-label="Selected symbol profile">
+          <div class="symbol-profile-main">
+            <span class="eyebrow">Symbol Profile</span>
+            <strong id="data-symbol-profile-title">No symbol selected</strong>
+            <span id="data-symbol-profile-note">Pick a scanned symbol to summarize saved history, quality, and next actions.</span>
+            <div class="hero-actions">
+              <button id="data-symbol-profile-inspect" type="button" data-symbol-profile-action="inspect" disabled>Inspect Best File</button>
+              <button id="data-symbol-profile-workbench" class="secondary" type="button" data-symbol-profile-action="workbench" disabled>Use In Workbench</button>
+              <button id="data-symbol-profile-compare" class="secondary" type="button" data-symbol-profile-action="compare" disabled>Compare Files</button>
+              <button id="data-symbol-profile-filter" class="secondary" type="button" data-symbol-profile-action="filter" disabled>Filter Catalog</button>
+              <button id="data-symbol-profile-diagnose" class="secondary" type="button" data-symbol-profile-action="diagnose">Diagnose</button>
+            </div>
+          </div>
+          <div id="data-symbol-profile-cards" class="symbol-profile-cards"></div>
+          <div id="data-symbol-profile-files" class="symbol-profile-files"></div>
+        </section>
         <div id="data-symbol-typeahead" class="symbol-typeahead" aria-live="polite"></div>
         <div id="data-symbol-quick-picks" class="symbol-quick-picks"></div>
         <div id="data-symbol-browser-matches" class="symbol-match-grid"></div>

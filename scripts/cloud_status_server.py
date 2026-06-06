@@ -3545,9 +3545,9 @@ def build_data_symbol_diagnostic(
         "root_summary": {
             "configured": [data_root_row(root) for root in data_roots],
             "suggested": [
-                data_root_row(root)
+                data_root_row(root, count_limit=1000)
                 for root in suggested_roots
-                if root.exists() and root.is_dir() and data_file_count(root)
+                if root.exists() and root.is_dir() and data_file_count(root, limit=1000)
             ],
         },
     }
@@ -5933,10 +5933,11 @@ def data_file_count(root: Path, *, limit: int = 10_000) -> int:
     return count
 
 
-def data_root_row(root: Path) -> dict[str, Any]:
+def data_root_row(root: Path, *, count_limit: int = 10_000) -> dict[str, Any]:
     row = writable_probe(root, expect_dir=True)
     row["display_path"] = root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root)
-    row["data_file_count"] = data_file_count(root)
+    row["data_file_count"] = data_file_count(root, limit=count_limit)
+    row["data_file_count_capped"] = row["data_file_count"] >= count_limit
     row["scope"] = classify_data_root(root)
     row["scope_note"] = data_root_scope_note(row["scope"])
     return row
