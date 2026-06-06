@@ -2169,6 +2169,7 @@ function renderOverview() {
     meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
   });
   renderOverviewPerformanceSnapshot();
+  renderOverviewGlance();
   renderOverviewSessionState();
   renderRuntimeStatus();
   renderOverviewHealth();
@@ -2176,6 +2177,170 @@ function renderOverview() {
   renderOverviewOrders();
   renderOverviewPositions();
   renderOverviewTimeline();
+}
+
+function overviewGlanceModel() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const runs = payload.runs || [];
+  const alerts = payload.alerts || [];
+  const health = overviewHealthChecks();
+  const badHealth = health.filter((item) => item.status === "bad");
+  const warnHealth = health.filter((item) => item.status === "warn");
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestRejectedOrder = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const openOrders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const positions = nonzeroPositionsFromSource(source);
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const performance = latestArtifactPerformance();
+  const accountRows = performance.account || [];
+  const todayWindow = performancePeriodWindow(accountRows, "today");
+  const todayRows = rowsInWindow(accountRows, todayWindow);
+  const todayPerf = performanceFromAccountRows(todayRows);
+  const gatewayOk = !gateway.enabled || gateway.reachable === true;
+  const hasCurrentTelemetry = Boolean(payload.generated_at && runs.length);
+  let status = "bad";
+  let title = "Connect Telemetry";
+  let summary = "No current run is publishing status. Start the local publisher or open Operations to inspect service state.";
+  let primary = { label: "Operations", target: "operations" };
+  let secondary = { label: "Help", target: "help" };
+
+  if (hasCurrentTelemetry) {
+    status = "ok";
+    title = "Monitoring";
+    summary = latestDecision
+      ? `Latest decision: ${text(latestDecision.symbol)} ${shortTimestampAgeLabel(latestDecision.timestamp)}.`
+      : "A run is publishing, but no recent decision event is visible.";
+    primary = { label: "Performance", target: "performance" };
+    secondary = { label: "Runs", target: "runs" };
+  }
+  if (datasets.length === 0 && !hasCurrentTelemetry) {
+    status = "bad";
+    title = "Add Data Roots";
+    summary = "No saved historical data is visible, so replay and benchmark workflows will be limited.";
+    primary = { label: "Data Library", target: "data" };
+    secondary = { label: "Fetch Jobs", target: "fetch" };
+  }
+  if (badHealth.length) {
+    status = "bad";
+    title = badHealth[0].label;
+    summary = badHealth[0].detail;
+    primary = badHealth[0].label === "Saved Data" ? { label: "Data Library", target: "data" } : { label: "Operations", target: "operations" };
+    secondary = { label: "Help", target: "help" };
+  } else if (!gatewayOk) {
+    status = "bad";
+    title = "Gateway Down";
+    summary = "Gateway/API checks are enabled but not reachable.";
+    primary = { label: "Operations", target: "operations" };
+    secondary = { label: "Help", target: "help" };
+  } else if (alerts.length) {
+    status = "warn";
+    title = "Review Alerts";
+    summary = `${numberText(alerts.length, 0)} current alert${alerts.length === 1 ? "" : "s"} published.`;
+    primary = { label: "Operations", target: "operations" };
+    secondary = { label: "Runs", target: "runs" };
+  } else if (latestRejectedOrder) {
+    status = "bad";
+    title = "Order Issue";
+    summary = `${text(latestRejectedOrder.symbol)} ${text(latestRejectedOrder.status)} ${shortTimestampAgeLabel(latestRejectedOrder.timestamp)}.`;
+    primary = { label: "Runs", target: "runs" };
+    secondary = { label: "Operations", target: "operations" };
+  } else if (openOrders.length) {
+    status = "warn";
+    title = "Open Orders";
+    summary = `${numberText(openOrders.length, 0)} non-terminal order event${openOrders.length === 1 ? "" : "s"} need broker/account review.`;
+    primary = { label: "Runs", target: "runs" };
+    secondary = { label: "Operations", target: "operations" };
+  } else if (positions.length) {
+    status = "warn";
+    title = "Positions Open";
+    summary = `${positions.slice(0, 3).map((position) => position.symbol).join(", ")}${positions.length > 3 ? "..." : ""} open from the current account source.`;
+    primary = { label: "Performance", target: "performance" };
+    secondary = { label: "Runs", target: "runs" };
+  } else if (hasCurrentTelemetry && !latestDecision) {
+    status = "warn";
+    title = "Awaiting Signal";
+    summary = "The run is publishing, but no latest decision is visible yet.";
+    primary = { label: "Runs", target: "runs" };
+    secondary = { label: "Operations", target: "operations" };
+  } else if (warnHealth.length) {
+    status = "warn";
+    title = warnHealth[0].label;
+    summary = warnHealth[0].detail;
+  } else if (latestFill) {
+    status = "ok";
+    title = "Filled Today";
+    summary = `${text(latestFill.symbol)} filled ${shortTimestampAgeLabel(latestFill.timestamp)}.`;
+  }
+
+  const cards = [
+    {
+      label: "Telemetry",
+      value: payload.generated_at ? shortTimestampAgeLabel(payload.generated_at) : "missing",
+      status: payload.generated_at ? "ok" : "bad",
+      detail: runs.length ? `${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}` : "No current run list.",
+    },
+    {
+      label: "Today Return",
+      value: pctText(todayPerf.total_return_pct),
+      status: todayPerf.total_return_pct == null ? "warn" : todayPerf.total_return_pct >= 0 ? "ok" : "bad",
+      detail: todayRows.length ? `${numberText(todayRows.length, 0)} account snapshots` : "No current-day account path.",
+    },
+    {
+      label: "Trade State",
+      value: openOrders.length ? `${numberText(openOrders.length, 0)} open` : positions.length ? `${numberText(positions.length, 0)} pos` : latestFill ? "filled" : latestDecision ? "checked" : "quiet",
+      status: latestRejectedOrder ? "bad" : openOrders.length || positions.length ? "warn" : latestDecision || latestFill ? "ok" : hasCurrentTelemetry ? "warn" : "bad",
+      detail: latestRejectedOrder
+        ? `${text(latestRejectedOrder.symbol)} ${text(latestRejectedOrder.status)}`
+        : latestDecision
+          ? `${text(latestDecision.symbol)} ${shortTimestampAgeLabel(latestDecision.timestamp)}`
+          : "No recent decision/order/fill event.",
+    },
+    {
+      label: "Saved Data",
+      value: numberText(datasets.length, 0),
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad",
+      detail: fetchManifests.length
+        ? `${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"} visible`
+        : "No fetch manifests loaded.",
+    },
+  ];
+
+  return { status, title, summary, primary, secondary, cards };
+}
+
+function renderOverviewGlance() {
+  if (!$("overview-glance-title") || !$("overview-glance-cards")) return;
+  const model = overviewGlanceModel();
+  $("overview-glance-note").textContent = model.status === "ok"
+    ? "Current public telemetry looks usable"
+    : model.status === "warn"
+      ? "Usable with items to inspect"
+      : "Needs attention before trusting the run";
+  $("overview-glance-title").textContent = model.title;
+  $("overview-glance-title").className = statusClass(model.status);
+  $("overview-glance-summary").textContent = model.summary;
+  const primary = $("overview-glance-primary");
+  const secondary = $("overview-glance-secondary");
+  if (primary) {
+    primary.textContent = model.primary.label;
+    primary.dataset.viewTarget = model.primary.target;
+  }
+  if (secondary) {
+    secondary.textContent = model.secondary.label;
+    secondary.dataset.viewTarget = model.secondary.target;
+  }
+  $("overview-glance-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
 }
 
 function utcDayKey(value) {

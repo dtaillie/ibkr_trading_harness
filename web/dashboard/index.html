@@ -135,6 +135,25 @@
 
     <section class="dashboard-section" data-view="overview">
       <div class="section-head">
+        <h2>Today at a Glance</h2>
+        <span id="overview-glance-note" class="section-note">Waiting for telemetry</span>
+      </div>
+      <section class="overview-glance-panel" aria-label="Today at a glance">
+        <div class="overview-glance-main">
+          <span class="eyebrow">Next Best Check</span>
+          <strong id="overview-glance-title">n/a</strong>
+          <span id="overview-glance-summary">Publish status telemetry to see the current operating state.</span>
+          <div class="hero-actions">
+            <button id="overview-glance-primary" class="secondary" type="button" data-view-target="performance">Performance</button>
+            <button id="overview-glance-secondary" class="secondary" type="button" data-view-target="runs">Runs</button>
+          </div>
+        </div>
+        <div id="overview-glance-cards" class="overview-glance-cards"></div>
+      </section>
+    </section>
+
+    <section class="dashboard-section" data-view="overview">
+      <div class="section-head">
         <h2>Today's Signal State</h2>
         <span id="overview-session-state-note" class="section-note">Waiting for current-session telemetry</span>
       </div>

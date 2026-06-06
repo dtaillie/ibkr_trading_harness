@@ -969,12 +969,20 @@ section {
   gap: 12px;
 }
 
+.overview-glance-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(340px, 1.22fr);
+  gap: 12px;
+}
+
 .performance-home-main,
 .workbench-home-main,
 .operations-home-main,
 .performance-home-tiles,
 .workbench-home-tiles,
 .operations-home-tiles,
+.overview-glance-main,
+.overview-glance-cards,
 .overview-performance-main,
 .overview-performance-side {
   min-width: 0;
@@ -988,6 +996,7 @@ section {
 .performance-home-main strong,
 .workbench-home-main strong,
 .operations-home-main strong,
+.overview-glance-main strong,
 .overview-performance-main strong {
   display: block;
   margin-top: 8px;
@@ -998,6 +1007,7 @@ section {
 .performance-home-main > span:last-of-type,
 .workbench-home-main > span:last-of-type,
 .operations-home-main > span:last-of-type,
+.overview-glance-main > span:last-of-type,
 .overview-performance-main > span:last-of-type {
   display: block;
   margin-top: 8px;
@@ -1010,6 +1020,7 @@ section {
 .performance-home-tiles,
 .workbench-home-tiles,
 .operations-home-tiles,
+.overview-glance-cards,
 .overview-performance-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -2136,6 +2147,7 @@ footer {
   .performance-home-panel,
   .workbench-home-panel,
   .operations-home-panel,
+  .overview-glance-panel,
   .overview-performance-panel,
   .builder-output,
   .overview-hero,

@@ -35,6 +35,9 @@ strategy-private.
   drawdown, and daily-return visuals when account artifacts are available. The
   next pass should improve deeper drilldowns, visual polish, and guided
   workflows.
+  - partial; Overview now includes a Today at a Glance panel that synthesizes
+    telemetry, current-day return, trade state, saved-data visibility, and the
+    next best dashboard action before the denser health/order/timeline tables.
 - Define page-level user outcomes before adding more controls:
   - Overview should answer whether the current strategy is healthy in under
     ten seconds.
@@ -79,6 +82,10 @@ strategy-private.
       no current run, awaiting a current-day check, no-trade-today,
       order-submitted, filled, and rejected-order states from sanitized
       current-day events, and it shows the latest checked decision detail.
+    - partial; Overview now also has a Today at a Glance panel that summarizes
+      no-telemetry, data-root, alert, rejected-order, open-order, position-open,
+      awaiting-signal, filled, and normal monitoring states with direct next
+      actions.
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
   - partial; the Overview hero now shows equity first plus mode, Gateway,
