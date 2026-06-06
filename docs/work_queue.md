@@ -651,6 +651,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   state, heavy Data Diagnostics scans are lazy until the Diagnostics lens is
   opened, and generated Workbench controls no longer crash dashboard startup
   before the first refresh.
+  - partial; Symbol Directory now includes a Directory Assistant that recommends
+    symbols from the current filtered catalog by recency, row coverage, quality,
+    and file count, with direct Inspect, Workbench, Compare, and Filter actions
+    before the denser symbol card grid.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

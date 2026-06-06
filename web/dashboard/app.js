@@ -6635,6 +6635,117 @@ function renderSymbolDirectorySummary(directory) {
   `).join("");
 }
 
+function firstUniqueSymbolRows(candidates) {
+  const seen = new Set();
+  const rows = [];
+  for (const item of candidates || []) {
+    const symbol = text(item && item.symbol);
+    if (!symbol || symbol === "n/a" || seen.has(symbol)) continue;
+    seen.add(symbol);
+    rows.push(item);
+  }
+  return rows;
+}
+
+function symbolDirectoryRecommendationRows(directory) {
+  const rows = directory.all_rows || [];
+  const newest = rows.slice().sort((left, right) => (timestampMillis(right.last_day) || 0) - (timestampMillis(left.last_day) || 0))[0] || null;
+  const largest = rows.slice().sort((left, right) => Number(right.row_count || 0) - Number(left.row_count || 0))[0] || null;
+  const cleanest = rows.slice().sort((left, right) => {
+    const quality = symbolDirectoryQualityScore(left.qualities) - symbolDirectoryQualityScore(right.qualities);
+    if (quality) return quality;
+    return Number(right.row_count || 0) - Number(left.row_count || 0);
+  })[0] || null;
+  const mostFiles = rows.slice().sort((left, right) => Number(right.file_count || 0) - Number(left.file_count || 0))[0] || null;
+  return firstUniqueSymbolRows([newest, largest, cleanest, mostFiles]).slice(0, 4);
+}
+
+function renderSymbolDirectoryAssistant(directory) {
+  if (!$("data-directory-assistant-title") || !$("data-directory-assistant-cards") || !$("data-directory-assistant-actions")) return;
+  const rows = directory.all_rows || [];
+  const shown = directory.rows || [];
+  const recommendations = symbolDirectoryRecommendationRows(directory);
+  const latest = recommendations.find((item) => timestampMillis(item.last_day)) || null;
+  const qualityOk = rows.filter((item) => symbolDirectoryQualityScore(item.qualities) === 0).length;
+  const compareReady = rows.filter((item) => Number(item.file_count || 0) >= 2).length;
+  const activeFilters = [
+    directory.controls.filter ? `search ${directory.controls.filter}` : "",
+    directory.controls.asset,
+    directory.controls.source,
+    directory.controls.bar,
+    directory.controls.session,
+    directory.controls.quality,
+  ].filter(Boolean);
+  let title = "No Symbols Matched";
+  let note = activeFilters.length
+    ? "No saved symbols match the current directory filters. Clear or broaden the filters."
+    : "Configure data roots or run a fetch job, then refresh Data Library.";
+  if (rows.length) {
+    title = recommendations.length ? `Try ${text(recommendations[0].symbol)}` : "Symbols Available";
+    note = activeFilters.length
+      ? `${numberText(shown.length, 0)} shown from ${numberText(rows.length, 0)} matched symbols after ${activeFilters.join(", ")}.`
+      : `${numberText(rows.length, 0)} scanned symbols are available; start with recent, large, clean, or multi-file symbols.`;
+  }
+  $("data-directory-assistant-title").textContent = title;
+  $("data-directory-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: rows.length ? "ok" : "bad",
+      label: "Matched",
+      title: `${numberText(shown.length, 0)} / ${numberText(rows.length, 0)}`,
+      note: activeFilters.length ? `Filters: ${activeFilters.join(", ")}.` : "No directory filters applied.",
+    },
+    {
+      status: latest ? "ok" : "warn",
+      label: "Newest",
+      title: latest ? text(latest.symbol) : "n/a",
+      note: latest ? `Latest bar ${text(latest.last_day)}.` : "No timestamped symbol row.",
+    },
+    {
+      status: qualityOk ? "ok" : rows.length ? "warn" : "bad",
+      label: "Clean",
+      title: numberText(qualityOk, 0),
+      note: rows.length ? `${numberText(rows.length - qualityOk, 0)} matched symbol${rows.length - qualityOk === 1 ? "" : "s"} need quality review.` : "No quality rows loaded.",
+    },
+    {
+      status: compareReady ? "ok" : rows.length ? "warn" : "bad",
+      label: "Compare Ready",
+      title: numberText(compareReady, 0),
+      note: "Symbols with at least two saved files can be compared before simulation.",
+    },
+  ];
+  $("data-directory-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-directory-assistant-actions").innerHTML = recommendations.length
+    ? recommendations.map((item, index) => {
+        const symbol = text(item.symbol);
+        const bestPath = text((item.best || {}).path);
+        const compareDisabled = Number(item.file_count || 0) < 2 ? " disabled" : "";
+        return `
+          <div class="data-directory-action-card">
+            <div>
+              <span>${escapeHtml(index === 0 ? "Recommended" : "Candidate")}</span>
+              <strong>${escapeHtml(symbol)}</strong>
+              <small>${escapeHtml(numberText(item.file_count, 0))} files / ${escapeHtml(numberText(item.row_count, 0))} rows / ${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
+              <small>${escapeHtml(item.assets.join(", ") || "unknown asset")} / ${escapeHtml(item.sources.join(", ") || "unknown source")} / quality ${escapeHtml(countSummary(item.qualities))}</small>
+            </div>
+            <div>
+              <button type="button" data-directory-action="inspect" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}">Inspect</button>
+              <button type="button" class="secondary" data-directory-action="workbench" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}">Workbench</button>
+              <button type="button" class="secondary" data-directory-action="compare" data-symbol="${escapeHtml(symbol)}"${compareDisabled}>Compare</button>
+              <button type="button" class="secondary" data-directory-action="filter" data-symbol="${escapeHtml(symbol)}">Filter</button>
+            </div>
+          </div>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No symbol recommendation</strong><span>Clear filters, increase the catalog limit, or configure/fetch saved data.</span></div>`;
+}
+
 function renderSymbolDirectory() {
   if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
   const groups = symbolBrowserGroups();
@@ -6656,6 +6767,7 @@ function renderSymbolDirectory() {
     ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(totalSymbols, 0)} scanned symbol${totalSymbols === 1 ? "" : "s"}`
     : "No scanned symbols loaded";
   renderSymbolDirectorySummary(directory);
+  renderSymbolDirectoryAssistant(directory);
   $("data-symbol-directory").innerHTML = rows.length
     ? rows.map((item) => {
         const symbol = escapeHtml(item.symbol);
@@ -7559,6 +7671,39 @@ async function handleSymbolDirectoryAction(target) {
     $("data-symbol-input").value = symbol;
     await diagnoseDataSymbol(new Event("submit"));
   }
+}
+
+async function handleSymbolDirectoryAssistantAction(target) {
+  const action = String(target.dataset.directoryAction || "");
+  const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
+  const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
+  if (!symbol) return;
+  $("data-symbol-browser-input").value = symbol;
+  renderSymbolBrowser();
+  if (action === "filter") {
+    $("data-symbol-directory-filter").value = symbol;
+    $("data-filter-text").value = symbol;
+    state.manifestPathFilter = null;
+    renderSymbolDirectory();
+    renderDataCatalog();
+    $("last-refresh").textContent = `Data Library filtered to ${symbol}`;
+    return;
+  }
+  if (action === "workbench") {
+    const dataset = (state.dataCatalog.datasets || []).find((item) => item.path === path) || bestCatalogDatasetForSymbol(symbol);
+    selectCatalogDatasetInWorkbench(dataset);
+    return;
+  }
+  if (action === "compare") {
+    await compareSelectedSymbolDatasets();
+    return;
+  }
+  if (!path) {
+    $("data-symbol-directory-note").innerHTML = `<span class="status-bad">No inspectable file for ${escapeHtml(symbol)}</span>`;
+    return;
+  }
+  await loadDataDetail(path, { resetControls: true });
+  $("last-refresh").textContent = `Loaded ${symbol} data detail`;
 }
 
 async function handleDataHomeShortlistAction(target) {
@@ -16514,6 +16659,13 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-symbol]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleSymbolDirectoryAction(target).catch((err) => {
+      $("data-symbol-directory-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-directory-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-directory-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleSymbolDirectoryAssistantAction(target).catch((err) => {
       $("data-symbol-directory-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
