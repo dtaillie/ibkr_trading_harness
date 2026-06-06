@@ -2373,6 +2373,7 @@ function selectedCompareDatasets() {
 
 function updateCompareSelectionFromSelect(announce = false) {
   const select = $("data-compare-datasets");
+  const previousSelection = state.dataCompareSelectedPaths.join("\u0000");
   const selected = Array.from(select.selectedOptions).map((option) => option.value);
   const capped = selected.slice(0, MAX_DATA_COMPARE_DATASETS);
   state.dataCompareSelectedPaths = capped;
@@ -2384,6 +2385,10 @@ function updateCompareSelectionFromSelect(announce = false) {
   }
   if (announce && selected.length > MAX_DATA_COMPARE_DATASETS) {
     $("last-refresh").textContent = `Compare selection capped at ${MAX_DATA_COMPARE_DATASETS} datasets`;
+  }
+  if (announce && previousSelection !== capped.join("\u0000") && state.dataCompare && state.dataCompare.generated_at) {
+    state.dataCompare = {};
+    renderDataCompare();
   }
 }
 
@@ -9435,6 +9440,7 @@ function renderDataCompareControls() {
   $("data-compare-filter-note").textContent = activeFilters.length
     ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total matching ${activeFilters.join(", ")}; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`
     : `${numberText(allDatasets.length, 0)} catalog datasets; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`;
+  renderDataCompareAssistant(state.dataCompare || {}, $("data-compare-timezone").value || "utc");
 }
 
 function renderDataCompareFilterOptions(datasets) {
@@ -9461,10 +9467,12 @@ function selectShownCompareDatasets() {
   const paths = Array.from(select.options).map((option) => option.value).slice(0, MAX_DATA_COMPARE_DATASETS);
   state.dataCompareSelectedPaths = paths;
   state.dataCompareSelectionCleared = paths.length === 0;
+  state.dataCompare = {};
   for (const option of select.options) {
     option.selected = paths.includes(option.value);
   }
   renderDataCompareControls();
+  renderDataCompare();
   $("data-compare-range-preset").value = "custom";
   $("last-refresh").textContent = paths.length
     ? `Selected ${numberText(paths.length, 0)} shown dataset${paths.length === 1 ? "" : "s"} for comparison`
@@ -9486,8 +9494,10 @@ function selectSymbolCompareDatasets() {
   }
   state.dataCompareSelectedPaths = matches.map((dataset) => dataset.path);
   state.dataCompareSelectionCleared = false;
+  state.dataCompare = {};
   $("data-compare-filter").value = symbol;
   renderDataCompareControls();
+  renderDataCompare();
   $("data-compare-range-preset").value = "custom";
   $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} dataset${matches.length === 1 ? "" : "s"} for comparison`;
 }
@@ -9495,6 +9505,7 @@ function selectSymbolCompareDatasets() {
 function clearCompareSelection() {
   state.dataCompareSelectedPaths = [];
   state.dataCompareSelectionCleared = true;
+  state.dataCompare = {};
   $("data-compare-filter").value = "";
   $("data-compare-asset").value = "";
   $("data-compare-source").value = "";
@@ -9506,6 +9517,7 @@ function clearCompareSelection() {
     option.selected = false;
   }
   renderDataCompareControls();
+  renderDataCompare();
   $("last-refresh").textContent = "Compare selection cleared";
 }
 
@@ -9540,6 +9552,170 @@ function useDataCompareInWorkbench() {
   $("last-refresh").textContent = `Selected ${numberText(selected.length, 0)} compared dataset${selected.length === 1 ? "" : "s"} for Workbench simulation`;
 }
 
+function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
+  if (!$("data-compare-assistant-title") || !$("data-compare-assistant-cards") || !$("data-compare-assistant-actions")) return;
+  const selected = selectedCompareDatasets();
+  const selectedCount = selected.length;
+  const bounds = selectedCompareRangeBounds();
+  const hasOverlap = bounds.overlapStart !== null && bounds.overlapEnd !== null && bounds.overlapStart <= bounds.overlapEnd;
+  const unionRange = bounds.unionStart !== null && bounds.unionEnd !== null
+    ? timeRangeLabel(new Date(bounds.unionStart).toISOString(), new Date(bounds.unionEnd).toISOString(), timezoneMode)
+    : "n/a";
+  const overlapRange = hasOverlap
+    ? timeRangeLabel(new Date(bounds.overlapStart).toISOString(), new Date(bounds.overlapEnd).toISOString(), timezoneMode)
+    : "No common range";
+  const comparisonLoaded = Boolean(comparison && comparison.generated_at);
+  const series = comparison.series || [];
+  const common = finiteNumber(comparison.common_timestamp_count) || 0;
+  const union = finiteNumber(comparison.union_timestamp_count) || 0;
+  const overlapPct = union > 0 ? (common / union) * 100 : null;
+  const warningCount = finiteNumber(comparison.warning_count) || 0;
+  const readyStatus = selectedCount < 2 || !hasOverlap || (comparisonLoaded && common <= 0)
+    ? "bad"
+    : warningCount > 0 || !comparisonLoaded
+      ? "warn"
+      : "ok";
+  const readyTitle = readyStatus === "ok" ? "Ready" : readyStatus === "warn" ? "Review" : "Blocked";
+  const selectedSymbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
+  const selectedBars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
+  const returnRows = series.map((item) => ({
+    symbol: text(item.symbol),
+    value: finiteNumber(item.total_return_pct),
+  })).filter((item) => item.value !== null);
+  const leader = returnRows.slice().sort((left, right) => right.value - left.value)[0] || null;
+  const laggard = returnRows.slice().sort((left, right) => left.value - right.value)[0] || null;
+  const spread = leader && laggard ? leader.value - laggard.value : null;
+  let nextAction = "Select at least two saved files to compare.";
+  if (selectedCount >= 2 && !hasOverlap) {
+    nextAction = "Choose files with overlapping timestamp ranges or widen the selected universe.";
+  } else if (selectedCount >= 2 && !comparisonLoaded) {
+    nextAction = "Run Compare or apply the common-overlap preset before reading the chart.";
+  } else if (comparisonLoaded && common <= 0) {
+    nextAction = "Use the overlap preset or choose files that share timestamps.";
+  } else if (warningCount > 0) {
+    nextAction = "Review comparison warnings before sending selected files to Workbench.";
+  } else if (comparisonLoaded) {
+    nextAction = "Review leader/laggard behavior, then export or send the selected window to Workbench.";
+  }
+  $("data-compare-assistant-title").textContent = `${numberText(selectedCount, 0)} selected - ${readyTitle}`;
+  $("data-compare-assistant-note").textContent = nextAction;
+  const cards = [
+    {
+      status: selectedCount >= 2 ? "ok" : "bad",
+      title: numberText(selectedCount, 0),
+      label: "Selected",
+      note: selectedSymbols.length
+        ? `${selectedSymbols.slice(0, 4).join(", ")}${selectedSymbols.length > 4 ? "..." : ""}; bars ${selectedBars.join(", ") || "n/a"}.`
+        : "No saved datasets selected.",
+    },
+    {
+      status: hasOverlap ? "ok" : selectedCount >= 2 ? "bad" : "warn",
+      title: hasOverlap ? "Overlap" : "No Overlap",
+      label: "Range",
+      note: selectedCount >= 2 ? overlapRange : unionRange,
+    },
+    {
+      status: comparisonLoaded ? common > 0 ? "ok" : "bad" : "warn",
+      title: comparisonLoaded ? numberText(common, 0) : "Not Run",
+      label: "Common Timestamps",
+      note: comparisonLoaded
+        ? `${overlapPct === null ? "n/a" : pctText(overlapPct)} of ${numberText(union, 0)} union timestamps.`
+        : "Run Compare to measure actual normalized overlap.",
+    },
+    {
+      status: warningCount > 0 ? "warn" : comparisonLoaded ? "ok" : "warn",
+      title: comparisonLoaded ? numberText(warningCount, 0) : "n/a",
+      label: "Warnings",
+      note: warningCount ? (comparison.warnings || []).slice(0, 2).join("; ") : comparisonLoaded ? "No comparison warnings reported." : "Warnings appear after Compare runs.",
+    },
+    {
+      status: spread === null ? comparisonLoaded ? "unknown" : "warn" : Math.abs(spread) > 10 ? "warn" : "ok",
+      title: spread === null ? "n/a" : pctText(spread),
+      label: "Return Spread",
+      note: leader && laggard ? `${leader.symbol} minus ${laggard.symbol}.` : "Need loaded return paths for leader/laggard context.",
+    },
+  ];
+  $("data-compare-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-compare-assistant-actions").innerHTML = dataCompareAssistantActionsHtml([
+    {
+      action: "compare",
+      status: selectedCount >= 2 && hasOverlap ? "ok" : "bad",
+      title: "Run Compare",
+      note: selectedCount >= 2 ? "Load normalized close-return paths for the selected files." : "Select at least two files first.",
+      disabled: selectedCount < 2,
+    },
+    {
+      action: "overlap",
+      status: hasOverlap ? "ok" : "bad",
+      title: "Use Common Overlap",
+      note: hasOverlap ? "Apply the shared timestamp window and reload comparison." : "Selected files do not expose an overlap window.",
+      disabled: selectedCount < 2 || !hasOverlap,
+    },
+    {
+      action: "workbench",
+      status: selectedCount ? warningCount ? "warn" : "ok" : "bad",
+      title: "Use In Workbench",
+      note: selectedCount ? "Send selected datasets and date window to the Config Builder." : "Select at least one saved dataset first.",
+      disabled: selectedCount < 1,
+    },
+    {
+      action: "export",
+      status: series.length ? "ok" : "warn",
+      title: "Export Compare CSV",
+      note: series.length ? "Download the loaded normalized comparison paths." : "Run Compare before exporting paths.",
+      disabled: !series.length,
+    },
+    {
+      action: "copy-json",
+      status: selectedCount >= 2 ? "ok" : "bad",
+      title: "Copy Request JSON",
+      note: selectedCount >= 2 ? "Copy the exact compare request payload." : "Select at least two files first.",
+      disabled: selectedCount < 2,
+    },
+  ]);
+}
+
+function dataCompareAssistantActionsHtml(actions = []) {
+  return actions.map((item) => `
+    <button class="data-compare-assistant-action status-${escapeHtml(item.status)}" data-data-compare-assistant-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+async function handleDataCompareAssistantAction(action) {
+  if (action === "compare") {
+    await loadDataCompare();
+    return;
+  }
+  if (action === "overlap") {
+    $("data-compare-range-preset").value = "overlap";
+    await applyDataCompareRangePreset();
+    return;
+  }
+  if (action === "workbench") {
+    useDataCompareInWorkbench();
+    return;
+  }
+  if (action === "export") {
+    await downloadDataCompareCsv();
+    return;
+  }
+  if (action === "copy-json") {
+    copyDataCompareJson();
+  }
+}
+
 function renderDataCompare() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
@@ -9548,6 +9724,7 @@ function renderDataCompare() {
   $("data-compare-note").innerHTML = comparison.generated_at
     ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
     : "Select two or more datasets to compare normalized close paths.";
+  renderDataCompareAssistant(comparison, timezoneMode);
   $("data-compare-readiness").innerHTML = dataCompareReadinessCards(comparison, timezoneMode);
   renderDataCompareStats(comparison, timezoneMode);
   $("data-compare-chart").innerHTML = compareChart(series, timezoneMode);
@@ -16440,6 +16617,16 @@ function init() {
   $("data-compare-select-symbol").addEventListener("click", selectSymbolCompareDatasets);
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
   $("data-compare-clear").addEventListener("click", clearCompareSelection);
+  $("data-compare-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-data-compare-assistant-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    handleDataCompareAssistantAction(button.dataset.dataCompareAssistantAction || "").catch((err) => {
+      $("data-compare-assistant-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-catalog-limit").addEventListener("change", () => {
     dataLibraryLoadState().catalogLimitTouched = true;
     refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {

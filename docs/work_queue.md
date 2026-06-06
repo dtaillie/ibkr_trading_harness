@@ -898,6 +898,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       laggard, return spread, timestamp overlap, sampling mode, and warnings,
       so multi-file historical comparisons are readable before the dense
       symbol/path table.
+    - partial; Compare Saved Data now has a Compare Assistant that summarizes
+      selected files, overlap, common timestamps, warnings, return spread, and
+      direct Compare/Overlap/Workbench/Export/JSON actions before the raw chart
+      and table.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred
