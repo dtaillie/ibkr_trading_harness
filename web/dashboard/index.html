@@ -65,7 +65,22 @@
       </section>
 
       <main>
-    <section class="dashboard-section hero-section" data-view="overview">
+    <section class="dashboard-section overview-lens-section" data-view="overview" data-overview-lens-fixed="true">
+      <div class="overview-lens-bar" aria-label="Overview focus">
+        <div>
+          <span class="eyebrow">Overview Focus</span>
+          <strong id="overview-lens-title">Home</strong>
+          <small id="overview-lens-note">Portfolio value, today's state, performance, and positions.</small>
+        </div>
+        <div class="overview-lens-actions" role="tablist" aria-label="Overview focus tabs">
+          <button id="overview-lens-home" class="overview-lens-button active" type="button" data-overview-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="overview-lens-activity" class="overview-lens-button" type="button" data-overview-lens-target="activity" role="tab" aria-selected="false">Activity</button>
+          <button id="overview-lens-diagnostics" class="overview-lens-button" type="button" data-overview-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-section hero-section" data-view="overview" data-overview-lens-fixed="true">
       <div class="overview-hero">
         <div class="overview-main-card">
           <span class="eyebrow">Current Strategy</span>
@@ -133,7 +148,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="home">
       <div class="section-head">
         <h2>Today at a Glance</h2>
         <span id="overview-glance-note" class="section-note">Waiting for telemetry</span>
@@ -152,7 +167,7 @@
       </section>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="activity">
       <div class="section-head">
         <h2>Today's Signal State</h2>
         <span id="overview-session-state-note" class="section-note">Waiting for current-session telemetry</span>
@@ -160,7 +175,7 @@
       <div id="overview-session-state-cards" class="action-card-grid"></div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="home">
       <div class="section-head">
         <h2>Performance Snapshot</h2>
         <span id="overview-performance-note" class="section-note">Waiting for status-history rollups</span>
@@ -182,7 +197,7 @@
       </section>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="diagnostics">
       <div class="section-head">
         <h2>Runtime Status</h2>
         <span id="runtime-status-note" class="section-note">Waiting for runtime telemetry</span>
@@ -190,7 +205,7 @@
       <div id="runtime-status-grid" class="runtime-status-grid"></div>
     </section>
 
-    <section class="metrics dashboard-section" data-view="overview">
+    <section class="metrics dashboard-section" data-view="overview" data-overview-lens="diagnostics">
       <div class="metric">
         <span>Status</span>
         <strong id="metric-status">n/a</strong>
@@ -225,7 +240,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="activity">
       <div class="section-head">
         <h2>Changed Since Refresh</h2>
         <span id="overview-changes-note" class="section-note">Refresh twice to compare activity</span>
@@ -233,7 +248,7 @@
       <div id="overview-change-cards" class="change-grid"></div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="diagnostics">
       <div class="section-head">
         <h2>Strategy Health</h2>
         <span id="overview-health-note" class="section-note">Waiting for checks</span>
@@ -241,7 +256,7 @@
       <div id="overview-health-grid" class="health-grid"></div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="diagnostics">
       <div class="section-head">
         <h2>Current Alerts</h2>
         <span id="overview-alerts-note" class="section-note">Waiting for alerts</span>
@@ -260,7 +275,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="activity">
       <div class="section-head">
         <h2>Current Orders</h2>
         <span id="overview-orders-note" class="section-note">Waiting for order telemetry</span>
@@ -283,7 +298,7 @@
       </div>
     </section>
 
-    <section class="split dashboard-section" data-view="overview">
+    <section class="split dashboard-section" data-view="overview" data-overview-lens="home diagnostics">
       <div>
         <div class="section-head">
           <h2>Open Positions</h2>
@@ -300,7 +315,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="activity">
       <div class="section-head">
         <h2>Today's Timeline</h2>
         <span id="overview-timeline-note" class="section-note">Signals, orders, and fills from the current telemetry day</span>
@@ -690,7 +705,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="overview">
+    <section class="dashboard-section" data-view="overview" data-overview-lens="diagnostics">
       <div class="section-head">
         <h2>Workflow</h2>
       </div>

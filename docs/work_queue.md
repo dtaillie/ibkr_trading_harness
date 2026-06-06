@@ -66,6 +66,10 @@ strategy-private.
     with the main four-step path for Overview, Performance, Data Library, Fetch
     Jobs, Workbench, Runs, Operations, and Help, so users get immediate
     "what do I do here?" guidance before dense tables.
+  - partial; Overview now has a Home / Activity / Diagnostics lens with
+    deep-linkable hashes such as `#overview/activity`, so the default first
+    screen stays portfolio-first while orders, timelines, runtime checks, and
+    setup diagnostics remain one click away.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -437,6 +441,9 @@ strategy-private.
     - partial; Workbench status, Fetch Detail, and artifact position maps now
       use the same compact drilldown treatment
   - make dense tables secondary to charts and summary cards
+    - partial; Overview now defaults to a Home lens that keeps dense activity
+      and diagnostic tables out of the first scroll while preserving Activity
+      and Diagnostics lenses for users who need the detail.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness

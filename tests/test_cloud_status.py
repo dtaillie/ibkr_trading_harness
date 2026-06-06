@@ -796,6 +796,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-performance-chart" in html
         assert "overview-session-state-note" in html
         assert "overview-session-state-cards" in html
+        assert "overview-lens-title" in html
+        assert "overview-lens-note" in html
+        assert "overview-lens-home" in html
+        assert "overview-lens-activity" in html
+        assert "overview-lens-diagnostics" in html
         assert "performance-drawdown-chart" in html
         assert "performance-intraday-chart" in html
         assert "performance-intraday-pnl" in html

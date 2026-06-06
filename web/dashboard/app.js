@@ -261,13 +261,47 @@ function availableViews() {
     .filter(Boolean);
 }
 
-function normalizeView(view) {
-  const cleaned = String(view || "")
+function dashboardHashParts(value) {
+  const cleaned = String(value || "")
     .replace(/^#/, "")
     .replace(/^\//, "")
     .trim();
+  const path = cleaned.split(/[?&]/)[0] || "";
+  const parts = path.split("/").filter(Boolean);
+  return {
+    view: parts[0] || "overview",
+    lens: parts[1] || "",
+    hasExplicitLens: parts.length > 1,
+    raw: cleaned,
+  };
+}
+
+function normalizeView(view) {
+  const cleaned = dashboardHashParts(view).view;
   const views = new Set(availableViews());
   return views.has(cleaned) ? cleaned : "overview";
+}
+
+function normalizeOverviewLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "activity", "diagnostics"]).has(cleaned) ? cleaned : "home";
+}
+
+function overviewLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "overview") return "";
+  return parts.hasExplicitLens ? normalizeOverviewLens(parts.lens) : "";
+}
+
+function selectedOverviewLens() {
+  const hashLens = overviewLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "overview" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeOverviewLens(sessionStorage.getItem("dashboardOverviewLens") || "home");
 }
 
 function viewFromHash() {
@@ -293,6 +327,9 @@ function setActiveView(view) {
   }
   sessionStorage.setItem("dashboardView", targetView);
   renderPageIntro(targetView);
+  if (targetView === "overview") {
+    applyOverviewLens(selectedOverviewLens());
+  }
 }
 
 function navigateToView(view) {
@@ -307,6 +344,55 @@ function navigateToView(view) {
 
 function activeView() {
   return normalizeView(sessionStorage.getItem("dashboardView") || window.location.hash || "overview");
+}
+
+function overviewLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Portfolio value, today's state, performance, and positions.",
+    },
+    activity: {
+      title: "Activity",
+      note: "Signals, changed state, open orders, and current-session timeline.",
+    },
+    diagnostics: {
+      title: "Diagnostics",
+      note: "Runtime health, alerts, data visibility, setup checks, and workflow guidance.",
+    },
+  };
+  return content[normalizeOverviewLens(lens)] || content.home;
+}
+
+function applyOverviewLens(lens) {
+  const selected = normalizeOverviewLens(lens);
+  sessionStorage.setItem("dashboardOverviewLens", selected);
+  for (const section of document.querySelectorAll('.dashboard-section[data-view="overview"]')) {
+    if (section.dataset.overviewLensFixed === "true") {
+      section.hidden = false;
+      continue;
+    }
+    const lenses = new Set(String(section.dataset.overviewLens || "home").split(/\s+/).filter(Boolean));
+    section.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
+    const active = normalizeOverviewLens(button.dataset.overviewLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = overviewLensContent(selected);
+  if ($("overview-lens-title")) $("overview-lens-title").textContent = content.title;
+  if ($("overview-lens-note")) $("overview-lens-note").textContent = content.note;
+}
+
+function navigateToOverviewLens(lens) {
+  const selected = normalizeOverviewLens(lens);
+  const nextHash = selected === "home" ? "#overview" : `#overview/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("overview");
 }
 
 function pageIntroAction(id, action) {
@@ -11349,6 +11435,9 @@ function init() {
   setActiveView(window.location.hash ? viewFromHash() : storedView);
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToView(button.dataset.viewTarget));
+  }
+  for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
+    button.addEventListener("click", () => navigateToOverviewLens(button.dataset.overviewLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 

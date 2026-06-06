@@ -872,6 +872,73 @@ section {
   margin-top: 0;
 }
 
+.overview-lens-section {
+  margin-top: 0;
+}
+
+.overview-lens-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
+.overview-lens-bar strong,
+.overview-lens-bar small {
+  display: block;
+}
+
+.overview-lens-bar strong {
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.overview-lens-bar small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.overview-lens-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(92px, 1fr));
+  gap: 4px;
+  min-width: 300px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-panel);
+}
+
+.overview-lens-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.overview-lens-button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+  filter: none;
+}
+
+.overview-lens-button.active {
+  color: var(--text);
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(16, 24, 19, 0.08);
+}
+
 .overview-hero {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
@@ -2338,6 +2405,7 @@ footer {
   .workbench-home-panel,
   .workbench-result-panel,
   .operations-home-panel,
+  .overview-lens-bar,
   .overview-glance-panel,
   .overview-performance-panel,
   .symbol-profile-panel,
@@ -2416,6 +2484,12 @@ footer {
   .page-step {
     flex: 0 0 220px;
     scroll-snap-align: start;
+  }
+
+  .overview-lens-actions {
+    grid-template-columns: repeat(3, minmax(88px, 1fr));
+    min-width: 0;
+    margin-top: 12px;
   }
 
   .symbol-directory-actions {
