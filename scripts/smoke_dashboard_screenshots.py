@@ -239,6 +239,86 @@ LAYOUT_CHECK_SCRIPT = r"""
       });
     }
   }
+  const hitTestSelectors = [
+    ".topbar h1",
+    ".nav-link",
+    ".status-tile strong",
+    ".metric strong",
+    ".runtime-status-card strong",
+    ".data-library-card strong",
+    ".data-shortlist-card strong",
+    ".symbol-quick-pick strong",
+    ".root-card strong",
+    ".help-start-grid strong",
+    ".health-card strong",
+    ".position-card strong",
+    ".change-card strong",
+    ".performance-card strong",
+    ".performance-home-main strong",
+    ".performance-home-tiles strong",
+    ".overview-main-card strong",
+    ".overview-glance-main strong",
+    ".overview-glance-cards strong",
+    ".overview-workflow-grid strong",
+    ".workflow-card-foot b",
+    ".performance-workflow-grid strong",
+    ".data-workflow-grid strong",
+    ".fetch-workflow-grid strong",
+    ".workbench-workflow-grid strong",
+    ".runs-workflow-grid strong",
+    ".operations-workflow-grid strong",
+    ".help-workflow-grid strong",
+    ".page-step strong",
+    ".section-head h2",
+    ".section-note",
+    ".guide-item strong",
+    ".config-field-section legend",
+    ".help-card strong",
+    "button"
+  ].join(",");
+  const isHtmlShell = (element) => ["HTML", "BODY"].includes(element.tagName);
+  const hitRelated = (element, hit) => (
+    Boolean(hit) && (hit === element || element.contains(hit) || hit.contains(element))
+  );
+  const hitTestSamples = (rect) => {
+    const clampedLeft = Math.max(0, rect.left);
+    const clampedRight = Math.min(window.innerWidth, rect.right);
+    const clampedTop = Math.max(0, rect.top);
+    const clampedBottom = Math.min(window.innerHeight, rect.bottom);
+    const width = clampedRight - clampedLeft;
+    const height = clampedBottom - clampedTop;
+    if (width <= 2 || height <= 2) return [];
+    const y = clampedTop + height / 2;
+    const points = [{ x: clampedLeft + width / 2, y, label: "center" }];
+    if (width > 48) {
+      points.push({ x: clampedLeft + width * 0.2, y, label: "left-mid" });
+      points.push({ x: clampedLeft + width * 0.8, y, label: "right-mid" });
+    }
+    return points;
+  };
+  let paintHitCheckCount = 0;
+  for (const element of document.querySelectorAll(hitTestSelectors)) {
+    if (!visible(element) || allowedOverflow(element)) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) continue;
+    for (const point of hitTestSamples(rect)) {
+      const stack = document.elementsFromPoint(point.x, point.y)
+        .filter((hit) => visible(hit) && !isHtmlShell(hit) && window.getComputedStyle(hit).pointerEvents !== "none");
+      const topHit = stack[0] || null;
+      paintHitCheckCount += 1;
+      if (!hitRelated(element, topHit)) {
+        failures.push({
+          type: "paint-hit-occlusion",
+          element: label(element),
+          top: topHit ? label(topHit) : "none",
+          sample: point.label,
+          x: Math.round(point.x),
+          y: Math.round(point.y),
+          view: activeView,
+        });
+      }
+    }
+  }
   const overlapContainers = [
     ".status-grid",
     ".health-grid",
@@ -302,6 +382,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     width: window.innerWidth,
     height: window.innerHeight,
     documentWidth,
+    paintHitCheckCount,
   };
 })()
 """
@@ -717,7 +798,7 @@ def main() -> None:
     parser.add_argument("--chrome", default=None, help="Chrome/Chromium executable name or path")
     parser.add_argument("--scenario", choices=("seeded", "empty"), default="seeded", help="Dashboard state to screenshot.")
     parser.add_argument("--min-bytes", type=int, default=2_000)
-    parser.add_argument("--check-layout", action="store_true", help="Fail if visible core UI text overflows, the page creates horizontal viewport overflow, or bounded card/grid surfaces overlap.")
+    parser.add_argument("--check-layout", action="store_true", help="Fail if visible core UI text overflows, the page creates horizontal viewport overflow, bounded card/grid surfaces overlap, or sampled core UI points are paint-occluded by unrelated elements.")
     parser.add_argument("--settle-seconds", type=float, default=1.5, help="Seconds to wait before running layout checks after navigation.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

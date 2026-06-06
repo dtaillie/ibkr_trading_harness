@@ -593,8 +593,11 @@ strategy-private.
     - partial; CI now runs the screenshot smoke with layout checks against
       seeded desktop and mobile top-level/focus-lens views. The gate covers
       viewport overflow, clipped core dashboard text, and bounded direct-child
-      surface overlap across the dashboard's main grid/card containers. Richer
-      pixel-level overlap detection remains future work.
+      surface overlap across the dashboard's main grid/card containers.
+    - partial; screenshot layout checks now also run browser hit-testing over
+      sampled core text/control points, flagging paint-level occlusion when an
+      unrelated visible element covers the sampled point even if the container
+      geometry check did not catch it.
 
 ## P0: Data Library and saved-data visibility
 
