@@ -702,6 +702,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data can now copy the exact `/data_compare`
       request JSON for the current selected datasets, date range, point count,
       and sampling mode.
+    - partial; Compare Saved Data now has range presets for full selected
+      range, common overlap, and last day/week/month/three months inside the
+      selected datasets' common overlap, reducing manual date-window setup.
     - partial; Compare Saved Data can now send the selected compared datasets
       and date window directly into the Workbench Config Builder, closing the
       compare-to-simulation workflow without reselecting files manually.

@@ -720,6 +720,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-missing-intervals-note" in html
         assert "data-missing-intervals-body" in html
         assert "data-compare-timezone" in html
+        assert "data-compare-range-preset" in html
         assert "data-compare-filter" in html
         assert "data-compare-filter-note" in html
         assert "data-compare-asset" in html

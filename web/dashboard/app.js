@@ -1245,6 +1245,63 @@ function updateCompareSelectionFromSelect(announce = false) {
   }
 }
 
+function selectedCompareRangeBounds() {
+  const selected = selectedCompareDatasets();
+  const starts = selected.map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
+  const ends = selected.map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
+  if (!starts.length || !ends.length) {
+    return { selected, unionStart: null, unionEnd: null, overlapStart: null, overlapEnd: null };
+  }
+  return {
+    selected,
+    unionStart: Math.min(...starts),
+    unionEnd: Math.max(...ends),
+    overlapStart: Math.max(...starts),
+    overlapEnd: Math.min(...ends),
+  };
+}
+
+async function applyDataCompareRangePreset() {
+  const preset = $("data-compare-range-preset").value || "custom";
+  if (preset === "custom") return;
+  const bounds = selectedCompareRangeBounds();
+  if (bounds.selected.length < 2) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">Select at least two datasets before applying a compare range preset</span>`;
+    $("data-compare-range-preset").value = "custom";
+    return;
+  }
+  if (bounds.unionStart === null || bounds.unionEnd === null || bounds.overlapStart === null || bounds.overlapEnd === null) {
+    $("data-compare-note").innerHTML = `<span class="status-bad">Selected datasets do not expose enough timestamp metadata for range presets</span>`;
+    $("data-compare-range-preset").value = "custom";
+    return;
+  }
+  if (preset === "full") {
+    $("data-compare-start").value = "";
+    $("data-compare-end").value = "";
+  } else {
+    if (bounds.overlapStart > bounds.overlapEnd) {
+      $("data-compare-note").innerHTML = `<span class="status-bad">Selected datasets have no common timestamp overlap</span>`;
+      $("data-compare-range-preset").value = "custom";
+      return;
+    }
+    let startMillis = bounds.overlapStart;
+    const endMillis = bounds.overlapEnd;
+    if (preset !== "overlap") {
+      const days = Number(preset.replace("d", ""));
+      if (!Number.isFinite(days) || days <= 0) {
+        $("data-compare-range-preset").value = "custom";
+        return;
+      }
+      const oneDay = 24 * 60 * 60 * 1000;
+      startMillis = Math.max(bounds.overlapStart, endMillis - Math.max(0, days - 1) * oneDay);
+    }
+    $("data-compare-start").value = new Date(startMillis).toISOString().slice(0, 10);
+    $("data-compare-end").value = new Date(endMillis).toISOString().slice(0, 10);
+  }
+  await loadDataCompare();
+  $("last-refresh").textContent = `Compare range preset applied: ${preset}`;
+}
+
 function latestAccountRow(accountRows) {
   const rows = accountRows || [];
   for (let index = rows.length - 1; index >= 0; index -= 1) {
@@ -6467,6 +6524,7 @@ function selectShownCompareDatasets() {
     option.selected = paths.includes(option.value);
   }
   renderDataCompareControls();
+  $("data-compare-range-preset").value = "custom";
   $("last-refresh").textContent = paths.length
     ? `Selected ${numberText(paths.length, 0)} shown dataset${paths.length === 1 ? "" : "s"} for comparison`
     : "No shown datasets to select";
@@ -6489,6 +6547,7 @@ function selectSymbolCompareDatasets() {
   state.dataCompareSelectionCleared = false;
   $("data-compare-filter").value = symbol;
   renderDataCompareControls();
+  $("data-compare-range-preset").value = "custom";
   $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} dataset${matches.length === 1 ? "" : "s"} for comparison`;
 }
 
@@ -6501,6 +6560,7 @@ function clearCompareSelection() {
   $("data-compare-bar").value = "";
   $("data-compare-session").value = "";
   $("data-compare-quality").value = "";
+  $("data-compare-range-preset").value = "custom";
   for (const option of $("data-compare-datasets").options) {
     option.selected = false;
   }
@@ -11430,6 +11490,17 @@ function init() {
   $("data-compare-session").addEventListener("change", renderDataCompareControls);
   $("data-compare-quality").addEventListener("change", renderDataCompareControls);
   $("data-compare-datasets").addEventListener("change", () => updateCompareSelectionFromSelect(true));
+  $("data-compare-range-preset").addEventListener("change", () => {
+    applyDataCompareRangePreset().catch((err) => {
+      $("data-compare-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-compare-start").addEventListener("input", () => {
+    $("data-compare-range-preset").value = "custom";
+  });
+  $("data-compare-end").addEventListener("input", () => {
+    $("data-compare-range-preset").value = "custom";
+  });
   $("data-compare-select-symbol").addEventListener("click", selectSymbolCompareDatasets);
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
   $("data-compare-clear").addEventListener("click", clearCompareSelection);

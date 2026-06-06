@@ -416,6 +416,7 @@ def run_smoke(
             "data-compare-datasets",
             "data-compare-readiness",
             "data-compare-timezone",
+            "data-compare-range-preset",
             "copy-data-compare-json",
             "use-data-compare-workbench",
             "export-data-compare-csv",

@@ -144,6 +144,9 @@ jumps to the comparison workflow. Copy Compare JSON copies the exact request
 body that the dashboard will send to `/data_compare`. Use In Workbench sends
 the selected comparison set plus the compare date window directly into Config
 Builder.
+Use Compare Range Preset to quickly compare the full selected range, common
+overlap, or the last day/week/month/three months inside the common overlap
+before manually tuning Start/End.
 
 Use Symbol Directory when you want to browse discovered symbols without already
 knowing the ticker. It can search by symbol, asset, source, bar size, quality,

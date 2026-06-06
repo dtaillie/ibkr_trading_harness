@@ -376,6 +376,8 @@ removes the current selection. This is offline and only reads CSV/parquet files
 under configured data roots. Use Copy Compare JSON to copy the exact
 `/data_compare` request body for scripts, notes, or reproducible offline
 reviews.
+Use the Compare Range Preset control to set full selected range, common
+overlap, or recent overlap windows before manually tuning Start/End.
 Use Symbol Profile when you want a ticker-first view: it summarizes the
 selected symbol's saved files, coverage, quality, best file, compact best-file
 preview chart, and direct Inspect, Workbench, Compare, Filter, and Diagnose

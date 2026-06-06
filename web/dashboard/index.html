@@ -1462,6 +1462,18 @@
           <input id="data-compare-end" type="date">
         </label>
         <label>
+          <span>Range Preset</span>
+          <select id="data-compare-range-preset">
+            <option value="custom" selected>Custom</option>
+            <option value="full">Full selected range</option>
+            <option value="overlap">Common overlap</option>
+            <option value="1d">Last overlap day</option>
+            <option value="7d">Last overlap week</option>
+            <option value="30d">Last overlap month</option>
+            <option value="90d">Last overlap 3 months</option>
+          </select>
+        </label>
+        <label>
           <span>Points</span>
           <input id="data-compare-points" type="number" min="2" max="1000" step="1" value="400">
         </label>
