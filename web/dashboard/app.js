@@ -23,6 +23,7 @@ const state = {
   dataCompareSelectedPaths: [],
   dataCompareSelectionCleared: false,
   symbolDiagnostic: null,
+  symbolTypeaheadActiveIndex: 0,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   fetchManifestDetail: null,
   manifestPathFilter: null,
@@ -6128,22 +6129,33 @@ function symbolMatchLabel(score) {
   return "ranked";
 }
 
+function symbolTypeaheadSuggestions(groups, query) {
+  return symbolQuickPickSuggestions(query, groups, 6);
+}
+
 function renderSymbolTypeahead(groups, query) {
   const container = $("data-symbol-typeahead");
   if (!container) return;
-  const suggestions = symbolQuickPickSuggestions(query, groups, 6);
+  const suggestions = symbolTypeaheadSuggestions(groups, query);
   const normalized = String(query || "").trim().toUpperCase();
+  const input = $("data-symbol-browser-input");
   if (!suggestions.length) {
     container.innerHTML = normalized
       ? `<div class="empty-card"><strong>No symbol suggestions</strong><span>Try a different ticker, or Diagnose to search configured and suggested roots.</span></div>`
       : "";
+    state.symbolTypeaheadActiveIndex = 0;
+    if (input) {
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
     return;
   }
+  state.symbolTypeaheadActiveIndex = Math.max(0, Math.min(state.symbolTypeaheadActiveIndex || 0, suggestions.length - 1));
   container.innerHTML = `
     <span class="symbol-typeahead-head">${escapeHtml(normalized ? `Best matches for ${normalized}` : "Best symbol matches")}</span>
-    <div class="symbol-typeahead-list">
-      ${suggestions.map((summary) => `
-        <button type="button" class="symbol-typeahead-option" data-symbol="${escapeHtml(summary.symbol)}">
+    <div id="data-symbol-typeahead-list" class="symbol-typeahead-list" role="listbox" aria-label="Symbol suggestions">
+      ${suggestions.map((summary, index) => `
+        <button id="data-symbol-typeahead-option-${index}" type="button" class="symbol-typeahead-option ${index === state.symbolTypeaheadActiveIndex ? "is-active" : ""}" data-symbol="${escapeHtml(summary.symbol)}" role="option" aria-selected="${index === state.symbolTypeaheadActiveIndex ? "true" : "false"}">
           <strong>${escapeHtml(summary.symbol)}</strong>
           <span>${escapeHtml(summary.assets.join(", ") || "unknown asset")} / ${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")}<br>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows / ${escapeHtml(summary.range)}</span>
           <small class="symbol-match-badge">${escapeHtml(symbolMatchLabel(summary.score))}</small>
@@ -6151,6 +6163,10 @@ function renderSymbolTypeahead(groups, query) {
       `).join("")}
     </div>
   `;
+  if (input) {
+    input.setAttribute("aria-expanded", "true");
+    input.setAttribute("aria-activedescendant", `data-symbol-typeahead-option-${state.symbolTypeaheadActiveIndex}`);
+  }
 }
 
 function selectSymbolBrowserSymbol(symbol) {
@@ -6162,8 +6178,25 @@ function selectSymbolBrowserSymbol(symbol) {
 
 function topSymbolBrowserSuggestion() {
   const groups = symbolBrowserGroups();
-  const suggestions = symbolQuickPickSuggestions(selectedSymbolBrowserSymbol(), groups, 1);
+  const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   return (suggestions[0] || {}).symbol || "";
+}
+
+function activeSymbolTypeaheadSuggestion() {
+  const groups = symbolBrowserGroups();
+  const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
+  if (!suggestions.length) return "";
+  const index = Math.max(0, Math.min(state.symbolTypeaheadActiveIndex || 0, suggestions.length - 1));
+  return (suggestions[index] || {}).symbol || "";
+}
+
+function moveSymbolTypeaheadSelection(delta) {
+  const groups = symbolBrowserGroups();
+  const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
+  if (!suggestions.length) return "";
+  state.symbolTypeaheadActiveIndex = ((state.symbolTypeaheadActiveIndex || 0) + delta + suggestions.length) % suggestions.length;
+  renderSymbolTypeahead(groups, selectedSymbolBrowserSymbol());
+  return (suggestions[state.symbolTypeaheadActiveIndex] || {}).symbol || "";
 }
 
 function bestCatalogDatasetForSymbol(symbol) {
@@ -17481,16 +17514,30 @@ function init() {
       $("last-refresh").textContent = `Storage audit refresh failed: ${err.message}`;
     });
   });
-  $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-browser-input").addEventListener("input", () => {
+    state.symbolTypeaheadActiveIndex = 0;
+    renderSymbolBrowser();
+  });
   $("data-symbol-browser-dataset").addEventListener("change", () => {
     renderSymbolSelectionPanel(selectedSymbolBrowserSymbol());
     renderSymbolProfile(selectedSymbolBrowserSymbol());
   });
   $("data-symbol-browser-input").addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const symbol = moveSymbolTypeaheadSelection(event.key === "ArrowDown" ? 1 : -1);
+      if (symbol) $("last-refresh").textContent = `Highlighted ${symbol} in Symbol Browser`;
+      return;
+    }
+    if (event.key === "Escape") {
+      state.symbolTypeaheadActiveIndex = 0;
+      $("data-symbol-browser-input").blur();
+      return;
+    }
     if (event.key !== "Enter") return;
     const symbol = selectedSymbolBrowserDatasets().length
       ? selectedSymbolBrowserSymbol()
-      : topSymbolBrowserSuggestion();
+      : activeSymbolTypeaheadSuggestion() || topSymbolBrowserSuggestion();
     if (!symbol) return;
     event.preventDefault();
     selectSymbolBrowserSymbol(symbol);

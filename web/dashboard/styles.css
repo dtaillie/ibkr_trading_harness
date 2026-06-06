@@ -487,9 +487,15 @@ button.secondary {
   text-align: left;
 }
 
-.symbol-typeahead-option:hover {
+.symbol-typeahead-option:hover,
+.symbol-typeahead-option.is-active {
   border-color: var(--accent);
   filter: none;
+}
+
+.symbol-typeahead-option.is-active {
+  background: rgba(8, 122, 82, 0.08);
+  box-shadow: 0 0 0 2px rgba(8, 122, 82, 0.14);
 }
 
 .symbol-typeahead-option strong,

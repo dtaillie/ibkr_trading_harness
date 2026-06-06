@@ -793,6 +793,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       result list with exact/starts/contains match labels, file/row/range
       context, click selection, and Enter-to-select behavior, reducing
       dependence on browser-native datalist UI.
+    - partial; Symbol Browser typeahead now supports Arrow Up/Down keyboard
+      navigation, active-suggestion highlighting, Enter-to-select for the
+      highlighted match, and ARIA active-option state for the suggestion list.
     - partial; Symbol Browser now has a Selected Symbol command strip that
       summarizes the active symbol, action file, coverage, quality, and direct
       Filter/Inspect/Workbench/Compare/Diagnose actions, reducing ambiguity
