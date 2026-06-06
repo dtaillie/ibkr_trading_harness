@@ -2928,6 +2928,22 @@
         <h2>Help</h2>
         <span class="section-note">Local-first guide for operating the public workbench</span>
       </div>
+      <div class="overview-lens-bar help-lens-bar" aria-label="Help focus">
+        <div>
+          <span class="eyebrow">Help Focus</span>
+          <strong id="help-lens-title">Home</strong>
+          <small id="help-lens-note">Start by question, current setup gaps, and first next action.</small>
+        </div>
+        <div class="overview-lens-actions help-lens-actions" role="tablist" aria-label="Help focus tabs">
+          <button id="help-lens-home" class="overview-lens-button" type="button" data-help-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="help-lens-pages" class="overview-lens-button" type="button" data-help-lens-target="pages" role="tab" aria-selected="false">Pages</button>
+          <button id="help-lens-workflows" class="overview-lens-button" type="button" data-help-lens-target="workflows" role="tab" aria-selected="false">Workflows</button>
+          <button id="help-lens-data" class="overview-lens-button" type="button" data-help-lens-target="data" role="tab" aria-selected="false">Data</button>
+          <button id="help-lens-boundary" class="overview-lens-button" type="button" data-help-lens-target="boundary" role="tab" aria-selected="false">Boundary</button>
+          <button id="help-lens-docs" class="overview-lens-button" type="button" data-help-lens-target="docs" role="tab" aria-selected="false">Docs</button>
+        </div>
+      </div>
+      <div data-help-lens="home">
       <section class="help-start-panel">
         <div>
           <span class="eyebrow">Start Here</span>
@@ -2937,10 +2953,10 @@
         <div class="help-start-grid">
           <a href="#overview"><strong>Is it running?</strong><span>Overview shows current health, mode, latest events, and open positions.</span></a>
           <a href="#performance"><strong>How is it doing?</strong><span>Performance shows equity, returns, drawdown, rollups, and trade rows.</span></a>
-          <a href="#data"><strong>What data do I have?</strong><span>Data Library shows roots, symbols, recommended files, charts, and diagnostics.</span></a>
-          <a href="#workbench"><strong>Can I simulate this?</strong><span>Workbench turns saved data into validated replay or simulated-paper drafts.</span></a>
-          <a href="#runs"><strong>What exactly happened?</strong><span>Runs exposes decisions, orders, fills, rejects, artifacts, and logs.</span></a>
-          <a href="#operations"><strong>What is broken?</strong><span>Operations covers diagnostics, remote nodes, supervisors, commands, and cleanup.</span></a>
+          <a href="#data/browse"><strong>What data do I have?</strong><span>Data Library shows roots, symbols, recommended files, charts, and diagnostics.</span></a>
+          <a href="#workbench/builder"><strong>Can I simulate this?</strong><span>Workbench turns saved data into validated replay or simulated-paper drafts.</span></a>
+          <a href="#runs/events"><strong>What exactly happened?</strong><span>Runs exposes decisions, orders, fills, rejects, artifacts, and logs.</span></a>
+          <a href="#operations/diagnostics"><strong>What is broken?</strong><span>Operations covers diagnostics, remote nodes, supervisors, commands, and cleanup.</span></a>
         </div>
       </section>
       <section class="help-card wide-help-card">
@@ -2950,8 +2966,9 @@
         </div>
         <div id="help-setup-gaps" class="action-card-grid"></div>
       </section>
+      </div>
       <div class="help-grid">
-        <div class="help-card wide-help-card">
+        <div class="help-card wide-help-card" data-help-lens="pages">
           <strong>Page Guide</strong>
           <div class="guide-grid">
             <div class="guide-item">
@@ -2988,7 +3005,7 @@
             </div>
           </div>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="pages">
           <strong>First Run Checklist</strong>
           <ol>
             <li>Confirm Gateway/API status in Overview.</li>
@@ -2998,7 +3015,7 @@
             <li>Run replay or simulated paper, then inspect Performance and Runs.</li>
           </ol>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="pages">
           <strong>Today's Strategy Performance</strong>
           <ol>
             <li>Start in Overview for current mode, latest signal/fill, and open-position cards.</li>
@@ -3007,7 +3024,7 @@
             <li>Check Operations if the latest run is stale, the API is disconnected, or no current telemetry exists.</li>
           </ol>
         </div>
-        <div class="help-card wide-help-card">
+        <div class="help-card wide-help-card" data-help-lens="workflows">
           <strong>Common Workflows</strong>
           <div class="guide-grid">
             <div class="guide-item">
@@ -3028,7 +3045,7 @@
             </div>
           </div>
         </div>
-        <div class="help-card wide-help-card">
+        <div class="help-card wide-help-card" data-help-lens="data">
           <strong>Data To Simulation Fast Path</strong>
           <div class="guide-grid">
             <div class="guide-item">
@@ -3049,7 +3066,7 @@
             </div>
           </div>
         </div>
-        <div class="help-card wide-help-card">
+        <div class="help-card wide-help-card" data-help-lens="workflows">
           <strong>Workflow Shortcuts</strong>
           <div class="guide-grid">
             <div class="guide-item">
@@ -3070,7 +3087,7 @@
             </div>
           </div>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="data">
           <strong>Inspect Saved Historical Data</strong>
           <ol>
             <li>Open Data Library and set the catalog limit high enough for your root.</li>
@@ -3080,7 +3097,7 @@
             <li>Review gaps, nulls, timezone, row count, and quality before using the file in Workbench.</li>
           </ol>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="data">
           <strong>Why Only A Few Symbols?</strong>
           <ol>
             <li>Check Configured Roots and suggested roots in Data Library.</li>
@@ -3089,7 +3106,7 @@
             <li>Add real cache/history roots with <span class="mono">dashboard.data_roots</span> in a private local config.</li>
           </ol>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="boundary">
           <strong>Public Publishing Boundary</strong>
           <ul class="check-list">
             <li>Keep private strategy plugins and tuned configs out of the public repo.</li>
@@ -3098,7 +3115,7 @@
             <li>Run the public readiness audit before pushing.</li>
           </ul>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="boundary">
           <strong>Glossary</strong>
           <dl class="mini-glossary">
             <dt>Runner</dt><dd>A local process that evaluates a plugin and records decisions, orders, fills, and account snapshots.</dd>
@@ -3114,7 +3131,7 @@
             <dt>Stale bar</dt><dd>Latest market data is older than expected.</dd>
           </dl>
         </div>
-        <div class="help-card">
+        <div class="help-card" data-help-lens="docs">
           <strong>Useful Local Docs</strong>
           <p>Open the runbook first, then use the quickstart and privacy checklist when setting up a local/private copy or preparing a public export.</p>
           <div class="doc-link-grid">

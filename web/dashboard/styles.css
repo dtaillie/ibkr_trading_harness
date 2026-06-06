@@ -978,6 +978,10 @@ section {
   margin: 12px 0;
 }
 
+.help-lens-bar {
+  margin: 12px 0;
+}
+
 .workbench-lens-actions {
   grid-template-columns: repeat(4, minmax(92px, 1fr));
   min-width: 392px;
@@ -991,6 +995,11 @@ section {
 .operations-lens-actions {
   grid-template-columns: repeat(5, minmax(92px, 1fr));
   min-width: 490px;
+}
+
+.help-lens-actions {
+  grid-template-columns: repeat(6, minmax(92px, 1fr));
+  min-width: 588px;
 }
 
 .overview-hero {
@@ -2568,7 +2577,8 @@ footer {
 
   .workbench-lens-actions,
   .runs-lens-actions,
-  .operations-lens-actions {
+  .operations-lens-actions,
+  .help-lens-actions {
     display: flex;
     min-width: 0;
     overflow-x: auto;
@@ -2580,7 +2590,8 @@ footer {
   .data-lens-actions .overview-lens-button,
   .workbench-lens-actions .overview-lens-button,
   .runs-lens-actions .overview-lens-button,
-  .operations-lens-actions .overview-lens-button {
+  .operations-lens-actions .overview-lens-button,
+  .help-lens-actions .overview-lens-button {
     flex: 0 0 118px;
   }
 

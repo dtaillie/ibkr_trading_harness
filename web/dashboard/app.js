@@ -317,6 +317,11 @@ function normalizeOperationsLens(lens) {
   return new Set(["home", "paper", "remote", "control", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizeHelpLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "pages", "workflows", "data", "boundary", "docs"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
@@ -357,6 +362,12 @@ function operationsLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "operations") return "";
   return parts.hasExplicitLens ? normalizeOperationsLens(parts.lens) : "";
+}
+
+function helpLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "help") return "";
+  return parts.hasExplicitLens ? normalizeHelpLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -436,6 +447,17 @@ function selectedOperationsLens() {
   return normalizeOperationsLens(sessionStorage.getItem("dashboardOperationsLens") || "home");
 }
 
+function selectedHelpLens() {
+  const hashLens = helpLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "help" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeHelpLens(sessionStorage.getItem("dashboardHelpLens") || "home");
+}
+
 function viewFromHash() {
   return normalizeView(decodeURIComponent(window.location.hash || ""));
 }
@@ -479,6 +501,9 @@ function setActiveView(view) {
   }
   if (targetView === "operations") {
     applyOperationsLens(selectedOperationsLens());
+  }
+  if (targetView === "help") {
+    applyHelpLens(selectedHelpLens());
   }
 }
 
@@ -860,6 +885,63 @@ function navigateToOperationsLens(lens) {
     return;
   }
   setActiveView("operations");
+}
+
+function helpLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Start by question, current setup gaps, and first next action.",
+    },
+    pages: {
+      title: "Pages",
+      note: "Page map, first-run checklist, and current performance inspection path.",
+    },
+    workflows: {
+      title: "Workflows",
+      note: "Common operating paths and direct shortcuts between dashboard pages.",
+    },
+    data: {
+      title: "Data",
+      note: "Saved-data inspection, fetch-to-simulation path, missing symbols, roots, and scan limits.",
+    },
+    boundary: {
+      title: "Boundary",
+      note: "Public/private publishing rules, glossary, and core dashboard terms.",
+    },
+    docs: {
+      title: "Docs",
+      note: "Runbooks, quickstarts, publication guidance, and local documentation links.",
+    },
+  };
+  return content[normalizeHelpLens(lens)] || content.home;
+}
+
+function applyHelpLens(lens) {
+  const selected = normalizeHelpLens(lens);
+  sessionStorage.setItem("dashboardHelpLens", selected);
+  for (const element of document.querySelectorAll("[data-help-lens]")) {
+    const lenses = new Set(String(element.dataset.helpLens || "").split(/\s+/).filter(Boolean));
+    element.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-help-lens-target]")) {
+    const active = normalizeHelpLens(button.dataset.helpLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = helpLensContent(selected);
+  if ($("help-lens-title")) $("help-lens-title").textContent = content.title;
+  if ($("help-lens-note")) $("help-lens-note").textContent = content.note;
+}
+
+function navigateToHelpLens(lens) {
+  const selected = normalizeHelpLens(lens);
+  const nextHash = selected === "home" ? "#help" : `#help/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("help");
 }
 
 function pageIntroAction(id, action) {
@@ -11948,6 +12030,9 @@ function init() {
   }
   for (const button of document.querySelectorAll("[data-operations-lens-target]")) {
     button.addEventListener("click", () => navigateToOperationsLens(button.dataset.operationsLensTarget));
+  }
+  for (const button of document.querySelectorAll("[data-help-lens-target]")) {
+    button.addEventListener("click", () => navigateToHelpLens(button.dataset.helpLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 

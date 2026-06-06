@@ -92,6 +92,10 @@ strategy-private.
     lenses with deep-linkable hashes such as `#operations/control`, separating
     local readiness, remote monitoring, command controls, and maintenance
     diagnostics.
+  - partial; Help now has Home / Pages / Workflows / Data / Boundary / Docs
+    lenses with deep-linkable hashes such as `#help/workflows`, separating
+    first-step routing, page guide, workflow recipes, data troubleshooting,
+    public/private boundaries, and runbook links.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -385,6 +389,8 @@ strategy-private.
     - done on the Help page
   - "What am I looking at?" explanations for each major page
     - done in the Help page guide grid
+    - partial; Help now puts the page guide behind an explicit Pages lens so
+      first-time routing is separate from reference material.
   - "How do I know today's strategy performance?" walkthrough
     - done on the Help page
   - "Why do I only see SPY and QQQ?" diagnostic walkthrough
@@ -406,6 +412,9 @@ strategy-private.
     - partial; Help now starts with a question-driven Start Here panel that
       routes users to current health, performance, saved data, simulation, run
       drilldowns, and operations diagnostics before dense reference cards.
+    - partial; Help now splits workflows into dedicated Workflows, Data, and
+      Boundary lenses so operational recipes, saved-data troubleshooting, and
+      publication/privacy guidance do not compete in one long scroll.
     - partial; Help and the Web UI runbook now document the direct workflow
       shortcuts from Data Detail, Compare Saved Data, and Fetch Detail into
       Workbench, plus the Workbench result shortcuts into Performance and Runs.
@@ -493,6 +502,9 @@ strategy-private.
       Control, and Diagnostics lenses carrying paper-readiness checks, cloud
       node monitoring, command/supervisor surfaces, and setup/cleanup/Gateway
       diagnostics respectively.
+    - partial; Help now defaults to a Home lens, with Pages, Workflows, Data,
+      Boundary, and Docs lenses carrying guide/reference material away from the
+      first-question routing and setup gaps.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
