@@ -1316,14 +1316,15 @@ QQQ show up, treat that as a bug until proven otherwise.
     reverse proxies, a dry-run-first UFW host-firewall script, and an AWS
     security-group Terraform sketch. Provider boundary examples now also cover
     DigitalOcean Cloud Firewalls, Google Cloud firewall rules, and Azure NSG
-    rules. Remaining gap: stronger off-host audit retention and real-account
-    hardening review before internet exposure.
+    rules. Remaining gap: real-account hardening review before internet
+    exposure.
   - partial; provider-specific examples now also include a reusable hosted
     receiver Dockerfile, Fly app config, Render Blueprint config, DigitalOcean
     Cloud Firewall Terraform sketch, GCP firewall Terraform sketch, Azure NSG
-    Terraform sketch, and a dry-run-first off-host command-audit sync helper.
-    Remaining gap: manual hardening review against a real chosen
-    provider/account before any internet-facing deployment.
+    Terraform sketch, provider-specific off-host audit-retention sketches, and
+    a dry-run-first off-host command-audit sync helper. Remaining gap: manual
+    hardening review against a real chosen provider/account before any
+    internet-facing deployment.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity
@@ -1540,13 +1541,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; server-side command scopes now classify queued actions as
     read-only, control, or launcher and reject commands outside
     `dashboard.command_scopes` before they are persisted. Remaining gaps:
-    provider/network-specific hosted deployment controls and off-host immutable
-    or signed audit storage
+    production validation of hosted deployment controls and provider retention
+    sketches.
   - partial; hosted receivers can now configure multiple bearer-token roles
     with `dashboard.auth_tokens`, limiting command queue access per token while
     keeping dashboard/status reads authenticated. Remaining gaps:
-    provider/network-specific hosted deployment controls and off-host immutable
-    or signed audit storage
+    production validation of hosted deployment controls and provider retention
+    sketches.
   - partial; server-side command audit rows are now hash-chained and
     `/command_audit` reports integrity status, checked records, legacy rows,
     latest hash, and bounded errors.
@@ -1557,8 +1558,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     `dashboard.command_audit_signature_env` to sign new server-side command
     audit rows with an HMAC secret kept in the environment. `/command_audit`
     reports signature status, signed/unsigned row counts, and signature
-    verification errors. Remaining gap: provider/network-specific off-host
-    immutable audit retention for internet-facing deployments.
+    verification errors. Remaining gap: validating off-host audit retention
+    sketches in real provider accounts before treating them as hardened
+    deployment recipes.
   - progress; Operations now includes an Export Audit CSV action backed by
     `/command_audit_export`, so bounded sanitized queue/cancel/result audit rows
     can be reviewed offline with the current hash-chain and signature status
