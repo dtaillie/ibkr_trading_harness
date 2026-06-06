@@ -2372,6 +2372,30 @@ function renderPluginFieldHelpCard(field, groupLabel) {
   `;
 }
 
+function renderPluginResultSectionHelpCard(section, resultFields) {
+  const resultByName = new Map((resultFields || []).map((field) => [text(field.name), field]));
+  const fields = (section.fields || [])
+    .map((name) => resultByName.get(text(name)) || { name, label: name })
+    .filter((field) => field && field.name);
+  const fieldLabels = fields.length
+    ? fields.map((field) => text(field.label || field.name)).join(", ")
+    : "No result fields declared.";
+  const fieldPaths = fields.length
+    ? fields.map((field) => `result.${text(field.name)}`).join(", ")
+    : "n/a";
+  const help = text(section.description || section.help || "Public-safe grouping for declared result fields.");
+  const status = fields.length ? "ok" : "warn";
+  return `
+    <article class="plugin-field-help-card status-${escapeHtml(status)}">
+      <span>Result Section</span>
+      <strong>${escapeHtml(text(section.label || section.id))}</strong>
+      <small class="mono">${escapeHtml(fieldPaths)}</small>
+      <p>${escapeHtml(help)}</p>
+      <small>${escapeHtml(`${numberText(fields.length, 0)} grouped field${fields.length === 1 ? "" : "s"}: ${fieldLabels}`)}</small>
+    </article>
+  `;
+}
+
 function renderConfigPluginFieldHelp() {
   if (!$("config-plugin-field-help") || !$("config-plugin-field-help-note")) return;
   const plugin = selectedConfigPlugin();
@@ -2384,10 +2408,11 @@ function renderConfigPluginFieldHelp() {
   const cards = [
     ...strategyFields.map((field) => renderPluginFieldHelpCard(field, "Input")),
     ...resultFields.map((field) => renderPluginFieldHelpCard(field, "Result")),
+    ...resultSections.map((section) => renderPluginResultSectionHelpCard(section, resultFields)),
   ];
   $("config-plugin-field-help").innerHTML = cards.length
     ? cards.join("")
-    : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields and result_fields in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
+    : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields, result_fields, and optional result_sections in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
 }
 
 function renderConfigBrokerBoundary() {
