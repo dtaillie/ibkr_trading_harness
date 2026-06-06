@@ -371,6 +371,7 @@ def run_smoke(
             "data-symbol-directory-filter",
             "data-symbol-directory-sort",
             "data-symbol-directory-limit",
+            "export-data-symbol-directory-csv",
             "data-filter-symbol-options",
             "data-coverage-grid",
             "data-gap-summary-note",
@@ -743,6 +744,7 @@ def run_smoke(
         coverage_symbol_limit = 50 if scenario == "seeded" else 10
         catalog = fetch_json(base_url, f"/data_catalog?limit={catalog_limit}&preview_points=3")
         data_catalog_csv = fetch_text(base_url, f"/data_catalog_export?limit={catalog_limit}")
+        data_symbol_directory_csv = fetch_text(base_url, f"/data_symbol_directory_export?limit={catalog_limit}")
         data_catalog_scan_csv = fetch_text(base_url, f"/data_catalog_scan_export?limit={catalog_limit}")
         diagnostics = fetch_json(base_url, "/workbench_diagnostics")
         endpoint_map = fetch_json(base_url, "/workbench_endpoints")
@@ -754,6 +756,8 @@ def run_smoke(
 
         if "quality_counts" not in catalog or "bar_size_counts" not in catalog:
             raise RuntimeError("data catalog aggregate fields are missing")
+        if "symbol_summaries" not in catalog or "symbol_count" not in catalog:
+            raise RuntimeError("data catalog symbol summary fields are missing")
         coverage = fetch_json(base_url, f"/data_coverage?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
@@ -779,6 +783,8 @@ def run_smoke(
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
+        if "symbol,canonical_symbol,file_count,row_count" not in data_symbol_directory_csv:
+            raise RuntimeError("data symbol directory CSV header is missing")
         if "row_type,path,display_path" not in data_catalog_scan_csv:
             raise RuntimeError("data catalog scan CSV header is missing")
         if not options.get("risk_presets"):

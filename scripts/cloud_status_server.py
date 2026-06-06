@@ -400,6 +400,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_directory_export",
+        "category": "data",
+        "description": "Download saved-data symbol-level universe summaries.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_catalog_scan_export",
         "category": "data",
         "description": "Download data-root catalog scan diagnostics and skipped-file samples.",
@@ -2160,6 +2167,7 @@ def build_data_catalog(
                 "root": root_key,
                 "error": str(exc),
             })
+    symbol_summaries = build_symbol_summaries(datasets)
     modified_values = [str(item.get("modified_at")) for item in datasets if item.get("modified_at")]
     for row in root_summaries:
         row["skipped_candidate_count"] = max(0, int(row.get("candidate_count") or 0) - int(row.get("parsed_count") or 0) - int(row.get("parse_error_count") or 0))
@@ -2183,8 +2191,10 @@ def build_data_catalog(
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "root_summaries": root_summaries,
         "datasets": datasets,
+        "symbol_summaries": symbol_summaries,
         "errors": errors,
         "count": len(datasets),
+        "symbol_count": len(symbol_summaries),
         "error_count": len(errors),
         "quality_counts": count_values(datasets, "quality_status"),
         "bar_size_counts": count_values(datasets, "bar_size"),
@@ -2198,6 +2208,80 @@ def build_data_catalog(
         "limit": limit,
         "preview_points": preview_points,
     }
+
+
+def data_quality_rank(value: Any) -> int:
+    return {"ok": 0, "warn": 1, "bad": 2}.get(str(value or "").lower(), 3)
+
+
+def timestamp_sort_seconds(value: Any) -> int:
+    raw = str(value or "").strip()
+    if not raw:
+        return 0
+    try:
+        return int(datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return 0
+
+
+def symbol_summary_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
+    latest = str(row.get("last_timestamp") or row.get("modified_at") or "")
+    return (
+        data_quality_rank(row.get("quality_status")),
+        -int(row.get("rows") or 0),
+        -timestamp_sort_seconds(latest),
+        str(row.get("path") or ""),
+    )
+
+
+def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for dataset in datasets:
+        symbol = str(dataset.get("symbol") or "").strip()
+        if not symbol:
+            continue
+        grouped.setdefault(symbol, []).append(dataset)
+
+    summaries: list[dict[str, Any]] = []
+    for symbol, rows in sorted(grouped.items()):
+        ordered = sorted(rows, key=symbol_summary_sort_key)
+        best = ordered[0] if ordered else {}
+        first_values = [str(item.get("first_timestamp")) for item in rows if item.get("first_timestamp")]
+        last_values = [str(item.get("last_timestamp")) for item in rows if item.get("last_timestamp")]
+        modified_values = [str(item.get("modified_at")) for item in rows if item.get("modified_at")]
+        quality_counts = count_values(rows, "quality_status")
+        warnings = sum(int(item.get("quality_warning_count") or 0) for item in rows)
+        missing_intervals = sum(int(item.get("estimated_missing_intervals") or 0) for item in rows)
+        summaries.append({
+            "symbol": symbol,
+            "canonical_symbol": best.get("canonical_symbol") or canonical_symbol(symbol, best.get("asset_class")),
+            "file_count": len(rows),
+            "row_count": sum(int(item.get("rows") or 0) for item in rows),
+            "size_bytes": sum(int(item.get("size_bytes") or 0) for item in rows),
+            "asset_classes": sorted({str(item.get("asset_class")) for item in rows if item.get("asset_class")}),
+            "sources": sorted({str(item.get("source")) for item in rows if item.get("source")}),
+            "bar_sizes": sorted({str(item.get("bar_size")) for item in rows if item.get("bar_size")}),
+            "storage_sessions": sorted({str(item.get("storage_session")) for item in rows if item.get("storage_session")}),
+            "adjustment_statuses": sorted({str(item.get("adjustment_status")) for item in rows if item.get("adjustment_status")}),
+            "formats": sorted({str(item.get("format")) for item in rows if item.get("format")}),
+            "roots": sorted({str(item.get("root")) for item in rows if item.get("root")}),
+            "quality_counts": quality_counts,
+            "quality_issue_file_count": int(quality_counts.get("warn") or 0) + int(quality_counts.get("bad") or 0),
+            "quality_warning_count": warnings,
+            "estimated_missing_intervals": missing_intervals,
+            "first_timestamp": min(first_values) if first_values else None,
+            "last_timestamp": max(last_values) if last_values else None,
+            "latest_modified_at": max(modified_values) if modified_values else None,
+            "best_path": best.get("path"),
+            "best_root": best.get("root"),
+            "best_source": best.get("source"),
+            "best_bar_size": best.get("bar_size"),
+            "best_storage_session": best.get("storage_session"),
+            "best_quality_status": best.get("quality_status"),
+            "best_rows": best.get("rows"),
+        })
+    summaries.sort(key=lambda item: (-int(item.get("file_count") or 0), -int(item.get("row_count") or 0), str(item.get("symbol") or "")))
+    return summaries
 
 
 def data_files_for_root(root: Path, *, scan_limit: int) -> tuple[list[Path], bool, list[dict[str, str]], dict[str, Any]]:
@@ -2425,6 +2509,36 @@ DATA_CATALOG_EXPORT_FIELDS = (
     "source_timezone",
     "size_bytes",
     "modified_at",
+)
+
+
+DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
+    "symbol",
+    "canonical_symbol",
+    "file_count",
+    "row_count",
+    "size_bytes",
+    "asset_classes",
+    "sources",
+    "bar_sizes",
+    "storage_sessions",
+    "adjustment_statuses",
+    "formats",
+    "roots",
+    "quality_counts",
+    "quality_issue_file_count",
+    "quality_warning_count",
+    "estimated_missing_intervals",
+    "first_timestamp",
+    "last_timestamp",
+    "latest_modified_at",
+    "best_path",
+    "best_root",
+    "best_source",
+    "best_bar_size",
+    "best_storage_session",
+    "best_quality_status",
+    "best_rows",
 )
 
 
@@ -2686,6 +2800,16 @@ def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
     writer.writeheader()
     for row in catalog["datasets"]:
         writer.writerow({field: row.get(field) for field in DATA_CATALOG_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_data_symbol_directory_csv(data_roots: list[Path], *, limit: int = 200) -> str:
+    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in catalog.get("symbol_summaries", []):
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS})
     return out.getvalue()
 
 
@@ -8099,6 +8223,27 @@ class StatusHandler(BaseHTTPRequestHandler):
                 200,
                 csv_body,
                 filename="saved_data_catalog.csv",
+                content_type="text/csv; charset=utf-8",
+            )
+            return
+        if parsed.path == "/data_symbol_directory_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                csv_body = build_data_symbol_directory_csv(self.data_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_symbol_directory.csv",
                 content_type="text/csv; charset=utf-8",
             )
             return

@@ -487,7 +487,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   breakdowns, and the next action before sending users into dense tables. Data
   Detail now has an offline saved-file viewer with date range controls,
   sampled/full-in-range modes, price series, volume bars, and
-  UTC/source-timezone context.
+  UTC/source-timezone context. The catalog now also publishes server-owned
+  symbol summaries and a symbol-directory CSV export so users and API clients
+  can verify the saved-data universe by symbol without reconstructing it from
+  individual file rows.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
@@ -523,6 +526,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Saved Data filters now include storage session, so users can
       narrow detailed rows to RTH, extended-hours, 24/7 crypto, or unknown
       files without relying on text search.
+    - partial; `/data_catalog` now includes per-symbol summaries with file
+      counts, row counts, size, sources, bar sizes, storage sessions, quality
+      counts, ranges, and best inspectable paths.
   - last updated time and file size
     - partial; Saved Data rows now show file size plus last-modified age, Data
       Detail includes file size and modified time, and the summary card labels the
@@ -666,6 +672,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       matched symbols, file/row totals, latest matched data date, top source/bar
       breakdowns, active filters, and quality-review pressure before showing
       individual symbol cards.
+    - partial; Symbol Directory now uses backend symbol summaries when
+      available and exposes `/data_symbol_directory_export` plus an Export
+      Symbols CSV action for offline universe review.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.

@@ -148,7 +148,10 @@ Builder.
 Use Symbol Directory when you want to browse discovered symbols without already
 knowing the ticker. It can search by symbol, asset, source, bar size, quality,
 or date range, sort by files/rows/latest data/symbol/quality, and provides
-direct Filter, Inspect, Compare, and Diagnose actions for each symbol.
+direct Filter, Inspect, Compare, and Diagnose actions for each symbol. Use
+Export Symbols CSV when you want the server-owned symbol universe summary for
+offline review, including per-symbol file counts, row counts, ranges, sources,
+bar sizes, quality counts, and the best inspectable saved file.
 Use Symbol Browser quick picks when you only remember part of a ticker; the
 cards summarize matching symbols and select one into the existing Inspect,
 Compare, Filter, and Diagnose actions.

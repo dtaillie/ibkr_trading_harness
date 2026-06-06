@@ -679,6 +679,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-browser-compare" in html
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html
+        assert "export-data-symbol-directory-csv" in html
         assert "data-symbol-directory-filter" in html
         assert "data-symbol-directory-asset" in html
         assert "data-symbol-directory-source" in html
@@ -953,6 +954,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
+        assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
         assert ("GET", "/data_missing_intervals_export") in endpoints
@@ -1666,6 +1668,7 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
             payload = json.loads(resp.read().decode("utf-8"))
 
         assert payload["count"] == 1
+        assert payload["symbol_count"] == 1
         assert payload["quality_counts"] == {"ok": 1}
         assert payload["bar_size_counts"] == {"5min": 1}
         assert payload["row_count_total"] == 3
@@ -1707,6 +1710,19 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert dataset["quality_warnings"] == []
         assert len(dataset["preview"]) == 3
         assert dataset["preview"][-1]["close"] == 101.25
+        symbol_summary = payload["symbol_summaries"][0]
+        assert symbol_summary["symbol"] == "SPY"
+        assert symbol_summary["canonical_symbol"] == "SPY"
+        assert symbol_summary["file_count"] == 1
+        assert symbol_summary["row_count"] == 3
+        assert symbol_summary["asset_classes"] == ["etf"]
+        assert symbol_summary["sources"] == ["file"]
+        assert symbol_summary["bar_sizes"] == ["5min"]
+        assert symbol_summary["storage_sessions"] == ["rth"]
+        assert symbol_summary["quality_counts"] == {"ok": 1}
+        assert symbol_summary["best_path"] == dataset["path"]
+        assert symbol_summary["best_quality_status"] == "ok"
+        assert symbol_summary["best_rows"] == 3
 
         with request.urlopen(f"{base}/data_catalog_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1721,6 +1737,20 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["bar_size"] == "5min"
         assert exported[0]["storage_session"] == "rth"
         assert exported[0]["adjustment_status"] == "unknown"
+
+        with request.urlopen(f"{base}/data_symbol_directory_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="data_symbol_directory.csv"'
+            symbol_csv_body = resp.read().decode("utf-8")
+        symbol_exported = list(csv.DictReader(io.StringIO(symbol_csv_body)))
+        assert len(symbol_exported) == 1
+        assert symbol_exported[0]["symbol"] == "SPY"
+        assert symbol_exported[0]["file_count"] == "1"
+        assert symbol_exported[0]["row_count"] == "3"
+        assert symbol_exported[0]["asset_classes"] == "etf"
+        assert symbol_exported[0]["sources"] == "file"
+        assert symbol_exported[0]["best_quality_status"] == "ok"
+        assert symbol_exported[0]["best_path"] == dataset["path"]
 
         with request.urlopen(f"{base}/data_catalog_scan_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1975,7 +2005,9 @@ def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
             payload = json.loads(resp.read().decode("utf-8"))
 
         assert payload["count"] == 206
+        assert payload["symbol_count"] == 206
         assert payload["count"] > 2
+        assert len(payload["symbol_summaries"]) == 206
         assert payload["root_summaries"][0]["candidate_count"] == 206
         assert payload["root_summaries"][0]["parsed_count"] == 206
         assert payload["root_summaries"][0]["parse_error_count"] == 0
@@ -1991,10 +2023,16 @@ def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
         assert btc["canonical_symbol"] == "BTC-USD"
         assert btc["storage_session"] == "24_7"
         assert btc["adjustment_status"] == "not_applicable"
+        btc_summary = next(item for item in payload["symbol_summaries"] if item["symbol"] == "BTC-USD")
+        assert btc_summary["asset_classes"] == ["crypto"]
+        assert btc_summary["sources"] == ["zerohash"]
+        assert btc_summary["bar_sizes"] == ["1min"]
+        assert btc_summary["best_path"] == btc["path"]
 
         with request.urlopen(f"{base}/data_catalog?limit=50&preview_points=2", timeout=10) as resp:
             capped = json.loads(resp.read().decode("utf-8"))
         assert capped["count"] == 50
+        assert capped["symbol_count"] == 50
         assert capped["root_summaries"][0]["scan_capped"] is True
         assert capped["root_summaries"][0]["not_scanned_reason"] == "global catalog limit reached"
     finally:

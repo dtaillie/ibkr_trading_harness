@@ -4318,25 +4318,40 @@ function sortSymbolDirectoryRows(rows, sortKey) {
 
 function symbolDirectoryRows() {
   const controls = symbolDirectoryControls();
-  const rows = [];
-  for (const [symbol, datasets] of symbolBrowserGroups()) {
-    const totalRows = datasets.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
-    const ranges = timestampRangeFromDatasets(datasets);
-    const best = datasets[0] || {};
-    rows.push({
-      symbol,
-      best,
-      file_count: datasets.length,
-      row_count: totalRows,
-      assets: Array.from(new Set(datasets.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort(),
-      sources: Array.from(new Set(datasets.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
-      bars: Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
-      sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
-      qualities: countBy(datasets, "quality_status"),
-      first_day: ranges.start,
-      last_day: ranges.end,
-    });
-  }
+  const datasetByPath = new Map((state.dataCatalog.datasets || []).map((dataset) => [dataset.path, dataset]));
+  const summaries = state.dataCatalog.symbol_summaries || [];
+  const rows = summaries.length
+    ? summaries.map((summary) => ({
+        symbol: text(summary.symbol),
+        best: datasetByPath.get(summary.best_path) || { path: summary.best_path },
+        file_count: Number(summary.file_count || 0),
+        row_count: Number(summary.row_count || 0),
+        assets: (summary.asset_classes || []).map(text).filter((value) => value !== "n/a").sort(),
+        sources: (summary.sources || []).map(text).filter((value) => value !== "n/a").sort(),
+        bars: (summary.bar_sizes || []).map(text).filter((value) => value !== "n/a").sort(),
+        sessions: (summary.storage_sessions || []).map(text).filter((value) => value !== "n/a").sort(),
+        qualities: summary.quality_counts || {},
+        first_day: summary.first_timestamp,
+        last_day: summary.last_timestamp,
+      }))
+    : Array.from(symbolBrowserGroups()).map(([symbol, datasets]) => {
+        const totalRows = datasets.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+        const ranges = timestampRangeFromDatasets(datasets);
+        const best = datasets[0] || {};
+        return {
+          symbol,
+          best,
+          file_count: datasets.length,
+          row_count: totalRows,
+          assets: Array.from(new Set(datasets.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort(),
+          sources: Array.from(new Set(datasets.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
+          bars: Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
+          sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
+          qualities: countBy(datasets, "quality_status"),
+          first_day: ranges.start,
+          last_day: ranges.end,
+        };
+      });
   const filtered = controls.filter
     ? rows.filter((item) => {
         const haystack = [
@@ -4446,6 +4461,7 @@ function renderSymbolDirectory() {
   const directory = symbolDirectoryRows();
   const rows = directory.rows;
   const filteredCount = directory.filtered_count;
+  const totalSymbols = Number(state.dataCatalog.symbol_count || groups.size || directory.total_count || 0);
   const activeFilters = [
     directory.controls.filter ? `"${directory.controls.filter}"` : "",
     directory.controls.asset,
@@ -4455,8 +4471,8 @@ function renderSymbolDirectory() {
     directory.controls.quality,
   ].filter(Boolean);
   const filterLabel = activeFilters.length ? ` matching ${activeFilters.join(", ")}` : "";
-  $("data-symbol-directory-note").textContent = groups.size
-    ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}`
+  $("data-symbol-directory-note").textContent = totalSymbols
+    ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(totalSymbols, 0)} scanned symbol${totalSymbols === 1 ? "" : "s"}`
     : "No scanned symbols loaded";
   renderSymbolDirectorySummary(directory);
   $("data-symbol-directory").innerHTML = rows.length
@@ -10659,6 +10675,21 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataSymbolDirectoryCsv() {
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const body = await fetchText(`/data_symbol_directory_export?limit=${catalogLimit}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_symbol_directory.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Symbol directory CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadFetchManifestsCsv() {
   const body = await fetchText("/fetch_manifests_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -11206,6 +11237,11 @@ function init() {
   $("export-data-catalog-csv").addEventListener("click", () => {
     downloadDataCatalogCsv().catch((err) => {
       $("last-refresh").textContent = `Data catalog CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-symbol-directory-csv").addEventListener("click", () => {
+    downloadDataSymbolDirectoryCsv().catch((err) => {
+      $("last-refresh").textContent = `Symbol directory CSV export failed: ${err.message}`;
     });
   });
   $("export-data-catalog-scan-csv").addEventListener("click", () => {

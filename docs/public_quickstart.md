@@ -273,7 +273,10 @@ fetch errors, or absent. Use Jump to Symbol in Data Detail to open the
 catalog's best matching saved file for a ticker without searching the full
 table. Use Symbol Directory to search and sort discovered symbols by files,
 rows, latest data, symbol, or quality, then jump directly to filter, inspect,
-compare, or diagnose actions. Use Copy data_roots YAML when Data Library finds
+compare, or diagnose actions. Use Export Symbols CSV to download the same
+server-owned symbol universe summary with file counts, row counts, sources,
+bar sizes, quality counts, ranges, and the best inspectable file for each
+symbol. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
