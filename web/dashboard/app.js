@@ -971,6 +971,7 @@ function renderWorkbenchGuide() {
   ];
   const complete = steps.filter((step) => step.status === "ok").length;
   $("workbench-guide-note").textContent = `${complete} of ${steps.length} steps ready`;
+  renderWorkbenchStepper(steps);
   $("workbench-guide").innerHTML = steps.map((step) => {
     const action = workbenchGuideAction(step);
     return `
@@ -991,6 +992,27 @@ function renderWorkbenchGuide() {
       </div>
     `;
   }).join("");
+}
+
+function renderWorkbenchStepper(steps = []) {
+  if (!$("workbench-stepper")) return;
+  $("workbench-stepper").innerHTML = steps.length
+    ? steps.map((step, index) => {
+        const action = workbenchGuideAction(step);
+        return `
+          <button
+            type="button"
+            class="workbench-stepper-step workbench-guide-action status-${escapeHtml(step.status)}"
+            data-guide-target="${escapeHtml(action.target)}"
+            data-guide-click="${escapeHtml(action.click || "")}"
+          >
+            <span>${escapeHtml(numberText(index + 1, 0))} / ${statusText(step.status)}</span>
+            <strong>${escapeHtml(step.label)}</strong>
+            <small>${escapeHtml(step.detail)}</small>
+          </button>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No workflow metadata</strong><span>Refresh config options to load the Workbench guide schema.</span></div>`;
 }
 
 function workbenchHomeState() {
@@ -11141,6 +11163,11 @@ function init() {
   $("config-form").addEventListener("input", renderConfigLivePanels);
   $("config-form").addEventListener("change", renderConfigLivePanels);
   $("workbench-guide").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-guide-action") : null;
+    if (!(target instanceof HTMLElement)) return;
+    activateWorkbenchGuideAction(target);
+  });
+  $("workbench-stepper").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-guide-action") : null;
     if (!(target instanceof HTMLElement)) return;
     activateWorkbenchGuideAction(target);

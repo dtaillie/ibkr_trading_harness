@@ -858,6 +858,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-home-generate" in html
         assert "workbench-home-run" in html
         assert "workbench-guide-note" in html
+        assert "workbench-stepper" in html
         assert "workbench-guide" in html
         assert "workbench-result-title" in html
         assert "workbench-result-note" in html

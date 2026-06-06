@@ -926,6 +926,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     to the relevant schema-rendered form control, quality section, alignment
     preview, draft/run form, or results table, making the guide an actionable
     stepper instead of only a status checklist.
+  - partial; Workbench now renders the same guide state as a compact visual
+    stepper above the checklist, with each step clickable into the matching
+    data, quality, range, alignment, draft, run, or result control.
   - partial; Workbench now starts with a Workbench Home band that summarizes
     the selected data, alignment window, draft validation, latest run, loaded
     artifacts, and the next action before the schema-rendered form.
