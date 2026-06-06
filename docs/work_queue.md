@@ -912,8 +912,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     for resumability.
   - every fetch run should write a manifest with symbols, bar size, duration,
     start/end, output files, success/failure counts, pacing pauses, and errors
-    - mostly done; remaining gap is richer pacing-pause and retry summaries in
-      the JSON manifest
+    - done for stock and crypto JSON manifests, including retry summaries,
+      actual pacing-wait events, progress/ETA snapshots, output rows, and
+      error rows
     - partial; JSON manifests now retain retry events, pacing-wait events,
       latest rolling ETA/progress fields, average output elapsed seconds, and
       per-output/per-error attempt timing where fetchers publish them.
@@ -1017,13 +1018,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time
-    - logged by crypto fetcher, not yet persisted into JSON manifests
-    - partial; crypto fetch manifests now persist latest rolling ETA,
-      completed/remaining chunk counts, and rolling average chunk time for the
+    - done; crypto fetch manifests persist latest rolling ETA,
+      completed/remaining chunk counts, and rolling average chunk time, while
+      stock fetch manifests persist rolling symbol ETA/progress fields for the
       dashboard summary/detail views.
   - success/failure/retry counts
-    - partial; success/failure/no-data counts are persisted, retry counts need
-      richer per-attempt recording
+    - done; success/failure/no-data counts are persisted and retry events are
+      counted by the shared manifest writer
     - partial; the shared fetch manifest now counts retry events and the
       crypto fetcher records bounded per-attempt retry events with delay,
       attempt, symbol, and day context.
@@ -1031,8 +1032,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       records retry events, records output/error attempt counts, and keeps
       default retry behavior unchanged unless `--retries` is set.
   - pacing waits
-    - partial; configured pacing delay is persisted, actual wait events are not
-      summarized yet
+    - done; configured pacing delay and actual pacing-wait events are persisted
+      and summarized
     - partial; crypto fetch manifests now record actual pacing wait events and
       the dashboard summarizes total wait count/seconds plus retry/pacing
       event rows in Fetch Detail.
