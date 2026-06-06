@@ -14081,6 +14081,7 @@ function renderRunEvents() {
   const allEvents = runEventRows();
   renderRunEventFilterOptions(allEvents);
   const events = sortedRunEvents(filteredRunEvents(allEvents));
+  renderRunsEventsAssistant(allEvents, events);
   $("run-events-note").textContent = `${numberText(events.length, 0)} shown / ${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"}`;
   $("run-events-body").innerHTML = events.length
     ? events.map((event) => row([
@@ -14092,6 +14093,170 @@ function renderRunEvents() {
         escapeHtml(event.detail),
       ])).join("")
     : row([`<span class="muted">No recent run events match the current filters.</span>`, "", "", "", "", ""]);
+}
+
+function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
+  if (!$("runs-events-assistant-title") || !$("runs-events-assistant-cards") || !$("runs-events-assistant-actions")) return;
+  const filters = {
+    text: ($("run-events-filter-text").value || "").trim(),
+    type: $("run-events-filter-type").value || "",
+    status: $("run-events-filter-status").value || "",
+    sort: $("run-events-filter-sort").value || "time_desc",
+  };
+  const hidden = Math.max(0, allEvents.length - visibleEvents.length);
+  const latest = visibleEvents[0] || allEvents[0] || null;
+  const badEvents = visibleEvents.filter(eventStatusIsBad);
+  const allBadEvents = allEvents.filter(eventStatusIsBad);
+  const fills = visibleEvents.filter((event) => event.type === "fill");
+  const orders = visibleEvents.filter((event) => event.type === "order");
+  const decisions = visibleEvents.filter((event) => event.type === "decision");
+  const symbols = new Set(visibleEvents.map((event) => text(event.symbol)).filter((value) => value && value !== "n/a"));
+  const runs = new Set(visibleEvents.map((event) => text(event.run_id)).filter((value) => value && value !== "n/a"));
+  const activeFilters = [
+    filters.text ? `search ${filters.text}` : "",
+    filters.type ? `type ${filters.type}` : "",
+    filters.status ? `status ${filters.status}` : "",
+  ].filter(Boolean);
+  let status = "bad";
+  let title = "No Events";
+  let note = "No current published decisions, orders, or fills are available.";
+  if (visibleEvents.length) {
+    status = badEvents.length ? "bad" : fills.length ? "ok" : orders.length ? "warn" : "ok";
+    title = badEvents.length ? "Review Issues" : fills.length ? "Fills Visible" : "Timeline Visible";
+    note = activeFilters.length
+      ? `${activeFilters.join(" / ")}. ${numberText(hidden, 0)} event${hidden === 1 ? "" : "s"} hidden.`
+      : "Recent timeline activity is visible; filter for rejects, fills, orders, decisions, symbols, or runs.";
+  } else if (allEvents.length) {
+    status = "warn";
+    title = "No Matches";
+    note = "Clear or adjust filters to show recent timeline activity.";
+  }
+  $("runs-events-assistant-title").textContent = title;
+  $("runs-events-assistant-title").className = statusClass(status);
+  $("runs-events-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: visibleEvents.length ? "ok" : allEvents.length ? "warn" : "bad",
+      title: `${numberText(visibleEvents.length, 0)} / ${numberText(allEvents.length, 0)}`,
+      label: "Visible",
+      note: hidden ? `${numberText(hidden, 0)} hidden by filters.` : "All recent events are visible.",
+    },
+    {
+      status: badEvents.length ? "bad" : visibleEvents.length ? "ok" : "bad",
+      title: numberText(badEvents.length, 0),
+      label: "Issues",
+      note: allBadEvents.length
+        ? `${numberText(allBadEvents.length, 0)} rejected, canceled, failed, or error event${allBadEvents.length === 1 ? "" : "s"} in the recent timeline.`
+        : "No bad event statuses in the recent timeline.",
+    },
+    {
+      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "bad",
+      title: `${numberText(fills.length, 0)} fills`,
+      label: "Mix",
+      note: `${numberText(decisions.length, 0)} decisions / ${numberText(orders.length, 0)} orders visible.`,
+    },
+    {
+      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "bad",
+      title: latest ? text(latest.type) : "n/a",
+      label: "Latest",
+      note: latest ? `${text(latest.timestamp)} / ${text(latest.run_id)} / ${text(latest.symbol)}` : "No latest event available.",
+    },
+    {
+      status: runs.size ? "ok" : "bad",
+      title: numberText(runs.size, 0),
+      label: "Runs",
+      note: `${numberText(symbols.size, 0)} symbol${symbols.size === 1 ? "" : "s"} represented in visible events.`,
+    },
+  ];
+  $("runs-events-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const latestRunId = latest ? text(latest.run_id) : "";
+  $("runs-events-assistant-actions").innerHTML = [
+    {
+      action: "issues",
+      status: allBadEvents.length ? "bad" : "ok",
+      title: "Show Issues",
+      note: allBadEvents.length ? "Filter to rejected, canceled, failed, or error events." : "No issue events to isolate.",
+      disabled: !allBadEvents.length,
+    },
+    {
+      action: "fills",
+      status: allEvents.some((event) => event.type === "fill") ? "ok" : "warn",
+      title: "Show Fills",
+      note: "Filter timeline to filled executions.",
+      disabled: !allEvents.some((event) => event.type === "fill"),
+    },
+    {
+      action: "orders",
+      status: allEvents.some((event) => event.type === "order") ? "warn" : "bad",
+      title: "Show Orders",
+      note: "Filter timeline to submitted, canceled, rejected, or held orders.",
+      disabled: !allEvents.some((event) => event.type === "order"),
+    },
+    {
+      action: "decisions",
+      status: allEvents.some((event) => event.type === "decision") ? "ok" : "bad",
+      title: "Show Decisions",
+      note: "Filter timeline to strategy checks and no-order decisions.",
+      disabled: !allEvents.some((event) => event.type === "decision"),
+    },
+    {
+      action: "latest-run",
+      status: latestRunId ? "ok" : "bad",
+      title: "Latest Run",
+      note: latestRunId ? `Filter to ${latestRunId}.` : "No latest run available.",
+      disabled: !latestRunId,
+    },
+    {
+      action: "clear",
+      status: activeFilters.length ? "ok" : "warn",
+      title: "Clear Filters",
+      note: activeFilters.length ? "Return to the full recent timeline." : "No event filters are active.",
+      disabled: !activeFilters.length,
+    },
+  ].map((item) => `
+    <button class="runs-events-assistant-action status-${escapeHtml(item.status)}" data-runs-events-action="${escapeHtml(item.action)}" data-run-id="${escapeHtml(latestRunId)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+function applyRunsEventsAssistantAction(action, runId = "") {
+  if (action === "issues") {
+    $("run-events-filter-text").value = "reject cancel fail error";
+    $("run-events-filter-type").value = "";
+    $("run-events-filter-status").value = "";
+  } else if (action === "fills") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "fill";
+    $("run-events-filter-status").value = "";
+  } else if (action === "orders") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "order";
+    $("run-events-filter-status").value = "";
+  } else if (action === "decisions") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "decision";
+    $("run-events-filter-status").value = "";
+  } else if (action === "latest-run") {
+    $("run-events-filter-text").value = runId;
+    $("run-events-filter-type").value = "";
+    $("run-events-filter-status").value = "";
+  } else if (action === "clear") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "";
+    $("run-events-filter-status").value = "";
+  }
+  renderRunEvents();
 }
 
 function renderRunEventFilterOptions(events) {
@@ -14122,7 +14287,8 @@ function filteredRunEvents(events) {
       event.symbol,
       event.detail,
     ].map(text).join(" ").toLowerCase();
-    return haystack.includes(query);
+    const terms = query.split(/\s+/).filter(Boolean);
+    return terms.length > 1 ? terms.some((term) => haystack.includes(term)) : haystack.includes(query);
   });
 }
 
@@ -16674,6 +16840,14 @@ function init() {
   $("run-events-filter-type").addEventListener("change", renderRunEvents);
   $("run-events-filter-status").addEventListener("change", renderRunEvents);
   $("run-events-filter-sort").addEventListener("change", renderRunEvents);
+  $("runs-events-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-runs-events-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    applyRunsEventsAssistantAction(button.dataset.runsEventsAction || "", button.dataset.runId || "");
+  });
   for (const id of ["config-dataset", "config-start-date", "config-end-date"]) {
     if ($(id)) $(id).addEventListener("change", renderConfigLivePanels);
   }

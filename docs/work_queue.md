@@ -387,6 +387,10 @@ strategy-private.
     - partial; artifact account snapshots now include an expandable public-safe
       position-detail view so entry/hold/exit context is readable without raw
       JSON when runners publish that metadata.
+    - partial; Runs Events now has an Events Assistant that summarizes visible
+      timeline count, issue/rejection pressure, decision/order/fill mix, latest
+      event, run/symbol coverage, and direct issue/fill/order/decision/latest
+      run filter actions before the dense event table.
   - current open orders and current managed positions
     - partial; current managed positions and recent non-terminal order events
       are visible, broker-native open-order state still depends on runner

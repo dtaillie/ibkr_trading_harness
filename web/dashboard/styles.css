@@ -1942,7 +1942,8 @@ section {
   justify-content: flex-end;
 }
 
-.runs-search-assistant {
+.runs-search-assistant,
+.runs-events-assistant {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
   gap: 12px;
@@ -1955,17 +1956,21 @@ section {
 }
 
 .runs-search-assistant > div:first-child strong,
-.runs-search-assistant > div:first-child span {
+.runs-search-assistant > div:first-child span,
+.runs-events-assistant > div:first-child strong,
+.runs-events-assistant > div:first-child span {
   display: block;
 }
 
-.runs-search-assistant > div:first-child strong {
+.runs-search-assistant > div:first-child strong,
+.runs-events-assistant > div:first-child strong {
   margin-top: 8px;
   font-size: 22px;
   line-height: 1.15;
 }
 
-.runs-search-assistant > div:first-child > span:last-of-type {
+.runs-search-assistant > div:first-child > span:last-of-type,
+.runs-events-assistant > div:first-child > span:last-of-type {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -1973,21 +1978,24 @@ section {
   overflow-wrap: anywhere;
 }
 
-.runs-search-cards {
+.runs-search-cards,
+.runs-events-assistant-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   min-width: 0;
 }
 
-.runs-search-actions {
+.runs-search-actions,
+.runs-events-assistant-actions {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 8px;
 }
 
-.runs-search-action-card {
+.runs-search-action-card,
+.runs-events-assistant-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -2001,13 +2009,18 @@ section {
 
 .runs-search-action-card strong,
 .runs-search-action-card span,
-.runs-search-action-card small {
+.runs-search-action-card small,
+.runs-events-assistant-action strong,
+.runs-events-assistant-action span,
+.runs-events-assistant-action small {
   display: block;
   overflow-wrap: anywhere;
 }
 
 .runs-search-action-card span,
-.runs-search-action-card small {
+.runs-search-action-card small,
+.runs-events-assistant-action span,
+.runs-events-assistant-action small {
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
@@ -2019,6 +2032,17 @@ section {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.runs-events-assistant-action {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+}
+
+.runs-events-assistant-action:hover {
+  border-color: var(--accent);
+  filter: none;
 }
 
 .breakdown-group {
@@ -3384,6 +3408,10 @@ footer {
   .runs-search-cards,
   .runs-search-actions,
   .runs-search-action-card,
+  .runs-events-assistant,
+  .runs-events-assistant-cards,
+  .runs-events-assistant-actions,
+  .runs-events-assistant-action,
   .control-assistant,
   .control-assistant-cards,
   .control-assistant-actions,
