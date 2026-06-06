@@ -1174,6 +1174,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       scan diagnostics. Catalog rows and Data Detail now also warn on malformed
       minute bars with high below low, closes outside high/low, and negative
       volume; broader multi-session fixture coverage remains open.
+    - partial; ingestion regression coverage now includes a mixed RTH,
+      extended-hours, and 24/7 crypto fixture in one data root, asserting that
+      catalog, coverage, gap summary, minute heatmap, and their CSV exports
+      preserve storage-session metadata across the same bounded scan.
 - Add data ingestion acceptance tests:
   - a fixture with hundreds of synthetic symbols must show more than the public
     SPY/QQQ examples

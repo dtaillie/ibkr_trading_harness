@@ -3094,6 +3094,93 @@ def test_cloud_status_server_data_minute_heatmap_marks_crypto_24_7_completeness(
         server.server_close()
 
 
+def test_cloud_status_server_preserves_mixed_storage_sessions_across_data_diagnostics(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    stock_rows = "\n".join(
+        [
+            "timestamp,open,high,low,close,volume",
+            "2026-01-02T14:30:00Z,100,101,99,100.0,1000",
+            "2026-01-02T14:35:00Z,100,102,99,101.0,1100",
+            "2026-01-02T14:40:00Z,101,103,100,102.0,1200",
+            "2026-01-02T14:55:00Z,102,104,101,103.0,1300",
+        ]
+    ) + "\n"
+    (data_root / "SPY_5min_1D_now_TRADES_SMART_rthTrue.csv").write_text(stock_rows, encoding="utf-8")
+    (data_root / "EXT_5min_1D_now_TRADES_SMART_rthFalse.csv").write_text(stock_rows, encoding="utf-8")
+    crypto_root = data_root / "cache" / "zerohash"
+    crypto_root.mkdir(parents=True)
+    (crypto_root / "BTC-USD_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T00:00:00Z,100,101,99,100.0,1000",
+                "2026-01-02T00:01:00Z,100,102,99,101.0,1100",
+                "2026-01-02T00:02:00Z,101,103,100,102.0,1200",
+                "2026-01-02T00:06:00Z,102,104,101,103.0,1300",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=10&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+        assert catalog["storage_session_counts"] == {"24_7": 1, "extended": 1, "rth": 1}
+        catalog_sessions = {item["symbol"]: item["storage_session"] for item in catalog["datasets"]}
+        assert catalog_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+        summary_sessions = {item["symbol"]: item["storage_sessions"] for item in catalog["symbol_summaries"]}
+        assert summary_sessions == {"BTC-USD": ["24_7"], "EXT": ["extended"], "SPY": ["rth"]}
+
+        with request.urlopen(f"{base}/data_coverage?limit=10&max_symbols=10&max_dates=5", timeout=5) as resp:
+            coverage = json.loads(resp.read().decode("utf-8"))
+        coverage_sessions = {item["symbol"]: item["storage_sessions"] for item in coverage["symbols"]}
+        assert coverage_sessions == {"BTC-USD": ["24_7"], "EXT": ["extended"], "SPY": ["rth"]}
+        dataset_sessions = {item["symbol"]: item["storage_session"] for item in coverage["datasets"]}
+        assert dataset_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+
+        with request.urlopen(f"{base}/data_coverage_export?limit=10&max_symbols=10&max_dates=5", timeout=5) as resp:
+            coverage_export = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        exported_sessions = {row["symbol"]: row["storage_sessions"] for row in coverage_export}
+        assert exported_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+
+        with request.urlopen(f"{base}/data_gap_summary?catalog_limit=10&top_limit=10", timeout=5) as resp:
+            gap_summary = json.loads(resp.read().decode("utf-8"))
+        gap_sessions = {item["symbol"]: item["storage_session"] for item in gap_summary["gap_rows"]}
+        assert gap_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+
+        with request.urlopen(f"{base}/data_gap_summary_export?catalog_limit=10&top_limit=10", timeout=5) as resp:
+            gap_export = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        exported_gap_sessions = {
+            row["symbol"]: row["storage_session"]
+            for row in gap_export
+            if row["row_type"] == "timestamp_gap"
+        }
+        assert exported_gap_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+
+        with request.urlopen(f"{base}/data_minute_heatmap?catalog_limit=10&top_limit=10", timeout=5) as resp:
+            heatmap = json.loads(resp.read().decode("utf-8"))
+        heatmap_sessions = {item["symbol"]: item["storage_session"] for item in heatmap["rows"]}
+        assert heatmap_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+
+        with request.urlopen(f"{base}/data_minute_heatmap_export?catalog_limit=10&top_limit=10", timeout=5) as resp:
+            heatmap_export = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        exported_heatmap_sessions = {
+            row["symbol"]: row["storage_session"]
+            for row in heatmap_export
+            if row["row_type"] == "hour_summary"
+        }
+        assert exported_heatmap_sessions == {"BTC-USD": "24_7", "EXT": "extended", "SPY": "rth"}
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_compares_saved_data(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()
