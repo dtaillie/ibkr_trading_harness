@@ -388,6 +388,9 @@ strategy-private.
   - partial; Performance now adds a first-screen summary band before detailed
     KPIs and charts, so the selected strategy/source result is visible before
     dense metric context and artifact tables.
+  - partial; Performance now adds a first-screen Performance Story panel that
+    translates the selected source/window into outcome, risk, evidence quality,
+    operational trust, and the next read before detailed KPIs and charts.
   - partial; every top-level page now starts with compact workflow steps in
     the shared intro, improving first-screen orientation without adding another
     static documentation block.

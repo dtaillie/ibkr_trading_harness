@@ -2747,6 +2747,20 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceStory({
+    source,
+    window,
+    accountRows,
+    periodPerf,
+    fills,
+    ledger,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   $("performance-note").textContent = `${source.label} / ${window.label}`;
   setMetricValue("performance-equity", money(equity), { meta: sourceMeta });
   $("performance-context").textContent = accountRows.length
@@ -2878,6 +2892,107 @@ function renderPerformance() {
         escapeHtml(runItem.rejections),
       ])).join("")
     : row([`<span class="muted">No saved runs yet</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+function performanceRiskStatus(drawdownPct, exposurePct) {
+  const drawdown = finiteNumber(drawdownPct);
+  const exposure = finiteNumber(exposurePct);
+  if (drawdown === null && exposure === null) return "bad";
+  const drawdownAbs = drawdown === null ? 0 : Math.abs(drawdown);
+  if (drawdownAbs >= 20 || (exposure !== null && exposure >= 150)) return "bad";
+  if (drawdownAbs >= 8 || (exposure !== null && exposure >= 100)) return "warn";
+  return "ok";
+}
+
+function renderPerformanceStory(context) {
+  if (!$("performance-story-cards") || !$("performance-story-note")) return;
+  const {
+    source,
+    window,
+    accountRows,
+    periodPerf,
+    fills,
+    ledger,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const totalReturn = finiteNumber(periodPerf.total_return_pct);
+  const drawdown = finiteNumber(periodPerf.max_drawdown_pct);
+  const exposure = finiteNumber(periodPerf.max_gross_exposure_pct);
+  const elapsedDays = finiteNumber(periodPerf.elapsed_days);
+  const hasBenchmark = Boolean((state.performanceBenchmarkDetail || {}).path);
+  const hasAccount = accountRows.length > 0;
+  const hasExecutionIssue = Number(rejections || 0) > 0 || Number(approvalRequired || 0) > 0;
+  const hasActivity = Number(decisions || 0) || Number(orders || 0) || Number(fillCount || 0);
+  const outcomeStatus = totalReturn === null
+    ? source.has_data ? "warn" : "bad"
+    : totalReturn >= 0 ? "ok" : "warn";
+  const evidenceStatus = !source.has_data
+    ? "bad"
+    : hasAccount && fills.length && ledger.stats.closed_count ? "ok"
+      : hasAccount || fills.length || hasActivity ? "warn" : "bad";
+  const trustStatus = hasExecutionIssue
+    ? "bad"
+    : latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "bad";
+  let nextTitle = "Load Performance";
+  let nextNote = "Publish telemetry, run a replay, or open saved artifacts before interpreting results.";
+  if (source.has_data && !hasAccount) {
+    nextTitle = "Open Richer Source";
+    nextNote = "This source is summary-only for the selected period; load artifacts or switch to All for curves and PnL.";
+  } else if (hasExecutionIssue) {
+    nextTitle = "Inspect Execution";
+    nextNote = "Rejected orders or approval holds can make headline returns misleading; open Runs before evaluating quality.";
+  } else if (source.has_data && !hasBenchmark) {
+    nextTitle = "Add Benchmark";
+    nextNote = "Load a saved benchmark dataset to compare normalized strategy return against the market context.";
+  } else if (source.has_data) {
+    nextTitle = "Read Charts";
+    nextNote = "Outcome, drawdown, execution, and benchmark context are ready for this selected window.";
+  }
+  const cards = [
+    {
+      status: outcomeStatus,
+      label: "Outcome",
+      title: totalReturn === null ? "No return yet" : pctText(totalReturn),
+      note: `${window.label}; final equity ${money(periodPerf.final_equity)} over ${elapsedDays === null ? "n/a" : `${numberText(elapsedDays, 3)} day${elapsedDays === 1 ? "" : "s"}`}.`,
+    },
+    {
+      status: performanceRiskStatus(drawdown, exposure),
+      label: "Risk",
+      title: `DD ${pctText(drawdown)}`,
+      note: `Max exposure ${pctText(exposure)}; drawdown/exposure are computed from selected account snapshots when available.`,
+    },
+    {
+      status: evidenceStatus,
+      label: "Evidence",
+      title: hasAccount ? `${numberText(accountRows.length, 0)} snapshots` : "Summary only",
+      note: `${numberText(fills.length, 0)} fills / ${numberText(ledger.stats.closed_count, 0)} closed trades / ${numberText(decisions, 0)} decisions.`,
+    },
+    {
+      status: trustStatus,
+      label: "Operational Trust",
+      title: hasExecutionIssue ? "Review needed" : latestAccount.timestamp ? "Fresh enough" : "No account timestamp",
+      note: `${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approval holds; latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}.`,
+    },
+    {
+      status: source.has_data && !hasExecutionIssue ? (hasBenchmark ? "ok" : "warn") : "bad",
+      label: "Next Read",
+      title: nextTitle,
+      note: nextNote,
+    },
+  ];
+  $("performance-story-note").textContent = `${text(source.label)} interpreted for ${window.label}`;
+  $("performance-story-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderPerformanceTriage(context) {
