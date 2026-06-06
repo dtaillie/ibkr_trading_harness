@@ -1421,12 +1421,16 @@ QQQ show up, treat that as a bug until proven otherwise.
     before the next data/plugin/broker pass. Generic runner executions now
     maintain a public-safe `runner_status.json` heartbeat/status artifact with
     lifecycle state, loop/session counters, latest data time, stop/pause marker
-    presence, and final result pointers. The generic local supervisor now has
-    an opt-in managed-job `restart` policy that can relaunch exited managed
-    children or terminate/relaunch a managed plugin-runner child when its
-    `runner_status.json` heartbeat is stale, with a per-hour restart cap and
-    pause-marker guard. Richer UI controls and provider/service-specific
-    restart recipes remain open.
+    presence, and final result pointers. Generic runner executions now also
+    write `plugin_contract.json`, a public-safe contract artifact with plugin
+    identity, data-symbol counts, runner/execution settings, observed
+    dashboard keys, order-intent metadata key names, and artifact file records;
+    Workbench archives and displays it in the Plugin Boundary view. The generic
+    local supervisor now has an opt-in managed-job `restart` policy that can
+    relaunch exited managed children or terminate/relaunch a managed
+    plugin-runner child when its `runner_status.json` heartbeat is stale, with
+    a per-hour restart cap and pause-marker guard. Richer UI controls and
+    provider/service-specific restart recipes remain open.
   - partial; the public repo now includes
     `ops/systemd/algo-trade-plugin-supervisor.service`, a user-level systemd
     service for the generic local supervisor that validates an ignored local

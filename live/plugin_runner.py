@@ -31,7 +31,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import Bar, Order, Side
-from framework.plugin_loader import create_plugin, load_object, validate_plugin_config
+from framework.plugin_loader import create_plugin, load_object, plugin_config_validators, validate_plugin_config
 from framework.strategy_plugin import OrderIntent, StrategyContext
 from live.broker_adapters import broker_adapter_capability, broker_adapter_ids, create_broker_adapter
 from live.ibkr_data import BAR_SIZES, fetch_ibkr_bars
@@ -90,6 +90,7 @@ class RunnerResult:
     output_dir: Path
     performance_rollups_path: Path | None = None
     runner_status_path: Path | None = None
+    plugin_contract_path: Path | None = None
     account_snapshot_count: int = 0
     initial_equity: float | None = None
     total_return_pct: float | None = None
@@ -1209,6 +1210,134 @@ def account_rollup_artifact(records: list[dict[str, Any]], result: RunnerResult)
     }
 
 
+def public_key_list(raw: Any, *, limit: int = 50) -> list[str]:
+    if not isinstance(raw, dict):
+        return []
+    keys = []
+    for key in raw:
+        value = str(key).strip()
+        if value and value not in keys:
+            keys.append(value[:80])
+        if len(keys) >= limit:
+            break
+    return sorted(keys)
+
+
+def data_contract_summary(data_cfg: dict[str, Any]) -> dict[str, Any]:
+    source = str(data_cfg.get("source", "files")).lower()
+    raw_files = data_cfg.get("files")
+    files = raw_files if isinstance(raw_files, dict) else {}
+    symbols = sorted(str(symbol) for symbol in files) if files else [
+        str(symbol)
+        for symbol in (data_cfg.get("symbols") if isinstance(data_cfg.get("symbols"), list) else [])
+    ]
+    return {
+        "source": source,
+        "symbol_count": len(symbols),
+        "symbols": symbols[:100],
+        "file_count": len(files),
+        "bar_size": data_cfg.get("bar_size"),
+        "start": data_cfg.get("start"),
+        "end": data_cfg.get("end"),
+        "timestamp_column": data_cfg.get("timestamp_column"),
+    }
+
+
+def artifact_file_summary(output_dir: Path, *, assume_present: set[str] | None = None) -> list[dict[str, Any]]:
+    assume_present = assume_present or set()
+    names = [
+        "summary.json",
+        "runner_status.json",
+        "performance_rollups.json",
+        "plugin_contract.json",
+        "decisions.jsonl",
+        "orders.jsonl",
+        "fills.jsonl",
+        "account.jsonl",
+        "order_previews.jsonl",
+    ]
+    rows = []
+    for name in names:
+        path = output_dir / name
+        assumed = name in assume_present
+        rows.append({
+            "name": name,
+            "exists": path.exists() or assumed,
+            "bytes": path.stat().st_size if path.exists() else 0,
+        })
+    return rows
+
+
+def plugin_contract_artifact(
+    *,
+    config: dict[str, Any],
+    spec: str,
+    plugin: Any,
+    mode: str,
+    output_dir: Path,
+    result: RunnerResult,
+    observed_dashboard_keys: set[str],
+    observed_intent_metadata_keys: set[str],
+    observed_order_tags: set[str],
+    observed_order_types: set[str],
+    observed_order_sides: set[str],
+    observed_order_symbols: set[str],
+) -> dict[str, Any]:
+    runner_cfg = config.get("runner") if isinstance(config.get("runner"), dict) else {}
+    execution_cfg = config.get("execution") if isinstance(config.get("execution"), dict) else {}
+    broker_cfg = config.get("broker") if isinstance(config.get("broker"), dict) else {}
+    adapter = str(broker_cfg.get("adapter") or "ibkr").lower()
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "plugin_runner",
+        "mode": mode,
+        "plugin": {
+            "spec": spec,
+            "name": str(getattr(plugin, "name", "")) or None,
+            "class": plugin.__class__.__name__,
+            "module": plugin.__class__.__module__,
+            "has_on_fill": callable(getattr(plugin, "on_fill", None)),
+            "validator_count": len(plugin_config_validators(spec)),
+        },
+        "data": data_contract_summary(config.get("data") if isinstance(config.get("data"), dict) else {}),
+        "runner": {
+            "history_bars": runner_cfg.get("history_bars"),
+            "max_steps": runner_cfg.get("max_steps"),
+            "loop_enabled": result.loop_enabled,
+            "loop_iterations": result.loop_iterations,
+            "session_enabled": result.session_enabled,
+            "session_status": result.session_status,
+        },
+        "execution": {
+            "supported_order_types": sorted(SUPPORTED_ORDER_TYPES),
+            "configured_order_types": sorted(observed_order_types),
+            "configured_sides": sorted(observed_order_sides),
+            "require_order_approval": bool(execution_cfg.get("require_order_approval", False)),
+            "allow_short": bool(execution_cfg.get("allow_short", False)),
+            "max_orders_per_run": execution_cfg.get("max_orders_per_run"),
+            "max_notional_per_order": execution_cfg.get("max_notional_per_order"),
+            "max_gross_exposure_pct": execution_cfg.get("max_gross_exposure_pct"),
+        },
+        "broker": {
+            "adapter": adapter,
+            "capability": broker_adapter_capability(adapter),
+            "account_mode": broker_cfg.get("account_mode"),
+        },
+        "observed": {
+            "decision_count": result.decisions,
+            "order_count": result.orders,
+            "fill_count": result.fills,
+            "rejection_count": result.rejections,
+            "dashboard_keys": sorted(observed_dashboard_keys),
+            "intent_metadata_keys": sorted(observed_intent_metadata_keys),
+            "order_tags": sorted(observed_order_tags)[:50],
+            "order_symbols": sorted(observed_order_symbols)[:100],
+        },
+        "artifacts": artifact_file_summary(output_dir, assume_present={"plugin_contract.json"}),
+    }
+
+
 class SimulatedExecutor:
     def __init__(self, cash: float, execution_cfg: dict[str, Any]):
         self.cash = float(cash)
@@ -1884,6 +2013,12 @@ def run_from_config(
     run_started_at = datetime.now(timezone.utc)
     latest_error: dict[str, str] | None = None
     last_decision_time: str | None = None
+    observed_dashboard_keys: set[str] = set()
+    observed_intent_metadata_keys: set[str] = set()
+    observed_order_tags: set[str] = set()
+    observed_order_types: set[str] = set()
+    observed_order_sides: set[str] = set()
+    observed_order_symbols: set[str] = set()
 
     def update_runner_status(
         state: str,
@@ -1934,6 +2069,7 @@ def run_from_config(
             payload["result"] = {
                 "summary_path": output_dir / "summary.json",
                 "performance_rollups_path": result.performance_rollups_path,
+                "plugin_contract_path": result.plugin_contract_path,
                 "final_cash": result.final_cash,
                 "final_equity": result.final_equity,
                 "final_positions": result.final_positions,
@@ -2039,6 +2175,8 @@ def run_from_config(
         decision = plugin.on_data(snapshot, context)
         decisions += 1
         last_decision_time = decision.timestamp.isoformat()
+        diagnostics = decision.diagnostics if isinstance(decision.diagnostics, dict) else {}
+        observed_dashboard_keys.update(public_key_list(diagnostics.get("dashboard")))
         append_jsonl(output_dir / "decisions.jsonl", {
             "timestamp": decision.timestamp,
             "step": step,
@@ -2056,6 +2194,13 @@ def run_from_config(
 
         for raw_intent in decision.intents:
             intent = normalize_intent(raw_intent)
+            observed_order_symbols.add(intent.symbol)
+            observed_order_sides.add(intent.side)
+            observed_order_types.add(intent.order_type)
+            if intent.tag:
+                observed_order_tags.add(str(intent.tag)[:80])
+            if isinstance(intent.metadata, dict):
+                observed_intent_metadata_keys.update(public_key_list(intent.metadata))
             orders += 1
             append_jsonl(output_dir / "orders.jsonl", {
                 "timestamp": now,
@@ -2309,6 +2454,7 @@ def run_from_config(
 
     perf = account_metrics(account_records)
     performance_rollups_path = output_dir / "performance_rollups.json"
+    plugin_contract_path = output_dir / "plugin_contract.json"
     result = RunnerResult(
         mode=mode,
         decisions=decisions,
@@ -2321,6 +2467,7 @@ def run_from_config(
         output_dir=output_dir,
         performance_rollups_path=performance_rollups_path,
         runner_status_path=runner_status_path,
+        plugin_contract_path=plugin_contract_path,
         account_snapshot_count=int(perf["account_snapshot_count"]),
         initial_equity=perf["initial_equity"],
         total_return_pct=perf["total_return_pct"],
@@ -2355,6 +2502,20 @@ def run_from_config(
     )
     write_json(performance_rollups_path, account_rollup_artifact(account_records, result))
     write_json(output_dir / "summary.json", asdict(result))
+    write_json(plugin_contract_path, plugin_contract_artifact(
+        config=config,
+        spec=spec,
+        plugin=plugin,
+        mode=mode,
+        output_dir=output_dir,
+        result=result,
+        observed_dashboard_keys=observed_dashboard_keys,
+        observed_intent_metadata_keys=observed_intent_metadata_keys,
+        observed_order_tags=observed_order_tags,
+        observed_order_types=observed_order_types,
+        observed_order_sides=observed_order_sides,
+        observed_order_symbols=observed_order_symbols,
+    ))
     update_runner_status("stopped" if stopped_by_control else "completed", result=result)
     log.info(
         "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d stopped_by_control=%s output_dir=%s",

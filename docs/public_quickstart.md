@@ -198,8 +198,9 @@ Private strategy modules or factory functions can also expose
 mistyped strategy-specific settings before the runner loads data or connects to
 a broker.
 After a run, `scripts/summarize_plugin_run.py <run-dir>` prints decisions,
-orders, fills, rejection reasons, final cash/equity, positions, return, and max
-drawdown from the generic JSONL artifacts. When account timestamps are
+orders, fills, rejection reasons, final cash/equity, positions, return, max
+drawdown, and the public-safe plugin contract from the generic JSONL artifacts.
+When account timestamps are
 available, the summary also prints elapsed days plus geometric return
 projections per day, month, and year. Runs shorter than 30 days are marked as
 short-horizon projections because those rates are useful for scale context but
@@ -371,13 +372,17 @@ publish them. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
-Generic plugin-runner runs write `runner_status.json` and
-`performance_rollups.json` beside `summary.json`. `runner_status.json` is a
-small heartbeat/status artifact with the current lifecycle state, loop/session
-metadata, counters, latest data time, and final result pointers. Each run also
-carries durable daily, monthly, and yearly account-equity summaries in addition
-to dashboard-level status rollups. Runs loads those rows in Runner Rollups /
-Runner Period Rollups, and Export JSON includes the sanitized status and rollup
+Generic plugin-runner runs write `runner_status.json`,
+`performance_rollups.json`, and `plugin_contract.json` beside `summary.json`.
+`runner_status.json` is a small heartbeat/status artifact with the current
+lifecycle state, loop/session metadata, counters, latest data time, and final
+result pointers. `plugin_contract.json` is public-safe metadata about the
+plugin spec/name, data symbols, runner mode, supported order types, observed
+dashboard keys, and artifact files; it intentionally omits raw strategy signal
+payloads and local data-file paths. Each run also carries durable daily,
+monthly, and yearly account-equity summaries in addition to dashboard-level
+status rollups. Runs loads those rows in Runner Rollups / Runner Period
+Rollups, and Export JSON includes the sanitized status, contract, and rollup
 artifacts.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.

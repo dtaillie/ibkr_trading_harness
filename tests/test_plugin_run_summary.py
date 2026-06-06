@@ -81,6 +81,24 @@ def test_summarize_plugin_run_metrics(tmp_path):
             },
         ],
     )
+    (run_dir / "plugin_contract.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "plugin": {
+                    "spec": "examples.strategies.no_edge_template:create_strategy",
+                    "name": "no_edge_template",
+                    "validator_count": 0,
+                },
+                "data": {"symbols": ["SPY"], "file_count": 1},
+                "observed": {
+                    "dashboard_keys": ["reason", "signal_value"],
+                    "intent_metadata_keys": ["cost_model"],
+                },
+            },
+            sort_keys=True,
+        )
+    )
 
     metrics = summarize_run(run_dir)
 
@@ -108,11 +126,18 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["latest_data_time"] == "2026-01-02T14:35:00+00:00"
     assert metrics["loop_enabled"] is True
     assert metrics["loop_iterations"] == 2
+    assert metrics["plugin_contract_available"] is True
+    assert metrics["plugin_name"] == "no_edge_template"
+    assert metrics["data_symbols"] == ["SPY"]
+    assert metrics["observed_dashboard_keys"] == ["reason", "signal_value"]
+    assert metrics["observed_intent_metadata_keys"] == ["cost_model"]
     assert metrics["artifact_files"]["account"] is True
+    assert metrics["artifact_files"]["plugin_contract"] is True
     assert metrics["artifact_files"]["performance_rollups"] is False
     assert "Fills: 1" in format_text(metrics)
     assert "Loop: enabled iterations=2" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
+    assert "Plugin contract: available plugin=no_edge_template" in format_text(metrics)
     assert "Return/day:" in format_text(metrics)
     assert "Max gross exposure:" in format_text(metrics)
 
@@ -204,6 +229,7 @@ def test_summarize_plugin_run_cli_json(tmp_path):
     metrics = json.loads(result.stdout)
     assert metrics["mode"] == "replay"
     assert metrics["artifact_files"]["summary"] is True
+    assert metrics["artifact_files"]["plugin_contract"] is False
     assert metrics["artifact_files"]["performance_rollups"] is False
     assert metrics["artifact_files"]["fills"] is False
     assert metrics["artifact_files"]["account"] is False

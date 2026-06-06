@@ -270,6 +270,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"run directory not found: {run_dir}")
 
     summary = load_json(run_dir / "summary.json")
+    plugin_contract = load_json(run_dir / "plugin_contract.json")
     decisions = load_jsonl(run_dir / "decisions.jsonl")
     orders = load_jsonl(run_dir / "orders.jsonl")
     fills = load_jsonl(run_dir / "fills.jsonl")
@@ -321,13 +322,24 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "max_abs_net_exposure": summary.get("max_abs_net_exposure", performance["max_abs_net_exposure"]),
         "max_abs_net_exposure_pct": summary.get("max_abs_net_exposure_pct", performance["max_abs_net_exposure_pct"]),
         "max_position_count": summary.get("max_position_count", performance["max_position_count"]),
+        "plugin_contract_available": bool(plugin_contract),
+        "plugin_contract_schema_version": plugin_contract.get("schema_version"),
+        "plugin_spec": (plugin_contract.get("plugin") or {}).get("spec") if isinstance(plugin_contract.get("plugin"), dict) else None,
+        "plugin_name": (plugin_contract.get("plugin") or {}).get("name") if isinstance(plugin_contract.get("plugin"), dict) else None,
+        "plugin_validator_count": (plugin_contract.get("plugin") or {}).get("validator_count") if isinstance(plugin_contract.get("plugin"), dict) else None,
+        "data_symbols": (plugin_contract.get("data") or {}).get("symbols", []) if isinstance(plugin_contract.get("data"), dict) else [],
+        "observed_dashboard_keys": (plugin_contract.get("observed") or {}).get("dashboard_keys", []) if isinstance(plugin_contract.get("observed"), dict) else [],
+        "observed_intent_metadata_keys": (plugin_contract.get("observed") or {}).get("intent_metadata_keys", []) if isinstance(plugin_contract.get("observed"), dict) else [],
         "artifact_files": {
             "summary": (run_dir / "summary.json").exists(),
+            "runner_status": (run_dir / "runner_status.json").exists(),
             "performance_rollups": (run_dir / "performance_rollups.json").exists(),
+            "plugin_contract": (run_dir / "plugin_contract.json").exists(),
             "decisions": (run_dir / "decisions.jsonl").exists(),
             "orders": (run_dir / "orders.jsonl").exists(),
             "fills": (run_dir / "fills.jsonl").exists(),
             "account": (run_dir / "account.jsonl").exists(),
+            "order_previews": (run_dir / "order_previews.jsonl").exists(),
         },
     }
     if metrics["final_cash"] is not None and metrics["final_equity"] is not None:
@@ -371,6 +383,8 @@ def format_text(metrics: dict[str, Any]) -> str:
         f"Max abs net exposure: {format_money(metrics.get('max_abs_net_exposure'))} ({format_percent(metrics.get('max_abs_net_exposure_pct'))})",
         f"Max positions: {metrics.get('max_position_count')}",
         f"Final positions: {metrics['final_positions']}",
+        f"Plugin contract: {'available' if metrics.get('plugin_contract_available') else 'missing'} plugin={metrics.get('plugin_name') or metrics.get('plugin_spec') or 'n/a'}",
+        f"Observed dashboard keys: {metrics.get('observed_dashboard_keys') or []}",
     ]
     return "\n".join(lines)
 

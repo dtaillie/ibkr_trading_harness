@@ -119,6 +119,7 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
     assert summary["performance_rollups_path"] == str(output_dir / "performance_rollups.json")
     assert summary["runner_status_path"] == str(output_dir / "runner_status.json")
+    assert summary["plugin_contract_path"] == str(output_dir / "plugin_contract.json")
     status = json.loads((output_dir / "runner_status.json").read_text())
     assert status["schema_version"] == 1
     assert status["state"] == "completed"
@@ -135,6 +136,27 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     }
     assert status["loop"]["enabled"] is False
     assert status["result"]["summary_path"] == str(output_dir / "summary.json")
+    assert status["result"]["plugin_contract_path"] == str(output_dir / "plugin_contract.json")
+    contract = json.loads((output_dir / "plugin_contract.json").read_text())
+    assert contract["schema_version"] == 1
+    assert contract["source"] == "plugin_runner"
+    assert contract["plugin"]["spec"] == "examples.strategies.no_edge_template:create_strategy"
+    assert contract["plugin"]["name"] == "no_edge_template"
+    assert contract["plugin"]["validator_count"] == 0
+    assert contract["data"]["symbols"] == ["SPY"]
+    assert contract["data"]["file_count"] == 1
+    assert contract["observed"]["dashboard_keys"] == [
+        "active_exit_rule",
+        "expected_hold_minutes",
+        "near_threshold",
+        "reason",
+        "signal_label",
+        "signal_value",
+        "threshold",
+        "threshold_distance",
+    ]
+    assert contract["observed"]["decision_count"] == 3
+    assert {row["name"] for row in contract["artifacts"]} >= {"summary.json", "plugin_contract.json"}
     rollups = json.loads((output_dir / "performance_rollups.json").read_text())
     assert rollups["schema_version"] == 1
     assert rollups["source"] == "plugin_runner"

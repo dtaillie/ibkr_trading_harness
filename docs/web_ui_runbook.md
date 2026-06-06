@@ -86,11 +86,12 @@ Simulation, Troubleshoot, and Publish Safely.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.
-Generic plugin-runner executions also write `performance_rollups.json` beside
-`summary.json`, giving each run its own durable daily, monthly, and yearly
-account-equity summaries even when the dashboard status receiver is not
-running. Open a run in Runs to inspect the Runner Rollups and Runner Period
-Rollups tables loaded from that artifact, or export the run artifacts JSON.
+Generic plugin-runner executions also write `performance_rollups.json` and
+`plugin_contract.json` beside `summary.json`, giving each run its own durable
+period summaries plus public-safe plugin/run contract metadata even when the
+dashboard status receiver is not running. Open a run in Runs to inspect the
+Runner Rollups, Runner Period Rollups, and Plugin Boundary panels loaded from
+those artifacts, or export the run artifacts JSON.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.
@@ -262,7 +263,8 @@ decisions. Add `result_fields` to a public or ignored local plugin registry
 entry when those values need clearer labels or formatting in the artifact view.
 The Plugin Boundary and Result Coverage panels show the matched registry
 plugin, declared public inputs/results, emitted result counts, latest declared
-values, and sanitized dashboard keys that are still unlabeled.
+values, the runner-owned `plugin_contract.json` summary, and sanitized
+dashboard keys that are still unlabeled.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded

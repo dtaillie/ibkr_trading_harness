@@ -10947,6 +10947,9 @@ function renderArtifactPluginBoundary(artifacts) {
   if (!$("artifact-plugin-boundary-note") || !$("artifact-plugin-boundary-cards") || !$("artifact-plugin-boundary")) return;
   const plugin = artifacts.plugin || {};
   const summary = artifacts.plugin_result_summary || {};
+  const contract = artifacts.plugin_contract || {};
+  const contractPlugin = (contract.plugin || {});
+  const contractObserved = (contract.observed || {});
   const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
   const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
   const declared = Number(summary.declared_field_count ?? resultFields.length);
@@ -10954,7 +10957,7 @@ function renderArtifactPluginBoundary(artifacts) {
   const emittedValues = Number(summary.emitted_value_count || 0);
   const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
   const unlabeledCount = Number(summary.unlabeled_public_key_count || 0);
-  const pluginLabel = text(plugin.label || plugin.id || plugin.spec || "Unknown plugin");
+  const pluginLabel = text(plugin.label || plugin.id || plugin.spec || contractPlugin.name || contractPlugin.spec || "Unknown plugin");
   const pluginStatus = plugin.matched
     ? plugin.visibility === "public_example" ? "warn" : "ok"
     : "bad";
@@ -10996,6 +10999,14 @@ function renderArtifactPluginBoundary(artifacts) {
         ? "Sanitized dashboard keys were emitted without result_fields labels."
         : "No extra sanitized dashboard keys beyond declared result metadata.",
     },
+    {
+      status: contract.available ? "ok" : "warn",
+      title: contract.available ? "Loaded" : "Missing",
+      label: "Runner Contract",
+      note: contract.available
+        ? `${numberText(contractObserved.dashboard_keys ? contractObserved.dashboard_keys.length : 0, 0)} public dashboard key${(contractObserved.dashboard_keys || []).length === 1 ? "" : "s"} observed by plugin_runner.`
+        : "Older runs may not have plugin_contract.json archived.",
+    },
   ];
   $("artifact-plugin-boundary-cards").innerHTML = cards.map((card) => `
     <div class="action-card status-${escapeHtml(card.status)}">
@@ -11008,12 +11019,17 @@ function renderArtifactPluginBoundary(artifacts) {
     ? `${numberText(emittedFields, 0)} / ${numberText(declared, 0)} fields, ${numberText(emittedValues, 0)} values`
     : "No declared result fields";
   const unlabeledKeys = summary.unlabeled_public_keys || [];
+  const contractKeys = contractObserved.dashboard_keys || [];
+  const contractArtifacts = (contract.artifacts || []).filter((item) => item && item.name);
   $("artifact-plugin-boundary").innerHTML = kvRows([
     ["Plugin", pluginLabel],
     ["Registry Match", statusText(plugin.matched ? "ok" : "bad"), true],
+    ["Runner Contract", statusText(contract.available ? "ok" : "warn"), true],
     ["Visibility", text(plugin.visibility || "n/a")],
     ["Status", text(plugin.status || "n/a")],
-    ["Spec", plugin.spec ? `<span class="mono">${escapeHtml(plugin.spec)}</span>` : "n/a", Boolean(plugin.spec)],
+    ["Spec", (plugin.spec || contractPlugin.spec) ? `<span class="mono">${escapeHtml(plugin.spec || contractPlugin.spec)}</span>` : "n/a", Boolean(plugin.spec || contractPlugin.spec)],
+    ["Plugin Class", text(contractPlugin.class || "n/a")],
+    ["Plugin Validators", numberText(contractPlugin.validator_count, 0)],
     ["Boundary", text(plugin.boundary || plugin.description || "n/a")],
     ["Strategy Inputs", jsonDrilldown(strategyFields.map((field) => ({
       name: field.name,
@@ -11027,7 +11043,9 @@ function renderArtifactPluginBoundary(artifacts) {
       kind: field.kind,
     })), pluginFieldList(resultFields)), true],
     ["Result Coverage", `${coverage}; ${numberText(decisionCount, 0)} decision${decisionCount === 1 ? "" : "s"} loaded`],
+    ["Observed Dashboard Keys", jsonDrilldown(contractKeys, contractKeys.length ? contractKeys.join(", ") : "none"), true],
     ["Unlabeled Keys", jsonDrilldown(unlabeledKeys, unlabeledKeys.length ? unlabeledKeys.join(", ") : "none"), true],
+    ["Contract Artifacts", jsonDrilldown(contractArtifacts, contractArtifacts.length ? `${numberText(contractArtifacts.length, 0)} file records` : "none"), true],
   ]);
 }
 

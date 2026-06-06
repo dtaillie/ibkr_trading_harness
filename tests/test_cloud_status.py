@@ -3394,12 +3394,17 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             "fills": 0,
             "order_previews": 0,
             "orders": 0,
+            "plugin_contract": 1,
             "performance_rollups": 1,
             "runner_status": 1,
         }
         assert run_artifacts["runner_status"]["available"] is True
         assert run_artifacts["runner_status"]["state"] == "completed"
         assert run_artifacts["runner_status"]["counts"]["decisions"] == 2
+        assert run_artifacts["plugin_contract"]["available"] is True
+        assert run_artifacts["plugin_contract"]["plugin"]["name"] == "no_edge_template"
+        assert run_artifacts["plugin_contract"]["data"]["symbols"] == ["QQQ", "SPY"]
+        assert "signal_value" in run_artifacts["plugin_contract"]["observed"]["dashboard_keys"]
         assert run_artifacts["performance_rollups"]["available"] is True
         assert run_artifacts["performance_rollups"]["rollups"][0]["day"] == "2026-01-02"
         assert run_artifacts["performance_rollups"]["period_rollups"]["month"][0]["label"] == "2026-01"
@@ -3445,11 +3450,14 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             "fills": 0,
             "order_previews": 0,
             "orders": 0,
+            "plugin_contract": 1,
             "performance_rollups": 1,
             "runner_status": 1,
         }
         assert artifacts["runner_status"]["available"] is True
         assert artifacts["runner_status"]["state"] == "completed"
+        assert artifacts["plugin_contract"]["available"] is True
+        assert artifacts["plugin_contract"]["observed"]["decision_count"] == 2
         assert artifacts["performance_rollups"]["available"] is True
         assert artifacts["performance_rollups"]["rollups"][0]["snapshot_count"] == 2
         assert artifacts["performance"]["account_snapshot_count"] == 2

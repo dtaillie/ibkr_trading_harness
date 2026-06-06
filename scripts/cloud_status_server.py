@@ -292,6 +292,7 @@ RUN_ARTIFACT_FILES = (
     "summary.json",
     "runner_status.json",
     "performance_rollups.json",
+    "plugin_contract.json",
     "decisions.jsonl",
     "orders.jsonl",
     "fills.jsonl",
@@ -6971,6 +6972,85 @@ def summarize_runner_status_artifact(payload: dict[str, Any] | None) -> dict[str
     }
 
 
+def summarize_plugin_contract_artifact(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {"available": False}
+    plugin = payload.get("plugin") if isinstance(payload.get("plugin"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    runner = payload.get("runner") if isinstance(payload.get("runner"), dict) else {}
+    execution = payload.get("execution") if isinstance(payload.get("execution"), dict) else {}
+    broker = payload.get("broker") if isinstance(payload.get("broker"), dict) else {}
+    observed = payload.get("observed") if isinstance(payload.get("observed"), dict) else {}
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), list) else []
+    return {
+        "available": True,
+        "schema_version": payload.get("schema_version"),
+        "generated_at": payload.get("generated_at"),
+        "source": payload.get("source"),
+        "mode": payload.get("mode"),
+        "plugin": {
+            "spec": plugin.get("spec"),
+            "name": plugin.get("name"),
+            "class": plugin.get("class"),
+            "module": plugin.get("module"),
+            "has_on_fill": bool(plugin.get("has_on_fill")),
+            "validator_count": plugin.get("validator_count"),
+        },
+        "data": {
+            "source": data.get("source"),
+            "symbol_count": data.get("symbol_count"),
+            "symbols": data.get("symbols") if isinstance(data.get("symbols"), list) else [],
+            "file_count": data.get("file_count"),
+            "bar_size": data.get("bar_size"),
+            "start": data.get("start"),
+            "end": data.get("end"),
+            "timestamp_column": data.get("timestamp_column"),
+        },
+        "runner": {
+            "history_bars": runner.get("history_bars"),
+            "max_steps": runner.get("max_steps"),
+            "loop_enabled": bool(runner.get("loop_enabled")),
+            "loop_iterations": runner.get("loop_iterations"),
+            "session_enabled": bool(runner.get("session_enabled")),
+            "session_status": runner.get("session_status"),
+        },
+        "execution": {
+            "supported_order_types": execution.get("supported_order_types") if isinstance(execution.get("supported_order_types"), list) else [],
+            "configured_order_types": execution.get("configured_order_types") if isinstance(execution.get("configured_order_types"), list) else [],
+            "configured_sides": execution.get("configured_sides") if isinstance(execution.get("configured_sides"), list) else [],
+            "require_order_approval": bool(execution.get("require_order_approval")),
+            "allow_short": bool(execution.get("allow_short")),
+            "max_orders_per_run": execution.get("max_orders_per_run"),
+            "max_notional_per_order": execution.get("max_notional_per_order"),
+            "max_gross_exposure_pct": execution.get("max_gross_exposure_pct"),
+        },
+        "broker": {
+            "adapter": broker.get("adapter"),
+            "account_mode": broker.get("account_mode"),
+            "capability": broker.get("capability") if isinstance(broker.get("capability"), dict) else {},
+        },
+        "observed": {
+            "decision_count": observed.get("decision_count"),
+            "order_count": observed.get("order_count"),
+            "fill_count": observed.get("fill_count"),
+            "rejection_count": observed.get("rejection_count"),
+            "dashboard_keys": observed.get("dashboard_keys") if isinstance(observed.get("dashboard_keys"), list) else [],
+            "intent_metadata_keys": observed.get("intent_metadata_keys") if isinstance(observed.get("intent_metadata_keys"), list) else [],
+            "order_tags": observed.get("order_tags") if isinstance(observed.get("order_tags"), list) else [],
+            "order_symbols": observed.get("order_symbols") if isinstance(observed.get("order_symbols"), list) else [],
+        },
+        "artifacts": [
+            {
+                "name": item.get("name"),
+                "exists": bool(item.get("exists")),
+                "bytes": item.get("bytes"),
+            }
+            for item in artifacts[:25]
+            if isinstance(item, dict)
+        ],
+    }
+
+
 def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
     summary = summary or {}
     timestamps = []
@@ -7294,6 +7374,7 @@ def load_config_draft_artifacts(
     summary = read_json_file(output_dir / "summary.json")
     runner_status_raw = read_json_file(output_dir / "runner_status.json")
     performance_rollups_raw = read_json_file(output_dir / "performance_rollups.json")
+    plugin_contract_raw = read_json_file(output_dir / "plugin_contract.json")
     decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
@@ -7309,6 +7390,7 @@ def load_config_draft_artifacts(
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
+        "plugin_contract": summarize_plugin_contract_artifact(plugin_contract_raw),
         "performance": performance_from_account(account_raw, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
@@ -7319,6 +7401,7 @@ def load_config_draft_artifacts(
             "order_previews": len(previews_raw),
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
+            "plugin_contract": 1 if plugin_contract_raw else 0,
         },
         "decisions": decisions,
         "orders": [summarize_order_artifact(row) for row in orders_raw],
@@ -7375,6 +7458,7 @@ def load_config_draft_run_artifacts(
     summary = read_json_file(path / "summary.json")
     runner_status_raw = read_json_file(path / "runner_status.json")
     performance_rollups_raw = read_json_file(path / "performance_rollups.json")
+    plugin_contract_raw = read_json_file(path / "plugin_contract.json")
     decisions_raw = read_jsonl_tail(path / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
@@ -7394,6 +7478,7 @@ def load_config_draft_run_artifacts(
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
+        "plugin_contract": summarize_plugin_contract_artifact(plugin_contract_raw),
         "performance": performance_from_account(account_raw, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
@@ -7404,6 +7489,7 @@ def load_config_draft_run_artifacts(
             "order_previews": len(previews_raw),
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
+            "plugin_contract": 1 if plugin_contract_raw else 0,
         },
         "decisions": decisions,
         "orders": [summarize_order_artifact(row) for row in orders_raw],
