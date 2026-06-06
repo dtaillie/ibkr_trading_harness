@@ -193,10 +193,11 @@ required current prices, max orders, max quantity/cash/notional, short-sale
 permission, and gross exposure. Configs can require per-order approval with
 `execution.require_order_approval: true`; held orders write
 `order_previews.jsonl` rows with approval IDs and can be approved locally with
-`scripts/approve_order_preview.py` before rerunning. Use `--validate-only`
-before runs to check config shape, plugin importability, static data paths,
-supported modes/order types, and numeric risk settings without creating run
-artifacts.
+`scripts/approve_order_preview.py` before rerunning. The dashboard artifact view
+can also show a copyable helper command for held previews. Use
+`--validate-only` before runs to check config shape, plugin importability,
+static data paths, supported modes/order types, and numeric risk settings
+without creating run artifacts.
 Use `scripts/summarize_plugin_run.py` to inspect a run directory without
 opening the raw JSONL artifacts.
 

@@ -6599,6 +6599,11 @@ def summarize_order_preview_artifact(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def display_path(path: Path) -> str:
+    resolved = path.resolve()
+    return resolved.relative_to(ROOT).as_posix() if resolved.is_relative_to(ROOT) else str(resolved)
+
+
 def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "timestamp": row.get("timestamp"),
@@ -7088,10 +7093,12 @@ def load_config_draft_artifacts(
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
     account_raw = read_jsonl_tail(output_dir / "account.jsonl", limit=limit)
-    previews_raw = read_jsonl_tail(output_dir / "order_previews.jsonl", limit=limit)
+    order_preview_file = output_dir / "order_previews.jsonl"
+    previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
     return {
         "draft_id": path.stem,
-        "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
+        "output_dir": display_path(output_dir),
+        "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "performance": performance_from_account(account_raw, summary),
@@ -7152,7 +7159,8 @@ def load_config_draft_run_artifacts(
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
     account_raw = read_jsonl_tail(path / "account.jsonl", limit=limit)
-    previews_raw = read_jsonl_tail(path / "order_previews.jsonl", limit=limit)
+    order_preview_file = path / "order_previews.jsonl"
+    previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
     return {
         "run_id": record.get("run_id"),
         "draft_id": record.get("draft_id"),
@@ -7160,6 +7168,7 @@ def load_config_draft_run_artifacts(
         "status": record.get("status"),
         "output_dir": record.get("summary", {}).get("output_dir") if isinstance(record.get("summary"), dict) else None,
         "artifact_path": str(path),
+        "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "performance": performance_from_account(account_raw, summary),

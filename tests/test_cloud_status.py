@@ -3906,6 +3906,7 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
             payload = json.loads(resp.read().decode("utf-8"))
 
         assert payload["counts"]["order_previews"] == 1
+        assert payload["order_preview_file"].endswith("approval-run/order_previews.jsonl")
         preview = payload["order_previews"][0]
         assert preview["approval_status"] == "required"
         assert preview["approval_id"] == "abc123"

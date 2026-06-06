@@ -188,7 +188,9 @@ python3 live/plugin_runner.py \
 For real paper workflows, set `execution.approval_dir` to a durable ignored
 directory such as `paper_logs/control/order_approvals`. Avoid keeping approvals
 inside a run directory that uses `runner.clean_output_dir: true`, because that
-directory is intentionally refreshed before the next run.
+directory is intentionally refreshed before the next run. The dashboard's Run
+Artifacts Order Previews table shows the same approval IDs/files and includes a
+Copy command for the local helper when the artifact source file is available.
 `--validate-only` checks the static parts of this config before a run starts.
 Private strategy modules or factory functions can also expose
 `validate_config(config, *, full_config=None)` or

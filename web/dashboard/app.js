@@ -6094,6 +6094,13 @@ function shellQuote(value) {
   return `'${raw.replace(/'/g, "'\\''")}'`;
 }
 
+function approvalPreviewCommand(preview, artifacts) {
+  const previewFile = text((artifacts || {}).order_preview_file);
+  const approvalId = text((preview || {}).approval_id);
+  if (!previewFile || !approvalId) return "";
+  return `python3 scripts/approve_order_preview.py ${shellQuote(previewFile)} --approval-id ${shellQuote(approvalId)}`;
+}
+
 function csvCell(value) {
   const raw = value === null || value === undefined ? "" : String(value);
   return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
@@ -11062,21 +11069,28 @@ function renderWorkbenchArtifacts() {
     ? `${numberText(orderPreviews.length, 0)} preview${orderPreviews.length === 1 ? "" : "s"} loaded from order_previews.jsonl`
     : "No manual-approval order previews in this artifact";
   $("artifact-order-previews-body").innerHTML = orderPreviews.length
-    ? orderPreviews.map((preview) => row([
-        escapeHtml(preview.timestamp),
-        statusText(preview.approval_status || (preview.approval_required ? "required" : "preview")),
-        `<span class="mono">${escapeHtml(preview.approval_id)}</span>`,
-        escapeHtml(preview.symbol),
-        escapeHtml(preview.side),
-        escapeHtml(preview.order_type),
-        escapeHtml(numberText(preview.quantity, 4)),
-        escapeHtml(money(preview.cash_quantity)),
-        escapeHtml(money(preview.estimated_notional)),
-        escapeHtml(money(preview.equity)),
-        `<span class="mono">${escapeHtml(preview.approval_file)}</span>`,
-        escapeHtml(preview.tag),
-      ])).join("")
-    : row([`<span class="muted">Order previews appear when execution.require_order_approval holds orders for operator approval.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
+    ? orderPreviews.map((preview) => {
+        const command = approvalPreviewCommand(preview, artifacts);
+        const commandCell = command
+          ? `<button type="button" class="secondary copy-approval-command" data-command="${escapeHtml(command)}">Copy</button>`
+          : `<span class="muted">n/a</span>`;
+        return row([
+          escapeHtml(preview.timestamp),
+          statusText(preview.approval_status || (preview.approval_required ? "required" : "preview")),
+          `<span class="mono">${escapeHtml(preview.approval_id)}</span>`,
+          escapeHtml(preview.symbol),
+          escapeHtml(preview.side),
+          escapeHtml(preview.order_type),
+          escapeHtml(numberText(preview.quantity, 4)),
+          escapeHtml(money(preview.cash_quantity)),
+          escapeHtml(money(preview.estimated_notional)),
+          escapeHtml(money(preview.equity)),
+          `<span class="mono">${escapeHtml(preview.approval_file)}</span>`,
+          commandCell,
+          escapeHtml(preview.tag),
+        ]);
+      }).join("")
+    : row([`<span class="muted">Order previews appear when execution.require_order_approval holds orders for operator approval.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
 
   const fills = artifacts.fills || [];
   $("artifact-fills-body").innerHTML = fills.length
@@ -14482,6 +14496,15 @@ function init() {
       }
     });
   }
+  $("artifact-order-previews-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("copy-approval-command")) return;
+    copyText(target.dataset.command || "").then(() => {
+      $("last-refresh").textContent = `Approval command copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
   $("remote-nodes-body").addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
