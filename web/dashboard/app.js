@@ -3618,12 +3618,84 @@ function symbolDirectoryRows() {
     && (!controls.session || item.sessions.includes(controls.session))
     && (!controls.quality || Object.prototype.hasOwnProperty.call(item.qualities || {}, controls.quality))
   ));
+  const sorted = sortSymbolDirectoryRows(faceted, controls.sort);
   return {
-    rows: sortSymbolDirectoryRows(faceted, controls.sort).slice(0, Math.max(1, Math.min(200, controls.limit || 60))),
+    rows: sorted.slice(0, Math.max(1, Math.min(200, controls.limit || 60))),
+    all_rows: sorted,
     filtered_count: faceted.length,
     total_count: rows.length,
     controls,
   };
+}
+
+function countArrayValues(rows, key) {
+  const counts = {};
+  for (const rowItem of rows || []) {
+    for (const value of rowItem[key] || []) {
+      if (!value || value === "n/a") continue;
+      counts[value] = (counts[value] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function renderSymbolDirectorySummary(directory) {
+  if (!$("data-symbol-directory-summary")) return;
+  const rows = directory.all_rows || [];
+  const shown = directory.rows || [];
+  const fileCount = rows.reduce((sum, item) => sum + Number(item.file_count || 0), 0);
+  const rowCount = rows.reduce((sum, item) => sum + Number(item.row_count || 0), 0);
+  const latestMillis = rows
+    .map((item) => timestampMillis(item.last_day) || 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+  const qualityIssueCount = rows.filter((item) => symbolDirectoryQualityScore(item.qualities) > 0).length;
+  const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
+  const barTop = topCountEntries(countArrayValues(rows, "bars"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
+  const activeFilters = [
+    directory.controls.filter ? `search ${directory.controls.filter}` : "",
+    directory.controls.asset,
+    directory.controls.source,
+    directory.controls.bar,
+    directory.controls.session,
+    directory.controls.quality,
+  ].filter(Boolean);
+  const cards = [
+    {
+      status: rows.length ? "ok" : directory.total_count ? "warn" : "bad",
+      title: `${numberText(shown.length, 0)} / ${numberText(rows.length, 0)}`,
+      label: "Shown Symbols",
+      note: activeFilters.length
+        ? `Filtered by ${activeFilters.join(", ")} from ${numberText(directory.total_count, 0)} total scanned symbols.`
+        : `${numberText(directory.total_count, 0)} total scanned symbols are available.`,
+    },
+    {
+      status: fileCount ? "ok" : "bad",
+      title: numberText(fileCount, 0),
+      label: "Files",
+      note: `${numberText(rowCount, 0)} rows across the currently matched symbol set.`,
+    },
+    {
+      status: rows.length ? "ok" : "warn",
+      title: latestMillis ? new Date(latestMillis).toISOString().slice(0, 10) : "n/a",
+      label: "Latest Data",
+      note: `Sources: ${sourceTop || "none"}; bars: ${barTop || "none"}.`,
+    },
+    {
+      status: qualityIssueCount ? "warn" : rows.length ? "ok" : "bad",
+      title: numberText(qualityIssueCount, 0),
+      label: "Quality Review",
+      note: qualityIssueCount
+        ? "Matched symbols include at least one warn/bad best-quality file."
+        : rows.length ? "Matched symbols currently start with ok-quality files." : "No symbols matched.",
+    },
+  ];
+  $("data-symbol-directory-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderSymbolDirectory() {
@@ -3645,6 +3717,7 @@ function renderSymbolDirectory() {
   $("data-symbol-directory-note").textContent = groups.size
     ? `${numberText(rows.length, 0)} shown / ${numberText(filteredCount, 0)}${filterLabel} / ${numberText(groups.size, 0)} scanned symbol${groups.size === 1 ? "" : "s"}`
     : "No scanned symbols loaded";
+  renderSymbolDirectorySummary(directory);
   $("data-symbol-directory").innerHTML = rows.length
     ? rows.map((item) => {
         const symbol = escapeHtml(item.symbol);

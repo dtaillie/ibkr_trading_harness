@@ -617,6 +617,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Symbol Directory now has exact asset, source, bar-size, storage
       session, and quality facets so large saved universes can be narrowed
       without relying on free-text search.
+    - partial; Symbol Directory now starts with summary cards for shown versus
+      matched symbols, file/row totals, latest matched data date, top source/bar
+      breakdowns, active filters, and quality-review pressure before showing
+      individual symbol cards.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.

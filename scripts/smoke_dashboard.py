@@ -349,6 +349,7 @@ def run_smoke(
             "data-symbol-browser-compare",
             "data-symbol-directory",
             "data-symbol-directory-note",
+            "data-symbol-directory-summary",
             "data-symbol-directory-filter",
             "data-symbol-directory-sort",
             "data-symbol-directory-limit",
