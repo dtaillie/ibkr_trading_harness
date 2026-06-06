@@ -61,6 +61,10 @@ next step plus the current public telemetry counts for that view.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.
+Generic plugin-runner executions also write `performance_rollups.json` beside
+`summary.json`, giving each run its own durable daily, monthly, and yearly
+account-equity summaries even when the dashboard status receiver is not
+running.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.

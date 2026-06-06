@@ -72,6 +72,7 @@ class RunnerResult:
     final_equity: float | None
     final_positions: dict[str, float]
     output_dir: Path
+    performance_rollups_path: Path | None = None
     account_snapshot_count: int = 0
     initial_equity: float | None = None
     total_return_pct: float | None = None
@@ -940,6 +941,132 @@ def account_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "total_pnl": finite_float(latest_accounting.get("total_pnl")),
         "total_commission": finite_float(latest_accounting.get("total_commission")),
         "total_borrow_fees": finite_float(latest_accounting.get("total_borrow_fees")),
+    }
+
+
+def daily_account_rollups(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_day: dict[str, list[dict[str, Any]]] = {}
+    for row in records:
+        parsed = pd.to_datetime(row.get("timestamp"), utc=True, errors="coerce")
+        if pd.isna(parsed):
+            continue
+        equity = finite_float(row.get("equity"))
+        if equity is None:
+            continue
+        day = parsed.date().isoformat()
+        enriched = dict(row)
+        enriched["_timestamp"] = parsed
+        enriched["_equity"] = equity
+        by_day.setdefault(day, []).append(enriched)
+
+    rollups: list[dict[str, Any]] = []
+    for day, rows in by_day.items():
+        ordered = sorted(rows, key=lambda item: item["_timestamp"])
+        start = ordered[0]
+        end = ordered[-1]
+        start_equity = finite_float(start.get("equity"))
+        end_equity = finite_float(end.get("equity"))
+        daily_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        gross_values = [finite_float(row.get("gross_exposure")) for row in ordered]
+        gross_values = [value for value in gross_values if value is not None]
+        net_values = [finite_float(row.get("net_exposure")) for row in ordered]
+        net_values = [value for value in net_values if value is not None]
+        max_position_count = 0
+        for row in ordered:
+            positions = row.get("positions")
+            if isinstance(positions, dict):
+                count = sum(1 for value in positions.values() if finite_float(value) not in (None, 0.0))
+                max_position_count = max(max_position_count, count)
+        rollups.append({
+            "day": day,
+            "mode": end.get("mode"),
+            "snapshot_count": len(ordered),
+            "account_start_time": start["_timestamp"].isoformat(),
+            "account_end_time": end["_timestamp"].isoformat(),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "daily_return_pct": finite_float(daily_return_pct),
+            "max_gross_exposure": finite_float(max(gross_values) if gross_values else None),
+            "max_abs_net_exposure": finite_float(max((abs(value) for value in net_values), default=None)),
+            "max_position_count": max_position_count,
+            "realized_pnl": finite_float(end.get("realized_pnl")),
+            "unrealized_pnl": finite_float(end.get("unrealized_pnl")),
+            "total_pnl": finite_float(end.get("total_pnl")),
+            "total_commission": finite_float(end.get("total_commission")),
+            "total_borrow_fees": finite_float(end.get("total_borrow_fees")),
+        })
+    return sorted(rollups, key=lambda row: str(row.get("day") or ""), reverse=True)
+
+
+def period_account_rollups(rows: list[dict[str, Any]], *, period: str) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        day = str(row.get("day") or "")
+        if len(day) < 7:
+            continue
+        label = day[:7] if period == "month" else day[:4]
+        grouped.setdefault(label, []).append(row)
+
+    out: list[dict[str, Any]] = []
+    for label, group in grouped.items():
+        ordered = sorted(group, key=lambda item: str(item.get("day") or ""))
+        start = ordered[0]
+        end = ordered[-1]
+        start_equity = finite_float(start.get("start_equity"))
+        end_equity = finite_float(end.get("end_equity"))
+        total_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        out.append({
+            "label": label,
+            "first_day": start.get("day"),
+            "last_day": end.get("day"),
+            "day_count": len(ordered),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "total_return_pct": finite_float(total_return_pct),
+            "snapshot_count": sum(int(row.get("snapshot_count") or 0) for row in ordered),
+            "max_gross_exposure": finite_float(max((finite_float(row.get("max_gross_exposure")) or 0.0 for row in ordered), default=None)),
+            "max_abs_net_exposure": finite_float(max((finite_float(row.get("max_abs_net_exposure")) or 0.0 for row in ordered), default=None)),
+            "max_position_count": max(int(row.get("max_position_count") or 0) for row in ordered),
+        })
+    return sorted(out, key=lambda row: str(row.get("label") or ""), reverse=True)
+
+
+def account_rollup_artifact(records: list[dict[str, Any]], result: RunnerResult) -> dict[str, Any]:
+    daily = daily_account_rollups(records)
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "plugin_runner",
+        "mode": result.mode,
+        "output_dir": str(result.output_dir),
+        "summary": {
+            "decisions": result.decisions,
+            "orders": result.orders,
+            "fills": result.fills,
+            "rejections": result.rejections,
+            "account_snapshot_count": result.account_snapshot_count,
+            "initial_equity": result.initial_equity,
+            "final_equity": result.final_equity,
+            "total_return_pct": result.total_return_pct,
+            "max_drawdown_pct": result.max_drawdown_pct,
+            "account_start_time": result.account_start_time,
+            "account_end_time": result.account_end_time,
+        },
+        "rollups": daily,
+        "period_rollups": {
+            "month": period_account_rollups(daily, period="month"),
+            "year": period_account_rollups(daily, period="year"),
+        },
+        "count": len(daily),
+        "total": len(daily),
     }
 
 
@@ -1865,6 +1992,7 @@ def run_from_config(
         final_equity = runner_starting_cash
 
     perf = account_metrics(account_records)
+    performance_rollups_path = output_dir / "performance_rollups.json"
     result = RunnerResult(
         mode=mode,
         decisions=decisions,
@@ -1875,6 +2003,7 @@ def run_from_config(
         final_equity=final_equity,
         final_positions=final_positions,
         output_dir=output_dir,
+        performance_rollups_path=performance_rollups_path,
         account_snapshot_count=int(perf["account_snapshot_count"]),
         initial_equity=perf["initial_equity"],
         total_return_pct=perf["total_return_pct"],
@@ -1907,6 +2036,7 @@ def run_from_config(
         stopped_by_control=stopped_by_control,
         stop_marker=str(stop_marker) if stop_marker is not None else None,
     )
+    write_json(performance_rollups_path, account_rollup_artifact(account_records, result))
     write_json(output_dir / "summary.json", asdict(result))
     log.info(
         "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d stopped_by_control=%s output_dir=%s",

@@ -112,6 +112,17 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert account[-1]["equity"] == pytest.approx(10000.0)
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
+    assert summary["performance_rollups_path"] == str(output_dir / "performance_rollups.json")
+    rollups = json.loads((output_dir / "performance_rollups.json").read_text())
+    assert rollups["schema_version"] == 1
+    assert rollups["source"] == "plugin_runner"
+    assert rollups["summary"]["account_snapshot_count"] == 3
+    assert rollups["rollups"][0]["day"] == "2026-01-02"
+    assert rollups["rollups"][0]["snapshot_count"] == 3
+    assert rollups["rollups"][0]["start_equity"] == pytest.approx(10000.0)
+    assert rollups["rollups"][0]["end_equity"] == pytest.approx(10000.0)
+    assert rollups["period_rollups"]["month"][0]["label"] == "2026-01"
+    assert rollups["period_rollups"]["year"][0]["label"] == "2026"
 
 
 def test_replay_runner_filters_file_data_range(tmp_path):

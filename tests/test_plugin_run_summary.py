@@ -109,6 +109,7 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["loop_enabled"] is True
     assert metrics["loop_iterations"] == 2
     assert metrics["artifact_files"]["account"] is True
+    assert metrics["artifact_files"]["performance_rollups"] is False
     assert "Fills: 1" in format_text(metrics)
     assert "Loop: enabled iterations=2" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
@@ -203,5 +204,6 @@ def test_summarize_plugin_run_cli_json(tmp_path):
     metrics = json.loads(result.stdout)
     assert metrics["mode"] == "replay"
     assert metrics["artifact_files"]["summary"] is True
+    assert metrics["artifact_files"]["performance_rollups"] is False
     assert metrics["artifact_files"]["fills"] is False
     assert metrics["artifact_files"]["account"] is False

@@ -323,6 +323,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "max_position_count": summary.get("max_position_count", performance["max_position_count"]),
         "artifact_files": {
             "summary": (run_dir / "summary.json").exists(),
+            "performance_rollups": (run_dir / "performance_rollups.json").exists(),
             "decisions": (run_dir / "decisions.jsonl").exists(),
             "orders": (run_dir / "orders.jsonl").exists(),
             "fills": (run_dir / "fills.jsonl").exists(),

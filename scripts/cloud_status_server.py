@@ -260,7 +260,15 @@ MAX_DATA_MISSING_INTERVAL_EXPORT_ROWS = 1000000
 MAX_CONFIG_DRAFT_DATASETS = 20
 MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
-RUN_ARTIFACT_FILES = ("summary.json", "decisions.jsonl", "orders.jsonl", "fills.jsonl", "account.jsonl", "order_previews.jsonl")
+RUN_ARTIFACT_FILES = (
+    "summary.json",
+    "performance_rollups.json",
+    "decisions.jsonl",
+    "orders.jsonl",
+    "fills.jsonl",
+    "account.jsonl",
+    "order_previews.jsonl",
+)
 PUBLIC_DECISION_DRILLDOWN_FIELDS = (
     "reason",
     "signal_label",
