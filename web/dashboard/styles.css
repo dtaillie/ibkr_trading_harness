@@ -1598,6 +1598,7 @@ section {
 
 .data-search-assistant,
 .data-directory-assistant,
+.data-storage-assistant,
 .data-detail-assistant,
 .data-compare-assistant,
 .remote-detail-assistant,
@@ -1622,6 +1623,8 @@ section {
 .data-search-assistant > div:first-child span,
 .data-directory-assistant > div:first-child strong,
 .data-directory-assistant > div:first-child span,
+.data-storage-assistant > div:first-child strong,
+.data-storage-assistant > div:first-child span,
 .data-detail-assistant > div:first-child strong,
 .data-detail-assistant > div:first-child span,
 .data-compare-assistant > div:first-child strong,
@@ -1645,6 +1648,7 @@ section {
 
 .data-search-assistant > div:first-child strong,
 .data-directory-assistant > div:first-child strong,
+.data-storage-assistant > div:first-child strong,
 .data-detail-assistant > div:first-child strong,
 .data-compare-assistant > div:first-child strong,
 .remote-detail-assistant > div:first-child strong,
@@ -1661,6 +1665,7 @@ section {
 
 .data-search-assistant > div:first-child > span:last-of-type,
 .data-directory-assistant > div:first-child > span:last-of-type,
+.data-storage-assistant > div:first-child > span:last-of-type,
 .data-detail-assistant > div:first-child > span:last-of-type,
 .data-compare-assistant > div:first-child > span:last-of-type,
 .remote-detail-assistant > div:first-child > span:last-of-type,
@@ -1679,6 +1684,7 @@ section {
 
 .data-search-cards,
 .data-directory-assistant-cards,
+.data-storage-assistant-cards,
 .data-detail-assistant-cards,
 .data-compare-assistant-cards,
 .remote-detail-assistant-cards,
@@ -1696,6 +1702,7 @@ section {
 
 .data-search-actions,
 .data-directory-assistant-actions,
+.data-storage-assistant-actions,
 .data-detail-assistant-actions,
 .data-compare-assistant-actions,
 .remote-detail-assistant-actions,
@@ -1713,6 +1720,7 @@ section {
 
 .data-search-action-card,
 .data-directory-action-card,
+.data-storage-assistant-action,
 .data-detail-assistant-action,
 .data-compare-assistant-action,
 .remote-detail-assistant-action,
@@ -1739,6 +1747,9 @@ section {
 .data-directory-action-card strong,
 .data-directory-action-card span,
 .data-directory-action-card small,
+.data-storage-assistant-action strong,
+.data-storage-assistant-action span,
+.data-storage-assistant-action small,
 .data-detail-assistant-action strong,
 .data-detail-assistant-action span,
 .data-detail-assistant-action small,
@@ -1774,6 +1785,8 @@ section {
 .data-search-action-card small,
 .data-directory-action-card span,
 .data-directory-action-card small,
+.data-storage-assistant-action span,
+.data-storage-assistant-action small,
 .data-detail-assistant-action span,
 .data-detail-assistant-action small,
 .data-compare-assistant-action span,
@@ -1812,6 +1825,7 @@ section {
   justify-content: flex-end;
 }
 
+.data-storage-assistant-action,
 .data-detail-assistant-action,
 .data-compare-assistant-action,
 .remote-detail-assistant-action {
@@ -1820,6 +1834,7 @@ section {
   text-align: left;
 }
 
+.data-storage-assistant-action:hover,
 .data-detail-assistant-action:hover,
 .data-compare-assistant-action:hover,
 .remote-detail-assistant-action:hover {
@@ -1830,6 +1845,7 @@ section {
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
+.data-storage-assistant-action,
 .data-detail-assistant-action,
 .data-compare-assistant-action,
 .remote-detail-assistant-action,
@@ -1843,6 +1859,7 @@ section {
 .control-assistant-action span,
 .performance-trade-assistant-action span,
 .performance-rollup-assistant-action span,
+.data-storage-assistant-action span,
 .data-detail-assistant-action span,
 .data-compare-assistant-action span,
 .remote-detail-assistant-action span,
@@ -1855,6 +1872,7 @@ section {
 .control-assistant-action strong,
 .performance-trade-assistant-action strong,
 .performance-rollup-assistant-action strong,
+.data-storage-assistant-action strong,
 .data-detail-assistant-action strong,
 .data-compare-assistant-action strong,
 .remote-detail-assistant-action strong,
@@ -1868,6 +1886,7 @@ section {
 .control-assistant-action b,
 .performance-trade-assistant-action b,
 .performance-rollup-assistant-action b,
+.data-storage-assistant-action b,
 .data-detail-assistant-action b,
 .data-compare-assistant-action b,
 .remote-detail-assistant-action b,
@@ -3411,6 +3430,10 @@ footer {
   .data-directory-assistant-cards,
   .data-directory-assistant-actions,
   .data-directory-action-card,
+  .data-storage-assistant,
+  .data-storage-assistant-cards,
+  .data-storage-assistant-actions,
+  .data-storage-assistant-action,
   .data-detail-assistant,
   .data-detail-assistant-cards,
   .data-detail-assistant-actions,

@@ -8182,6 +8182,7 @@ function renderDataStorageAudit() {
   $("data-storage-audit-list").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
+  renderDataStorageAssistant(audit);
   $("data-storage-visibility-summary").innerHTML = dataStorageVisibilitySummaryCards(audit);
   $("data-storage-audit-actions").innerHTML = dataStorageAuditActions(audit);
   renderDataCatalogHealth();
@@ -8216,6 +8217,213 @@ function renderDataStorageAudit() {
         ]);
       }).join("")
     : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function dataStorageAuditModel(audit = {}) {
+  const summary = audit.visibility_summary || {};
+  const configuredRows = audit.configured_roots || [];
+  const suggestedRows = audit.suggested_roots || [];
+  const allRows = [...configuredRows, ...suggestedRows];
+  const configuredFiles = Number(audit.configured_file_count || 0);
+  const configuredVisible = Number(summary.catalog_visible_configured_file_count ?? audit.configured_visible_count ?? audit.catalog_visible_count ?? 0);
+  const hiddenConfigured = Number(summary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
+  const suggestedFiles = Number(summary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
+  const unsupportedFiles = Number(summary.unsupported_file_count ?? audit.unsupported_file_count ?? 0);
+  const catalogErrors = Number(audit.catalog_error_count || 0);
+  const cappedRows = allRows.filter((rowItem) => rowItem.scan_capped);
+  const errorRows = allRows.filter((rowItem) => Number(rowItem.error_count || 0) > 0);
+  const hiddenTotal = Number(summary.hidden_total_file_count ?? (hiddenConfigured + suggestedFiles));
+  const visibilityPct = finiteNumber(summary.configured_visibility_pct);
+  return {
+    generated: Boolean(audit.generated_at),
+    configuredRows,
+    suggestedRows,
+    allRows,
+    configuredFiles,
+    configuredVisible,
+    hiddenConfigured,
+    suggestedFiles,
+    unsupportedFiles,
+    catalogErrors,
+    cappedRows,
+    errorRows,
+    hiddenTotal,
+    visibilityPct,
+  };
+}
+
+function renderDataStorageAssistant(audit = state.dataStorageAudit || {}) {
+  if (!$("data-storage-assistant-title") || !$("data-storage-assistant-cards") || !$("data-storage-assistant-actions")) return;
+  const model = dataStorageAuditModel(audit);
+  const status = !model.generated
+    ? "waiting"
+    : model.catalogErrors || model.errorRows.length
+      ? "bad"
+      : model.hiddenTotal || model.unsupportedFiles || model.cappedRows.length
+        ? "warn"
+        : model.configuredFiles
+          ? "ok"
+          : "bad";
+  const title = !model.generated
+    ? "Run Storage Audit"
+    : status === "ok"
+      ? "Saved Data Visibility Looks Good"
+      : status === "bad"
+        ? "Saved Data Visibility Blocked"
+        : "Saved Data Needs Review";
+  const note = !model.generated
+    ? "Refresh Data Library diagnostics to compare disk files, configured roots, suggested roots, and catalog-visible rows."
+    : model.catalogErrors || model.errorRows.length
+      ? "Parser or root scan errors can keep files out of the catalog. Review scan diagnostics before trusting saved-data coverage."
+      : model.suggestedFiles
+        ? "History exists outside configured roots. Copy data_roots YAML or add the suggested path to local dashboard config."
+        : model.hiddenConfigured
+          ? "Some configured-root files are not catalog-visible. Raise limits or inspect hidden samples to learn why."
+          : model.unsupportedFiles
+            ? "Unsupported extensions were skipped; confirm whether those files should be converted or ignored."
+            : model.cappedRows.length
+              ? "At least one audited root hit the disk scan cap. Raise the disk scan limit for a fuller inventory."
+              : model.configuredFiles
+                ? "Configured roots have catalog-visible saved files. Browse symbols or inspect a saved file next."
+                : "No saved CSV/parquet files were found under configured or suggested roots.";
+  $("data-storage-assistant-title").textContent = title;
+  $("data-storage-assistant-title").className = statusClass(status);
+  $("data-storage-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: model.configuredFiles ? model.hiddenConfigured ? "warn" : "ok" : model.suggestedFiles ? "warn" : "bad",
+      label: "Configured Roots",
+      title: model.visibilityPct === null ? numberText(model.configuredVisible, 0) : pctText(model.visibilityPct),
+      note: `${numberText(model.configuredVisible, 0)} visible / ${numberText(model.configuredFiles, 0)} configured saved file${model.configuredFiles === 1 ? "" : "s"}.`,
+    },
+    {
+      status: model.suggestedFiles ? "warn" : model.generated ? "ok" : "waiting",
+      label: "Suggested Roots",
+      title: numberText(model.suggestedFiles, 0),
+      note: model.suggestedFiles
+        ? `${numberText(model.suggestedRows.length, 0)} unconfigured root${model.suggestedRows.length === 1 ? "" : "s"} contain saved data.`
+        : "No unconfigured saved-data roots were detected.",
+    },
+    {
+      status: model.hiddenConfigured ? "warn" : model.generated ? "ok" : "waiting",
+      label: "Hidden Files",
+      title: numberText(model.hiddenConfigured, 0),
+      note: model.hiddenConfigured
+        ? "Configured-root files exist on disk but did not appear in the bounded catalog."
+        : "No configured-root hidden files reported by the audit.",
+    },
+    {
+      status: model.catalogErrors || model.errorRows.length ? "bad" : model.unsupportedFiles ? "warn" : model.generated ? "ok" : "waiting",
+      label: "Skips And Errors",
+      title: `${numberText(model.catalogErrors + model.errorRows.length, 0)} errors`,
+      note: `${numberText(model.unsupportedFiles, 0)} unsupported file${model.unsupportedFiles === 1 ? "" : "s"}; ${numberText(model.cappedRows.length, 0)} capped root${model.cappedRows.length === 1 ? "" : "s"}.`,
+    },
+  ];
+  $("data-storage-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const actions = [
+    {
+      action: "copy-roots",
+      status: model.suggestedFiles ? "warn" : dataRootConfigPaths().length ? "ok" : "bad",
+      title: "Copy data_roots YAML",
+      note: model.suggestedFiles
+        ? "Copy configured plus suggested roots into ignored local config."
+        : "Copy the current dashboard data-root block.",
+      disabled: !dataRootConfigPaths().length,
+    },
+    {
+      action: "raise-disk",
+      status: model.cappedRows.length ? "warn" : "ok",
+      title: "Raise Disk Scan",
+      note: model.cappedRows.length
+        ? "Switch Storage Audit to the largest per-root scan limit and refresh diagnostics."
+        : "Use this only when you suspect a large root is capped.",
+      disabled: !model.generated,
+    },
+    {
+      action: "raise-catalog",
+      status: model.hiddenConfigured ? "warn" : "ok",
+      title: "Raise Catalog Rows",
+      note: model.hiddenConfigured
+        ? "Increase Data Library row cap so more configured-root files can appear."
+        : "Useful when the catalog table has reached its row limit.",
+      disabled: !model.generated,
+    },
+    {
+      action: "scan",
+      status: model.catalogErrors || model.errorRows.length ? "bad" : model.unsupportedFiles ? "warn" : "ok",
+      title: "Review Scan Diagnostics",
+      note: "Jump to parser errors, unsupported files, skipped samples, and cap reasons.",
+      disabled: !model.generated,
+    },
+    {
+      action: "browse",
+      status: model.configuredVisible ? "ok" : "bad",
+      title: "Browse Visible Symbols",
+      note: "Open Symbol Browser and Directory for currently catalog-visible files.",
+      disabled: !model.configuredVisible,
+    },
+    {
+      action: "fetch",
+      status: model.configuredFiles || model.suggestedFiles ? "ok" : "warn",
+      title: "Open Fetch Jobs",
+      note: model.configuredFiles || model.suggestedFiles
+        ? "Review fetch outputs that should map into Data Library."
+        : "Fetch history when no saved files are present.",
+      disabled: false,
+    },
+  ];
+  $("data-storage-assistant-actions").innerHTML = actions.map((item) => `
+    <button class="data-storage-assistant-action status-${escapeHtml(item.status)}" data-data-storage-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+function handleDataStorageAssistantAction(action) {
+  if (action === "copy-roots") {
+    copyDataRootsYaml();
+    return;
+  }
+  if (action === "raise-disk") {
+    $("data-storage-scan-limit").value = "50000";
+    refreshDataDiagnostics({ force: true }).catch((err) => {
+      $("last-refresh").textContent = `Storage audit refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "raise-catalog") {
+    const limit = $("data-catalog-limit");
+    const values = Array.from(limit.options || []).map((option) => Number(option.value)).filter(Boolean);
+    const next = Math.max(...values, Number(limit.value || 0), Number((state.dataCatalog || {}).limit || 0));
+    if (next) limit.value = String(next);
+    dataLibraryLoadState().catalogLimitTouched = true;
+    refreshDataLibrary({ includeDiagnostics: true, force: true }).catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "scan") {
+    $("data-catalog-scan-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Review Catalog Scan Diagnostics for parser errors, skipped files, and scan caps";
+    return;
+  }
+  if (action === "browse") {
+    navigateToDataLens("browse");
+    return;
+  }
+  if (action === "fetch") {
+    navigateToView("fetch");
+  }
 }
 
 function dataStorageVisibilitySummaryCards(audit = {}) {
@@ -16945,6 +17153,14 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataSourceMapAction(target);
+  });
+  $("data-storage-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-data-storage-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    handleDataStorageAssistantAction(button.dataset.dataStorageAction || "");
   });
   for (const button of document.querySelectorAll("[data-workbench-home-action]")) {
     button.addEventListener("click", () => {

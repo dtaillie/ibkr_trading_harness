@@ -758,6 +758,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Storage Audit now renders action cards that recommend adding
       suggested roots, raising scan limits, inspecting hidden configured-root
       files, or reviewing parser/root scan errors before using the catalog.
+    - partial; Storage Audit now also has a Storage Audit Assistant that
+      summarizes configured-root visibility, suggested roots, hidden files,
+      unsupported files, scan caps, parser/root errors, and provides direct
+      actions for copying `dashboard.data_roots`, raising disk/catalog limits,
+      opening scan diagnostics, browsing visible symbols, or reviewing fetch
+      jobs.
     - partial; Storage Audit now also counts unsupported-extension files,
       exports unsupported counts/samples, and shows bounded unsupported path
       samples beside hidden-file samples in the dashboard.
