@@ -296,6 +296,10 @@ strategy-private.
   - partial; Strategy Performance now also has a Performance Home band with
     selected result, source/window/execution/trade/freshness/benchmark tiles,
     and direct navigation to Runs, Workbench, and Data Library.
+  - partial; Performance Home now includes workflow cards for checking today's
+    session, reviewing risk, inspecting trades, opening rollups, comparing a
+    benchmark, and verifying the selected source evidence, giving the page a
+    task-oriented first screen before detailed charts/tables.
   - partial; Overview now surfaces a smaller current Performance Snapshot from
     status-history rollups so the common "how is it doing today/recently?"
     question is visible before entering the full Performance page.

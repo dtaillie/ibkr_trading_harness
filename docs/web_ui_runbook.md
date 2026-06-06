@@ -79,6 +79,10 @@ Rollups tables loaded from that artifact, or export the run artifacts JSON.
 
 Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.
+Use the Performance workflow cards when you know the review job: Check Today,
+Review Risk, Inspect Trades, Open Rollups, Compare Benchmark, or Verify Source.
+They link directly to the focused Performance/Runs/Data views behind each
+question.
 Use Export Status CSV to download live/paper status-history daily, monthly, and
 yearly equity rollups for offline review.
 Latest status rollups are also persisted as public-safe JSON snapshots in

@@ -3756,6 +3756,7 @@ function renderPerformance() {
     source,
     window,
     accountRows,
+    allAccountRows,
     periodPerf,
     fills,
     ledger,
@@ -4159,6 +4160,7 @@ function renderPerformanceHome(context) {
     source,
     window,
     accountRows,
+    allAccountRows,
     periodPerf,
     fills,
     ledger,
@@ -4244,6 +4246,125 @@ function renderPerformanceHome(context) {
       <strong class="${statusClass(tile.status)}">${escapeHtml(tile.value)}</strong>
       <small>${escapeHtml(tile.detail)}</small>
     </div>
+  `).join("");
+  renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
+}
+
+function performanceWorkflowCards(context) {
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const statusRollups = (state.statusEquityRollups && state.statusEquityRollups.rollups) || [];
+  const runRollups = (state.performanceRollups && state.performanceRollups.rollups) || [];
+  const sessionRows = latestSessionAccountRows(allAccountRows || accountRows || []);
+  const sessionStats = intradayPnlStats(sessionRows);
+  const maxDrawdown = Number(periodPerf.max_drawdown_pct);
+  const exposure = Number(periodPerf.max_gross_exposure_pct);
+  const executionIssueCount = Number(rejections || 0) + Number(approvalRequired || 0);
+  const hasRollups = statusRollups.length || runRollups.length;
+  const hasTradeEvidence = fills.length || ledger.stats.closed_count || ledger.stats.open_count;
+  const sourceHasSnapshots = accountRows.length || (allAccountRows || []).length;
+  const sourceEvidence = source.has_data
+    ? sourceHasSnapshots ? "account path" : decisions || orders || fillCount ? "activity only" : "summary only"
+    : "missing";
+  return [
+    {
+      label: "Check Today",
+      title: sessionStats ? pctText(sessionStats.return_pct) : "No Session",
+      value: sessionStats ? money(sessionStats.pnl) : "n/a",
+      status: sessionStats ? sessionStats.return_pct >= 0 ? "ok" : "bad" : source.has_data ? "warn" : "bad",
+      detail: sessionStats
+        ? `${numberText(sessionStats.count, 0)} latest-session snapshots from ${text(sessionStats.day)}.`
+        : "Need current or archived account snapshots for today's/latest-session PnL.",
+      href: workflowHref("performance", "home"),
+      cta: "Session",
+    },
+    {
+      label: "Review Risk",
+      title: Number.isFinite(maxDrawdown) ? pctText(maxDrawdown) : "No Drawdown",
+      value: Number.isFinite(exposure) ? pctText(exposure) : "exposure n/a",
+      status: !source.has_data ? "bad" : Number.isFinite(maxDrawdown) && maxDrawdown <= -10 ? "bad" : Number.isFinite(maxDrawdown) && maxDrawdown < 0 ? "warn" : "ok",
+      detail: accountRows.length
+        ? `${window.label}: drawdown and exposure are derived from account snapshots.`
+        : "Load account artifacts for drawdown, exposure, and daily-return context.",
+      href: workflowHref("performance", "home"),
+      cta: "Risk",
+    },
+    {
+      label: "Inspect Trades",
+      title: ledger.stats.closed_count ? `${numberText(ledger.stats.closed_count, 0)} closed` : fills.length ? `${numberText(fills.length, 0)} fills` : "No Trades",
+      value: ledger.stats.closed_count ? `${numberText(ledger.stats.wins, 0)}W/${numberText(ledger.stats.losses, 0)}L` : `${numberText(rejections, 0)} rejects`,
+      status: executionIssueCount ? "warn" : hasTradeEvidence ? "ok" : source.has_data ? "warn" : "bad",
+      detail: executionIssueCount
+        ? `${numberText(rejections, 0)} rejects and ${numberText(approvalRequired, 0)} approval holds need review.`
+        : hasTradeEvidence ? "Open the trade lens for paired fills, open positions, win/loss, and filters." : "No fills are available for trade pairing.",
+      href: workflowHref("performance", "trades"),
+      cta: "Trades",
+    },
+    {
+      label: "Open Rollups",
+      title: hasRollups ? `${numberText(statusRollups.length + runRollups.length, 0)} rows` : "No Rollups",
+      value: statusRollups.length ? "live/paper" : runRollups.length ? "archived" : "empty",
+      status: hasRollups ? "ok" : source.has_data ? "warn" : "bad",
+      detail: hasRollups
+        ? "Review daily, monthly, yearly, live/paper, and archived account-equity summaries."
+        : "Rollups need status history or archived account artifacts.",
+      href: workflowHref("performance", "rollups"),
+      cta: "Rollups",
+    },
+    {
+      label: "Compare Benchmark",
+      title: benchmark.path ? text(benchmark.symbol) : "No Benchmark",
+      value: benchmark.path ? text(benchmark.bar_size) : `${numberText(datasets.length, 0)} datasets`,
+      status: benchmark.path ? "ok" : datasets.length && source.has_data ? "warn" : "bad",
+      detail: benchmark.path
+        ? "Benchmark overlay is loaded against the selected strategy equity path."
+        : datasets.length ? "Choose a saved Data Library file to overlay normalized benchmark returns." : "No saved datasets are available for benchmark overlay.",
+      href: workflowHref(benchmark.path ? "performance" : "data", benchmark.path ? "home" : "browse"),
+      cta: benchmark.path ? "Overlay" : "Pick Data",
+    },
+    {
+      label: "Verify Source",
+      title: sourceHasSnapshots ? "Snapshot Path" : source.has_data ? "Limited Source" : "No Source",
+      value: sourceEvidence,
+      status: sourceHasSnapshots ? "ok" : source.has_data ? "warn" : "bad",
+      detail: latestAccount && latestAccount.timestamp
+        ? `Latest account snapshot ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
+        : "Open diagnostics or Runs to verify whether this is current telemetry, summary-only data, or an artifact.",
+      href: workflowHref(source.has_data ? "runs" : "workbench", source.has_data ? "runs" : "home"),
+      cta: source.has_data ? "Runs" : "Workbench",
+    },
+  ];
+}
+
+function renderPerformanceWorkflowLauncher(context) {
+  const container = $("performance-workflows");
+  if (!container) return;
+  const cards = performanceWorkflowCards(context);
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
   `).join("");
 }
 
