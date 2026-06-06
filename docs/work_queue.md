@@ -880,12 +880,13 @@ QQQ show up, treat that as a bug until proven otherwise.
       Coverage CSV button so symbol/date coverage rows can be reviewed offline.
   - missing-day and missing-minute summaries
     - partial; dataset details show gap rows/missing intervals, coverage view
-      shows missing recent date bins; minute-level aggregate heatmaps remain
-      open
+      shows missing recent date bins, and Minute Coverage Heatmap now covers
+      aggregate UTC-hour and bounded worst date/hour missing-interval patterns.
     - partial; Data Library now has a Gap Summary panel backed by
       `/data_gap_summary`, showing worst timestamp-gap files, estimated missing
       intervals, largest gaps, and missing calendar-day rows across the current
-      bounded catalog scan. A richer minute-level heatmap remains future work.
+      bounded catalog scan; minute-level heatmap drilldowns now live in the
+      Minute Coverage Heatmap panel.
     - partial; Data Library now exposes `/data_gap_summary_export` and an
       Export Gap CSV button for aggregate timestamp-gap and calendar-gap rows.
     - partial; Data Library now has a Minute Coverage Heatmap backed by
@@ -1285,11 +1286,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; the receiver already accepts authenticated status posts and command
     polling over HTTP, and now exposes `/remote_nodes` for sanitized latest
     read-only monitoring summaries by node. Deployment-oriented hosting docs
-    and cloud-provider examples remain open.
+    and cloud-provider boundary examples are in place; real-provider hardening
+    review remains open.
   - partial; `docs/cloud_monitoring_deployment.md` now documents a conservative
     deployment shape for local-first remote monitoring, private-network access,
     hosted receiver precautions, command-worker boundaries, and failure modes.
-    Provider-specific examples and hardened internet deployment remain open.
+    Provider-specific examples now cover AWS, DigitalOcean, GCP, Azure, Fly,
+    Render, nginx/Caddy, and UFW; hardened internet deployment remains open.
   - partial; public-safe hosted receiver examples now include
     `config/cloud_status_hosted.example.yaml`,
     `ops/cloud/status-receiver.compose.example.yaml`, an nginx reverse-proxy
