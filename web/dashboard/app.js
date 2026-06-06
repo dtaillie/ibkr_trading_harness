@@ -10457,12 +10457,54 @@ function dataDetailQuery(path) {
   return params.toString();
 }
 
+function dataDetailCoverageRange(detail = state.dataDetail || {}) {
+  const coverage = detail.coverage || {};
+  const viewer = detail.viewer || {};
+  const start = timestampMillis(coverage.first_timestamp || viewer.first_timestamp);
+  const end = timestampMillis(coverage.last_timestamp || viewer.last_timestamp);
+  return { start, end };
+}
+
+async function applyDataDetailRangePreset() {
+  const preset = $("data-detail-range-preset").value || "custom";
+  if (preset === "custom") return;
+  const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
+  if (!path) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Open a saved dataset before applying a range preset</span>`;
+    $("data-detail-range-preset").value = "custom";
+    return;
+  }
+  const range = dataDetailCoverageRange();
+  if (range.start === null || range.end === null) {
+    $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Selected file does not expose a timestamp range for presets</span>`;
+    $("data-detail-range-preset").value = "custom";
+    return;
+  }
+  if (preset === "full") {
+    $("data-detail-start").value = "";
+    $("data-detail-end").value = "";
+  } else {
+    const days = Number(preset.replace("d", ""));
+    if (!Number.isFinite(days) || days <= 0) {
+      $("data-detail-range-preset").value = "custom";
+      return;
+    }
+    const oneDay = 24 * 60 * 60 * 1000;
+    const startMillis = Math.max(range.start, range.end - Math.max(0, days - 1) * oneDay);
+    $("data-detail-start").value = new Date(startMillis).toISOString().slice(0, 10);
+    $("data-detail-end").value = new Date(range.end).toISOString().slice(0, 10);
+  }
+  await loadDataDetail(path);
+  $("last-refresh").textContent = `Data detail range preset applied: ${preset}`;
+}
+
 async function loadDataDetail(path, { resetControls = false } = {}) {
   if (!path) throw new Error("dataset path is required");
   state.dataDetailPath = path;
   if (resetControls) {
     $("data-detail-start").value = "";
     $("data-detail-end").value = "";
+    $("data-detail-range-preset").value = "custom";
     $("data-detail-points").value = "600";
     $("data-detail-mode").value = "sampled";
   }
@@ -11347,6 +11389,17 @@ function init() {
   });
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-detail-chart-style").addEventListener("change", renderDataDetail);
+  $("data-detail-range-preset").addEventListener("change", () => {
+    applyDataDetailRangePreset().catch((err) => {
+      $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-detail-start").addEventListener("input", () => {
+    $("data-detail-range-preset").value = "custom";
+  });
+  $("data-detail-end").addEventListener("input", () => {
+    $("data-detail-range-preset").value = "custom";
+  });
   $("data-detail-symbol-load").addEventListener("click", () => {
     loadDataDetailForSymbol().catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

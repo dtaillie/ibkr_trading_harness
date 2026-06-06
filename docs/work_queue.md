@@ -602,6 +602,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - done for the sampled Data Detail viewer when volume exists
   - selectable date range
     - done for Data Detail viewer
+    - partial; Data Detail now has quick range presets for full file, last day,
+      last week, last month, and last three months, derived from the opened
+      file's timestamp coverage before manual Start/End tuning.
   - symbol picker that can load every scanned symbol, not just public examples
     - partial; every scanned catalog row can be inspected, richer typeahead
       symbol picking remains open

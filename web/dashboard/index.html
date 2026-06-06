@@ -1301,6 +1301,17 @@
           <input id="data-detail-end" type="date">
         </label>
         <label>
+          <span>Range Preset</span>
+          <select id="data-detail-range-preset">
+            <option value="custom" selected>Custom</option>
+            <option value="full">Full file</option>
+            <option value="1d">Last day</option>
+            <option value="7d">Last week</option>
+            <option value="30d">Last month</option>
+            <option value="90d">Last 3 months</option>
+          </select>
+        </label>
+        <label>
           <span>Points</span>
           <input id="data-detail-points" type="number" min="2" max="1000" step="1" value="600">
         </label>

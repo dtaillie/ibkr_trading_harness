@@ -397,6 +397,7 @@ def run_smoke(
             "data-detail-nav-note",
             "data-detail-health",
             "data-detail-viewer-note",
+            "data-detail-range-preset",
             "data-detail-chart-style",
             "data-detail-timezone",
             "data-missing-intervals-note",

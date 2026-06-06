@@ -166,6 +166,9 @@ normalized close-return paths by symbol and timestamp.
 Use Export Range CSV from Data Detail when you want the selected saved-file
 date range as bounded bar data with normalized UTC timestamps and the original
 file columns. Narrow Start/End before exporting very large 1-minute histories.
+Use the Data Detail Range Preset control for quick full-file, last-day,
+last-week, last-month, or last-three-month chart windows before manually
+tuning Start/End.
 
 Use Export Scan CSV when you want configured-root parser errors, unsupported
 files, catalog caps, scan timings, and skipped-file samples in an offline table.
