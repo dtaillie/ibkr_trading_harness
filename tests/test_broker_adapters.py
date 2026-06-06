@@ -14,7 +14,11 @@ def test_broker_adapter_capabilities_are_public_safe_and_actionable():
     assert set(capabilities) == ids
     assert broker_adapter_capability("ibkr")["known_live_ports"] == [4001, 7496]
     assert capabilities["ibkr"]["requires_gateway"] is True
+    assert capabilities["ibkr"]["supports_account_ids"] is True
+    assert capabilities["ibkr"]["account_id_source"] == "IBKR managedAccounts API"
     assert capabilities["ibkr"]["order_types"] == ["market"]
+    assert capabilities["file"]["supports_account_ids"] is True
+    assert capabilities["file"]["account_id_source"] == "Local file broker state"
     assert capabilities["file"]["requires_static_prices"] is True
     assert capabilities["file"]["persists_local_state"] is True
     assert "not a market simulator" in capabilities["file"]["boundary"]

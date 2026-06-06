@@ -1043,7 +1043,7 @@ def test_paper_mode_rejects_live_account_mode_before_broker_connect(tmp_path):
         broker={"account_mode": "live", "port": 4002},
     )
 
-    with pytest.raises(ValueError, match="broker.account_mode: paper"):
+    with pytest.raises(ValueError, match="account_mode live"):
         run_from_config(config_path, mode_override="paper", confirm_paper_orders=True)
 
     assert not output_dir.exists()
@@ -1100,6 +1100,16 @@ def test_paper_broker_safety_uses_adapter_capabilities_for_file_adapter():
     errors = paper_broker_safety_errors({"adapter": "file"})
 
     assert errors == []
+
+
+def test_paper_broker_safety_rejects_required_missing_expected_account():
+    errors = paper_broker_safety_errors({
+        "adapter": "file",
+        "account_mode": "paper",
+        "require_expected_account_id": True,
+    })
+
+    assert errors == ["broker.require_expected_account_id requires broker.expected_account_id"]
 
 
 def test_paper_mode_can_use_file_broker_adapter(tmp_path):
@@ -1213,6 +1223,48 @@ def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
         validate_config_file(config_path)
 
     assert "broker.account_mode must be paper or live" in str(exc.value)
+    assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_unsupported_broker_live_mode_and_requires_expected_account(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"adapter": "ibkr", "account_mode": "live", "port": 4001},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    text = str(exc.value)
+    assert "broker.adapter ibkr does not support account_mode live" in text
+    assert "broker.account_mode live requires broker.expected_account_id" in text
+    assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_required_missing_expected_account(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        broker={"adapter": "file", "account_mode": "paper", "require_expected_account_id": True},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "broker.require_expected_account_id requires broker.expected_account_id" in str(exc.value)
     assert not output_dir.exists()
 
 

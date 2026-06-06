@@ -538,11 +538,14 @@ def validate_config(
     validate_positive_int(broker_cfg.get("port", 4002), "broker.port", errors)
     validate_positive_int(broker_cfg.get("client_id", 301), "broker.client_id", errors, allow_zero=True)
     validate_bool(broker_cfg.get("allow_live_broker_port_for_paper"), "broker.allow_live_broker_port_for_paper", errors)
+    validate_bool(broker_cfg.get("require_expected_account_id"), "broker.require_expected_account_id", errors)
     if broker_cfg.get("expected_account_id") is not None and not str(broker_cfg["expected_account_id"]).strip():
         errors.append("broker.expected_account_id must not be empty")
+    expected_account_id = str(broker_cfg.get("expected_account_id") or "").strip()
     adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
     if adapter not in SUPPORTED_BROKER_ADAPTERS:
         errors.append(f"broker.adapter must be one of {sorted(SUPPORTED_BROKER_ADAPTERS)}")
+        capability: dict[str, Any] = {}
     else:
         capability = broker_adapter_capability(adapter)
         raw_order_types = execution_cfg.get("allowed_order_types")
@@ -550,12 +553,27 @@ def validate_config(
         unsupported_order_types = set(str(item).lower() for item in configured_order_types) - set(capability["order_types"])
         if unsupported_order_types:
             errors.append(f"broker.adapter {adapter} does not support order types: {sorted(unsupported_order_types)}")
+        if expected_account_id and not capability.get("supports_account_ids", False):
+            errors.append(f"broker.adapter {adapter} cannot verify broker.expected_account_id")
     if broker_cfg.get("host") is not None and not str(broker_cfg["host"]).strip():
         errors.append("broker.host must not be empty")
     account_mode = broker_cfg.get("account_mode")
-    if account_mode is not None and str(account_mode).lower().replace("-", "_") not in {"paper", "live"}:
+    normalized_account_mode = str(account_mode).lower().replace("-", "_") if account_mode is not None else None
+    if normalized_account_mode is not None and normalized_account_mode not in {"paper", "live"}:
         errors.append("broker.account_mode must be paper or live")
+    if normalized_account_mode is not None and adapter in SUPPORTED_BROKER_ADAPTERS:
+        supported_modes = set(capability.get("account_modes") or [])
+        if normalized_account_mode not in supported_modes:
+            errors.append(
+                f"broker.adapter {adapter} does not support account_mode {normalized_account_mode}; "
+                f"supported modes: {sorted(supported_modes)}"
+            )
+    if bool(broker_cfg.get("require_expected_account_id")) and not expected_account_id:
+        errors.append("broker.require_expected_account_id requires broker.expected_account_id")
+    if normalized_account_mode == "live" and not expected_account_id:
+        errors.append("broker.account_mode live requires broker.expected_account_id")
     if adapter == "file":
+        validate_optional_string(broker_cfg.get("account_id"), "broker.account_id", errors)
         if broker_cfg.get("state_path") is not None and not str(broker_cfg["state_path"]).strip():
             errors.append("broker.state_path must not be empty")
         if broker_cfg.get("orders_path") is not None and not str(broker_cfg["orders_path"]).strip():
@@ -611,6 +629,8 @@ def paper_broker_safety_errors(
         errors.append("paper mode requires broker.account_mode: paper")
     if account_mode not in set(capability.get("account_modes") or []):
         errors.append(f"broker.adapter {adapter} does not advertise account_mode {account_mode}")
+    if bool(broker_cfg.get("require_expected_account_id")) and not str(broker_cfg.get("expected_account_id") or "").strip():
+        errors.append("broker.require_expected_account_id requires broker.expected_account_id")
     port = int(broker_cfg.get("port", 4002))
     if not capability.get("requires_gateway", False):
         return errors

@@ -115,7 +115,9 @@ Paper mode also checks broker safety before connecting. Use
 TWS `7497`; known live ports are refused unless both the config and CLI use the
 explicit live-port override. For real broker sessions, set
 `broker.expected_account_id` in your ignored local config to make the runner
-verify the connected broker account before it submits any order.
+verify the connected broker account before it submits any order. Set
+`broker.require_expected_account_id: true` when a local config must not run
+without that expected-account check.
 
 Broker execution is selected with `broker.adapter`. The public runner ships
 with `ibkr` for IBKR paper execution and `file` for local adapter plumbing tests
@@ -128,8 +130,8 @@ without connecting to IBKR.
 The dashboard exposes public broker capability metadata through `/config_options`
 and the Workbench Broker Boundary panel. Check that panel before paper mode: it
 shows which adapters require Gateway, which order types and sizing styles they
-advertise, whether they persist local state, and which IBKR ports are treated as
-paper or live.
+advertise, whether they expose account IDs for verification, whether they
+persist local state, and which IBKR ports are treated as paper or live.
 
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and

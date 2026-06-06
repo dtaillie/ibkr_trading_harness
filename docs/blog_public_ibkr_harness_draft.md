@@ -154,7 +154,10 @@ It supports:
 Paper mode requires `--confirm-paper-orders`, rejects live account mode, and
 refuses known live IBKR ports unless both config and CLI explicitly opt in. That
 does not make trading risk-free, but it keeps accidental live submission from
-being the default path.
+being the default path. Ignored local configs can also set
+`broker.expected_account_id`, and optionally
+`broker.require_expected_account_id: true`, so the runner verifies the connected
+broker account before any paper order can be submitted.
 
 The runner writes public-safe artifacts such as decisions, orders, fills,
 account snapshots, order previews, and summaries. The dashboard can show equity,
@@ -244,4 +247,3 @@ work can remain private.
 - Confirm private strategy plugins, tuned universes, account IDs, credentials,
   logs, fills, and research outputs are excluded.
 - Read the public copy as if it were already on GitHub.
-
