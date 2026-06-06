@@ -1780,6 +1780,19 @@
         </label>
         <button type="submit">Run</button>
       </form>
+      <section class="workbench-result-panel">
+        <div class="workbench-result-main">
+          <span class="eyebrow">Run Result</span>
+          <strong id="workbench-result-title">No run selected</strong>
+          <span id="workbench-result-note">Run a saved draft to inspect artifacts, performance, and logs.</span>
+          <div class="hero-actions">
+            <button id="workbench-result-open-performance" class="secondary" type="button">Open Performance</button>
+            <button id="workbench-result-open-runs" class="secondary" type="button">Open Runs</button>
+            <button id="workbench-result-open-log" class="secondary" type="button">Open Log</button>
+          </div>
+        </div>
+        <div id="workbench-result-tiles" class="workbench-result-tiles"></div>
+      </section>
       <dl id="config-draft-validations" class="kv wide-kv"></dl>
       <div class="section-head artifact-head">
         <h2>Workbench Triage</h2>

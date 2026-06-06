@@ -7544,6 +7544,112 @@ function renderWorkbenchTriage() {
   `).join("");
 }
 
+function workbenchResultModel() {
+  const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
+  const selectedDraft = selectedRunDraft();
+  const validation = selectedRunDraftValidation();
+  const latestRun = latestWorkbenchRunForDraft(selectedDraftId);
+  const summary = (latestRun && latestRun.summary) || {};
+  const artifacts = state.configArtifacts || {};
+  const loadedSameRun = Boolean(latestRun && artifacts.run_id && artifacts.run_id === latestRun.run_id);
+  const loadedSameDraft = Boolean(selectedDraftId && artifacts.draft_id && artifacts.draft_id === selectedDraftId);
+  let status = "bad";
+  let title = "Select Draft";
+  let note = "Choose a saved draft, validate it, then run replay or simulated paper.";
+  if (selectedDraft) {
+    status = validation && validation.valid === false ? "bad" : "warn";
+    title = latestRun ? text(latestRun.status) : "Ready To Run";
+    note = latestRun
+      ? `${text(latestRun.action)} finished ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
+      : `${selectedDraft.draft_id} is selected; run validate, replay, or simulated paper.`;
+  }
+  if (latestRun) {
+    if (latestRun.status === "failed" || latestRun.status === "timeout") {
+      status = "bad";
+      title = "Review Log";
+      note = `${latestRun.run_id || selectedDraftId} ended with ${text(latestRun.status)}. Open the log before trusting outputs.`;
+    } else if (latestRun.action === "validate") {
+      status = latestRun.status === "completed" ? "ok" : "warn";
+      title = "Validated";
+      note = "Validation finished; choose replay or simulated paper to create performance artifacts.";
+    } else if (loadedSameRun || loadedSameDraft) {
+      status = "ok";
+      title = "Results Loaded";
+      note = "Artifacts are loaded. Open Performance for charts or Runs for the session timeline.";
+    } else if (latestRun.artifact_path) {
+      status = latestRun.status === "completed" ? "warn" : "bad";
+      title = "Open Results";
+      note = "A completed run has artifacts available; load results to inspect equity, orders, fills, and logs.";
+    } else if (latestRun.status === "completed") {
+      status = "warn";
+      title = "Find Outputs";
+      note = "The latest run completed but no explicit artifact path was reported. Try loading the draft's latest output.";
+    }
+  }
+  const hasRun = Boolean(latestRun);
+  const canOpenPerformance = Boolean(selectedDraftId && latestRun && latestRun.action !== "validate" && latestRun.status === "completed");
+  const cards = [
+    {
+      status: selectedDraft ? validation && validation.valid === false ? "bad" : "ok" : "bad",
+      label: "Selected Draft",
+      title: selectedDraft ? text(selectedDraft.draft_id) : "None",
+      note: selectedDraft ? `${text(selectedDraft.mode)} / ${(selectedDraft.symbols || []).join(", ") || "no symbols"}` : "Select a saved draft in Run Draft.",
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      label: "Latest Run",
+      title: latestRun ? text(latestRun.action) : "None",
+      note: latestRun ? `${text(latestRun.run_id)} / ${text(latestRun.status)}` : "No run recorded for the selected draft.",
+    },
+    {
+      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      label: "Artifacts",
+      title: loadedSameRun || loadedSameDraft ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
+      note: loadedSameRun || loadedSameDraft
+        ? `${text(artifacts.draft_id)} ${artifacts.run_id ? `/ ${text(artifacts.run_id)}` : "latest output"}.`
+        : latestRun && latestRun.artifact_path
+          ? "Click Open Performance to load charts."
+          : "No artifact path is visible for this run.",
+    },
+    {
+      status: latestRun && latestRun.status === "completed" ? "ok" : latestRun ? "warn" : "bad",
+      label: "Activity",
+      title: latestRun ? `${numberText(summary.fills, 0)} fills` : "n/a",
+      note: latestRun
+        ? `${numberText(summary.decisions, 0)} decisions / ${numberText(summary.rejections, 0)} rejects.`
+        : "Run a draft to summarize decisions, fills, and rejects.",
+    },
+  ];
+  return {
+    status,
+    title,
+    note,
+    selectedDraftId,
+    latestRun,
+    hasRun,
+    canOpenPerformance,
+    cards,
+  };
+}
+
+function renderWorkbenchRunResult() {
+  if (!$("workbench-result-title") || !$("workbench-result-tiles")) return;
+  const model = workbenchResultModel();
+  $("workbench-result-title").textContent = model.title;
+  $("workbench-result-title").className = statusClass(model.status);
+  $("workbench-result-note").textContent = model.note;
+  $("workbench-result-open-performance").disabled = !model.canOpenPerformance;
+  $("workbench-result-open-runs").disabled = !model.hasRun;
+  $("workbench-result-open-log").disabled = !model.hasRun;
+  $("workbench-result-tiles").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function applyRiskPreset() {
   const presetId = $("config-risk-preset").value;
   const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
@@ -7570,6 +7676,7 @@ function renderWorkbenchRuns() {
   renderWorkbenchHome();
   renderWorkbenchGuide();
   renderWorkbenchTriage();
+  renderWorkbenchRunResult();
   $("config-drafts-body").innerHTML = drafts.length
     ? drafts.map((draft) => row([
         escapeHtml(draft.draft_id),
@@ -9675,6 +9782,7 @@ async function loadConfigArtifacts(draftId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchRunResult();
   renderPerformance();
   renderOverview();
   if (options.openPerformance) navigateToView("performance");
@@ -9758,6 +9866,7 @@ async function loadRunArtifacts(runId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchRunResult();
   renderPerformance();
   renderOverview();
   renderWorkbenchGuide();
@@ -9806,6 +9915,29 @@ async function runConfigDraft(event) {
   renderCleanupPlan();
   renderWorkbenchGuide();
   $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
+}
+
+async function openWorkbenchResultPerformance() {
+  const model = workbenchResultModel();
+  if (!model.selectedDraftId || !model.latestRun || model.latestRun.action === "validate") {
+    $("config-run-status").innerHTML = `<span class="status-warn">Run replay or simulated paper before opening performance.</span>`;
+    return;
+  }
+  if (model.latestRun.artifact_path) {
+    await loadRunArtifacts(model.latestRun.run_id, { openPerformance: true });
+    return;
+  }
+  await loadConfigArtifacts(model.selectedDraftId, { openPerformance: true });
+}
+
+async function openWorkbenchResultLog() {
+  const model = workbenchResultModel();
+  if (!model.latestRun) {
+    $("config-run-status").innerHTML = `<span class="status-warn">Run the selected draft before opening a log.</span>`;
+    return;
+  }
+  await loadRunDetail(model.latestRun.run_id);
+  navigateToView("runs");
 }
 
 async function refreshCleanupPlan() {
@@ -10338,6 +10470,7 @@ function init() {
   $("config-run-draft").addEventListener("change", () => {
     renderWorkbenchGuide();
     renderWorkbenchTriage();
+    renderWorkbenchRunResult();
     renderConfigCompatibility();
   });
   $("config-plugin").addEventListener("change", () => {
@@ -10590,6 +10723,17 @@ function init() {
   });
   $("config-run-form").addEventListener("submit", (event) => {
     runConfigDraft(event).catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("workbench-result-open-performance").addEventListener("click", () => {
+    openWorkbenchResultPerformance().catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("workbench-result-open-runs").addEventListener("click", () => navigateToView("runs"));
+  $("workbench-result-open-log").addEventListener("click", () => {
+    openWorkbenchResultLog().catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });

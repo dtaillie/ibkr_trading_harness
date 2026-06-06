@@ -922,6 +922,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench now starts with a Workbench Home band that summarizes
     the selected data, alignment window, draft validation, latest run, loaded
     artifacts, and the next action before the schema-rendered form.
+  - partial; Workbench now has a Run Result panel directly after Run Draft,
+    summarizing the selected draft's latest run, artifact availability,
+    decisions/fills/rejections, and direct Performance/Runs/Log actions.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
@@ -997,6 +1000,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     data to that window. Run and draft tables now expose Results buttons that
     load artifacts and navigate directly to Performance. Richer schema-driven
     controls remain future work.
+  - partial; after a saved draft is run, the Workbench Run Result panel now
+    shows whether results are loaded or merely available, exposes execution
+    counts, and gives direct buttons to open Performance, Runs, or the run log
+    without scanning dense tables.
 - Add a guided "paper monitor" path:
   - verify Gateway/API status
   - verify account state freshness
