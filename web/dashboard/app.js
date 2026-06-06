@@ -913,6 +913,144 @@ function renderWorkbenchGuide() {
   }).join("");
 }
 
+function workbenchHomeState() {
+  const selected = selectedConfigDatasets();
+  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const generatedValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const draftReady = Boolean(draft.yaml && generatedValid) || Boolean(savedDraft && validation && validation.valid);
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const hasDateRange = Boolean(configDateRangePayload().start || configDateRangePayload().end);
+  let result = "Select Saved Data";
+  let note = "Choose one or more Data Library files before building a replay or simulated-paper draft.";
+  let nextAction = "data";
+  if (selected.length && warningRows.length) {
+    result = "Review Data Quality";
+    note = `${numberText(warningRows.length, 0)} selected file${warningRows.length === 1 ? "" : "s"} need quality review or acknowledgement.`;
+    nextAction = "quality";
+  } else if (selected.length && !alignment.dataset_count) {
+    result = "Preview Alignment";
+    note = "Check timestamp overlap before generating a runnable config.";
+    nextAction = "alignment";
+  } else if (alignment.dataset_count && Number(alignment.common_timestamp_count || 0) <= 0) {
+    result = "Fix Alignment";
+    note = "Selected files do not share usable timestamps in the current window.";
+    nextAction = "alignment";
+  } else if (alignment.dataset_count && !draft.yaml && !savedDraft) {
+    result = "Generate Draft";
+    note = "Data and alignment are ready enough to review plugin, mode, risk, and generated YAML.";
+    nextAction = "generate";
+  } else if (!draftReady) {
+    result = "Validate Draft";
+    note = savedDraft ? `${savedDraft.draft_id} needs validation before a trustworthy run.` : "Generated draft needs validation review.";
+    nextAction = "run";
+  } else if (!latestRun) {
+    result = "Run Simulation";
+    note = `${savedDraftId || "The draft"} is ready for replay or simulated paper.`;
+    nextAction = "run";
+  } else if (latestRun.status !== "completed") {
+    result = "Inspect Run";
+    note = `${text(latestRun.action)} ended with ${text(latestRun.status)}; review run output before comparing performance.`;
+    nextAction = "run";
+  } else if (!hasArtifacts) {
+    result = "Open Results";
+    note = "Completed run exists; load artifacts to inspect Performance and Runs.";
+    nextAction = "results";
+  } else {
+    result = "Review Performance";
+    note = `${text(artifacts.draft_id)} artifacts are loaded; inspect charts, orders, fills, and logs.`;
+    nextAction = "results";
+  }
+  const tiles = [
+    {
+      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      label: "Data",
+      title: selected.length ? `${numberText(selected.length, 0)} selected` : "None",
+      note: selected.length ? selected.map((item) => text(item.symbol)).slice(0, 5).join(", ") : "Select datasets.",
+    },
+    {
+      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) > 0 ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      label: "Alignment",
+      title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
+      note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Not previewed.",
+    },
+    {
+      status: hasDateRange ? "ok" : selected.length ? "warn" : "bad",
+      label: "Window",
+      title: hasDateRange ? "Bounded" : "Full History",
+      note: hasDateRange ? timeRangeLabel(configDateRangePayload().start, configDateRangePayload().end) : "No date range set.",
+    },
+    {
+      status: draftReady ? "ok" : draft.yaml || savedDraft ? "warn" : "bad",
+      label: "Draft",
+      title: savedDraftId ? text(savedDraftId) : draft.yaml ? "Generated" : "Missing",
+      note: draftReady ? "Valid." : draft.yaml || savedDraft ? "Needs validation." : "Generate a draft.",
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftReady ? "warn" : "bad",
+      label: "Run",
+      title: latestRun ? text(latestRun.status) : "Not Run",
+      note: latestRun ? `${text(latestRun.action)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.` : "Run after validation.",
+    },
+    {
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      label: "Results",
+      title: hasArtifacts ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
+      note: hasArtifacts ? "Performance/Runs can inspect artifacts." : "No loaded artifact yet.",
+    },
+  ];
+  return { result, note, nextAction, tiles };
+}
+
+function renderWorkbenchHome() {
+  if (!$("workbench-home-result") || !$("workbench-home-note") || !$("workbench-home-tiles")) return;
+  const stateModel = workbenchHomeState();
+  $("workbench-home-result").textContent = stateModel.result;
+  $("workbench-home-note").textContent = stateModel.note;
+  for (const button of document.querySelectorAll("[data-workbench-home-action]")) {
+    if (!(button instanceof HTMLButtonElement)) continue;
+    const active = button.dataset.workbenchHomeAction === stateModel.nextAction;
+    button.classList.toggle("secondary", !active);
+  }
+  $("workbench-home-tiles").innerHTML = stateModel.tiles.map((tile) => `
+    <div class="action-card status-${escapeHtml(tile.status)}">
+      <span>${escapeHtml(tile.label)}</span>
+      <strong>${escapeHtml(tile.title)}</strong>
+      <small>${escapeHtml(tile.note)}</small>
+    </div>
+  `).join("");
+}
+
+function handleWorkbenchHomeAction(action) {
+  const targets = {
+    data: "config-dataset",
+    quality: "config-data-quality-body",
+    alignment: "config-alignment",
+    generate: "config-form",
+    run: "config-run-form",
+    results: "config-runs-body",
+  };
+  if (action === "alignment" && $("config-preview-alignment") instanceof HTMLButtonElement && !$("config-preview-alignment").disabled) {
+    $("config-preview-alignment").click();
+    return;
+  }
+  if (action === "results" && (state.configArtifacts || {}).run_id) {
+    navigateToView("performance");
+    return;
+  }
+  const element = $(targets[action] || "config-form");
+  if (element) {
+    element.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (typeof element.focus === "function") element.focus({ preventScroll: true });
+  }
+}
+
 function activateWorkbenchGuideAction(target) {
   const targetId = String(target.dataset.guideTarget || "");
   const clickId = String(target.dataset.guideClick || "");
@@ -6630,6 +6768,7 @@ function renderConfigBuilder() {
   }
   renderConfigDataQuality();
   updatePluginStrategyFields();
+  renderWorkbenchHome();
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
   renderConfigBrokerBoundary();
@@ -7214,6 +7353,7 @@ function applyRiskPreset() {
 function renderWorkbenchRuns() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   renderDraftValidations();
+  renderWorkbenchHome();
   renderWorkbenchGuide();
   renderWorkbenchTriage();
   $("config-drafts-body").innerHTML = drafts.length
@@ -9798,6 +9938,11 @@ function init() {
     if (!(target instanceof HTMLElement)) return;
     handleDataSourceMapAction(target);
   });
+  for (const button of document.querySelectorAll("[data-workbench-home-action]")) {
+    button.addEventListener("click", () => {
+      handleWorkbenchHomeAction(button.dataset.workbenchHomeAction || "");
+    });
+  }
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);
   $("fetch-filter-status").addEventListener("change", renderFetchJobs);

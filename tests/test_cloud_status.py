@@ -828,6 +828,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-detail-overview-note" in html
         assert "data-detail-overview" in html
         assert "Public Publishing Boundary" in html
+        assert "workbench-home-result" in html
+        assert "workbench-home-tiles" in html
+        assert "workbench-home-select-data" in html
+        assert "workbench-home-preview-alignment" in html
+        assert "workbench-home-generate" in html
+        assert "workbench-home-run" in html
         assert "workbench-guide-note" in html
         assert "workbench-guide" in html
         assert "config-plugin-boundary-note" in html

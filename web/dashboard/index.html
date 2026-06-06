@@ -1642,6 +1642,20 @@
     </section>
 
     <section class="dashboard-section" data-view="workbench" hidden>
+      <section class="workbench-home-panel">
+        <div class="workbench-home-main">
+          <span class="eyebrow">Workbench Home</span>
+          <strong id="workbench-home-result">No simulation path ready</strong>
+          <span id="workbench-home-note">Select saved data, preview alignment, generate a draft, run it, then inspect artifacts.</span>
+          <div class="hero-actions">
+            <button id="workbench-home-select-data" type="button" data-workbench-home-action="data">Select Data</button>
+            <button id="workbench-home-preview-alignment" class="secondary" type="button" data-workbench-home-action="alignment">Preview Alignment</button>
+            <button id="workbench-home-generate" class="secondary" type="button" data-workbench-home-action="generate">Open Builder</button>
+            <button id="workbench-home-run" class="secondary" type="button" data-workbench-home-action="run">Open Run</button>
+          </div>
+        </div>
+        <div id="workbench-home-tiles" class="workbench-home-tiles"></div>
+      </section>
       <div class="section-head">
         <h2>Simulate From Saved Data</h2>
         <span id="workbench-guide-note" class="section-note">Choose data, generate a draft, run it, then inspect results.</span>
@@ -1667,7 +1681,7 @@
         <div id="config-form-fields" class="builder-form-fields"></div>
         <div class="config-builder-actions">
           <button id="config-preview-alignment" class="secondary" type="button">Preview Alignment</button>
-          <button type="submit">Generate</button>
+          <button id="config-generate-draft" type="submit">Generate</button>
         </div>
       </form>
       <div class="section-head artifact-head">
