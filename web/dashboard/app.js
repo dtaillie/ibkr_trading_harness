@@ -9089,9 +9089,61 @@ function renderPaperMonitor() {
     : warnCount
       ? `${warnCount} paper-monitor warning${warnCount === 1 ? "" : "s"}`
       : `${okCount} paper-monitor checks ready`;
+  renderPaperMonitorHealth(items);
   $("paper-monitor-guide").innerHTML = items.map((item) => (
     `<div class="check-item status-${escapeHtml(item.status)}"><span>${escapeHtml(item.status)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`
   )).join("");
+}
+
+function paperMonitorActionFor(item) {
+  const label = String((item && item.label) || "").toLowerCase();
+  if (label.includes("gateway")) return { target: "gateway-list", label: "Review Gateway" };
+  if (label.includes("account")) return { target: "performance-home-result", label: "Open Performance" };
+  if (label.includes("config") || label.includes("mode")) return { target: "current-runs-body", label: "Review Runs" };
+  if (label.includes("market") || label.includes("order")) return { target: "overview-timeline-body", label: "Review Timeline" };
+  return { target: "paper-monitor-guide", label: "Review Check" };
+}
+
+function renderPaperMonitorHealth(items = []) {
+  if (!$("paper-monitor-health")) return;
+  const blockers = items.filter((item) => item.status === "bad");
+  const warnings = items.filter((item) => item.status === "warn");
+  const ready = items.filter((item) => item.status === "ok");
+  const firstActionItem = blockers[0] || warnings[0] || null;
+  const action = firstActionItem ? paperMonitorActionFor(firstActionItem) : { target: "paper-monitor-guide", label: "Monitor Ready" };
+  const cards = [
+    {
+      status: blockers.length ? "bad" : warnings.length ? "warn" : "ok",
+      label: "Readiness",
+      title: blockers.length ? `${numberText(blockers.length, 0)} blockers` : warnings.length ? `${numberText(warnings.length, 0)} warnings` : "Ready",
+      note: `${numberText(ready.length, 0)} of ${numberText(items.length, 0)} checks green.`,
+    },
+    {
+      status: firstActionItem ? firstActionItem.status : "ok",
+      label: "Next Action",
+      title: action.label,
+      note: firstActionItem ? `${text(firstActionItem.label)}: ${text(firstActionItem.detail)}` : "No visible paper-monitor blockers.",
+    },
+    {
+      status: items.find((item) => item.label === "Config And Mode")?.status || "warn",
+      label: "Mode Safety",
+      title: items.find((item) => item.label === "Config And Mode")?.status === "ok" ? "Paper/Shadow" : "Review",
+      note: items.find((item) => item.label === "Config And Mode")?.detail || "No current run mode is published.",
+    },
+    {
+      status: items.find((item) => item.label === "Order Context")?.status || "warn",
+      label: "Order Context",
+      title: items.find((item) => item.label === "Order Context")?.status === "ok" ? "Visible" : "Missing",
+      note: items.find((item) => item.label === "Order Context")?.detail || "No next-order condition is published.",
+    },
+  ];
+  $("paper-monitor-health").innerHTML = cards.map((card) => `
+    <div class="health-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function operationsHomeState() {

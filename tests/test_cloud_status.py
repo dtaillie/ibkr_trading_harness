@@ -800,6 +800,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "operations-home-audit" in html
         assert "operations-home-gateway" in html
         assert "paper-monitor-note" in html
+        assert "paper-monitor-health" in html
         assert "paper-monitor-guide" in html
         assert "remote-nodes-note" in html
         assert "remote-node-count" in html

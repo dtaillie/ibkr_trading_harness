@@ -1023,6 +1023,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     market-data/decision observation, and next-order or latest-order context
     from generic telemetry. Private/specialized runners still need to publish
     richer next-decision fields for this to become fully green in all modes.
+  - partial; Operations now has Paper Monitor Health cards that summarize
+    blocker/warning counts, next action, mode safety, and order-context
+    visibility before the detailed checklist.
 
 ## P1: Operations and cloud monitoring
 
