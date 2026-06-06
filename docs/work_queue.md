@@ -758,8 +758,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - manifests should be visible from the dashboard
     - done for list/detail views
   - failed/missing symbols should be resumable from a manifest
-    - partial; crypto still resumes from chunk CSV/empty markers, but JSON
-      manifest resume input is not implemented yet
+    - done for stock and crypto JSON-manifest resume input; both fetchers can
+      seed options from a prior manifest and skip completed work where the
+      fetcher has enough public manifest state.
     - partial; `live/fetch_crypto_history.py --resume-manifest <json>` now
       seeds symbols, range, exchange/bar/data type, output directory, and
       ok/empty done paths from a prior JSON manifest so failed or missing
@@ -781,6 +782,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       recovery status/action/note fields, resume support, and permission,
       no-data, and retryable error counts so recovery triage does not have to
       infer those states only from raw error-kind maps.
+    - partial; fetch manifest list/detail/export payloads now also include a
+      public-safe resume plan that estimates completed work to skip and
+      failed/no-data/pending work to retry or review, and Fetch Detail renders
+      that scope before users copy the resume command.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to

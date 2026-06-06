@@ -2569,6 +2569,11 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "recovery_action",
     "recovery_note",
     "resume_supported",
+    "resume_mode",
+    "resume_skip_count",
+    "resume_retry_count",
+    "resume_review_count",
+    "resume_pending_estimate",
     "permission_error_count",
     "no_data_error_count",
     "retryable_error_count",
@@ -2627,6 +2632,12 @@ FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
     "delay_seconds",
     "seconds",
     "reason",
+    "resume_mode",
+    "resume_summary",
+    "resume_skip_count",
+    "resume_retry_count",
+    "resume_review_count",
+    "resume_pending_estimate",
     "message",
 )
 
@@ -3499,6 +3510,130 @@ def fetch_manifest_recovery_guidance(
     }
 
 
+def fetch_manifest_resume_plan(payload: dict[str, Any], *, resume_supported: bool | None = None) -> dict[str, Any]:
+    kind = str(payload.get("kind") or "")
+    symbols_requested = [
+        str(symbol).upper()
+        for symbol in (payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [])
+        if str(symbol).strip()
+    ]
+    symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
+    symbol_rows = [
+        row
+        for row in symbols_map.values()
+        if isinstance(row, dict)
+    ]
+    outputs = payload.get("outputs") if isinstance(payload.get("outputs"), list) else []
+    errors = payload.get("errors") if isinstance(payload.get("errors"), list) else []
+    counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    supported = (kind in {"stock_history", "crypto_history"}) if resume_supported is None else bool(resume_supported)
+
+    if kind == "stock_history":
+        done_symbols = sorted({
+            str(row.get("symbol") or "").upper()
+            for row in symbol_rows
+            if str(row.get("symbol") or "").strip() and row.get("status") in {"ok", "empty", "skipped"}
+        })
+        failed_or_partial_symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in symbol_rows
+            if str(row.get("symbol") or "").strip() and row.get("status") in {"failed", "partial"}
+        }
+        error_symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in errors
+            if isinstance(row, dict) and str(row.get("symbol") or "").strip()
+        }
+        tracked_symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in symbol_rows
+            if str(row.get("symbol") or "").strip()
+        }
+        untracked_symbols = set(symbols_requested) - tracked_symbols
+        no_data_symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in errors
+            if isinstance(row, dict) and row.get("kind") == "no_data" and str(row.get("symbol") or "").strip()
+        }
+        retry_symbols = sorted((failed_or_partial_symbols | error_symbols | untracked_symbols) - set(done_symbols))
+        pending_estimate = len(retry_symbols)
+        return {
+            "resume_supported": supported,
+            "resume_mode": "symbol",
+            "resume_summary": (
+                f"Skip {len(done_symbols)} completed symbol{'s' if len(done_symbols) != 1 else ''}; "
+                f"retry/review {len(retry_symbols)} pending symbol{'s' if len(retry_symbols) != 1 else ''}."
+            ),
+            "skip_completed_count": len(done_symbols),
+            "retry_failed_count": len(retry_symbols),
+            "review_no_data_count": len(no_data_symbols),
+            "pending_estimate": pending_estimate,
+            "skip_symbols_sample": done_symbols[:20],
+            "retry_symbols_sample": retry_symbols[:20],
+            "no_data_symbols_sample": sorted(no_data_symbols)[:20],
+            "untracked_symbols_sample": sorted(untracked_symbols)[:20],
+        }
+
+    if kind == "crypto_history":
+        done_paths = sorted({
+            str(row.get("path") or "")
+            for row in outputs
+            if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
+        })
+        failed_days_by_symbol: dict[str, set[str]] = {}
+        no_data_days_by_symbol: dict[str, set[str]] = {}
+        for row in errors:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").upper()
+            day = str(row.get("day") or "")
+            if not symbol or not day:
+                continue
+            failed_days_by_symbol.setdefault(symbol, set()).add(day)
+            if row.get("kind") == "no_data":
+                no_data_days_by_symbol.setdefault(symbol, set()).add(day)
+        failed_day_count = sum(len(days) for days in failed_days_by_symbol.values())
+        no_data_day_count = sum(len(days) for days in no_data_days_by_symbol.values())
+        pending_estimate = max(
+            int(counts.get("failed_chunks") or 0),
+            int(plan.get("pending_chunks") or 0),
+            failed_day_count,
+        )
+        return {
+            "resume_supported": supported,
+            "resume_mode": "chunk_path",
+            "resume_summary": (
+                f"Skip {len(done_paths)} completed output path{'s' if len(done_paths) != 1 else ''}; "
+                f"retry/review about {pending_estimate} chunk{'s' if pending_estimate != 1 else ''}."
+            ),
+            "skip_completed_count": len(done_paths),
+            "retry_failed_count": failed_day_count,
+            "review_no_data_count": no_data_day_count,
+            "pending_estimate": pending_estimate,
+            "skip_paths_sample": done_paths[:20],
+            "retry_symbols_sample": sorted(failed_days_by_symbol)[:20],
+            "failed_days_by_symbol_sample": {
+                symbol: sorted(days)[:20]
+                for symbol, days in sorted(failed_days_by_symbol.items())[:20]
+            },
+            "no_data_days_by_symbol_sample": {
+                symbol: sorted(days)[:20]
+                for symbol, days in sorted(no_data_days_by_symbol.items())[:20]
+            },
+        }
+
+    return {
+        "resume_supported": supported,
+        "resume_mode": "unsupported",
+        "resume_summary": "This manifest kind is not resumable through a built-in resume command.",
+        "skip_completed_count": 0,
+        "retry_failed_count": 0,
+        "review_no_data_count": 0,
+        "pending_estimate": 0,
+    }
+
+
 def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
@@ -3526,6 +3661,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         counts=counts,
         output_visibility_counts=output_visibility_counts,
     )
+    resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(recovery.get("resume_supported")))
     return {
         "job_id": payload.get("job_id") or path.stem,
         "path": display_path(path),
@@ -3562,6 +3698,11 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         "latest_avg_chunk_seconds": counts.get("latest_avg_chunk_seconds"),
         "latest_avg_symbol_seconds": counts.get("latest_avg_symbol_seconds"),
         **recovery,
+        "resume_mode": resume_plan.get("resume_mode"),
+        "resume_skip_count": resume_plan.get("skip_completed_count"),
+        "resume_retry_count": resume_plan.get("retry_failed_count"),
+        "resume_review_count": resume_plan.get("review_no_data_count"),
+        "resume_pending_estimate": resume_plan.get("pending_estimate"),
         "error_kind_counts": counts.get("error_kind_counts") or {},
         "status_counts": counts.get("status_counts") or {},
         "output_status_counts": counts.get("output_status_counts") or {},
@@ -3724,6 +3865,21 @@ def build_fetch_manifest_detail_csv(
                 "message": item.get("message"),
             }
         )
+    resume_plan = detail.get("resume_plan") if isinstance(detail.get("resume_plan"), dict) else {}
+    if resume_plan:
+        rows.append(
+            {
+                **base,
+                "row_type": "resume_plan",
+                "resume_mode": resume_plan.get("resume_mode"),
+                "resume_summary": resume_plan.get("resume_summary"),
+                "resume_skip_count": resume_plan.get("skip_completed_count"),
+                "resume_retry_count": resume_plan.get("retry_failed_count"),
+                "resume_review_count": resume_plan.get("review_no_data_count"),
+                "resume_pending_estimate": resume_plan.get("pending_estimate"),
+                "message": resume_plan.get("resume_summary"),
+            }
+        )
 
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=FETCH_MANIFEST_DETAIL_EXPORT_FIELDS, extrasaction="ignore")
@@ -3799,6 +3955,7 @@ def load_fetch_manifest_detail(
     symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
     symbols = list(symbols_map.values())
     summary = summarize_fetch_manifest(path, root=root, data_roots=data_roots)
+    resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(summary.get("resume_supported")))
     annotated_all_outputs = [
         annotate_fetch_output(row, data_roots or [])
         for row in outputs
@@ -3812,6 +3969,7 @@ def load_fetch_manifest_detail(
         "parameters": payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
         "plan": payload.get("plan") if isinstance(payload.get("plan"), dict) else {},
         "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
+        "resume_plan": resume_plan,
         "symbols_requested": payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [],
         "symbols": symbols,
         "outputs": annotated_outputs,

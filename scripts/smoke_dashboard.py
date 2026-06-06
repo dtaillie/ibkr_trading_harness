@@ -611,6 +611,7 @@ def run_smoke(
             "downloadFetchDetailCsv",
             "live/fetch_history.py --resume-manifest",
             "Symbol Coverage",
+            "Resume Scope",
             "Data Visibility",
             "renderFetchFilterOptions",
             "Fetch output data detail failed",

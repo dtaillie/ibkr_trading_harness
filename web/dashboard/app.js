@@ -6696,6 +6696,7 @@ function renderFetchManifestDetail() {
   $("export-fetch-detail-csv").disabled = !detail.job_id;
   const counts = detail.counts || {};
   const plan = detail.plan || {};
+  const resumePlan = detail.resume_plan || {};
   const parameters = detail.parameters || {};
   $("fetch-recovery-cards").innerHTML = fetchRecoveryCards(detail, resumeCommand);
   $("fetch-recovery-plan").innerHTML = fetchRecoveryPlan(detail, resumeCommand, visibleOutputPaths);
@@ -6712,6 +6713,7 @@ function renderFetchManifestDetail() {
     ["Output Statuses", jsonDrilldown(counts.output_status_counts || {}, countSummary(counts.output_status_counts || {})), true],
     ["Errors", `${escapeHtml(numberText(detail.error_total, 0))} total ${jsonDrilldown(counts.error_kind_counts || {}, countSummary(counts.error_kind_counts || {}))}`, true],
     ["Recovery", `${text(detail.recovery_status)} / ${text(detail.recovery_action)} - ${text(detail.recovery_note)}`],
+    ["Resume Scope", resumePlan.resume_summary ? jsonDrilldown(resumePlan, resumePlan.resume_summary) : "n/a", Boolean(resumePlan.resume_summary)],
     ["Retries", `${numberText(counts.retry_events, 0)} retry events`],
     ["Pacing Waits", `${numberText(counts.pacing_wait_events, 0)} waits / ${interval(counts.pacing_wait_seconds)}`],
     ["Latest ETA", counts.latest_eta_seconds !== null && counts.latest_eta_seconds !== undefined ? interval(counts.latest_eta_seconds) : "n/a"],
@@ -6920,6 +6922,11 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
   const unsupportedOutputs = Number(detail.output_unsupported_file_count || 0);
   const outputTotal = Number(detail.output_total || 0);
   const hasFailures = failedSymbols > 0 || failedChunks > 0 || errors > 0;
+  const resumePlan = detail.resume_plan || {};
+  const resumePending = Number(resumePlan.pending_estimate || detail.resume_pending_estimate || 0);
+  const resumeSkipped = Number(resumePlan.skip_completed_count || detail.resume_skip_count || 0);
+  const resumeRetry = Number(resumePlan.retry_failed_count || detail.resume_retry_count || 0);
+  const resumeReview = Number(resumePlan.review_no_data_count || detail.resume_review_count || 0);
   const recoverStatus = detail.recovery_status || (permissionErrors > 0
     ? "bad"
     : hasFailures
@@ -6958,6 +6965,16 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
       title: text(detail.recovery_action || (recoveryDisplayStatus === "ok" ? "ready" : recoveryDisplayStatus === "warn" ? "retry" : "blocked")),
       label: "Recovery",
       note: recoverNote,
+    },
+    {
+      status: resumeCommand ? (resumePending || resumeSkipped ? "ok" : "warn") : "warn",
+      title: resumePlan.resume_mode ? text(resumePlan.resume_mode) : "n/a",
+      label: "Resume Scope",
+      note: resumePlan.resume_summary
+        ? resumePlan.resume_summary
+        : resumeCommand
+          ? `Skip ${numberText(resumeSkipped, 0)} / retry ${numberText(resumeRetry, 0)} / review ${numberText(resumeReview, 0)}.`
+          : "No built-in resume command for this manifest kind.",
     },
     {
       status: visibilityStatus,
@@ -6999,6 +7016,7 @@ function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) 
   const action = String(detail.recovery_action || "");
   const status = detail.recovery_status || "unknown";
   const hasResume = Boolean(resumeCommand);
+  const resumePlan = detail.resume_plan || {};
   const steps = [];
   if (action === "fix_permissions") {
     steps.push({
@@ -7047,7 +7065,7 @@ function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) 
     status: hasResume ? "ok" : "warn",
     label: hasResume ? "Resume command available" : "No resume command",
     detail: hasResume
-      ? "Copy Resume Command to retry only failed or missing manifest work."
+      ? text(resumePlan.resume_summary || "Copy Resume Command to retry failed, missing, or incomplete manifest work while skipping completed items when the fetcher supports it.")
       : "This manifest kind is not resumable through the generic resume command.",
   });
   steps.push({

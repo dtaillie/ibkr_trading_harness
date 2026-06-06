@@ -270,6 +270,32 @@ def test_fetch_manifest_recovery_guidance_classifies_common_failures():
     assert hidden_outputs["recovery_status"] == "review"
     assert hidden_outputs["recovery_action"] == "fix_data_roots"
 
+    resume_plan = status_server.fetch_manifest_resume_plan({
+        "kind": "stock_history",
+        "symbols_requested": ["SPY", "QQQ", "IWM"],
+        "symbols": {
+            "SPY": {"symbol": "SPY", "status": "ok"},
+            "QQQ": {"symbol": "QQQ", "status": "empty"},
+            "IWM": {"symbol": "IWM", "status": "failed"},
+        },
+        "errors": [{"symbol": "IWM", "kind": "error", "message": "temporary HMDS error"}],
+    })
+    assert resume_plan["resume_mode"] == "symbol"
+    assert resume_plan["skip_completed_count"] == 2
+    assert resume_plan["retry_failed_count"] == 1
+    assert resume_plan["retry_symbols_sample"] == ["IWM"]
+
+    crypto_resume_plan = status_server.fetch_manifest_resume_plan({
+        "kind": "crypto_history",
+        "outputs": [{"symbol": "BTC-USD", "status": "ok", "path": "cache/btc.parquet"}],
+        "errors": [{"symbol": "ETH-USD", "kind": "no_data", "day": "2026-01-02"}],
+        "counts": {"failed_chunks": 1},
+    })
+    assert crypto_resume_plan["resume_mode"] == "chunk_path"
+    assert crypto_resume_plan["skip_completed_count"] == 1
+    assert crypto_resume_plan["retry_failed_count"] == 1
+    assert crypto_resume_plan["review_no_data_count"] == 1
+
 
 def test_collect_status_from_run_dir(tmp_path):
     run_dir = tmp_path / "run"
@@ -1501,6 +1527,11 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["recovery_status"] == "blocked"
         assert manifest["recovery_action"] == "fix_permissions"
         assert manifest["resume_supported"] is True
+        assert manifest["resume_mode"] == "symbol"
+        assert manifest["resume_skip_count"] == 1
+        assert manifest["resume_retry_count"] == 1
+        assert manifest["resume_review_count"] == 0
+        assert manifest["resume_pending_estimate"] == 1
         assert manifest["permission_error_count"] == 1
         assert manifest["no_data_error_count"] == 0
         assert manifest["retryable_error_count"] == 0
@@ -1536,6 +1567,10 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert rows[0]["output_outside_data_roots_count"] == "1"
         assert rows[0]["recovery_status"] == "blocked"
         assert rows[0]["recovery_action"] == "fix_permissions"
+        assert rows[0]["resume_mode"] == "symbol"
+        assert rows[0]["resume_skip_count"] == "1"
+        assert rows[0]["resume_retry_count"] == "1"
+        assert rows[0]["resume_pending_estimate"] == "1"
         assert rows[0]["permission_error_count"] == "1"
         assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
         assert "visible" in rows[0]["output_visibility_counts"]
@@ -1568,6 +1603,10 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["recovery_action"] == "fix_permissions"
         assert detail["recovery_note"].startswith("Market-data permission errors")
         assert detail["resume_supported"] is True
+        assert detail["resume_plan"]["resume_mode"] == "symbol"
+        assert detail["resume_plan"]["skip_completed_count"] == 1
+        assert detail["resume_plan"]["retry_failed_count"] == 1
+        assert detail["resume_plan"]["retry_symbols_sample"] == ["QQQ"]
         assert detail["errors"][0]["kind"] == "permission"
         assert detail["errors"][0]["attempt_count"] == 2
         assert detail["counts"]["retry_events"] == 1
@@ -1578,7 +1617,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
             assert resp.headers["Content-Disposition"] == 'attachment; filename="stock_history_20260102_fetch_detail.csv"'
             csv_body = resp.read().decode("utf-8")
         rows = list(csv.DictReader(io.StringIO(csv_body)))
-        assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event"}
+        assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event", "resume_plan"}
         output_rows = [row for row in rows if row["row_type"] == "output"]
         assert len(output_rows) == 3
         assert output_rows[0]["symbol"] == "SPY"
@@ -1592,6 +1631,10 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert error_rows[0]["attempt_count"] == "2"
         event_rows = [row for row in rows if row["row_type"] == "event"]
         assert {row["event_type"] for row in event_rows} == {"retry", "pacing_wait"}
+        resume_rows = [row for row in rows if row["row_type"] == "resume_plan"]
+        assert resume_rows[0]["resume_mode"] == "symbol"
+        assert resume_rows[0]["resume_skip_count"] == "1"
+        assert resume_rows[0]["resume_retry_count"] == "1"
     finally:
         server.shutdown()
         server.server_close()
