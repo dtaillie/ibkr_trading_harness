@@ -963,6 +963,15 @@ section {
   margin: 14px 0;
 }
 
+.workbench-data-actions {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
 .operations-home-panel {
   display: grid;
   grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr);

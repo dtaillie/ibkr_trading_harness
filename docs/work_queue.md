@@ -925,6 +925,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.
+  - partial; Workbench now has Selected Data Actions that summarize selected
+    files, quality issues, comparison readiness, and range, with direct actions
+    to inspect the first selected file, compare selected files, or return to
+    Data Library.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
@@ -1004,6 +1008,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     shows whether results are loaded or merely available, exposes execution
     counts, and gives direct buttons to open Performance, Runs, or the run log
     without scanning dense tables.
+  - partial; before generating a draft, Workbench Selected Data Actions now
+    let users re-open the selected file in Data Detail or compare the selected
+    files over the configured Workbench date range, closing the loop between
+    data review and simulation setup.
 - Add a guided "paper monitor" path:
   - verify Gateway/API status
   - verify account state freshness

@@ -731,6 +731,7 @@ function configDateRangePayload() {
 function renderConfigDataQuality() {
   const selected = selectedConfigDatasets();
   if (!$("config-data-quality-note") || !$("config-data-quality-body")) return;
+  renderConfigDataActions(selected);
   if (!selected.length) {
     $("config-data-quality-note").innerHTML = `<span class="muted">No datasets selected</span>`;
     $("config-data-quality-body").innerHTML = row([
@@ -759,6 +760,85 @@ function renderConfigDataQuality() {
     escapeHtml((dataset.quality_warnings || []).join("; ") || "none"),
     `<span class="mono">${escapeHtml(dataset.path)}</span>`,
   ])).join("");
+}
+
+function renderConfigDataActions(selected = selectedConfigDatasets()) {
+  if (!$("config-data-actions-note") || !$("config-data-actions-cards")) return;
+  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
+  const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
+  const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
+  const range = configDateRangePayload();
+  const compareReady = selected.length >= 2;
+  $("config-data-open-detail").disabled = !selected.length;
+  $("config-data-compare-selected").disabled = !compareReady;
+  $("config-data-actions-note").textContent = selected.length
+    ? `${numberText(selected.length, 0)} selected / ${numberText(qualityIssues.length, 0)} quality issue${qualityIssues.length === 1 ? "" : "s"}`
+    : "Select saved data to inspect or compare it.";
+  const cards = [
+    {
+      status: selected.length ? "ok" : "bad",
+      label: "Selected",
+      title: numberText(selected.length, 0),
+      note: symbols.length ? `${symbols.slice(0, 4).join(", ")}${symbols.length > 4 ? "..." : ""}` : "No saved files selected.",
+    },
+    {
+      status: qualityIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      label: "Quality",
+      title: qualityIssues.length ? `${numberText(qualityIssues.length, 0)} review` : selected.length ? "Clean" : "n/a",
+      note: qualityIssues.length ? "Review warnings before generating a replay draft." : "No selected quality warnings reported.",
+    },
+    {
+      status: compareReady ? "ok" : selected.length ? "warn" : "bad",
+      label: "Compare",
+      title: compareReady ? "Ready" : "Need 2+",
+      note: compareReady ? `${bars.join(", ") || "unknown bars"} from ${sources.join(", ") || "unknown sources"}.` : "Select at least two files to compare overlap.",
+    },
+    {
+      status: range.start || range.end ? "ok" : selected.length ? "warn" : "bad",
+      label: "Range",
+      title: range.start || range.end ? "Set" : "All",
+      note: range.start || range.end ? `${range.start || "start"} to ${range.end || "end"}` : "No Workbench date filter set.",
+    },
+  ];
+  $("config-data-actions-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
+async function openFirstConfigDatasetDetail() {
+  const selected = selectedConfigDatasets();
+  if (!selected.length) {
+    $("config-data-actions-note").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
+    return;
+  }
+  await loadDataDetail(selected[0].path, { resetControls: true });
+  navigateToView("data");
+  if ($("data-detail-form")) $("data-detail-form").scrollIntoView({ block: "start", behavior: "smooth" });
+  $("last-refresh").textContent = `Opened ${text(selected[0].symbol)} from Workbench selected data`;
+}
+
+async function compareConfigDatasets() {
+  const selected = selectedConfigDatasets().slice(0, MAX_DATA_COMPARE_DATASETS);
+  if (selected.length < 2) {
+    $("config-data-actions-note").innerHTML = `<span class="status-bad">Select at least two saved datasets to compare</span>`;
+    return;
+  }
+  const range = configDateRangePayload();
+  state.dataCompareSelectedPaths = selected.map((dataset) => dataset.path);
+  state.dataCompareSelectionCleared = false;
+  $("data-compare-filter").value = selected.length === 1 ? text(selected[0].symbol) : "";
+  $("data-compare-start").value = range.start;
+  $("data-compare-end").value = range.end;
+  renderDataCompareControls();
+  await loadDataCompare();
+  navigateToView("data");
+  if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
+  $("last-refresh").textContent = `Compared ${numberText(selected.length, 0)} Workbench selected dataset${selected.length === 1 ? "" : "s"}`;
 }
 
 function latestWorkbenchRunForDraft(draftId) {
@@ -10467,6 +10547,17 @@ function init() {
   $("config-dataset").addEventListener("change", renderConfigLivePanels);
   $("config-start-date").addEventListener("change", renderConfigLivePanels);
   $("config-end-date").addEventListener("change", renderConfigLivePanels);
+  $("config-data-open-detail").addEventListener("click", () => {
+    openFirstConfigDatasetDetail().catch((err) => {
+      $("config-data-actions-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("config-data-compare-selected").addEventListener("click", () => {
+    compareConfigDatasets().catch((err) => {
+      $("config-data-actions-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("config-data-open-library").addEventListener("click", () => navigateToView("data"));
   $("config-run-draft").addEventListener("change", () => {
     renderWorkbenchGuide();
     renderWorkbenchTriage();
