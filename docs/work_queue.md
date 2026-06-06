@@ -1316,6 +1316,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     descriptions plus result-field formatting hints.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
+  - partial; the Workbench Run lens now also shows copyable validate, replay,
+    and simulated-paper `live/plugin_runner.py` commands for the selected saved
+    draft, including the current max-steps setting, so users do not have to
+    return to the generated YAML panel to run a saved draft locally.
 - Add a guided "simulate from saved data" path:
   - choose one or more scanned symbols
   - choose a date range

@@ -11719,6 +11719,40 @@ function selectedRunDraftValidation() {
   return draft ? draftValidationById()[draft.draft_id] || null : null;
 }
 
+function selectedRunDraftCommands() {
+  const draft = selectedRunDraft();
+  if (!draft || !draft.path) return {};
+  const configPath = shellQuote(draft.path);
+  const maxSteps = finiteNumber($("config-run-max-steps") && $("config-run-max-steps").value);
+  const maxStepsArg = maxSteps !== null && maxSteps > 0 ? ` --max-steps ${Math.round(maxSteps)}` : "";
+  return {
+    validate: `python3 live/plugin_runner.py --config ${configPath} --validate-only`,
+    replay: `python3 live/plugin_runner.py --config ${configPath} --mode replay${maxStepsArg}`,
+    simulated_paper: `python3 live/plugin_runner.py --config ${configPath} --mode simulated-paper${maxStepsArg}`,
+  };
+}
+
+function renderWorkbenchRunCommands() {
+  if (!$("workbench-run-command-note") || !$("workbench-run-commands")) return;
+  const draft = selectedRunDraft();
+  const commands = selectedRunDraftCommands();
+  const validation = selectedRunDraftValidation();
+  const runAction = $("config-run-action") ? $("config-run-action").value : "";
+  const commandEntries = Object.entries(commands);
+  $("workbench-run-command-note").textContent = draft
+    ? `${text(draft.draft_id)} local commands${validation ? validation.valid ? " / validation passed" : " / validation failed" : " / validation unchecked"}`
+    : "Select a saved draft to copy local plugin-runner commands.";
+  $("workbench-run-commands").innerHTML = commandEntries.length
+    ? commandEntries.map(([name, command]) => {
+        const recommended = (runAction === "validate" && name === "validate")
+          || (runAction === "replay" && name === "replay")
+          || (runAction === "simulated_paper" && name === "simulated_paper");
+        const label = recommended ? `${name} (selected)` : name;
+        return `<dt>${escapeHtml(label)}</dt><dd><span class="command-line"><span class="mono">${escapeHtml(command)}</span><button type="button" class="secondary copy-run-command" data-command="${escapeHtml(command)}">Copy</button></span></dd>`;
+      }).join("")
+    : `<dt>Next</dt><dd><span class="muted">Generate and save a draft in Builder, then select it here.</span></dd>`;
+}
+
 function configCompatibilityNext(cards) {
   const blocked = cards.find((card) => card.status === "bad");
   if (blocked) return blocked.next;
@@ -12365,6 +12399,7 @@ function renderWorkbenchRuns() {
   renderWorkbenchHome();
   renderWorkbenchGuide();
   renderWorkbenchRunReadiness();
+  renderWorkbenchRunCommands();
   renderWorkbenchTriage();
   renderWorkbenchRunResult();
   $("config-drafts-body").innerHTML = drafts.length
@@ -17245,6 +17280,7 @@ function init() {
     renderWorkbenchGuide();
     renderWorkbenchTriage();
     renderWorkbenchRunResult();
+    renderWorkbenchRunCommands();
     renderConfigCompatibility();
   });
   onOptional("config-plugin", "change", () => {
@@ -17622,6 +17658,7 @@ function init() {
   $("config-run-form").addEventListener("input", renderWorkbenchRunReadiness);
   $("config-run-form").addEventListener("change", () => {
     renderWorkbenchRunReadiness();
+    renderWorkbenchRunCommands();
     renderWorkbenchTriage();
     renderWorkbenchRunResult();
   });
@@ -17661,6 +17698,15 @@ function init() {
     if (!(target instanceof HTMLElement) || !target.classList.contains("copy-command")) return;
     copyText(target.dataset.command || "").then(() => {
       $("last-refresh").textContent = `Command copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
+  $("workbench-run-commands").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("copy-run-command")) return;
+    copyText(target.dataset.command || "").then(() => {
+      $("last-refresh").textContent = `Run command copied: ${new Date().toLocaleString()}`;
     }).catch((err) => {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });

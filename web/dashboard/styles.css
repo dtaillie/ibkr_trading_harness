@@ -1391,7 +1391,8 @@ section {
   box-shadow: var(--surface-shadow);
 }
 
-.workbench-run-readiness-panel {
+.workbench-run-readiness-panel,
+.workbench-run-command-panel {
   margin: 12px 0;
   padding: 14px;
   border: 1px solid var(--line);
@@ -3392,6 +3393,7 @@ footer {
   .performance-home-panel,
   .workbench-home-panel,
   .workbench-result-panel,
+  .workbench-run-command-panel,
   .operations-home-panel,
   .overview-lens-bar,
   .overview-glance-panel,
