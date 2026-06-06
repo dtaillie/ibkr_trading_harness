@@ -6060,6 +6060,7 @@ function renderConfigBuilder() {
   renderConfigPluginBoundary();
   renderConfigBrokerBoundary();
   renderConfigBuilderReadiness();
+  renderConfigCompatibility();
 
   const draft = state.configDraft;
   if (!draft) {
@@ -6167,6 +6168,149 @@ function renderConfigBuilderReadiness() {
   `).join("");
 }
 
+function selectedRunDraft() {
+  const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
+  return ((state.configDrafts && state.configDrafts.drafts) || [])
+    .find((draft) => draft.draft_id === selectedDraftId) || null;
+}
+
+function selectedRunDraftValidation() {
+  const draft = selectedRunDraft();
+  return draft ? draftValidationById()[draft.draft_id] || null : null;
+}
+
+function configCompatibilityNext(cards) {
+  const blocked = cards.find((card) => card.status === "bad");
+  if (blocked) return blocked.next;
+  const warning = cards.find((card) => card.status === "warn");
+  if (warning) return warning.next;
+  return "Ready to validate or run the selected draft with the configured public-safe runner.";
+}
+
+function renderConfigCompatibility() {
+  if (!$("config-compatibility-cards") || !$("config-compatibility-note") || !$("config-compatibility-detail")) return;
+  const options = state.configOptions || {};
+  const selected = selectedConfigDatasets();
+  const plugin = selectedConfigPlugin();
+  const visibility = plugin.visibility || plugin.status || "";
+  const strategyFields = plugin.strategy_fields || [];
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const allowQualityWarnings = $("config-allow-quality-warnings") ? $("config-allow-quality-warnings").checked : false;
+  const barSizes = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
+  const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
+  const schemasPresent = [
+    options.config_schema_version,
+    options.form_schema_version,
+    options.guide_schema_version,
+  ].every((value) => finiteNumber(value) !== null);
+  const generatedDraft = state.configDraft || {};
+  const generatedValid = generatedDraft.validation ? Boolean(generatedDraft.validation.valid) : null;
+  const savedDraft = selectedRunDraft();
+  const savedValidation = selectedRunDraftValidation();
+  const runAction = $("config-run-action") ? $("config-run-action").value : "";
+  const alignmentWarnings = Number(alignment.warning_count || (alignment.warnings || []).length || 0);
+  const commonTimestamps = Number(alignment.common_timestamp_count || 0);
+  const cards = [
+    {
+      status: schemasPresent ? "ok" : "bad",
+      title: `v${text(options.config_schema_version)} / form v${text(options.form_schema_version)}`,
+      label: "Schema",
+      note: `Guide v${text(options.guide_schema_version)}; ${numberText((options.form_schema || []).length, 0)} fields.`,
+      next: "Refresh the dashboard server so config_options includes all schema versions.",
+    },
+    {
+      status: plugin.id ? visibility === "public_example" ? "warn" : "ok" : "bad",
+      title: text(plugin.label || plugin.id),
+      label: "Plugin",
+      note: `${text(visibility)}; ${numberText(strategyFields.length, 0)} public-safe field${strategyFields.length === 1 ? "" : "s"}.`,
+      next: plugin.id
+        ? "Public examples prove wiring only; choose an ignored local plugin registry entry for real private logic."
+        : "Choose a configured Workbench plugin.",
+    },
+    {
+      status: !selected.length ? "bad" : qualityIssues.length && !allowQualityWarnings ? "warn" : "ok",
+      title: selected.length ? numberText(selected.length, 0) : "None",
+      label: "Data",
+      note: selected.length
+        ? `${barSizes.join(", ") || "unknown bars"} from ${sources.join(", ") || "unknown source"}; ${numberText(qualityIssues.length, 0)} quality issue${qualityIssues.length === 1 ? "" : "s"}.`
+        : "No saved datasets selected.",
+      next: selected.length
+        ? "Review Selected Data Quality and enable the quality-warning acknowledgement only when the warnings are acceptable."
+        : "Choose one or more scanned saved-data files.",
+    },
+    {
+      status: alignment.dataset_count
+        ? commonTimestamps > 0 ? alignmentWarnings ? "warn" : "ok" : "bad"
+        : selected.length ? "warn" : "bad",
+      title: alignment.dataset_count ? numberText(commonTimestamps, 0) : "Preview",
+      label: "Alignment",
+      note: alignment.dataset_count
+        ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignmentWarnings, 0)} warning${alignmentWarnings === 1 ? "" : "s"}.`
+        : "Alignment has not been previewed for the selected files.",
+      next: alignment.dataset_count
+        ? "Fix date ranges or dataset choices until the replay window has common timestamps."
+        : "Preview alignment before generating or trusting a replay draft.",
+    },
+    {
+      status: generatedDraft.yaml ? generatedValid ? "ok" : "bad" : savedDraft ? savedValidation ? savedValidation.valid ? "ok" : "bad" : "warn" : "warn",
+      title: generatedDraft.yaml ? generatedValid ? "Generated Valid" : "Generated Invalid" : savedDraft ? text(savedDraft.draft_id) : "No Draft",
+      label: "Draft",
+      note: generatedDraft.yaml
+        ? generatedDraft.saved_path ? "Current generated YAML is saved locally." : "Current generated YAML is not saved locally."
+        : savedDraft
+          ? savedValidation ? savedValidation.valid ? "Selected saved draft passed validation." : "Selected saved draft has validation errors." : "Selected saved draft has not been validated in this session."
+          : "No generated or selected saved draft is ready.",
+      next: generatedDraft.yaml
+        ? generatedValid ? "Save and run the draft, or inspect the generated local commands." : "Fix generated draft validation errors before running."
+        : savedDraft ? "Click Validate Drafts, then run the selected draft." : "Generate and save a draft from the selected data.",
+    },
+    {
+      status: savedDraft && runAction ? savedValidation ? savedValidation.valid ? "ok" : "bad" : "warn" : "warn",
+      title: runAction || "No Action",
+      label: "Run",
+      note: savedDraft
+        ? `${text(savedDraft.mode)} draft selected; action=${text(runAction)}.`
+        : "No saved draft is selected in Run Draft.",
+      next: savedDraft
+        ? "Validate the selected draft before running replay or simulated paper."
+        : "Save a generated draft, then select it under Run Draft.",
+    },
+  ];
+  $("config-compatibility-note").textContent = configCompatibilityNext(cards);
+  $("config-compatibility-cards").innerHTML = cards.map((card) => `
+    <div class="health-card compatibility-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const detailPairs = [
+    ["Schema Versions", `config=${text(options.config_schema_version)}, form=${text(options.form_schema_version)}, guide=${text(options.guide_schema_version)}`],
+    ["Plugin Spec", text(plugin.spec)],
+    ["Plugin Registry Paths", (options.plugin_registry_paths || []).join("; ") || "none"],
+    ["Strategy Fields", strategyFields.length ? strategyFields.map((field) => `${field.name}:${field.kind}`).join(", ") : "none"],
+    ["Selected Bar Sizes", barSizes.join(", ") || "none"],
+    ["Selected Sources", sources.join(", ") || "none"],
+    ["Selected Paths", selected.map((dataset) => dataset.path).join("\n") || "none"],
+    ["Alignment Window", alignment.dataset_count ? rangeLabel(alignment.common_first_timestamp, alignment.common_last_timestamp) : "not previewed"],
+    ["Saved Draft Validation", savedDraft ? savedValidation ? savedValidation.valid ? "valid" : `invalid: ${(savedValidation.errors || []).join("; ")}` : "not checked" : "no saved draft selected"],
+    ["Next Action", configCompatibilityNext(cards)],
+  ];
+  $("config-compatibility-detail").innerHTML = detailPairs.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
+  )).join("");
+}
+
+function renderConfigLivePanels() {
+  renderConfigDataQuality();
+  updatePluginStrategyFields();
+  renderConfigPluginBoundary();
+  renderConfigBuilderReadiness();
+  renderConfigCompatibility();
+  renderWorkbenchGuide();
+}
+
 function configPluginStrategyPayload() {
   const payload = {};
   const selectedPluginId = $("config-plugin") ? $("config-plugin").value : "";
@@ -6211,6 +6355,7 @@ function renderConfigAlignment(alignment) {
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
   renderConfigBuilderReadiness();
+  renderConfigCompatibility();
   renderWorkbenchGuide();
 }
 
@@ -8982,17 +9127,16 @@ function init() {
   $("run-events-filter-type").addEventListener("change", renderRunEvents);
   $("run-events-filter-status").addEventListener("change", renderRunEvents);
   $("run-events-filter-sort").addEventListener("change", renderRunEvents);
-  $("config-dataset").addEventListener("change", renderConfigDataQuality);
-  $("config-dataset").addEventListener("change", renderWorkbenchGuide);
-  $("config-start-date").addEventListener("change", renderWorkbenchGuide);
-  $("config-end-date").addEventListener("change", renderWorkbenchGuide);
+  $("config-dataset").addEventListener("change", renderConfigLivePanels);
+  $("config-start-date").addEventListener("change", renderConfigLivePanels);
+  $("config-end-date").addEventListener("change", renderConfigLivePanels);
   $("config-run-draft").addEventListener("change", () => {
     renderWorkbenchGuide();
     renderWorkbenchTriage();
+    renderConfigCompatibility();
   });
   $("config-plugin").addEventListener("change", () => {
-    renderConfigPluginBoundary();
-    updatePluginStrategyFields();
+    renderConfigLivePanels();
   });
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
   $("data-detail-chart-style").addEventListener("change", renderDataDetail);
@@ -9192,6 +9336,8 @@ function init() {
       $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("config-form").addEventListener("input", renderConfigLivePanels);
+  $("config-form").addEventListener("change", renderConfigLivePanels);
   $("workbench-guide").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-guide-action") : null;
     if (!(target instanceof HTMLElement)) return;

@@ -118,6 +118,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".help-start-grid span",
     ".health-card strong",
     ".health-card span",
+    ".compatibility-card strong",
+    ".compatibility-card small",
     ".position-card strong",
     ".position-card span",
     ".change-card strong",

@@ -152,9 +152,12 @@ rows from the Minute Coverage Heatmap.
 3. Choose a public example plugin or a private local plugin from an ignored
    registry.
 4. Preview alignment before generating a draft.
-5. Generate and validate the draft.
-6. Run replay or simulated paper.
-7. Open the result from the Runs or Workbench table and inspect Performance.
+5. Read Compatibility Review. It combines schema versions, plugin boundary,
+   selected data quality, alignment coverage, saved-draft validation, and the
+   next action in one place.
+6. Generate and validate the draft.
+7. Run replay or simulated paper.
+8. Open the result from the Runs or Workbench table and inspect Performance.
 
 The Simulate From Saved Data guide is actionable: use each step's button to
 jump to the relevant data picker, quality table, alignment preview, draft

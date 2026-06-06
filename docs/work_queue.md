@@ -895,6 +895,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Config Builder now adds section-level readiness cards for data,
     alignment, plugin, mode/range, risk, simulated costs, and generated draft
     state so users can see what needs attention before scanning every field.
+  - partial; Workbench now adds a Compatibility Review that summarizes schema
+    versions, plugin registry boundary, exposed strategy fields, selected data
+    sources/bar sizes, alignment coverage, saved-draft validation state, and
+    the next action before running. Deeper plugin-defined validation rules
+    remain future work.
   - partial; plugin registry entries can now expose public-safe
     `strategy_fields`, the Workbench renders fields for the selected plugin,
     and generated drafts write only those allowlisted values under `strategy`.
