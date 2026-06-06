@@ -7977,6 +7977,7 @@ function renderFetchJobs() {
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
   renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
+  renderFetchWorkflowLauncher({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
   const errors = payload.errors || [];
   const errorRows = errors.map((item) => row([
@@ -8148,6 +8149,117 @@ function renderFetchTriageCards(context = {}) {
       <strong>${escapeHtml(card.title)}</strong>
       <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
     </div>
+  `).join("");
+}
+
+function fetchWorkflowCards(context = {}) {
+  const manifests = context.manifests || [];
+  const filteredManifests = context.filteredManifests || manifests;
+  const roots = context.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || [];
+  const detail = state.fetchManifestDetail || {};
+  const activeJobs = manifests.filter((item) => !fetchJobTerminal(item.status));
+  const jobsNeedingReview = manifests.filter((item) => fetchManifestIssueCount(item) > 0);
+  const visibleOutputPaths = fetchVisibleOutputPaths(detail);
+  const outputVisible = manifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = manifests.reduce((sum, item) => (
+    sum +
+    Number(item.output_missing_file_count || 0) +
+    Number(item.output_outside_data_roots_count || 0) +
+    Number(item.output_unsupported_file_count || 0)
+  ), 0);
+  const retryEvents = manifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const rootManifestCount = roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0);
+  const selectedHasFailures = Number((detail.counts || {}).failed_symbols || detail.failed_symbols || 0) > 0
+    || Number((detail.counts || {}).failed_chunks || detail.failed_chunks || 0) > 0
+    || Number((detail.counts || {}).errors || detail.error_total || 0) > 0;
+  const resumeCommand = fetchResumeCommand(detail);
+
+  return [
+    {
+      label: "Configure Roots",
+      title: roots.length ? `${numberText(rootManifestCount, 0)} manifests` : "No Roots",
+      value: roots.length ? `${numberText(roots.length, 0)} roots` : `${numberText(rootConfigPaths.length, 0)} config paths`,
+      status: roots.length && rootManifestCount ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      detail: roots.length
+        ? "Fetch manifests are readable from configured roots."
+        : "Add dashboard.fetch_manifest_roots or run a fetcher that writes JSON manifests.",
+      href: workflowHref("fetch", "home"),
+      cta: "Roots",
+    },
+    {
+      label: "Monitor Jobs",
+      title: activeJobs.length ? `${numberText(activeJobs.length, 0)} active` : manifests.length ? "No Active" : "No Jobs",
+      value: `${numberText(filteredManifests.length, 0)} shown`,
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      detail: activeJobs.length
+        ? "Inspect active/non-terminal jobs before starting another fetch."
+        : manifests.length ? "Use the Jobs lens to scan completed and failed fetches." : "No fetch manifest rows are loaded.",
+      href: workflowHref("fetch", "jobs"),
+      cta: "Jobs",
+    },
+    {
+      label: "Recover Failures",
+      title: detail.job_id ? text(detail.recovery_status || detail.status || "selected") : jobsNeedingReview.length ? `${numberText(jobsNeedingReview.length, 0)} review` : "No Detail",
+      value: detail.job_id && resumeCommand ? "resume ready" : `${numberText(retryEvents, 0)}R/${numberText(pacingWaits, 0)}W`,
+      status: detail.job_id ? selectedHasFailures ? resumeCommand ? "ok" : "warn" : "ok" : jobsNeedingReview.length ? "warn" : manifests.length ? "ok" : "bad",
+      detail: detail.job_id
+        ? selectedHasFailures ? "Selected job has failed work; review recovery plan and copy resume command when available." : "Selected job has no summarized failed symbols/chunks."
+        : jobsNeedingReview.length ? "Open a job with failures or output issues to see recovery guidance." : "No loaded job currently reports recovery pressure.",
+      href: workflowHref("fetch", "detail"),
+      cta: "Recover",
+    },
+    {
+      label: "Review Outputs",
+      title: detail.job_id ? `${numberText(visibleOutputPaths.length, 0)} visible` : `${numberText(outputVisible, 0)} visible`,
+      value: outputIssues ? `${numberText(outputIssues, 0)} issues` : "paths ok",
+      status: detail.job_id ? visibleOutputPaths.length ? "ok" : Number(detail.output_total || 0) ? "warn" : "bad" : outputIssues ? "warn" : outputVisible ? "ok" : manifests.length ? "warn" : "bad",
+      detail: detail.job_id
+        ? visibleOutputPaths.length ? "Selected job outputs can be filtered into Data Library." : "Selected job outputs are missing, unsupported, outside configured roots, or absent."
+        : outputVisible ? "Open a manifest detail to filter produced files into Data Library." : "Output visibility needs a selected manifest or configured data roots.",
+      href: workflowHref("fetch", "detail"),
+      cta: "Outputs",
+    },
+    {
+      label: "Open Saved Data",
+      title: visibleOutputPaths.length ? "Ready" : "Needs Visible Outputs",
+      value: visibleOutputPaths.length ? `${numberText(visibleOutputPaths.length, 0)} files` : "none selected",
+      status: visibleOutputPaths.length ? "ok" : detail.job_id ? "warn" : "bad",
+      detail: visibleOutputPaths.length
+        ? "Use Show Outputs in Data Library, Compare Outputs, or Copy Output Paths from Fetch Detail."
+        : "Select a job with Data Library-visible output files first.",
+      href: workflowHref(visibleOutputPaths.length ? "data" : "fetch", visibleOutputPaths.length ? "browse" : "detail"),
+      cta: visibleOutputPaths.length ? "Data" : "Select Job",
+    },
+    {
+      label: "Simulate Outputs",
+      title: visibleOutputPaths.length ? "Workbench Ready" : "Not Ready",
+      value: visibleOutputPaths.length ? `${numberText(visibleOutputPaths.length, 0)} inputs` : "no inputs",
+      status: visibleOutputPaths.length ? "ok" : detail.job_id ? "warn" : "bad",
+      detail: visibleOutputPaths.length
+        ? "Send the selected fetch's visible outputs into Workbench with the manifest date range."
+        : "Fetch outputs need to be visible under configured data roots before Workbench handoff.",
+      href: workflowHref(visibleOutputPaths.length ? "workbench" : "fetch", visibleOutputPaths.length ? "builder" : "detail"),
+      cta: "Workbench",
+    },
+  ];
+}
+
+function renderFetchWorkflowLauncher(context = {}) {
+  const container = $("fetch-workflows");
+  if (!container) return;
+  const cards = fetchWorkflowCards(context);
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
   `).join("");
 }
 

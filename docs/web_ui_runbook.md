@@ -277,6 +277,10 @@ The Fetch Workflow checklist summarizes whether manifest roots are readable,
 whether jobs were found, whether filters are hiding them, whether selected
 outputs are visible in Data Library, and whether the selected job can be
 resumed or exported.
+Use the Fetch workflow cards first when you know the job: Configure Roots,
+Monitor Jobs, Recover Failures, Review Outputs, Open Saved Data, or Simulate
+Outputs. The cards route directly to Fetch, Data Library, or Workbench based on
+the selected manifest and visible output files.
 Use Export Jobs CSV to download recent fetch-job summaries, including status,
 symbols, chunks, rows, retries, pacing waits, ETA/progress fields, errors, and
 output paths.

@@ -983,6 +983,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now adds first-screen triage cards for manifest-root
       coverage, active/non-terminal jobs, jobs needing review, output
       visibility, and retry/pacing pressure before the dense manifest table.
+    - partial; Fetch Jobs now also has workflow cards for configuring roots,
+      monitoring jobs, recovering failures, reviewing outputs, opening saved
+      data, and sending visible outputs to Workbench, giving completed-fetch
+      workflows a task-oriented first screen before the dense manifest table.
     - partial; Fetch Jobs now uses Home / Jobs / Detail focus lenses so active
       and completed jobs can be scanned in a dedicated Jobs view while root
       setup and selected-manifest detail stay out of the way.

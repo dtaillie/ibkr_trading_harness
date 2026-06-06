@@ -772,6 +772,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-triage-cards" in html
         assert "<th>Output Visibility</th>" in html
         assert "fetch-events-body" in html
+        assert "fetch-workflows" in html
         assert "copy-fetch-roots-yaml" in html
         assert "copy-fetch-resume-command" in html
         assert "show-fetch-outputs-data" in html
