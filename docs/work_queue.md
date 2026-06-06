@@ -1213,6 +1213,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     validation/run state, and artifact inspection. The form and step metadata
     are now schema-driven; richer plugin-authored display and help formatting
     remain future work.
+  - partial; Workbench Builder now includes a Plugin Field Help panel that
+    renders selected-plugin `strategy_fields` and `result_fields` help,
+    defaults, bounds/options, formatting hints, required/advanced flags, and
+    public-safe field paths before users edit or run drafts.
   - partial; `/config_options` now exposes `guide_schema_version` and
     `guide_steps`, and the Workbench guide consumes backend step labels/order
     while keeping dynamic readiness details in the frontend.

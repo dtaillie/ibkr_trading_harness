@@ -2336,6 +2336,59 @@ function renderConfigPluginBoundary() {
   )).join("");
 }
 
+function pluginFieldMetaLine(field) {
+  const parts = [
+    field.kind ? `kind ${text(field.kind)}` : "",
+    field.required ? "required" : "",
+    field.advanced ? "advanced" : "",
+    field.default !== undefined ? `default ${text(field.default)}` : "",
+    field.min !== undefined || field.max !== undefined ? `bounds ${text(field.min ?? "n/a")}..${text(field.max ?? "n/a")}` : "",
+    field.step !== undefined ? `step ${text(field.step)}` : "",
+    field.unit ? `unit ${text(field.unit)}` : "",
+    field.prefix ? `prefix ${text(field.prefix)}` : "",
+    field.suffix ? `suffix ${text(field.suffix)}` : "",
+    field.decimals !== undefined ? `decimals ${text(field.decimals)}` : "",
+  ].filter(Boolean);
+  const options = (field.options || [])
+    .map((option) => text(option.label || option.value))
+    .filter((value) => value !== "n/a")
+    .slice(0, 6);
+  if (options.length) parts.push(`options ${options.join(", ")}`);
+  return parts.length ? parts.join("; ") : "No extra display metadata declared.";
+}
+
+function renderPluginFieldHelpCard(field, groupLabel) {
+  const title = text(field.label || field.name);
+  const help = text(field.help || field.description || field.placeholder || "No public-safe help text declared.");
+  const status = field.required ? "warn" : field.advanced ? "waiting" : "ok";
+  return `
+    <article class="plugin-field-help-card status-${escapeHtml(status)}">
+      <span>${escapeHtml(groupLabel)}</span>
+      <strong>${escapeHtml(title)}</strong>
+      <small class="mono">${escapeHtml(field.name ? `${groupLabel === "Input" ? "strategy" : "result"}.${field.name}` : groupLabel)}</small>
+      <p>${escapeHtml(help)}</p>
+      <small>${escapeHtml(pluginFieldMetaLine(field))}</small>
+    </article>
+  `;
+}
+
+function renderConfigPluginFieldHelp() {
+  if (!$("config-plugin-field-help") || !$("config-plugin-field-help-note")) return;
+  const plugin = selectedConfigPlugin();
+  const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
+  const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
+  $("config-plugin-field-help-note").textContent = plugin.id
+    ? `${numberText(strategyFields.length, 0)} input field${strategyFields.length === 1 ? "" : "s"} / ${numberText(resultFields.length, 0)} result field${resultFields.length === 1 ? "" : "s"} for ${text(plugin.label || plugin.id)}`
+    : "Choose a plugin to see public-safe field help.";
+  const cards = [
+    ...strategyFields.map((field) => renderPluginFieldHelpCard(field, "Input")),
+    ...resultFields.map((field) => renderPluginFieldHelpCard(field, "Result")),
+  ];
+  $("config-plugin-field-help").innerHTML = cards.length
+    ? cards.join("")
+    : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields and result_fields in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
+}
+
 function renderConfigBrokerBoundary() {
   if (!$("config-broker-boundary") || !$("config-broker-boundary-note")) return;
   const adapters = (state.configOptions && state.configOptions.broker_adapters) || [];
@@ -11447,6 +11500,7 @@ function renderConfigBuilder() {
   renderWorkbenchHome();
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
+  renderConfigPluginFieldHelp();
   renderConfigBrokerBoundary();
   renderWorkbenchBuilderAssistant();
   renderConfigBuilderReadiness();
@@ -12018,6 +12072,7 @@ function renderConfigLivePanels() {
   renderConfigDataQuality();
   updatePluginStrategyFields();
   renderConfigPluginBoundary();
+  renderConfigPluginFieldHelp();
   renderWorkbenchBuilderAssistant();
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
