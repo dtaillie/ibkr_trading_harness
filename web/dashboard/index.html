@@ -1807,6 +1807,20 @@
     </section>
 
     <section class="dashboard-section" data-view="workbench" hidden>
+      <div class="overview-lens-bar workbench-lens-bar" aria-label="Workbench focus">
+        <div>
+          <span class="eyebrow">Workbench Focus</span>
+          <strong id="workbench-lens-title">Home</strong>
+          <small id="workbench-lens-note">Simulation path, selected data, alignment state, and next action.</small>
+        </div>
+        <div class="overview-lens-actions workbench-lens-actions" role="tablist" aria-label="Workbench focus tabs">
+          <button id="workbench-lens-home" class="overview-lens-button" type="button" data-workbench-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="workbench-lens-builder" class="overview-lens-button" type="button" data-workbench-lens-target="builder" role="tab" aria-selected="false">Builder</button>
+          <button id="workbench-lens-run" class="overview-lens-button" type="button" data-workbench-lens-target="run" role="tab" aria-selected="false">Run</button>
+          <button id="workbench-lens-artifacts" class="overview-lens-button" type="button" data-workbench-lens-target="artifacts" role="tab" aria-selected="false">Artifacts</button>
+        </div>
+      </div>
+      <div data-workbench-lens="home">
       <section class="workbench-home-panel">
         <div class="workbench-home-main">
           <span class="eyebrow">Workbench Home</span>
@@ -1827,6 +1841,8 @@
       </div>
       <div id="workbench-stepper" class="workbench-stepper" aria-label="Simulation workflow steps"></div>
       <div id="workbench-guide" class="checklist"></div>
+      </div>
+      <div data-workbench-lens="builder">
       <div class="section-head">
         <h2>Config Builder</h2>
         <span id="config-validation" class="section-note">No draft generated</span>
@@ -1912,6 +1928,8 @@
         <span id="config-alignment-note" class="section-note">No draft generated</span>
       </div>
       <dl id="config-alignment" class="kv wide-kv"></dl>
+      </div>
+      <div data-workbench-lens="run">
       <div class="section-head">
         <h2>Run Draft</h2>
         <span class="button-pair">
@@ -2075,6 +2093,8 @@
           <tbody id="comparison-body"></tbody>
         </table>
       </div>
+      </div>
+      <div data-workbench-lens="artifacts">
       <div class="section-head artifact-head">
         <h2>Run Log</h2>
         <span id="run-log-title" class="section-note">No run selected</span>
@@ -2296,6 +2316,7 @@
           </thead>
           <tbody id="artifact-account-body"></tbody>
         </table>
+      </div>
       </div>
     </section>
 

@@ -914,6 +914,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-detail-overview" in html
         assert "Public Publishing Boundary" in html
         assert "workbench-home-result" in html
+        assert "workbench-lens-title" in html
+        assert "workbench-lens-note" in html
+        assert "workbench-lens-home" in html
+        assert "workbench-lens-builder" in html
+        assert "workbench-lens-run" in html
+        assert "workbench-lens-artifacts" in html
         assert "workbench-home-tiles" in html
         assert "workbench-home-select-data" in html
         assert "workbench-home-preview-alignment" in html

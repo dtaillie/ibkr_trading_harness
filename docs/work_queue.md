@@ -81,6 +81,10 @@ strategy-private.
   - partial; Fetch Jobs now has Home / Jobs / Detail lenses with deep-linkable
     hashes such as `#fetch/detail`, separating manifest-root/recovery overview,
     manifest table scanning, and selected-job recovery/output detail.
+  - partial; Workbench now has Home / Builder / Run / Artifacts lenses with
+    deep-linkable hashes such as `#workbench/builder`, keeping the guided
+    simulation path separate from config editing, run tables, and loaded
+    artifact/log inspection.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -465,6 +469,9 @@ strategy-private.
     - partial; Fetch Jobs now defaults to a Home lens for root and recovery
       guidance, with Jobs and Detail lenses for dense manifest tables and
       selected fetch recovery/output inspection.
+    - partial; Workbench now defaults to a Home lens, with Builder, Run, and
+      Artifacts lenses carrying config forms, run controls/tables, and loaded
+      artifact/log detail respectively.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
@@ -1036,6 +1043,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     `/config_draft_preview`, which runs the same server validation, alignment,
     plugin-boundary, and command generation path while returning unsaved YAML
     for review before a local draft file is written.
+  - partial; Workbench now uses Home / Builder / Run / Artifacts focus lenses
+    so choosing data, editing config, running drafts, and inspecting artifacts
+    are reachable as explicit workflow stages instead of one long page.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
