@@ -7448,6 +7448,7 @@ function renderDataDetail() {
   renderDataDetailNavigator(detail);
   renderDataDetailOverview(detail, timezoneMode);
   $("data-detail-health").innerHTML = dataDetailHealthCards(detail, timezoneMode);
+  renderDataDetailRangeStats(detail, timezoneMode);
   const pairs = [
     ["File Path", text(detail.path)],
     ["Asset", text(detail.asset_class)],
@@ -7511,6 +7512,91 @@ function renderDataDetail() {
         escapeHtml(interval(item.gap_seconds)),
       ])).join("")
     : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
+}
+
+function previewCloseReturn(points = []) {
+  const rows = (points || []).map((point) => ({
+    timestamp: point.timestamp,
+    close: finiteNumber(point.close),
+  })).filter((point) => point.close !== null);
+  if (rows.length < 2) return null;
+  const first = rows[0].close;
+  const last = rows[rows.length - 1].close;
+  if (!first) return null;
+  return ((last / first) - 1) * 100;
+}
+
+function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
+  const container = $("data-detail-range-stats");
+  if (!container) return;
+  if (!detail || !detail.path) {
+    container.innerHTML = `
+      <div class="data-range-stat">
+        <span>Range Stats</span>
+        <strong>No File</strong>
+        <small>Open a saved dataset to see return, close range, volume, gap, and sampling stats.</small>
+      </div>
+    `;
+    return;
+  }
+  const price = detail.price_stats || {};
+  const returns = detail.return_stats || {};
+  const volume = detail.volume_stats || {};
+  const coverage = detail.coverage || {};
+  const viewer = detail.viewer || {};
+  const previewReturn = previewCloseReturn(detail.preview || []);
+  const totalReturn = finiteNumber(price.total_return_pct) ?? previewReturn;
+  const missingIntervals = finiteNumber(coverage.estimated_missing_intervals) || 0;
+  const largestGap = finiteNumber(coverage.largest_gap_seconds);
+  const filteredRows = finiteNumber(viewer.filtered_rows) || 0;
+  const plottedRows = finiteNumber(viewer.sampled_points) || 0;
+  const omittedRows = finiteNumber(viewer.points_omitted) || 0;
+  const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
+  const cards = [
+    {
+      label: "Return",
+      title: pctText(totalReturn),
+      note: `Selected/viewed range ${timeRangeLabel(viewer.first_timestamp, viewer.last_timestamp, timezoneMode)}.`,
+      status: totalReturn === null ? "unknown" : totalReturn >= 0 ? "ok" : "bad",
+    },
+    {
+      label: "Close Range",
+      title: `${numberText(price.min_close)} -> ${numberText(price.max_close)}`,
+      note: `Open ${numberText(price.first_close)} / close ${numberText(price.last_close)}.`,
+      status: finiteNumber(price.min_close) === null || finiteNumber(price.max_close) === null ? "unknown" : "ok",
+    },
+    {
+      label: "Bar Movement",
+      title: pctText(returns.mean_abs_pct),
+      note: `Std ${pctText(returns.std_pct)} across available bar returns.`,
+      status: finiteNumber(returns.mean_abs_pct) === null ? "unknown" : "ok",
+    },
+    {
+      label: "Volume",
+      title: numberText(volume.median, 0),
+      note: `Median volume; max ${numberText(volume.max, 0)}.`,
+      status: finiteNumber(volume.median) === null ? "unknown" : "ok",
+    },
+    {
+      label: "Gaps",
+      title: missingIntervals ? `${numberText(missingIntervals, 0)} missing` : "No Missing",
+      note: `Largest gap ${interval(largestGap)}.`,
+      status: missingIntervals ? "warn" : "ok",
+    },
+    {
+      label: "Viewer",
+      title: viewer.sampled ? "Sampled" : viewerStatus === "empty_range" ? "Empty" : "Full",
+      note: `${numberText(plottedRows, 0)} plotted / ${numberText(filteredRows, 0)} rows${omittedRows ? ` / ${numberText(omittedRows, 0)} omitted` : ""}.`,
+      status: viewerStatus === "empty_range" || viewerStatus === "unavailable" ? "bad" : viewer.sampled ? "warn" : "ok",
+    },
+  ];
+  container.innerHTML = cards.map((card) => `
+    <div class="data-range-stat status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${statusClass(card.status)}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function dataDetailNavigationModel(detail = {}) {

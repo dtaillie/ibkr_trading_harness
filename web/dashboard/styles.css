@@ -2055,6 +2055,41 @@ section {
   margin: 0 0 12px;
 }
 
+.data-detail-range-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.data-range-stat {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.data-range-stat span,
+.data-range-stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-range-stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.data-range-stat small {
+  margin-top: 6px;
+}
+
 .data-compare-readiness {
   margin: 12px 0;
 }

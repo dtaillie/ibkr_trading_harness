@@ -851,6 +851,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       current filtered saved-data set, with full-catalog fallback when the
       opened file is outside active filters, so users can browse saved history
       without returning to dense catalog rows.
+    - partial; Data Detail now has a Range Stats strip above the chart for
+      selected-range return, close range, bar movement, median/max volume, gap
+      pressure, and viewer sampling/full-state, so saved history is readable
+      before opening raw metadata tables.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

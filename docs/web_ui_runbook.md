@@ -55,6 +55,9 @@ The Data Library Home page also has workflow cards for Find A Symbol, Inspect
 History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
 Use those cards when you know the job you want but do not yet know which table
 or diagnostic panel holds the answer.
+When inspecting a single saved file, Data Detail now shows range stats above
+the chart for return, close range, movement, volume, gaps, and sampling state
+before the lower metadata and gap tables.
 
 ## Find Current Strategy Performance
 
