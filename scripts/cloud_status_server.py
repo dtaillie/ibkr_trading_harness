@@ -675,6 +675,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/config_draft_run_evidence",
+        "category": "runs",
+        "description": "Return bounded run log, artifact-file, and execution evidence for one saved-draft run.",
+        "response": "JSON run evidence",
+    },
+    {
+        "method": "GET",
         "path": "/config_draft_artifacts",
         "category": "runs",
         "description": "Return sanitized latest artifacts for a saved draft output directory.",
@@ -5929,6 +5936,12 @@ def tail_text(value: str | bytes | None, *, max_bytes: int = OUTPUT_TAIL_BYTES) 
     return encoded[-max_bytes:].decode("utf-8", errors="replace")
 
 
+def text_value(value: Any) -> str:
+    if value is None or value == "":
+        return "n/a"
+    return str(value)
+
+
 def run_summary_for_config(config: dict[str, Any]) -> dict[str, Any] | None:
     runner = config.get("runner") or {}
     output_dir = runner.get("output_dir")
@@ -6420,6 +6433,142 @@ def load_config_draft_run_detail(state_dir: Path, run_id: str) -> dict[str, Any]
         "artifact_path": row.get("artifact_path"),
         "summary_available": bool(summary),
         "summary": summary,
+    }
+
+
+def line_count(path: Path, *, limit: int = 100_000) -> tuple[int, bool]:
+    if not path.exists() or not path.is_file():
+        return 0, False
+    count = 0
+    with path.open(errors="replace") as f:
+        for _line in f:
+            count += 1
+            if count >= limit:
+                return count, True
+    return count, False
+
+
+def summarize_run_log_text(name: str, value: Any) -> dict[str, Any]:
+    body = text_value(value)
+    encoded = body.encode("utf-8", errors="replace")
+    return {
+        "name": name,
+        "available": bool(body.strip()),
+        "bytes": len(encoded),
+        "line_count": len(body.splitlines()),
+        "tail_bytes": min(len(encoded), OUTPUT_TAIL_BYTES),
+        "tail_limit_bytes": OUTPUT_TAIL_BYTES,
+        "tail_at_limit": len(encoded) >= OUTPUT_TAIL_BYTES,
+        "tail": body,
+    }
+
+
+def artifact_file_record(path: Path, name: str) -> dict[str, Any]:
+    item = path / name
+    exists = item.exists() and item.is_file()
+    row: dict[str, Any] = {
+        "name": name,
+        "exists": exists,
+        "bytes": 0,
+        "modified_at": None,
+        "line_count": None,
+        "line_count_capped": False,
+    }
+    if not exists:
+        return row
+    try:
+        stat = item.stat()
+    except OSError:
+        return row
+    row["bytes"] = stat.st_size
+    row["modified_at"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    if item.suffix == ".jsonl":
+        count, capped = line_count(item)
+        row["line_count"] = count
+        row["line_count_capped"] = capped
+    return row
+
+
+def build_config_draft_run_evidence(state_dir: Path, run_id: str) -> dict[str, Any]:
+    record = find_config_draft_run(state_dir, run_id)
+    detail = load_config_draft_run_detail(state_dir, run_id)
+    summary = detail.get("summary") if isinstance(detail.get("summary"), dict) else {}
+    artifact_path = None
+    artifact_error = None
+    artifact_files: list[dict[str, Any]] = []
+    try:
+        artifact_path = archived_artifact_path_for_record(state_dir, record)
+    except Exception as exc:
+        artifact_error = str(exc)
+    artifact_exists = bool(artifact_path and artifact_path.exists() and artifact_path.is_dir())
+    if artifact_exists and artifact_path:
+        artifact_files = [artifact_file_record(artifact_path, name) for name in RUN_ARTIFACT_FILES]
+
+    existing_files = [item for item in artifact_files if item.get("exists")]
+    missing_files = [item for item in artifact_files if not item.get("exists")]
+    jsonl_rows = sum(
+        int(item.get("line_count") or 0)
+        for item in existing_files
+        if str(item.get("name") or "").endswith(".jsonl")
+    )
+    logs = {
+        "stdout": summarize_run_log_text("stdout", detail.get("stdout_tail")),
+        "stderr": summarize_run_log_text("stderr", detail.get("stderr_tail")),
+    }
+    evidence_cards = [
+        {
+            "id": "execution",
+            "status": "ok" if detail.get("status") == "completed" else "warn" if detail.get("status") else "bad",
+            "label": "Execution",
+            "title": text_value(detail.get("status")),
+            "note": f"Return code {text_value(detail.get('returncode'))}; duration {text_value(detail.get('duration_seconds'))}s.",
+        },
+        {
+            "id": "summary",
+            "status": "ok" if summary else "warn",
+            "label": "Summary",
+            "title": "Available" if summary else "Missing",
+            "note": (
+                f"{text_value(summary.get('decisions'))} decisions / "
+                f"{text_value(summary.get('fills'))} fills / "
+                f"{text_value(summary.get('rejections'))} rejects."
+            ) if summary else "Validate-only or failed runs may not produce summary.json.",
+        },
+        {
+            "id": "artifacts",
+            "status": "ok" if existing_files else "warn" if artifact_exists else "bad",
+            "label": "Artifacts",
+            "title": f"{len(existing_files)}/{len(RUN_ARTIFACT_FILES)} files",
+            "note": f"{jsonl_rows} JSONL rows; {len(missing_files)} expected files missing.",
+        },
+        {
+            "id": "logs",
+            "status": "warn" if logs["stderr"]["available"] else "ok" if logs["stdout"]["available"] else "bad",
+            "label": "Logs",
+            "title": "stderr" if logs["stderr"]["available"] else "stdout" if logs["stdout"]["available"] else "Empty",
+            "note": (
+                f"stdout {logs['stdout']['line_count']} lines; "
+                f"stderr {logs['stderr']['line_count']} lines."
+            ),
+        },
+    ]
+    return {
+        **detail,
+        "schema_version": 1,
+        "generated_at": utc_now(),
+        "logs": logs,
+        "artifacts": {
+            "available": artifact_exists,
+            "path": display_path(artifact_path) if artifact_path and artifact_exists else None,
+            "error": artifact_error,
+            "files": artifact_files,
+            "expected_count": len(RUN_ARTIFACT_FILES),
+            "existing_count": len(existing_files),
+            "missing_count": len(missing_files) if artifact_files else len(RUN_ARTIFACT_FILES),
+            "bytes": sum(int(item.get("bytes") or 0) for item in existing_files),
+            "jsonl_row_count": jsonl_rows,
+        },
+        "evidence_cards": evidence_cards,
     }
 
 
@@ -9479,6 +9628,20 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             try:
                 payload = load_config_draft_run_detail(self.state_dir, run_id)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/config_draft_run_evidence":
+            if not self.require_auth():
+                return
+            run_id = str(params.get("run_id", [""])[0]).strip()
+            if not run_id:
+                json_response(self, 400, {"error": "run_id is required"})
+                return
+            try:
+                payload = build_config_draft_run_evidence(self.state_dir, run_id)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

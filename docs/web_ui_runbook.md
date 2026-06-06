@@ -258,6 +258,11 @@ matrix rows offline.
    performance rollups. If a run fails or only validates, stay in Workbench Run
    and open the log before trusting outputs.
 
+The Log button opens Workbench Artifacts and loads bounded run evidence from
+`/config_draft_run_evidence`: execution status, summary availability, stdout
+and stderr tail stats, and the expected artifact-file manifest. Use that panel
+first when a run failed, timed out, or completed without visible artifacts.
+
 Run Artifacts reads public-safe `diagnostics.dashboard` values from plugin
 decisions. Add `result_fields` to a public or ignored local plugin registry
 entry when those values need clearer labels or formatting in the artifact view.

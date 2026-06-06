@@ -1068,6 +1068,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/fetch_manifest_detail_export") in endpoints
         assert ("GET", "/config_drafts_export") in endpoints
         assert ("GET", "/config_draft_validations") in endpoints
+        assert ("GET", "/config_draft_run_evidence") in endpoints
         assert ("GET", "/config_draft_run_artifacts_export") in endpoints
         assert ("GET", "/config_draft_daily_rollups") in endpoints
         assert ("GET", "/docs/{name}") in endpoints
@@ -3368,6 +3369,25 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert replay_detail["summary_available"] is True
         assert replay_detail["summary"]["decisions"] == 2
         assert "--mode replay" in " ".join(replay_detail["command"])
+
+        with request.urlopen(f"{base}/config_draft_run_evidence?run_id={replay['run_id']}", timeout=5) as resp:
+            evidence = json.loads(resp.read().decode("utf-8"))
+        assert evidence["schema_version"] == 1
+        assert evidence["run_id"] == replay["run_id"]
+        assert evidence["artifacts"]["available"] is True
+        assert evidence["artifacts"]["existing_count"] >= 5
+        assert evidence["artifacts"]["jsonl_row_count"] >= 4
+        assert {item["name"] for item in evidence["artifacts"]["files"]} >= {
+            "summary.json",
+            "runner_status.json",
+            "performance_rollups.json",
+            "plugin_contract.json",
+            "decisions.jsonl",
+        }
+        assert evidence["logs"]["stdout"]["line_count"] >= 0
+        assert evidence["logs"]["stderr"]["line_count"] >= 0
+        assert evidence["evidence_cards"][0]["id"] == "execution"
+        assert "diagnostics" not in json.dumps(evidence["artifacts"])
 
         with request.urlopen(
             f"{base}/config_draft_run_artifacts?run_id={replay['run_id']}&limit=5",

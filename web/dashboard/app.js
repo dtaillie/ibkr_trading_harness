@@ -41,6 +41,7 @@ const state = {
   performanceRollups: { rollups: [], errors: [] },
   statusEquityRollups: { rollups: [], period_rollups: {} },
   runDetail: null,
+  runEvidence: null,
   configArtifacts: null,
   performanceSourceMode: "current",
   performanceBenchmarkPath: "",
@@ -10756,6 +10757,9 @@ function renderRunComparison() {
 
 function renderRunDetail() {
   const detail = state.runDetail || {};
+  const evidence = state.runEvidence || detail || {};
+  const artifacts = evidence.artifacts || {};
+  const logs = evidence.logs || {};
   $("run-log-title").textContent = detail.run_id
     ? `${text(detail.draft_id)} / ${text(detail.run_id)}`
     : "No run selected";
@@ -10775,8 +10779,46 @@ function renderRunDetail() {
   $("run-log-summary").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
-  $("run-log-stdout").value = detail.stdout_tail || "";
-  $("run-log-stderr").value = detail.stderr_tail || "";
+  if ($("run-evidence-cards")) {
+    const cards = evidence.evidence_cards || [
+      {
+        status: detail.run_id ? statusClass(detail.status).replace("status-", "") || "warn" : "bad",
+        label: "Execution",
+        title: detail.run_id ? text(detail.status) : "No Run",
+        note: detail.run_id ? `Return code ${text(detail.returncode)}.` : "Select a run from Workbench or Runs.",
+      },
+    ];
+    $("run-evidence-cards").innerHTML = cards.map((card) => `
+      <div class="action-card status-${escapeHtml(card.status || "bad")}">
+        <span>${escapeHtml(card.label || "Evidence")}</span>
+        <strong>${escapeHtml(card.title || "n/a")}</strong>
+        <small>${escapeHtml(card.note || "")}</small>
+      </div>
+    `).join("");
+  }
+  if ($("run-evidence-note")) {
+    const pathNote = artifacts.path ? ` Archive ${text(artifacts.path)}.` : "";
+    const errorNote = artifacts.error ? ` ${text(artifacts.error)}.` : "";
+    $("run-evidence-note").textContent = detail.run_id
+      ? `${numberText(artifacts.existing_count || 0, 0)} artifact files / ${bytes(artifacts.bytes || 0)} / ${numberText(artifacts.jsonl_row_count || 0, 0)} JSONL rows.${pathNote}${errorNote}`
+      : "Open a run log to inspect bounded artifacts and log tails.";
+  }
+  if ($("run-evidence-files-body")) {
+    const files = artifacts.files || [];
+    $("run-evidence-files-body").innerHTML = files.length
+      ? files.map((item) => row([
+          `<span class="mono">${escapeHtml(item.name)}</span>`,
+          statusText(item.exists ? "ok" : "bad"),
+          bytes(item.bytes || 0),
+          item.line_count === null || item.line_count === undefined
+            ? "n/a"
+            : `${numberText(item.line_count, 0)}${item.line_count_capped ? "+" : ""}`,
+          escapeHtml(text(item.modified_at)),
+        ])).join("")
+      : row([`<span class="muted">No archived artifact manifest for this run.</span>`, "", "", "", ""]);
+  }
+  $("run-log-stdout").value = (logs.stdout && logs.stdout.tail) || detail.stdout_tail || "";
+  $("run-log-stderr").value = (logs.stderr && logs.stderr.tail) || detail.stderr_tail || "";
 }
 
 function nonzeroObjectCount(value) {
@@ -13632,10 +13674,15 @@ async function loadCompletedRunOutput(run, draftId, options = {}) {
   return true;
 }
 
-async function loadRunDetail(runId) {
-  const response = await fetchJson(`/config_draft_run_detail?run_id=${encodeURIComponent(runId)}`);
+async function loadRunDetail(runId, options = {}) {
+  const response = await fetchJson(`/config_draft_run_evidence?run_id=${encodeURIComponent(runId)}`);
   state.runDetail = response;
+  state.runEvidence = response;
   renderRunDetail();
+  if (options.navigate !== false) {
+    navigateToView("workbench");
+    applyWorkbenchLens("artifacts");
+  }
   $("last-refresh").textContent = `Run log loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -13698,7 +13745,6 @@ async function openWorkbenchResultLog() {
     return;
   }
   await loadRunDetail(model.latestRun.run_id);
-  navigateToRunsLens("events");
 }
 
 async function refreshCleanupPlan() {

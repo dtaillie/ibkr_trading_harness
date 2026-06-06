@@ -380,6 +380,10 @@ strategy-private.
   - drilldown for a run with artifacts, logs, and performance charts
     - partial; artifacts, logs, and performance charts are inspectable for
       archived public workbench runs
+    - partial; Workbench/Runs Log actions now load
+      `/config_draft_run_evidence`, a bounded run evidence view with execution
+      status cards, stdout/stderr tail stats, artifact-file manifest, JSONL row
+      counts, and direct routing to the Workbench Artifacts lens.
   - clean distinction between live account state, paper account state, and
     simulated account state
     - partial; Runs now starts with triage cards for published runs, current
@@ -1392,6 +1396,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     now provide bounded sanitized latest runs, alerts, and status history for
     a posted node. It intentionally avoids raw local logs or strategy
     diagnostics; richer cloud-side archived artifact/log browsing remains open.
+  - partial; local/public Workbench runs now expose bounded run evidence through
+    `/config_draft_run_evidence` and the Run Log panel. Hosted/cloud run pages
+    still need retention and privacy policy before mirroring full archived
+    artifact/log browsing off the trading machine.
   - partial; Remote Node Detail now adds snapshot, latest-activity, and alert
     summary cards plus a combined sanitized recent decisions/orders/fills table
     with type filtering. Raw logs and full artifact browsing remain out of the

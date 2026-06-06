@@ -2161,6 +2161,25 @@
         <span id="run-log-title" class="section-note">No run selected</span>
       </div>
       <dl id="run-log-summary" class="kv wide-kv"></dl>
+      <div id="run-evidence-cards" class="action-card-grid"></div>
+      <div class="section-head artifact-head">
+        <h2>Run Evidence</h2>
+        <span id="run-evidence-note" class="section-note">Open a run log to inspect bounded artifacts and log tails.</span>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Artifact</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th>Rows</th>
+              <th>Modified</th>
+            </tr>
+          </thead>
+          <tbody id="run-evidence-files-body"></tbody>
+        </table>
+      </div>
       <div class="builder-output">
         <div>
           <div class="section-head">

@@ -532,7 +532,11 @@ Successful non-validate runs
 also archive a local per-run artifact snapshot, so a comparison row can inspect
 that exact run even after a later run overwrites the draft's output directory.
 Use Log on a run row to inspect command argv, return code, duration, and
-stdout/stderr tails for the exact run.
+stdout/stderr tails for the exact run. The same view calls
+`/config_draft_run_evidence` to show execution evidence cards, bounded log
+stats, and the expected artifact-file manifest (`summary.json`,
+`runner_status.json`, `plugin_contract.json`, JSONL decision/order/fill/account
+files, and related rollups).
 The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
