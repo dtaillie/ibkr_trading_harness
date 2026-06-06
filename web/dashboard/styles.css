@@ -2855,6 +2855,18 @@ section {
   margin: 0 0 12px;
 }
 
+.fetch-resume-panel {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.fetch-resume-panel .command-line {
+  margin-top: 10px;
+}
+
 .detail-chart-wrap {
   min-height: 230px;
   padding: 14px;

@@ -158,6 +158,9 @@ visibility labels for produced files.
 Fetch Detail also shows Resume Scope, a public-safe estimate of completed
 symbols or output paths that will be skipped and failed, no-data, or pending
 work that should be retried or reviewed before running the copied command.
+The Resume From Manifest panel turns that scope into skip/retry/review/pending
+cards and shows an inline copyable command for resumable stock and crypto
+history manifests.
 
 Use Fetch Recovery Plan before retrying. It translates the selected manifest's
 recovery status into concrete next steps: fix market-data permissions, fix

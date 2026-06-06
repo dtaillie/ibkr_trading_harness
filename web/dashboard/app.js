@@ -10690,6 +10690,7 @@ function renderFetchManifestDetail() {
   const parameters = detail.parameters || {};
   $("fetch-recovery-cards").innerHTML = fetchRecoveryCards(detail, resumeCommand);
   $("fetch-recovery-plan").innerHTML = fetchRecoveryPlan(detail, resumeCommand, visibleOutputPaths);
+  renderFetchResumePanel(detail, resumeCommand);
   const pairs = [
     ["Job", text(detail.job_id)],
     ["Kind", text(detail.kind)],
@@ -10915,6 +10916,64 @@ function fetchOutputVisibilityLabel(item) {
   if (item.data_detail_status === "no_path") return "no path";
   if (item.data_detail_status === "unsupported_file") return "unsupported file";
   return text(item.data_detail_reason || item.data_detail_status || "not inspectable");
+}
+
+function renderFetchResumePanel(detail, resumeCommand = "") {
+  if (!$("fetch-resume-note") || !$("fetch-resume-cards") || !$("fetch-resume-command")) return;
+  const resumePlan = (detail && detail.resume_plan) || {};
+  const hasJob = Boolean(detail && detail.job_id);
+  const supported = Boolean(resumeCommand);
+  const retryCount = Number(resumePlan.retry_failed_count || (detail && detail.resume_retry_count) || 0);
+  const skipCount = Number(resumePlan.skip_completed_count || (detail && detail.resume_skip_count) || 0);
+  const reviewCount = Number(resumePlan.review_no_data_count || (detail && detail.resume_review_count) || 0);
+  const pendingCount = Number(resumePlan.pending_estimate || (detail && detail.resume_pending_estimate) || 0);
+  $("fetch-resume-note").textContent = hasJob
+    ? supported
+      ? text(resumePlan.resume_summary || "Resume command is available for this manifest.")
+      : "This selected manifest is not resumable through the built-in fetch resume command."
+    : "Select a resumable fetch job to see retry scope.";
+  const cards = [
+    {
+      status: supported ? "ok" : hasJob ? "warn" : "waiting",
+      label: "Command",
+      title: supported ? "Available" : "Unavailable",
+      note: supported ? "Copy and run locally after fixing any listed blockers." : "Stock and crypto history manifests expose built-in resume commands.",
+    },
+    {
+      status: skipCount ? "ok" : supported ? "warn" : "waiting",
+      label: "Skip",
+      title: numberText(skipCount, 0),
+      note: "Completed/empty work the fetcher can skip when resuming.",
+    },
+    {
+      status: retryCount ? "warn" : supported ? "ok" : "waiting",
+      label: "Retry",
+      title: numberText(retryCount, 0),
+      note: "Failed or incomplete work estimated for retry.",
+    },
+    {
+      status: reviewCount ? "warn" : supported ? "ok" : "waiting",
+      label: "Review",
+      title: numberText(reviewCount, 0),
+      note: "No-data rows to inspect before deciding whether to force a refetch.",
+    },
+    {
+      status: pendingCount ? "warn" : supported ? "ok" : "waiting",
+      label: "Pending",
+      title: numberText(pendingCount, 0),
+      note: "Estimated unfinished work from the manifest plan.",
+    },
+  ];
+  $("fetch-resume-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("fetch-resume-command").innerHTML = supported
+    ? `<span class="mono">${escapeHtml(resumeCommand)}</span><button type="button" class="secondary copy-fetch-resume-inline" data-command="${escapeHtml(resumeCommand)}">Copy</button>`
+    : `<span class="muted">${hasJob ? "No built-in resume command for this manifest kind." : "Inspect a stock or crypto history manifest first."}</span>`;
 }
 
 function fetchRecoveryCards(detail, resumeCommand = "") {
@@ -18036,6 +18095,15 @@ function init() {
       return;
     }
     copyText(command).then(() => {
+      $("last-refresh").textContent = `Fetch resume command copied: ${new Date().toLocaleString()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy failed: ${err.message}`;
+    });
+  });
+  $("fetch-resume-command").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".copy-fetch-resume-inline") : null;
+    if (!(target instanceof HTMLElement)) return;
+    copyText(target.dataset.command || "").then(() => {
       $("last-refresh").textContent = `Fetch resume command copied: ${new Date().toLocaleString()}`;
     }).catch((err) => {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;

@@ -1038,6 +1038,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       public-safe resume plan that estimates completed work to skip and
       failed/no-data/pending work to retry or review, and Fetch Detail renders
       that scope before users copy the resume command.
+    - partial; Fetch Detail now has a dedicated Resume From Manifest panel with
+      skip/retry/review/pending scope cards and an inline copyable resume
+      command, so manifest recovery no longer depends on finding the command in
+      dense summary rows.
   - fetch manifests should connect directly to Data Library rows so a user can
     go from a completed fetch job to the symbols and files it produced
     - partial; output paths under configured data roots now link directly to
