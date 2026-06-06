@@ -15853,11 +15853,21 @@ function remoteRunArtifactEvidenceRows(runs) {
 }
 
 function remoteArtifactMissingNames(evidence) {
-  const missing = (evidence.files || [])
-    .filter((item) => !item.exists)
-    .map((item) => item.name)
-    .filter(Boolean);
+  const missing = Array.isArray(evidence.missing_files)
+    ? evidence.missing_files.filter(Boolean)
+    : (evidence.files || [])
+      .filter((item) => !item.exists)
+      .map((item) => item.name)
+      .filter(Boolean);
   return missing.length ? missing.slice(0, 4).join(", ") : "none";
+}
+
+function remoteArtifactCategorySummary(evidence) {
+  const categories = evidence.category_counts || {};
+  const top = topCountEntries(categories, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
+  const metadata = Number(evidence.metadata_file_count || 0);
+  const streams = Number(evidence.event_stream_count || 0);
+  return top || `${numberText(metadata, 0)} metadata / ${numberText(streams, 0)} streams`;
 }
 
 function renderRemoteNodes() {
@@ -16135,7 +16145,7 @@ function renderRemoteNodeDetail() {
     : row([`<span class="muted">No latest run summaries in this node snapshot.</span>`, "", "", "", "", ""]);
   if ($("remote-node-artifacts-note")) {
     $("remote-node-artifacts-note").textContent = artifactRows.length
-      ? `${numberText(artifactRows.length, 0)} bounded run artifact evidence summar${artifactRows.length === 1 ? "y" : "ies"}; file names, row counts, and sizes only.`
+      ? `${numberText(artifactRows.length, 0)} bounded run artifact evidence summar${artifactRows.length === 1 ? "y" : "ies"}; categories, file names, row counts, and sizes only.`
       : "No artifact evidence was published for the selected node.";
   }
   if ($("remote-node-artifacts-body")) {
@@ -16144,11 +16154,12 @@ function renderRemoteNodeDetail() {
           escapeHtml(runItem.id),
           escapeHtml(`${numberText(evidence.existing_count, 0)} / ${numberText(evidence.expected_count, 0)}`),
           escapeHtml(numberText(evidence.jsonl_row_count, 0)),
+          escapeHtml(remoteArtifactCategorySummary(evidence)),
           escapeHtml(bytes(evidence.total_bytes)),
           escapeHtml(timestampAgeLabel(evidence.latest_modified_at)),
           escapeHtml(remoteArtifactMissingNames(evidence)),
         ])).join("")
-      : row([`<span class="muted">${runs.length ? "Latest runs do not include artifact evidence yet. Update scripts/publish_status.py on the publishing node." : "No latest run summaries in this node snapshot."}</span>`, "", "", "", "", ""]);
+      : row([`<span class="muted">${runs.length ? "Latest runs do not include artifact evidence yet. Update scripts/publish_status.py on the publishing node." : "No latest run summaries in this node snapshot."}</span>`, "", "", "", "", "", ""]);
   }
   $("remote-node-alerts-body").innerHTML = alerts.length
     ? alerts.map((alert) => row([

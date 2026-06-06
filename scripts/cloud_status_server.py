@@ -1224,6 +1224,10 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
                     "missing_count": artifact_evidence.get("missing_count"),
                     "total_bytes": artifact_evidence.get("total_bytes"),
                     "jsonl_row_count": artifact_evidence.get("jsonl_row_count"),
+                    "metadata_file_count": artifact_evidence.get("metadata_file_count"),
+                    "event_stream_count": artifact_evidence.get("event_stream_count"),
+                    "category_counts": artifact_evidence.get("category_counts"),
+                    "missing_files": artifact_evidence.get("missing_files"),
                 }),
             })
             for item in artifact_evidence.get("files") or []:
@@ -1237,6 +1241,7 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
                     "generated_at": item.get("modified_at"),
                     "detail": compact_csv_value({
                         "name": item.get("name"),
+                        "category": item.get("category"),
                         "bytes": item.get("bytes"),
                         "row_count": item.get("row_count"),
                     }),
@@ -1285,21 +1290,49 @@ def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[s
     if not isinstance(evidence, dict):
         return None
     files = []
+    category_counts: dict[str, int] = {}
+    missing_files = []
+    metadata_file_count = 0
+    event_stream_count = 0
     for item in evidence.get("files") or []:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()
         if not name or "/" in name or "\\" in name:
             continue
+        category = str(item.get("category") or "").strip()[:80]
+        exists = bool(item.get("exists"))
+        if exists:
+            if category:
+                category_counts[category] = category_counts.get(category, 0) + 1
+            if name.endswith(".jsonl"):
+                event_stream_count += 1
+            else:
+                metadata_file_count += 1
+        else:
+            missing_files.append(name[:80])
         files.append({
             "name": name[:80],
-            "exists": bool(item.get("exists")),
+            "category": category,
+            "exists": exists,
             "bytes": int(item.get("bytes") or 0),
             "row_count": int(item.get("row_count") or 0) if item.get("row_count") is not None else None,
             "modified_at": item.get("modified_at"),
         })
         if len(files) >= 25:
             break
+    raw_category_counts = evidence.get("category_counts") if isinstance(evidence.get("category_counts"), dict) else category_counts
+    category_counts = {
+        str(key)[:80]: int(value or 0)
+        for key, value in raw_category_counts.items()
+        if str(key).strip()
+    }
+    raw_missing_files = evidence.get("missing_files") if isinstance(evidence.get("missing_files"), list) else missing_files
+    missing_files = [
+        str(name)[:80]
+        for name in raw_missing_files
+        if str(name).strip() and "/" not in str(name) and "\\" not in str(name)
+    ][:25]
     return {
         "schema_version": evidence.get("schema_version"),
         "available": bool(evidence.get("available")),
@@ -1308,6 +1341,10 @@ def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[s
         "missing_count": int(evidence.get("missing_count") or 0),
         "total_bytes": int(evidence.get("total_bytes") or 0),
         "jsonl_row_count": int(evidence.get("jsonl_row_count") or 0),
+        "metadata_file_count": int(evidence.get("metadata_file_count") or metadata_file_count),
+        "event_stream_count": int(evidence.get("event_stream_count") or event_stream_count),
+        "missing_files": missing_files,
+        "category_counts": category_counts,
         "latest_modified_at": evidence.get("latest_modified_at"),
         "files": files,
     }

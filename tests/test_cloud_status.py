@@ -380,13 +380,20 @@ def test_collect_status_from_run_dir(tmp_path):
     assert payload["status"] == "ok"
     assert payload["runs"][0]["metrics"]["decisions"] == 1
     assert payload["runs"][0]["artifact_evidence"]["available"] is True
+    assert payload["runs"][0]["artifact_evidence"]["schema_version"] == 2
     assert payload["runs"][0]["artifact_evidence"]["existing_count"] == 2
     assert payload["runs"][0]["artifact_evidence"]["jsonl_row_count"] == 1
+    assert payload["runs"][0]["artifact_evidence"]["metadata_file_count"] == 1
+    assert payload["runs"][0]["artifact_evidence"]["event_stream_count"] == 1
+    assert payload["runs"][0]["artifact_evidence"]["category_counts"] == {"event_stream": 1, "summary": 1}
+    assert "runner_status.json" in payload["runs"][0]["artifact_evidence"]["missing_files"]
     assert {item["name"] for item in payload["runs"][0]["artifact_evidence"]["files"]} >= {
         "summary.json",
         "decisions.jsonl",
         "account.jsonl",
     }
+    summary_file = next(item for item in payload["runs"][0]["artifact_evidence"]["files"] if item["name"] == "summary.json")
+    assert summary_file["category"] == "summary"
     assert payload["supervisors"][0]["job_status_counts"] == {"ok": 1}
     assert payload["gateway"]["reachable"] is None
 
@@ -1084,6 +1091,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-detail-artifact-count" in html
         assert "remote-node-artifacts-note" in html
         assert "remote-node-artifacts-body" in html
+        assert "<th>Categories</th>" in html
         assert "remote-node-history-body" in html
         assert "Local Integrity" in html
         assert "command-audit-note" in html
@@ -1393,10 +1401,14 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                             "missing_count": 5,
                             "total_bytes": 1234,
                             "jsonl_row_count": 9,
+                            "metadata_file_count": 1,
+                            "event_stream_count": 1,
+                            "category_counts": {"summary": 1, "event_stream": 1},
+                            "missing_files": ["runner_status.json", "../unsafe.json"],
                             "latest_modified_at": "2026-01-02T14:31:03+00:00",
                             "files": [
-                                {"name": "summary.json", "exists": True, "bytes": 200, "modified_at": "2026-01-02T14:31:00+00:00"},
-                                {"name": "decisions.jsonl", "exists": True, "bytes": 300, "row_count": 2, "modified_at": "2026-01-02T14:31:01+00:00"},
+                                {"name": "summary.json", "category": "summary", "exists": True, "bytes": 200, "modified_at": "2026-01-02T14:31:00+00:00"},
+                                {"name": "decisions.jsonl", "category": "event_stream", "exists": True, "bytes": 300, "row_count": 2, "modified_at": "2026-01-02T14:31:01+00:00"},
                                 {"name": "../hidden.json", "exists": True, "bytes": 999, "row_count": 1},
                             ],
                         },
@@ -1486,7 +1498,12 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert detail["runs"][0]["recent_orders"][0]["status"] == "Submitted"
         assert detail["runs"][0]["artifact_evidence"]["existing_count"] == 4
         assert detail["runs"][0]["artifact_evidence"]["jsonl_row_count"] == 9
+        assert detail["runs"][0]["artifact_evidence"]["metadata_file_count"] == 1
+        assert detail["runs"][0]["artifact_evidence"]["event_stream_count"] == 1
+        assert detail["runs"][0]["artifact_evidence"]["category_counts"] == {"summary": 1, "event_stream": 1}
+        assert detail["runs"][0]["artifact_evidence"]["missing_files"] == ["runner_status.json"]
         assert [item["name"] for item in detail["runs"][0]["artifact_evidence"]["files"]] == ["summary.json", "decisions.jsonl"]
+        assert detail["runs"][0]["artifact_evidence"]["files"][0]["category"] == "summary"
         assert detail["supervisors"][0]["id"] == "sup-a"
         assert [row["status"] for row in detail["history"]] == ["ok", "warn"]
 
@@ -1498,7 +1515,8 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         row_types = {row["row_type"] for row in detail_rows}
         assert {"summary", "history", "run", "activity", "artifact_evidence", "artifact_file", "supervisor"}.issubset(row_types)
         assert any(row["row_type"] == "activity" and row["run_id"] == "run-a" and row["status"] == "Submitted" for row in detail_rows)
-        assert any(row["row_type"] == "artifact_evidence" and row["run_id"] == "run-a" and row["status"] == "available" for row in detail_rows)
+        assert any(row["row_type"] == "artifact_evidence" and row["run_id"] == "run-a" and row["status"] == "available" and "event_stream_count" in row["detail"] for row in detail_rows)
+        assert any(row["row_type"] == "artifact_file" and row["run_id"] == "run-a" and "category" in row["detail"] for row in detail_rows)
         assert any(row["row_type"] == "summary" and row["node_id"] == "test-node" and row["mode"] == "paper" for row in detail_rows)
     finally:
         server.shutdown()

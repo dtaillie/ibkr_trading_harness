@@ -50,6 +50,24 @@ RUN_ARTIFACT_JSONL_FILES = {
 }
 
 
+def artifact_file_category(name: str) -> str:
+    if name == "summary.json":
+        return "summary"
+    if name == "runner_status.json":
+        return "runner_status"
+    if name == "performance_rollups.json":
+        return "performance"
+    if name == "plugin_contract.json":
+        return "plugin_contract"
+    if name == "account.jsonl":
+        return "account_stream"
+    if name == "order_previews.jsonl":
+        return "order_preview_stream"
+    if name in {"decisions.jsonl", "orders.jsonl", "fills.jsonl"}:
+        return "event_stream"
+    return "other"
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -620,12 +638,18 @@ def summarize_artifact_evidence(run_path: Path) -> dict[str, Any]:
     existing_count = 0
     total_bytes = 0
     jsonl_row_count = 0
+    metadata_file_count = 0
+    event_stream_count = 0
+    missing_files = []
+    category_counts: dict[str, int] = {}
     latest_modified_at = None
     for name in RUN_ARTIFACT_FILES:
         path = run_path / name
         exists = path.exists() and path.is_file()
+        category = artifact_file_category(name)
         row: dict[str, Any] = {
             "name": name,
+            "category": category,
             "exists": exists,
             "bytes": 0,
             "modified_at": None,
@@ -636,6 +660,11 @@ def summarize_artifact_evidence(run_path: Path) -> dict[str, Any]:
             row["modified_at"] = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
             existing_count += 1
             total_bytes += stat.st_size
+            category_counts[category] = category_counts.get(category, 0) + 1
+            if name in RUN_ARTIFACT_JSONL_FILES:
+                event_stream_count += 1
+            else:
+                metadata_file_count += 1
             if latest_modified_at is None or str(row["modified_at"]) > latest_modified_at:
                 latest_modified_at = str(row["modified_at"])
             if name in RUN_ARTIFACT_JSONL_FILES:
@@ -645,15 +674,21 @@ def summarize_artifact_evidence(run_path: Path) -> dict[str, Any]:
                     jsonl_row_count += line_count
         elif name in RUN_ARTIFACT_JSONL_FILES:
             row["row_count"] = 0
+        if not exists:
+            missing_files.append(name)
         files.append(row)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "available": bool(run_path.exists() and run_path.is_dir()),
         "expected_count": len(RUN_ARTIFACT_FILES),
         "existing_count": existing_count,
         "missing_count": len(RUN_ARTIFACT_FILES) - existing_count,
         "total_bytes": total_bytes,
         "jsonl_row_count": jsonl_row_count,
+        "metadata_file_count": metadata_file_count,
+        "event_stream_count": event_stream_count,
+        "missing_files": missing_files[:25],
+        "category_counts": category_counts,
         "latest_modified_at": latest_modified_at,
         "files": files,
     }

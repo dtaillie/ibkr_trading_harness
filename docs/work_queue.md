@@ -1527,6 +1527,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     summary cards plus a combined sanitized recent decisions/orders/fills table
     with type filtering. Raw logs and full artifact browsing remain out of the
     hosted view until retention and privacy boundaries are stronger.
+  - partial; remote run artifact evidence now includes sanitized artifact
+    categories, metadata-file counts, event-stream counts, safe missing-file
+    names, and CSV/UI summaries so hosted views can inspect artifact health
+    without mirroring raw log lines or local paths.
   - partial; Remote Node Detail now also adds run-health cards for completed
     versus failed latest runs, visible activity, rejection counts, latest
     decision age, equity snapshot visibility, and the sanitized cloud boundary
