@@ -995,6 +995,10 @@ function pageIntroContent(view) {
       status: `${generatedLabel}; ${visibleRuns} run${visibleRuns === 1 ? "" : "s"} visible; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
       primary: { label: "Open Performance", target: "performance", lens: "home" },
       secondary: { label: "Inspect Data", target: "data", lens: "browse" },
+      next: {
+        title: "Check performance context",
+        note: "After current health looks reasonable, review returns, drawdown, and execution health.",
+      },
       steps: [
         { label: "1", title: "Check Health", note: "Start with heartbeat, Gateway/API, stale data, and alerts." },
         { label: "2", title: "Read Positions", note: "Review current exposure, open orders, and latest fill/reject." },
@@ -1009,6 +1013,10 @@ function pageIntroContent(view) {
       status: `${statusRollups.length} status day${statusRollups.length === 1 ? "" : "s"}; ${runRows.length} saved run${runRows.length === 1 ? "" : "s"}; ${gatewayLabel}`,
       primary: { label: "Review Runs", target: "runs", lens: "runs" },
       secondary: { label: "Check Operations", target: "operations", lens: "paper" },
+      next: {
+        title: "Trace surprising metrics",
+        note: "Use Runs when a return, drawdown, reject, or fill count needs exact event detail.",
+      },
       steps: [
         { label: "1", title: "Choose Source", note: "Use Current first; load artifacts for deeper replay or simulation detail." },
         { label: "2", title: "Set Period", note: "Compare today, week, month, three months, or all available data." },
@@ -1023,6 +1031,10 @@ function pageIntroContent(view) {
       status: `${datasets.length} visible dataset${datasets.length === 1 ? "" : "s"}; ${numberText((state.dataCatalog && state.dataCatalog.total) || datasets.length, 0)} catalog row${((state.dataCatalog && state.dataCatalog.total) || datasets.length) === 1 ? "" : "s"}`,
       primary: { label: "Open Workbench", target: "workbench", lens: "builder" },
       secondary: { label: "Review Fetches", target: "fetch", lens: "jobs" },
+      next: {
+        title: "Use clean data in Workbench",
+        note: "Pick an inspectable dataset, confirm quality, then build a replay or simulated-paper draft.",
+      },
       steps: [
         { label: "1", title: "Confirm Roots", note: "Check configured roots, suggested roots, and catalog caps." },
         { label: "2", title: "Find Symbol", note: "Use search, facets, or Symbol Directory to locate saved files." },
@@ -1037,6 +1049,10 @@ function pageIntroContent(view) {
       status: `${manifests.length} manifest${manifests.length === 1 ? "" : "s"} loaded; ${numberText((state.fetchManifests && state.fetchManifests.total) || manifests.length, 0)} total`,
       primary: { label: "Show Data Library", target: "data", lens: "browse" },
       secondary: { label: "Simulate From Data", target: "workbench", lens: "builder" },
+      next: {
+        title: "Verify produced files",
+        note: "Confirm fetch outputs are visible in Data Library before trusting them in a replay.",
+      },
       steps: [
         { label: "1", title: "Review Jobs", note: "Filter manifests by status, kind, output visibility, or failures." },
         { label: "2", title: "Open Detail", note: "Check symbol progress, errors, retry events, and pacing waits." },
@@ -1051,6 +1067,10 @@ function pageIntroContent(view) {
       status: `${drafts.length} draft${drafts.length === 1 ? "" : "s"}; ${((state.configRuns && state.configRuns.runs) || []).length} recent draft run${((state.configRuns && state.configRuns.runs) || []).length === 1 ? "" : "s"}`,
       primary: { label: "Inspect Data", target: "data", lens: "browse" },
       secondary: { label: "Open Runs", target: "runs", lens: "runs" },
+      next: {
+        title: "Validate the data/config boundary",
+        note: "Review selected data quality and generated config before running a draft.",
+      },
       steps: [
         { label: "1", title: "Select Data", note: "Choose scanned files and review quality warnings first." },
         { label: "2", title: "Preview Align", note: "Confirm timestamps overlap for the selected symbols and range." },
@@ -1065,6 +1085,10 @@ function pageIntroContent(view) {
       status: `${runRows.length} saved comparison row${runRows.length === 1 ? "" : "s"}; ${visibleRuns} current/saved run${visibleRuns === 1 ? "" : "s"}`,
       primary: { label: "View Performance", target: "performance", lens: "home" },
       secondary: { label: "Check Operations", target: "operations", lens: "paper" },
+      next: {
+        title: "Connect events back to results",
+        note: "Open Performance after checking run state, fills, rejects, or artifact availability.",
+      },
       steps: [
         { label: "1", title: "Find Run", note: "Search by run, draft, mode, status, symbol, or event text." },
         { label: "2", title: "Check State", note: "Separate current telemetry from archived artifacts and simulations." },
@@ -1079,6 +1103,10 @@ function pageIntroContent(view) {
       status: `${gatewayLabel}; ${remoteNodes.length} remote node${remoteNodes.length === 1 ? "" : "s"}; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
       primary: { label: "Open Help", target: "help", lens: "home" },
       secondary: { label: "Back To Overview", target: "overview" },
+      next: {
+        title: "Clear runtime blockers",
+        note: "Start with paper readiness and Gateway/API status before using remote controls.",
+      },
       steps: [
         { label: "1", title: "Check Gateway", note: "Confirm local API reachability, login clues, and status freshness." },
         { label: "2", title: "Review Alerts", note: "Handle stale bars, stale accounts, rejects, and risk-limit warnings." },
@@ -1093,6 +1121,10 @@ function pageIntroContent(view) {
       status: "Public-safe docs are served locally from the allowlisted docs folder.",
       primary: { label: "Start Overview", target: "overview" },
       secondary: { label: "Open Data Library", target: "data", lens: "browse" },
+      next: {
+        title: "Start with the current state",
+        note: "Use Overview first, then follow the focused page shortcuts for the job at hand.",
+      },
       steps: [
         { label: "1", title: "Pick Question", note: "Use Start Here to route by the job you are trying to do." },
         { label: "2", title: "Close Gaps", note: "Read Current Setup Gaps for missing telemetry, data, or manifests." },
@@ -1111,6 +1143,13 @@ function renderPageIntro(view = activeView()) {
   $("page-intro-title").textContent = content.title;
   $("page-intro-note").textContent = content.note;
   $("page-intro-status").textContent = content.status;
+  const next = content.next || {};
+  if ($("page-intro-next-title")) {
+    $("page-intro-next-title").textContent = next.title || (content.primary && content.primary.label) || "Continue";
+  }
+  if ($("page-intro-next-note")) {
+    $("page-intro-next-note").textContent = next.note || "Use the focused action below to continue from this page.";
+  }
   const steps = Array.isArray(content.steps) ? content.steps : [];
   const stepContainer = $("page-intro-steps");
   if (stepContainer) {

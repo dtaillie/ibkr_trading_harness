@@ -100,6 +100,9 @@ strategy-private.
     cross-page shortcuts can land on Data Browse, Fetch Jobs, Workbench Builder,
     Runs, Operations Paper, or other task-specific lenses instead of generic
     page defaults.
+  - partial; the reusable page-intro strip now includes a Recommended Next
+    surface with per-page task guidance, making each view state the next
+    concrete dashboard action before the user scans lower cards or tables.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -512,6 +515,9 @@ strategy-private.
     - partial; the reusable page-intro actions now support a target lens, so
       primary/secondary shortcuts take users to the relevant focused subview
       for the job being suggested.
+    - partial; each page-intro now names a Recommended Next action and
+      rationale, keeping the top of every page oriented around a concrete next
+      task instead of only status text and dense workflow steps.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
