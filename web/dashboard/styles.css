@@ -350,6 +350,69 @@ button.secondary {
   margin-top: 10px;
 }
 
+.symbol-typeahead {
+  margin-top: 10px;
+}
+
+.symbol-typeahead-head {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.symbol-typeahead-list {
+  display: grid;
+  gap: 6px;
+}
+
+.symbol-typeahead-option {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.28fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  text-align: left;
+}
+
+.symbol-typeahead-option:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+.symbol-typeahead-option strong,
+.symbol-typeahead-option span,
+.symbol-typeahead-option small {
+  overflow-wrap: anywhere;
+}
+
+.symbol-typeahead-option span,
+.symbol-typeahead-option small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.symbol-match-badge {
+  justify-self: end;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--soft-panel);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .symbol-quick-picks {
   display: grid;
   gap: 8px;
@@ -2054,6 +2117,15 @@ footer {
   .chart-grid,
   .symbol-directory-card {
     display: block;
+  }
+
+  .symbol-typeahead-option {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .symbol-match-badge {
+    justify-self: start;
   }
 
   .overview-status-grid,

@@ -351,6 +351,7 @@ def run_smoke(
             "data-symbol-browser-input",
             "data-symbol-browser-dataset",
             "data-symbol-browser-matches",
+            "data-symbol-typeahead",
             "data-symbol-quick-picks",
             "data-symbol-browser-compare",
             "data-symbol-directory",

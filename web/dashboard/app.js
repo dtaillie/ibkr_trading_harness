@@ -3616,6 +3616,51 @@ function renderSymbolQuickPicks(groups, query) {
   `;
 }
 
+function symbolMatchLabel(score) {
+  if (score === 0) return "exact";
+  if (score === 1) return "starts";
+  if (score === 2) return "contains";
+  return "ranked";
+}
+
+function renderSymbolTypeahead(groups, query) {
+  const container = $("data-symbol-typeahead");
+  if (!container) return;
+  const suggestions = symbolQuickPickSuggestions(query, groups, 6);
+  const normalized = String(query || "").trim().toUpperCase();
+  if (!suggestions.length) {
+    container.innerHTML = normalized
+      ? `<div class="empty-card"><strong>No symbol suggestions</strong><span>Try a different ticker, or Diagnose to search configured and suggested roots.</span></div>`
+      : "";
+    return;
+  }
+  container.innerHTML = `
+    <span class="symbol-typeahead-head">${escapeHtml(normalized ? `Best matches for ${normalized}` : "Best symbol matches")}</span>
+    <div class="symbol-typeahead-list">
+      ${suggestions.map((summary) => `
+        <button type="button" class="symbol-typeahead-option" data-symbol="${escapeHtml(summary.symbol)}">
+          <strong>${escapeHtml(summary.symbol)}</strong>
+          <span>${escapeHtml(summary.assets.join(", ") || "unknown asset")} / ${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")}<br>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows / ${escapeHtml(summary.range)}</span>
+          <small class="symbol-match-badge">${escapeHtml(symbolMatchLabel(summary.score))}</small>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function selectSymbolBrowserSymbol(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  if (!normalized) return;
+  $("data-symbol-browser-input").value = normalized;
+  renderSymbolBrowser();
+}
+
+function topSymbolBrowserSuggestion() {
+  const groups = symbolBrowserGroups();
+  const suggestions = symbolQuickPickSuggestions(selectedSymbolBrowserSymbol(), groups, 1);
+  return (suggestions[0] || {}).symbol || "";
+}
+
 function bestCatalogDatasetForSymbol(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return null;
@@ -3654,6 +3699,7 @@ function renderSymbolBrowser() {
   renderCatalogSymbolDatalists(symbols);
   if (!previousSymbol && symbols.length) input.value = symbols[0];
   const activeSymbol = selectedSymbolBrowserSymbol();
+  renderSymbolTypeahead(groups, activeSymbol);
   renderSymbolQuickPicks(groups, activeSymbol);
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
@@ -9536,12 +9582,29 @@ function init() {
     });
   });
   $("data-symbol-browser-input").addEventListener("input", renderSymbolBrowser);
+  $("data-symbol-browser-input").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const symbol = selectedSymbolBrowserDatasets().length
+      ? selectedSymbolBrowserSymbol()
+      : topSymbolBrowserSuggestion();
+    if (!symbol) return;
+    event.preventDefault();
+    selectSymbolBrowserSymbol(symbol);
+    $("last-refresh").textContent = `Selected ${symbol} in Symbol Browser`;
+  });
+  $("data-symbol-typeahead").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".symbol-typeahead-option") : null;
+    if (!(target instanceof HTMLElement)) return;
+    const symbol = String(target.dataset.symbol || "");
+    selectSymbolBrowserSymbol(symbol);
+    $("last-refresh").textContent = `Selected ${symbol} in Symbol Browser`;
+  });
   $("data-symbol-quick-picks").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest(".symbol-quick-pick") : null;
     if (!(target instanceof HTMLElement)) return;
-    $("data-symbol-browser-input").value = String(target.dataset.symbol || "");
-    renderSymbolBrowser();
-    $("last-refresh").textContent = `Selected ${String(target.dataset.symbol || "")} in Symbol Browser`;
+    const symbol = String(target.dataset.symbol || "");
+    selectSymbolBrowserSymbol(symbol);
+    $("last-refresh").textContent = `Selected ${symbol} in Symbol Browser`;
   });
   $("data-symbol-directory-filter").addEventListener("input", renderSymbolDirectory);
   $("data-symbol-directory-asset").addEventListener("change", renderSymbolDirectory);

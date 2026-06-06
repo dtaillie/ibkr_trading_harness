@@ -562,6 +562,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       empty symbol input, summarizing file count, rows, asset/source/bar
       coverage, quality, and range with one-click selection into Inspect,
       Compare, Filter, or Diagnose.
+    - partial; Symbol Browser now also renders a compact ranked typeahead
+      result list with exact/starts/contains match labels, file/row/range
+      context, click selection, and Enter-to-select behavior, reducing
+      dependence on browser-native datalist UI.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe
