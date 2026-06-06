@@ -805,6 +805,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-count" in html
         assert "remote-alert-count" in html
         assert "remote-open-order-count" in html
+        assert "remote-nodes-health" in html
         assert "export-remote-nodes-csv" in html
         assert "export-remote-node-detail-csv" in html
         assert "remote-filter-text" in html

@@ -1069,6 +1069,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     status/mode filters, and sort controls for heartbeat age, alerts, open
     orders, equity, and node name so cloud monitoring snapshots are easier to
     triage.
+  - partial; Remote Nodes now has health cards for heartbeat freshness,
+    Gateway reachability, alert pressure, open-order pressure, stale
+    data/account timestamps, and active filter coverage before the dense node
+    table.
   - partial; Operations now exposes `/remote_nodes_export` and an Export Nodes
     CSV button for offline review of sanitized heartbeat, Gateway, mode,
     equity, positions, open orders, activity counts, freshness, and alerts by

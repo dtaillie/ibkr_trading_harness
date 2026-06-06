@@ -9343,6 +9343,7 @@ function renderRemoteNodes() {
   $("remote-open-order-count").textContent = numberText(openOrderTotal, 0);
   $("remote-open-order-count").className = statusClass(openOrderTotal ? "warn" : nodes.length ? "ok" : "unknown");
   $("remote-open-order-note").textContent = nodes.length ? `${numberText(openOrderTotal, 0)} non-terminal order event${openOrderTotal === 1 ? "" : "s"}` : "Sanitized order telemetry only";
+  renderRemoteNodesHealth(nodes, filteredNodes);
   $("remote-nodes-body").innerHTML = filteredNodes.length
     ? filteredNodes.map((node) => row([
         escapeHtml(node.node_id),
@@ -9360,6 +9361,76 @@ function renderRemoteNodes() {
         `<button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button>`,
       ])).join("")
     : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
+  if (!$("remote-nodes-health")) return;
+  const staleNodes = nodes.filter((node) => {
+    const millis = timestampMillis(node.received_at || node.generated_at);
+    if (millis === null) return true;
+    return ((Date.now() - millis) / 1000) > 900;
+  });
+  const gatewayDown = nodes.filter((node) => node.gateway_reachable === false);
+  const alertTotal = nodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const openOrders = nodes.reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
+  const staleData = nodes.filter((node) => {
+    const millis = timestampMillis(node.latest_data_time);
+    if (millis === null) return false;
+    return ((Date.now() - millis) / 1000) > 900;
+  });
+  const staleAccounts = nodes.filter((node) => {
+    const millis = timestampMillis(node.latest_account_time);
+    if (millis === null) return false;
+    return ((Date.now() - millis) / 1000) > 900;
+  });
+  const newest = nodes.slice().sort((left, right) => (
+    (timestampMillis(right.received_at || right.generated_at) || 0) - (timestampMillis(left.received_at || left.generated_at) || 0)
+  ))[0] || null;
+  const cards = [
+    {
+      status: !nodes.length ? "warn" : staleNodes.length ? "bad" : "ok",
+      label: "Heartbeat",
+      title: nodes.length ? staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : "Fresh" : "No Nodes",
+      note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No remote snapshots received.",
+    },
+    {
+      status: gatewayDown.length ? "bad" : nodes.length ? "ok" : "warn",
+      label: "Gateway",
+      title: gatewayDown.length ? `${numberText(gatewayDown.length, 0)} down` : nodes.length ? "Reachable" : "Unknown",
+      note: gatewayDown.length ? gatewayDown.slice(0, 3).map((node) => node.node_id).join(", ") : "No remote Gateway/API blockers in latest snapshots.",
+    },
+    {
+      status: alertTotal ? "warn" : nodes.length ? "ok" : "warn",
+      label: "Alerts",
+      title: numberText(alertTotal, 0),
+      note: alertTotal ? "Inspect Remote Node Detail for latest sanitized alerts." : "No remote alerts in latest node snapshots.",
+    },
+    {
+      status: openOrders ? "warn" : nodes.length ? "ok" : "warn",
+      label: "Open Orders",
+      title: numberText(openOrders, 0),
+      note: openOrders ? "Verify broker state on the local trading machine before issuing controls." : "No non-terminal remote order events.",
+    },
+    {
+      status: staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "warn",
+      label: "Data/Account",
+      title: staleData.length || staleAccounts.length ? "Review" : nodes.length ? "Current" : "Unknown",
+      note: `${numberText(staleData.length, 0)} stale data / ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: filteredNodes.length ? "ok" : nodes.length ? "warn" : "bad",
+      label: "Filtered View",
+      title: `${numberText(filteredNodes.length, 0)} / ${numberText(nodes.length, 0)}`,
+      note: filteredNodes.length ? "The table below matches the current filters." : "Clear filters to see monitored nodes.",
+    },
+  ];
+  $("remote-nodes-health").innerHTML = cards.map((card) => `
+    <div class="health-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderRemoteNodeDetail() {
