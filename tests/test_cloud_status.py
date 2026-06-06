@@ -972,6 +972,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-result-open-runs" in html
         assert "workbench-result-open-log" in html
         assert "workbench-result-tiles" in html
+        assert "workbench-run-readiness-note" in html
+        assert "workbench-run-readiness-cards" in html
+        assert "workbench-run-readiness-actions" in html
         assert "config-plugin-boundary-note" in html
         assert "config-plugin-boundary" in html
         assert "config-broker-boundary-note" in html

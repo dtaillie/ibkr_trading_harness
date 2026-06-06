@@ -9871,6 +9871,174 @@ function renderWorkbenchTriage() {
   `).join("");
 }
 
+function workbenchRunReadinessModel() {
+  const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
+  const runAction = $("config-run-action") ? $("config-run-action").value : "";
+  const maxSteps = finiteNumber($("config-run-max-steps") && $("config-run-max-steps").value);
+  const timeoutSeconds = finiteNumber($("config-run-timeout") && $("config-run-timeout").value);
+  const selectedDraft = selectedRunDraft();
+  const validation = selectedRunDraftValidation();
+  const latestRun = latestWorkbenchRunForDraft(selectedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const loadedSameDraft = Boolean(selectedDraftId && artifacts.draft_id && artifacts.draft_id === selectedDraftId);
+  const loadedSameRun = Boolean(latestRun && artifacts.run_id && artifacts.run_id === latestRun.run_id);
+  const blockers = [];
+  const warnings = [];
+
+  if (!selectedDraft) blockers.push("Select a saved draft.");
+  if (!runAction) blockers.push("Choose validate, replay, or simulated paper.");
+  if (selectedDraft && validation && validation.valid === false) blockers.push("Fix validation errors before running.");
+  if (selectedDraft && !validation) warnings.push("Draft has not been validated in this browser session.");
+  if (selectedDraft && latestRun && latestRun.status !== "completed") warnings.push(`Latest run ended with ${text(latestRun.status)}.`);
+  if (runAction && runAction !== "validate" && selectedDraft && validation && validation.valid !== true) {
+    warnings.push("Run Validate Drafts first for a cleaner pre-flight check.");
+  }
+  if (maxSteps !== null && maxSteps <= 0) blockers.push("Max steps must be positive.");
+  if (timeoutSeconds !== null && timeoutSeconds <= 0) blockers.push("Timeout must be positive.");
+
+  let status = "bad";
+  let title = "Blocked";
+  let note = blockers.join(" ");
+  let primaryAction = "select";
+  if (!blockers.length && warnings.length) {
+    status = "warn";
+    title = "Runnable With Review";
+    note = warnings.join(" ");
+    primaryAction = validation ? "run" : "validate";
+  } else if (!blockers.length) {
+    status = "ok";
+    title = "Ready To Run";
+    note = `${text(selectedDraftId)} can run ${text(runAction)} with the current settings.`;
+    primaryAction = "run";
+  } else if (selectedDraft && validation && validation.valid === false) {
+    primaryAction = "validation";
+  } else if (selectedDraft && !validation) {
+    primaryAction = "validate";
+  }
+
+  const cards = [
+    {
+      status: selectedDraft ? "ok" : "bad",
+      label: "Draft",
+      title: selectedDraft ? text(selectedDraft.draft_id) : "Missing",
+      note: selectedDraft
+        ? `${text(selectedDraft.mode)} / ${(selectedDraft.symbols || []).join(", ") || "no symbols"}`
+        : "Save a generated draft, then select it here.",
+    },
+    {
+      status: validation ? validation.valid ? "ok" : "bad" : selectedDraft ? "warn" : "bad",
+      label: "Validation",
+      title: validation ? validation.valid ? "Valid" : "Invalid" : "Unchecked",
+      note: validation
+        ? validation.valid ? "Server validation passed." : (validation.errors || []).join("; ") || "Validation failed."
+        : "Click Validate Drafts before replay or simulated paper.",
+    },
+    {
+      status: runAction ? "ok" : "bad",
+      label: "Action",
+      title: runAction || "Missing",
+      note: `Max steps ${maxSteps === null ? "default" : numberText(maxSteps, 0)}; timeout ${timeoutSeconds === null ? "default" : numberText(timeoutSeconds, 0)} seconds.`,
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      label: "Latest Run",
+      title: latestRun ? text(latestRun.status) : "None",
+      note: latestRun
+        ? `${text(latestRun.action)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
+        : "No recorded run for this draft yet.",
+    },
+    {
+      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      label: "Results",
+      title: loadedSameRun || loadedSameDraft ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
+      note: loadedSameRun || loadedSameDraft
+        ? "Performance and Runs can inspect this output."
+        : latestRun && latestRun.artifact_path
+          ? "Open Performance to load run artifacts."
+          : "Replay or simulated paper creates performance artifacts.",
+    },
+  ];
+
+  const actions = [
+    {
+      id: "select",
+      label: "Select Draft",
+      enabled: true,
+      secondary: primaryAction !== "select",
+    },
+    {
+      id: "validate",
+      label: "Validate Drafts",
+      enabled: Boolean(selectedDraft),
+      secondary: primaryAction !== "validate",
+    },
+    {
+      id: "run",
+      label: "Run Selected",
+      enabled: Boolean(selectedDraft && runAction && !blockers.length),
+      secondary: primaryAction !== "run",
+    },
+    {
+      id: "results",
+      label: "Open Results",
+      enabled: Boolean(latestRun && latestRun.status === "completed" && latestRun.action !== "validate"),
+      secondary: true,
+    },
+  ];
+
+  return { status, title, note, blockers, warnings, cards, actions };
+}
+
+function renderWorkbenchRunReadiness() {
+  if (!$("workbench-run-readiness-note") || !$("workbench-run-readiness-cards") || !$("workbench-run-readiness-actions")) return;
+  const model = workbenchRunReadinessModel();
+  const suffix = model.blockers.length
+    ? `${numberText(model.blockers.length, 0)} blocker${model.blockers.length === 1 ? "" : "s"}`
+    : model.warnings.length
+      ? `${numberText(model.warnings.length, 0)} warning${model.warnings.length === 1 ? "" : "s"}`
+      : "ready";
+  $("workbench-run-readiness-note").innerHTML = `<span class="${escapeHtml(statusClass(model.status))}">${escapeHtml(model.title)}</span> - ${escapeHtml(suffix)}. ${escapeHtml(model.note)}`;
+  $("workbench-run-readiness-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-run-readiness-actions").innerHTML = model.actions.map((action) => `
+    <button
+      type="button"
+      class="${action.secondary ? "secondary " : ""}workbench-run-readiness-action"
+      data-run-readiness-action="${escapeHtml(action.id)}"
+      ${action.enabled ? "" : "disabled"}
+    >${escapeHtml(action.label)}</button>
+  `).join("");
+}
+
+function handleWorkbenchRunReadinessAction(action) {
+  if (action === "select") {
+    const element = $("config-run-draft");
+    if (element) {
+      element.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (typeof element.focus === "function") element.focus({ preventScroll: true });
+    }
+    return;
+  }
+  if (action === "validate" && $("validate-drafts") instanceof HTMLButtonElement && !$("validate-drafts").disabled) {
+    $("validate-drafts").click();
+    return;
+  }
+  if (action === "run" && $("config-run-form")) {
+    $("config-run-form").requestSubmit();
+    return;
+  }
+  if (action === "results") {
+    openWorkbenchResultPerformance().catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  }
+}
+
 function workbenchResultModel() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   const selectedDraft = selectedRunDraft();
@@ -10002,6 +10170,7 @@ function renderWorkbenchRuns() {
   renderDraftValidations();
   renderWorkbenchHome();
   renderWorkbenchGuide();
+  renderWorkbenchRunReadiness();
   renderWorkbenchTriage();
   renderWorkbenchRunResult();
   $("config-drafts-body").innerHTML = drafts.length
@@ -13699,6 +13868,17 @@ function init() {
     runConfigDraft(event).catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("config-run-form").addEventListener("input", renderWorkbenchRunReadiness);
+  $("config-run-form").addEventListener("change", () => {
+    renderWorkbenchRunReadiness();
+    renderWorkbenchTriage();
+    renderWorkbenchRunResult();
+  });
+  $("workbench-run-readiness-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-run-readiness-action") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleWorkbenchRunReadinessAction(target.dataset.runReadinessAction || "");
   });
   $("workbench-result-open-performance").addEventListener("click", () => {
     openWorkbenchResultPerformance().catch((err) => {

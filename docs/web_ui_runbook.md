@@ -238,7 +238,10 @@ rows from the Minute Coverage Heatmap.
    plugin boundary, and local commands without saving.
 7. Use Generate / Save after enabling Save draft locally when the preview is
    acceptable.
-8. Run replay or simulated paper.
+8. In Workbench Run, read Run Readiness before pressing Run. It calls out the
+   selected draft, validation state, run action, latest run, available results,
+   blockers, and warnings, and it can jump directly to Validate, Run, or Open
+   Results.
 9. Open the result from the Runs or Workbench table and inspect Performance.
 
 Start from Workbench Home before the form. It summarizes selected data,

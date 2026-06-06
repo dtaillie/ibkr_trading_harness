@@ -1238,6 +1238,15 @@ section {
   box-shadow: var(--surface-shadow);
 }
 
+.workbench-run-readiness-panel {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
 .command-audit-health {
   margin: 12px 0;
 }

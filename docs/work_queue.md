@@ -1216,6 +1216,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     shows whether results are loaded or merely available, exposes execution
     counts, and gives direct buttons to open Performance, Runs, or the run log
     without scanning dense tables.
+  - partial; Workbench Run Draft now includes a Run Readiness panel beside the
+    actual run form, showing selected-draft, validation, action, latest-run,
+    and result-artifact state with explicit blockers, warnings, and direct
+    Validate / Run / Open Results actions.
   - partial; before generating a draft, Workbench Selected Data Actions now
     let users re-open the selected file in Data Detail or compare the selected
     files over the configured Workbench date range, closing the loop between
