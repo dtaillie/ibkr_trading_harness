@@ -313,6 +313,8 @@ def run_smoke(
             "overview-performance-summary",
             "overview-performance-tiles",
             "overview-performance-chart",
+            "overview-session-state-note",
+            "overview-session-state-cards",
             "page-intro-title",
             "page-intro-primary",
             "page-intro-secondary",

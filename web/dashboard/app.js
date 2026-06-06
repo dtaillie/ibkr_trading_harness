@@ -2031,12 +2031,115 @@ function renderOverview() {
     meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
   });
   renderOverviewPerformanceSnapshot();
+  renderOverviewSessionState();
   renderRuntimeStatus();
   renderOverviewHealth();
   renderOverviewAlerts();
   renderOverviewOrders();
   renderOverviewPositions();
   renderOverviewTimeline();
+}
+
+function utcDayKey(value) {
+  const millis = timestampMillis(value);
+  if (millis === null) return "";
+  return new Date(millis).toISOString().slice(0, 10);
+}
+
+function overviewReferenceTime(events, payload) {
+  const candidates = [
+    payload && payload.generated_at,
+    ...events.map((event) => event.timestamp),
+  ].map(timestampMillis).filter((value) => value !== null);
+  return candidates.length ? new Date(Math.max(...candidates)).toISOString() : null;
+}
+
+function eventSummary(events, type) {
+  const rows = (events || []).filter((event) => event.type === type);
+  return {
+    count: rows.length,
+    latest: rows[0] || null,
+  };
+}
+
+function renderOverviewSessionState() {
+  if (!$("overview-session-state-cards") || !$("overview-session-state-note")) return;
+  const payload = state.status || {};
+  const runs = payload.runs || [];
+  const events = runEventRows();
+  const reference = overviewReferenceTime(events, payload);
+  const day = utcDayKey(reference);
+  const dayEvents = day ? events.filter((event) => utcDayKey(event.timestamp) === day) : [];
+  const decisions = eventSummary(dayEvents, "decision");
+  const orders = eventSummary(dayEvents, "order");
+  const fills = eventSummary(dayEvents, "fill");
+  const rejections = eventSummary(dayEvents.filter(eventStatusIsBad), "order");
+  let stateLabel = "No Current Run";
+  let stateStatus = "bad";
+  let stateNote = "No runner telemetry is publishing into the dashboard.";
+  if (runs.length && !decisions.count) {
+    stateLabel = "Awaiting Check";
+    stateStatus = "warn";
+    stateNote = "A run is publishing, but no decision event is visible for the current UTC day.";
+  } else if (decisions.count && !orders.count && !fills.count) {
+    stateLabel = "No Trade Today";
+    stateStatus = "ok";
+    stateNote = decisions.latest
+      ? `Latest checked ${text(decisions.latest.symbol)}: ${text(decisions.latest.detail)}.`
+      : "Decision events were published without order or fill activity.";
+  } else if (fills.count) {
+    stateLabel = "Filled Today";
+    stateStatus = rejections.count ? "warn" : "ok";
+    stateNote = `${numberText(fills.count, 0)} fill${fills.count === 1 ? "" : "s"} from ${numberText(orders.count, 0)} order event${orders.count === 1 ? "" : "s"}.`;
+  } else if (orders.count) {
+    stateLabel = rejections.count ? "Order Issue" : "Order Submitted";
+    stateStatus = rejections.count ? "bad" : "warn";
+    stateNote = rejections.count
+      ? `${numberText(rejections.count, 0)} rejected/canceled order event${rejections.count === 1 ? "" : "s"} today.`
+      : "Orders were submitted today, but no fill event is visible yet.";
+  }
+  $("overview-session-state-note").textContent = day
+    ? `${day} UTC / ${numberText(dayEvents.length, 0)} current-day event${dayEvents.length === 1 ? "" : "s"}`
+    : "No current-session reference time loaded";
+  const cards = [
+    {
+      status: stateStatus,
+      label: "State",
+      title: stateLabel,
+      note: stateNote,
+    },
+    {
+      status: decisions.count ? "ok" : runs.length ? "warn" : "bad",
+      label: "Latest Check",
+      title: decisions.latest ? text(decisions.latest.symbol || "checked") : "n/a",
+      note: decisions.latest
+        ? `${text(decisions.latest.timestamp)} / ${text(decisions.latest.detail)}`
+        : runs.length ? "No decision event for the current UTC day." : "No run is publishing decisions.",
+    },
+    {
+      status: orders.count ? rejections.count ? "bad" : "warn" : decisions.count ? "ok" : "warn",
+      label: "Orders",
+      title: numberText(orders.count, 0),
+      note: orders.latest
+        ? `${text(orders.latest.symbol)} ${text(orders.latest.status)} ${shortTimestampAgeLabel(orders.latest.timestamp)}.`
+        : "No current-day order events.",
+    },
+    {
+      status: fills.count ? "ok" : orders.count ? "warn" : "ok",
+      label: "Fills",
+      title: numberText(fills.count, 0),
+      note: fills.latest
+        ? `${text(fills.latest.symbol)} filled ${shortTimestampAgeLabel(fills.latest.timestamp)}.`
+        : "No current-day fill events.",
+    },
+  ];
+  $("overview-session-state-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderRuntimeStatus() {
@@ -7806,13 +7909,22 @@ function runEventRows() {
   for (const run of runs) {
     const recent = run.recent_events || {};
     for (const event of recent.decisions || []) {
+      const symbols = Array.isArray(event.symbols)
+        ? event.symbols
+        : event.symbol ? [event.symbol] : [];
+      const detail = [
+        event.status ? `status=${text(event.status)}` : "",
+        event.reason ? `reason=${text(event.reason)}` : "",
+        event.intents !== undefined ? `intents=${text(event.intents)}` : "",
+        event.step !== undefined ? `step=${text(event.step)}` : "",
+      ].filter(Boolean).join(" ");
       events.push({
         run_id: run.id,
         type: "decision",
         timestamp: event.timestamp,
         status: event.paused ? "paused" : "ok",
-        symbol: (event.symbols || []).join(", "),
-        detail: `intents=${text(event.intents)} step=${text(event.step)}`,
+        symbol: symbols.join(", "),
+        detail: detail || "decision checked",
       });
     }
     for (const event of recent.orders || []) {

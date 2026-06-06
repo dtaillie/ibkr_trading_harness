@@ -75,6 +75,10 @@ strategy-private.
       equity path, and order/fill/reject/alert activity from sanitized
       status-history rollups without opening logs.
   - clear "no trade today" state with the latest checked signal
+    - partial; Overview now has a Today's Signal State panel that separates
+      no current run, awaiting a current-day check, no-trade-today,
+      order-submitted, filled, and rejected-order states from sanitized
+      current-day events, and it shows the latest checked decision detail.
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
   - partial; the Overview hero now shows equity first plus mode, Gateway,
