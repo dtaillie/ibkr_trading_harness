@@ -1983,6 +1983,52 @@ def test_cloud_status_server_marks_extended_session_in_catalog_coverage_and_gaps
         server.server_close()
 
 
+def test_cloud_status_server_catalog_infers_external_data_sources(tmp_path):
+    data_root = tmp_path / "data"
+    rows = "\n".join(
+        [
+            "timestamp,open,high,low,close,volume",
+            "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
+            "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
+        ]
+    ) + "\n"
+    for source, symbol in [("schwab", "SCHW"), ("polygon", "POLY"), ("firstrate", "FIRST")]:
+        source_dir = data_root / source
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / f"{symbol}_1min_sample.csv").write_text(rows, encoding="utf-8")
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=10&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+
+        assert catalog["source_counts"] == {"firstrate": 1, "polygon": 1, "schwab": 1}
+        datasets = {item["symbol"]: item for item in catalog["datasets"]}
+        assert datasets["SCHW"]["source"] == "schwab"
+        assert datasets["POLY"]["source"] == "polygon"
+        assert datasets["FIRST"]["source"] == "firstrate"
+
+        with request.urlopen(f"{base}/data_coverage?limit=10&max_symbols=10&max_dates=5", timeout=5) as resp:
+            coverage = json.loads(resp.read().decode("utf-8"))
+        sources_by_symbol = {item["symbol"]: item["sources"] for item in coverage["symbols"]}
+        assert sources_by_symbol["SCHW"] == ["schwab"]
+        assert sources_by_symbol["POLY"] == ["polygon"]
+        assert sources_by_symbol["FIRST"] == ["firstrate"]
+
+        with request.urlopen(f"{base}/data_symbol_directory_export?limit=10", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        export_sources = {row["symbol"]: row["sources"] for row in exported}
+        assert export_sources["SCHW"] == "schwab"
+        assert export_sources["POLY"] == "polygon"
+        assert export_sources["FIRST"] == "firstrate"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_marks_crypto_calendar_gaps_as_24_7(tmp_path):
     data_root = tmp_path / "data"
     crypto_root = data_root / "cache" / "zerohash"

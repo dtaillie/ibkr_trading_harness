@@ -651,6 +651,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - asset class filter: stock, ETF, crypto, unknown
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
+    - partial; source facets are populated from catalog metadata, with backend
+      inference and coverage/export tests for IBKR, Schwab, Polygon,
+      FirstRate, ZeroHash, file/example/cache-style sources where fixtures are
+      available.
   - quality filter
   - coverage range table for every symbol
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
