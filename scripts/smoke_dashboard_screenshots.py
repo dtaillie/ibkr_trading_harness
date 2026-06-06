@@ -179,6 +179,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".overview-workflow-grid strong",
     ".overview-workflow-grid small",
     ".workflow-card-foot b",
+    ".data-workflow-grid strong",
+    ".data-workflow-grid small",
     ".overview-performance-main strong",
     ".overview-performance-main span",
     ".overview-performance-tiles strong",

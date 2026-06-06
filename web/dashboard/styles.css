@@ -1105,6 +1105,7 @@ section {
 .change-grid,
 .action-card-grid,
 .overview-workflow-grid,
+.data-workflow-grid,
 .broker-capability-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1423,6 +1424,12 @@ section {
 .overview-workflow-grid {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin: 10px 0 12px;
+}
+
+.data-workflow-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  margin: 2px 0 4px;
 }
 
 .action-card {

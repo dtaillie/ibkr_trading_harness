@@ -654,6 +654,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-home-title" in html
         assert "data-home-filtered-count" in html
         assert "data-home-breakdown" in html
+        assert "data-home-workflows" in html
         assert "data-home-shortlist" in html
         assert "data-home-inspect-top" in html
         assert "data-source-map-note" in html

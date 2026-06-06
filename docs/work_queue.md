@@ -590,7 +590,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   UTC/source-timezone context. The catalog now also publishes server-owned
   symbol summaries and a symbol-directory CSV export so users and API clients
   can verify the saved-data universe by symbol without reconstructing it from
-  individual file rows.
+  individual file rows. Data Home now includes workflow cards for finding a
+  symbol, inspecting history, comparing files, building simulations, checking
+  quality, and fixing root visibility, with each card reflecting current
+  catalog/root/workbench state and deep-linking to the focused page for that
+  job.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

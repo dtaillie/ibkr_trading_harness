@@ -5819,7 +5819,125 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Bars", catalog.bar_size_counts || countBy(datasets, "bar_size")),
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
   ].join("");
+  renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
+}
+
+function dataHomeWorkflowCards(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const diagnostics = state.diagnostics || {};
+  const datasets = catalog.datasets || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const rootSummaries = catalog.root_summaries || [];
+  const qualityCounts = catalog.quality_counts || {};
+  const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const capped = rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached");
+  const visibleSymbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const inspectable = filteredRows.find((dataset) => dataset.path) || datasets.find((dataset) => dataset.path) || null;
+  const groups = symbolBrowserGroups();
+  const comparableSymbols = Array.from(groups.entries())
+    .filter(([, rows]) => rows.filter((item) => item.path).length >= 2)
+    .map(([symbol]) => symbol);
+  const selectedRows = selectedConfigDatasets();
+  const rootFileCount = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const hiddenConfiguredFiles = Math.max(0, rootFileCount - Number(catalog.count || datasets.length || 0));
+  const visibilityIssue = suggestedRoots.length || parserErrors || capped || hiddenConfiguredFiles;
+  const qualityIssueCount = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+
+  return [
+    {
+      label: "Find A Symbol",
+      title: visibleSymbols.size ? `${numberText(visibleSymbols.size, 0)} symbols` : "No Symbols",
+      value: `${numberText(datasets.length, 0)} files`,
+      status: visibleSymbols.size ? "ok" : "bad",
+      detail: visibleSymbols.size
+        ? "Open the catalog-backed Symbol Browser and Directory to search every scanned symbol."
+        : "No symbols are visible because no parseable saved data is loaded.",
+      href: workflowHref("data", "browse"),
+      cta: "Browse",
+    },
+    {
+      label: "Inspect History",
+      title: inspectable ? text(inspectable.symbol) : "No File",
+      value: inspectable ? `${text(inspectable.bar_size)} / ${numberText(inspectable.rows, 0)} rows` : "empty",
+      status: inspectable ? text(inspectable.quality_status) === "bad" ? "warn" : "ok" : "bad",
+      detail: inspectable
+        ? "Open a saved file viewer with range presets, timezone display, price/volume chart, gaps, and export."
+        : "Add or fetch saved CSV/parquet data before inspecting historical bars.",
+      href: workflowHref("data", "inspect"),
+      cta: "Inspect",
+    },
+    {
+      label: "Compare Files",
+      title: comparableSymbols.length ? `${numberText(comparableSymbols.length, 0)} comparable` : "Need Matches",
+      value: comparableSymbols[0] || "no pairs",
+      status: comparableSymbols.length ? "ok" : datasets.length ? "warn" : "bad",
+      detail: comparableSymbols.length
+        ? "Compare normalized close paths for symbols with multiple saved files or overlapping datasets."
+        : "Comparison needs at least two inspectable files for a symbol or selected range.",
+      href: workflowHref("data", "compare"),
+      cta: "Compare",
+    },
+    {
+      label: "Build Simulation",
+      title: selectedRows.length ? `${numberText(selectedRows.length, 0)} selected` : datasets.length ? "Ready To Select" : "Needs Data",
+      value: filteredRows.length ? `${numberText(filteredRows.length, 0)} shown` : "no rows",
+      status: datasets.length ? selectedRows.length ? "ok" : "warn" : "bad",
+      detail: selectedRows.length
+        ? "Selected datasets can be previewed for timestamp alignment in Workbench."
+        : datasets.length
+          ? "Choose saved files from Data Library, then send them to Workbench for replay or simulated-paper setup."
+          : "The Workbench needs saved data before it can build useful config drafts.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Workbench",
+    },
+    {
+      label: "Check Quality",
+      title: qualityIssueCount ? `${numberText(qualityIssueCount, 0)} review` : datasets.length ? "Clean Enough" : "No Scan",
+      value: parserErrors ? `${numberText(parserErrors, 0)} parser errors` : countSummary(qualityCounts) || "n/a",
+      status: parserErrors || Number(qualityCounts.bad || 0) ? "bad" : qualityIssueCount ? "warn" : datasets.length ? "ok" : "bad",
+      detail: parserErrors || qualityIssueCount
+        ? "Review parser errors, bad files, warn-quality files, gaps, nulls, and duplicate timestamps before replay."
+        : "No catalog quality issues are visible in the current scan.",
+      href: workflowHref("data", "diagnostics"),
+      cta: "Diagnostics",
+    },
+    {
+      label: "Fix Visibility",
+      title: visibilityIssue ? "Review Roots" : roots.length ? "Roots Mapped" : "No Roots",
+      value: suggestedRoots.length ? `${numberText(suggestedRoots.length, 0)} suggested` : capped ? "capped" : `${numberText(roots.length, 0)} roots`,
+      status: !roots.length || suggestedRoots.length || parserErrors ? "bad" : capped || hiddenConfiguredFiles ? "warn" : "ok",
+      detail: !roots.length
+        ? "Configure dashboard.data_roots or run a fetch job so saved files can be scanned."
+        : suggestedRoots.length
+          ? "Suggested roots contain saved files outside configured dashboard roots."
+          : capped
+            ? "The catalog is capped; raise Rows to scan if expected symbols are hidden."
+            : hiddenConfiguredFiles
+              ? "Storage Audit can explain configured-root files that are not catalog-visible."
+              : "Configured roots are visible and no root-level visibility issue is currently flagged.",
+      href: workflowHref("data", "diagnostics"),
+      cta: "Fix Roots",
+    },
+  ];
+}
+
+function renderDataHomeWorkflows(filteredRows = []) {
+  const container = $("data-home-workflows");
+  if (!container) return;
+  const cards = dataHomeWorkflowCards(filteredRows);
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
+  `).join("");
 }
 
 function renderDataHomeShortlist(filteredRows = []) {

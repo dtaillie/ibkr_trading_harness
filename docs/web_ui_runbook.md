@@ -51,6 +51,11 @@ If Data Library only shows SPY/QQQ examples:
    hidden-file counts, and scan-duration timings for offline review.
 7. Refresh the dashboard.
 
+The Data Library Home page also has workflow cards for Find A Symbol, Inspect
+History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
+Use those cards when you know the job you want but do not yet know which table
+or diagnostic panel holds the answer.
+
 ## Find Current Strategy Performance
 
 Start in Overview. The hero card and Runtime Status strip answer whether a
