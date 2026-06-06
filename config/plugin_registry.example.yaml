@@ -30,3 +30,10 @@ plugins:
         label: Example Reason
         kind: text
         help: Human-readable reason emitted by the private plugin.
+    result_sections:
+      - id: example_status
+        label: Example Status
+        description: Example-only grouping for public-safe result fields.
+        fields:
+          - example_score
+          - example_reason

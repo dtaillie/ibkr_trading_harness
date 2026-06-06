@@ -3304,6 +3304,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             "signal_value",
             "threshold_distance",
         ]
+        assert plugin["result_sections"][0]["id"] == "example_status"
+        assert plugin["result_sections"][0]["fields"] == ["reason", "signal_value", "threshold_distance"]
         assert plugin["result_fields"][1]["label"] == "Example Score"
         assert plugin["result_fields"][1]["decimals"] == 2
         assert plugin["result_fields"][2]["suffix"] == "score units"
@@ -3696,10 +3698,14 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["plugin"]["matched"] is True
         assert run_artifacts["plugin"]["strategy_fields"][0]["name"] == "example_parameter"
         assert run_artifacts["plugin"]["result_fields"][0]["name"] == "reason"
+        assert run_artifacts["plugin"]["result_sections"][0]["id"] == "example_status"
         assert run_artifacts["plugin_result_summary"]["status"] == "ok"
         assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["declared_section_count"] == 1
         assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
+        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "example_status"
+        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
         assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
@@ -3756,12 +3762,14 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["plugin"]["id"] == "no_edge_template"
         assert artifacts["plugin"]["matched"] is True
         assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
+        assert artifacts["plugin"]["result_sections"][0]["label"] == "Example Status"
         assert artifacts["plugin"]["result_fields"][1]["decimals"] == 2
         assert artifacts["plugin"]["result_fields"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["status"] == "ok"
         assert artifacts["plugin_result_summary"]["field_coverage"][1]["decimals"] == 2
         assert artifacts["plugin_result_summary"]["field_coverage"][1]["latest_value"] == 0.0
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["suffix"] == "score units"
+        assert artifacts["plugin_result_summary"]["section_coverage"][0]["field_coverage_pct"] == 100.0
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["coverage_pct"] == 100.0
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {
@@ -4585,6 +4593,21 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
                 "        description: Public-safe display metadata for the local flag.",
                 "        help: Toggle only demonstrates Workbench rendering.",
                 "        advanced: true",
+                "    result_fields:",
+                "      - name: local_score",
+                "        label: Local Score",
+                "        kind: number",
+                "        decimals: 2",
+                "      - name: local_reason",
+                "        label: Local Reason",
+                "        kind: text",
+                "    result_sections:",
+                "      - id: local_status",
+                "        label: Local Status",
+                "        description: Groups public-safe local diagnostics.",
+                "        fields:",
+                "          - local_score",
+                "          - local_reason",
             ]
         )
         + "\n",
@@ -4613,6 +4636,8 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         assert plugins["local_demo"]["strategy_fields"][0]["name"] == "local_flag"
         assert plugins["local_demo"]["strategy_fields"][0]["description"] == "Public-safe display metadata for the local flag."
         assert plugins["local_demo"]["strategy_fields"][0]["advanced"] is True
+        assert plugins["local_demo"]["result_sections"][0]["id"] == "local_status"
+        assert plugins["local_demo"]["result_sections"][0]["fields"] == ["local_score", "local_reason"]
         assert str(registry.resolve()) in options["plugin_registry_paths"]
 
         draft_req = request.Request(
@@ -4784,6 +4809,35 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_cloud_status_server_validates_plugin_result_sections(tmp_path):
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: section_demo",
+                "    label: Section demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    result_fields:",
+                "      - name: public_score",
+                "        label: Public Score",
+                "        kind: number",
+                "    result_sections:",
+                "      - id: invalid_section",
+                "        label: Invalid Section",
+                "        fields:",
+                "          - public_score",
+                "          - private_missing",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="references undeclared result field private_missing"):
+        status_server.load_config_builder_plugins([registry])
 
 
 def test_cloud_status_server_config_draft_rejects_plugin_authored_validation(tmp_path):

@@ -1316,6 +1316,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     declared `result_fields`, surfacing display order, field path, kind,
     formatting hints, latest formatted value, emitted coverage, and help text
     before the dense result tables.
+  - partial; plugin registry entries can now declare public-safe
+    `result_sections` that group declared `result_fields`. Registry validation
+    rejects sections that reference undeclared fields, artifact payloads include
+    section-level coverage, and Run Artifacts renders grouped result cards
+    before the snapshot and dense coverage tables.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
@@ -1569,8 +1574,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     matching plugin strategy fields inline when messages reference
     `strategy.<field>`. The Workbench form schema is now v4, with
     public-safe plugin display metadata for descriptions, placeholders, units,
-    affixes, advanced badges, ordering, and select-option descriptions. Richer
-    plugin-defined custom result display remains open.
+    affixes, advanced badges, ordering, select-option descriptions, and grouped
+    plugin result sections. Richer plugin-defined custom chart/table widgets
+    remain open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

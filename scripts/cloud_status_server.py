@@ -183,6 +183,15 @@ CONFIG_BUILDER_PLUGINS = (
                 "order": 30,
             },
         ],
+        "result_sections": [
+            {
+                "id": "example_status",
+                "label": "Example Status",
+                "description": "Groups public-safe example diagnostics for artifact display.",
+                "fields": ["reason", "signal_value", "threshold_distance"],
+                "order": 10,
+            },
+        ],
     },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
@@ -194,6 +203,7 @@ PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
+PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
@@ -4350,6 +4360,8 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
             if source == "builtin"
             else "Loaded from an ignored local plugin registry; keep strategy logic and tuned configs private."
         )
+    strategy_fields = normalize_plugin_strategy_fields(row.get("strategy_fields"), plugin_id=plugin_id)
+    result_fields = normalize_plugin_result_fields(row.get("result_fields"), plugin_id=plugin_id)
     plugin: dict[str, Any] = {
         "id": plugin_id,
         "label": label,
@@ -4358,8 +4370,13 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         "visibility": visibility,
         "description": description,
         "boundary": boundary,
-        "strategy_fields": normalize_plugin_strategy_fields(row.get("strategy_fields"), plugin_id=plugin_id),
-        "result_fields": normalize_plugin_result_fields(row.get("result_fields"), plugin_id=plugin_id),
+        "strategy_fields": strategy_fields,
+        "result_fields": result_fields,
+        "result_sections": normalize_plugin_result_sections(
+            row.get("result_sections"),
+            plugin_id=plugin_id,
+            result_fields=result_fields,
+        ),
         "source": source,
     }
     if source_path:
@@ -4515,6 +4532,63 @@ def normalize_plugin_result_fields(raw_fields: Any, *, plugin_id: str) -> list[d
     return sorted_fields
 
 
+def normalize_plugin_result_sections(
+    raw_sections: Any,
+    *,
+    plugin_id: str,
+    result_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if raw_sections is None:
+        return []
+    if not isinstance(raw_sections, list):
+        raise ValueError(f"plugin {plugin_id} result_sections must be a list")
+    declared_fields = {str(field.get("name")) for field in result_fields if field.get("name")}
+    normalized = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_sections, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"plugin {plugin_id} result_sections[{idx}] must be a mapping")
+        section_id = str(raw.get("id") or raw.get("name") or "").strip()
+        if not section_id or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", section_id):
+            raise ValueError(f"plugin {plugin_id} result_sections[{idx}].id must be a safe identifier")
+        if section_id in seen:
+            raise ValueError(f"plugin {plugin_id} result_sections contains duplicate id {section_id}")
+        seen.add(section_id)
+        raw_fields = raw.get("fields")
+        if not isinstance(raw_fields, list) or not raw_fields:
+            raise ValueError(f"plugin {plugin_id} result_sections[{section_id}].fields must be a non-empty list")
+        fields: list[str] = []
+        for raw_field in raw_fields:
+            field = str(raw_field or "").strip()
+            if not field or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field):
+                raise ValueError(f"plugin {plugin_id} result_sections[{section_id}].fields contains an invalid field")
+            if field not in declared_fields:
+                raise ValueError(
+                    f"plugin {plugin_id} result_sections[{section_id}].fields references undeclared result field {field}"
+                )
+            if field not in fields:
+                fields.append(field)
+        section = {
+            "id": section_id,
+            "label": str(raw.get("label") or section_id.replace("_", " ").title()).strip(),
+            "fields": fields,
+            "_source_order": idx,
+        }
+        for key in PLUGIN_RESULT_SECTION_DISPLAY_KEYS:
+            if raw.get(key) is not None:
+                section[key] = str(raw[key]).strip()
+        if raw.get("order") is not None:
+            try:
+                section["order"] = float(raw["order"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} result_sections[{section_id}].order must be numeric") from exc
+        normalized.append(section)
+    sorted_sections = sorted(normalized, key=lambda section: (float(section.get("order", section["_source_order"])), int(section["_source_order"])))
+    for section in sorted_sections:
+        section.pop("_source_order", None)
+    return sorted_sections
+
+
 def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:
     plugins = [normalize_config_plugin(plugin, source="builtin") for plugin in CONFIG_BUILDER_PLUGINS]
     seen = {plugin["id"] for plugin in plugins}
@@ -4560,6 +4634,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
             "visibility": None,
             "strategy_fields": [],
             "result_fields": [],
+            "result_sections": [],
         }
     return {
         "id": plugin.get("id"),
@@ -4572,6 +4647,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
         "boundary": plugin.get("boundary"),
         "strategy_fields": plugin.get("strategy_fields") or [],
         "result_fields": plugin.get("result_fields") or [],
+        "result_sections": plugin.get("result_sections") or [],
     }
 
 
@@ -6929,6 +7005,7 @@ def summarize_plugin_result_field_coverage(
     emitted_value_count = 0
     emitted_field_count = 0
     field_rows: list[dict[str, Any]] = []
+    coverage_by_name: dict[str, dict[str, Any]] = {}
 
     for field in fields:
         name = str(field.get("name"))
@@ -6950,7 +7027,7 @@ def summarize_plugin_result_field_coverage(
             ]
         if emitted_count:
             emitted_field_count += 1
-        field_rows.append({
+        field_row = {
             "name": name,
             "label": field.get("label"),
             "kind": field.get("kind"),
@@ -6966,7 +7043,9 @@ def summarize_plugin_result_field_coverage(
             "latest_timestamp": latest_timestamp,
             "latest_symbols": latest_symbols,
             "status": "ok" if emitted_count else "waiting" if not decision_count else "warn",
-        })
+        }
+        field_rows.append(field_row)
+        coverage_by_name[name] = field_row
 
     unlabeled_keys: set[str] = set()
     for decision in decisions:
@@ -6999,12 +7078,47 @@ def summarize_plugin_result_field_coverage(
         "note": note,
         "decision_count": decision_count,
         "declared_field_count": len(fields),
+        "declared_section_count": len(plugin.get("result_sections") if isinstance(plugin.get("result_sections"), list) else []),
         "emitted_field_count": emitted_field_count,
         "emitted_value_count": emitted_value_count,
         "unlabeled_public_keys": sorted(unlabeled_keys)[:50],
         "unlabeled_public_key_count": len(unlabeled_keys),
         "field_coverage": field_rows,
+        "section_coverage": summarize_plugin_result_section_coverage(
+            plugin.get("result_sections") if isinstance(plugin.get("result_sections"), list) else [],
+            coverage_by_name,
+            decision_count=decision_count,
+        ),
     }
+
+
+def summarize_plugin_result_section_coverage(
+    sections: list[dict[str, Any]],
+    coverage_by_name: dict[str, dict[str, Any]],
+    *,
+    decision_count: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for section in sections:
+        fields = [str(field) for field in (section.get("fields") if isinstance(section.get("fields"), list) else [])]
+        field_rows = [coverage_by_name.get(field) for field in fields if coverage_by_name.get(field)]
+        emitted_fields = sum(1 for row in field_rows if int(row.get("emitted_count") or 0) > 0)
+        emitted_values = sum(int(row.get("emitted_count") or 0) for row in field_rows)
+        coverage_pct = finite_float((emitted_fields / len(fields)) * 100.0) if fields else None
+        rows.append({
+            "id": section.get("id"),
+            "label": section.get("label"),
+            "description": section.get("description"),
+            "help": section.get("help"),
+            "fields": fields,
+            "field_count": len(fields),
+            "emitted_field_count": emitted_fields,
+            "emitted_value_count": emitted_values,
+            "field_coverage_pct": coverage_pct,
+            "decision_count": decision_count,
+            "status": "ok" if fields and emitted_fields == len(fields) else "waiting" if not decision_count else "warn",
+        })
+    return rows
 
 
 def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
