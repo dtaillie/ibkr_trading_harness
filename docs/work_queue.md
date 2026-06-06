@@ -1340,6 +1340,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     summary cards plus a combined sanitized recent decisions/orders/fills table
     with type filtering. Raw logs and full artifact browsing remain out of the
     hosted view until retention and privacy boundaries are stronger.
+  - partial; Remote Node Detail now also adds run-health cards for completed
+    versus failed latest runs, visible activity, rejection counts, latest
+    decision age, equity snapshot visibility, and the sanitized cloud boundary
+    before the dense remote run/activity tables.
   - partial; Operations now exposes `/remote_node_detail_export` plus an
     Export Detail CSV button for the selected remote node, covering sanitized
     summary, bounded history, latest runs, alerts, supervisors, and recent

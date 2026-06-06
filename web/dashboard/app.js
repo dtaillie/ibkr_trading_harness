@@ -12192,6 +12192,74 @@ function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
   `).join("");
 }
 
+function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
+  if (!$("remote-node-run-health")) return;
+  const selected = Boolean(detail.node_id);
+  const statusCounts = countBy(runs, "status");
+  const failedCount = runs.filter((runItem) => ["failed", "timeout", "error", "rejected"].includes(text(runItem.status).toLowerCase())).length;
+  const completedCount = runs.filter((runItem) => text(runItem.status).toLowerCase() === "completed").length;
+  const totalDecisions = runs.reduce((sum, runItem) => sum + Number(runItem.decisions || 0), 0);
+  const totalOrders = runs.reduce((sum, runItem) => sum + Number(runItem.orders || 0), 0);
+  const totalFills = runs.reduce((sum, runItem) => sum + Number(runItem.fills || 0), 0);
+  const totalRejections = runs.reduce((sum, runItem) => sum + Number(runItem.rejections || 0), 0);
+  const latestDecisionRun = runs
+    .map((runItem) => ({ runItem, millis: timestampMillis(runItem.last_decision_time) }))
+    .filter((item) => item.millis !== null)
+    .sort((left, right) => right.millis - left.millis)[0] || null;
+  const latestEquityRun = runs.find((runItem) => finiteNumber(runItem.final_equity) !== null) || null;
+  const cards = [
+    {
+      status: !selected ? "bad" : !runs.length ? "warn" : failedCount ? "bad" : "ok",
+      label: "Latest Runs",
+      title: runs.length ? `${numberText(completedCount, 0)} completed` : selected ? "No Runs" : "Select Node",
+      note: runs.length ? `${numberText(runs.length, 0)} bounded run summaries; ${countSummary(statusCounts)}.` : "Select a node or wait for published run summaries.",
+    },
+    {
+      status: !selected ? "bad" : activity.length ? "ok" : runs.length ? "warn" : "bad",
+      label: "Activity",
+      title: `${numberText(totalDecisions, 0)}D / ${numberText(totalOrders, 0)}O / ${numberText(totalFills, 0)}F`,
+      note: activity.length
+        ? `${numberText(activity.length, 0)} sanitized decisions/orders/fills are visible below.`
+        : "No bounded decision, order, or fill rows in latest run summaries.",
+    },
+    {
+      status: totalRejections ? "warn" : runs.length ? "ok" : "warn",
+      label: "Rejections",
+      title: numberText(totalRejections, 0),
+      note: totalRejections ? "Review remote activity locally before issuing controls." : "No rejection count in latest remote run summaries.",
+    },
+    {
+      status: !selected ? "bad" : latestDecisionRun ? "ok" : runs.length ? "warn" : "bad",
+      label: "Latest Decision",
+      title: latestDecisionRun ? timestampAgeLabel(latestDecisionRun.runItem.last_decision_time) : "n/a",
+      note: latestDecisionRun
+        ? `${text(latestDecisionRun.runItem.id)} published the newest decision timestamp.`
+        : "Run summaries did not publish last_decision_time.",
+    },
+    {
+      status: latestEquityRun ? "ok" : runs.length ? "warn" : "bad",
+      label: "Equity Snapshot",
+      title: latestEquityRun ? money(latestEquityRun.final_equity) : "n/a",
+      note: latestEquityRun
+        ? `${text(latestEquityRun.id)} / cash ${money(latestEquityRun.final_cash)} / positions ${numberText(latestEquityRun.position_count, 0)}.`
+        : "Run summaries did not publish final equity.",
+    },
+    {
+      status: "warn",
+      label: "Cloud Boundary",
+      title: "Sanitized",
+      note: "Remote detail shows bounded summaries only; raw logs, credentials, and private strategy diagnostics stay local.",
+    },
+  ];
+  $("remote-node-run-health").innerHTML = cards.map((card) => `
+    <div class="health-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function renderRemoteNodeDetail() {
   if (!$("remote-node-detail-summary") || !$("remote-node-detail-note")) return;
   const detail = state.remoteNodeDetail || {};
@@ -12222,6 +12290,7 @@ function renderRemoteNodeDetail() {
   $("remote-detail-alert-note").textContent = detail.node_id
     ? `${numberText(alerts.length, 0)} latest alert${alerts.length === 1 ? "" : "s"}`
     : "No node selected";
+  renderRemoteNodeRunHealth(detail, runs, activity);
   const pairs = detail.node_id
     ? [
         ["Node", text(detail.node_id)],

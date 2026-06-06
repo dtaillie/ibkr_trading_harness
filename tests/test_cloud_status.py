@@ -892,6 +892,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-filter-sort" in html
         assert "remote-nodes-body" in html
         assert "remote-node-detail-note" in html
+        assert "remote-node-run-health" in html
         assert "remote-node-history-body" in html
         assert "command-audit-note" in html
         assert "command-audit-health" in html

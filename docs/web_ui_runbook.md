@@ -289,9 +289,12 @@ heartbeat, Gateway, mode, equity, positions, open orders, activity counts,
 account/data freshness, and alert summaries by node.
 
 Click Detail on a node when you need bounded per-node history, recent
-decisions/orders/fills, latest run summaries, alerts, and supervisors. Use
-Export Detail CSV to download that sanitized node detail for offline review
-without exposing raw logs or strategy diagnostics.
+decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote
+Node Detail starts with run-health cards for completed/failed runs, activity,
+rejections, latest decision age, equity visibility, and the sanitized cloud
+boundary before the dense tables. Use Export Detail CSV to download that
+sanitized node detail for offline review without exposing raw logs or strategy
+diagnostics.
 
 ## Diagnose Fetch Jobs
 
