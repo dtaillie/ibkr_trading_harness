@@ -8288,6 +8288,7 @@ function renderDataStorageAudit() {
     ["Hidden Configured Files", numberText(audit.hidden_configured_file_count, 0)],
     ["Suggested-root Files", numberText(audit.suggested_file_count, 0)],
     ["Unsupported Files", numberText(audit.unsupported_file_count, 0)],
+    ["Storage Sessions", countSummary(audit.storage_session_guess_counts)],
     ["Root Scan Time", `${numberText(audit.scan_duration_ms_total, 3)} ms`],
     ["Warnings", (audit.warnings || []).join("; ") || "none"],
   ];
@@ -8319,6 +8320,7 @@ function renderDataStorageAudit() {
           escapeHtml(countSummary(item.extension_counts)),
           escapeHtml(countSummary(item.asset_class_guess_counts)),
           escapeHtml(countSummary(item.bar_size_guess_counts)),
+          escapeHtml(countSummary(item.storage_session_guess_counts)),
           escapeHtml(countSummary(item.source_guess_counts)),
           hiddenSamples.length
             ? hiddenSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
@@ -8328,7 +8330,7 @@ function renderDataStorageAudit() {
             : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function dataStorageAuditModel(audit = {}) {

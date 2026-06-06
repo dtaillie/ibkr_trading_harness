@@ -735,13 +735,15 @@ QQQ show up, treat that as a bug until proven otherwise.
     catalog-visible rows
   - partial; the dashboard now exposes `/data_storage_audit_export` and an
     Export Audit CSV button so root-by-root file counts, hidden-file counts,
-    extension/source breakdowns, and suggested roots can be reviewed offline.
+    extension/source/storage-session breakdowns, and suggested roots can be
+    reviewed offline.
   - partial; Storage Audit rows now carry per-root scan duration and the
     summary/CLI report include total root scan time, making slow roots visible.
   - enumerate stock 1m, stock 5m, crypto 1m, crypto 5m, and sample data
-    - partial; Storage Audit already guesses source, asset class, and bar size
-      per file, and the dashboard table now surfaces asset/bar/source
-      breakdowns per root instead of only extension/source counts.
+    - partial; Storage Audit already guesses source, asset class, bar size, and
+      storage session per file, and the dashboard table now surfaces
+      asset/bar/session/source breakdowns per root instead of only
+      extension/source counts.
   - compare files on disk to dashboard-visible catalog rows
     - partial; the storage-audit endpoint now returns an explicit
       `visibility_summary`, and Data Library renders Visibility Gap cards for
@@ -1178,6 +1180,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       extended-hours, and 24/7 crypto fixture in one data root, asserting that
       catalog, coverage, gap summary, minute heatmap, and their CSV exports
       preserve storage-session metadata across the same bounded scan.
+    - partial; storage-audit regression coverage now also asserts mixed
+      RTH/extended/24_7 storage-session guesses across configured and suggested
+      roots, including API payloads, CSV export headers, and CLI human/JSON
+      output.
 - Add data ingestion acceptance tests:
   - a fixture with hundreds of synthetic symbols must show more than the public
     SPY/QQQ examples

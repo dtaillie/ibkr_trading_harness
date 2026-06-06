@@ -2486,12 +2486,14 @@ def audit_data_root(
     for path in files:
         display = display_path(path)
         symbol = infer_symbol(path, pd.DataFrame())
+        asset_class = infer_asset_class(path, symbol)
         file_rows.append({
             "path": display,
             "extension": path.suffix.lower(),
             "source": infer_data_source(path),
-            "asset_class": infer_asset_class(path, symbol),
+            "asset_class": asset_class,
             "bar_size": infer_bar_size(path, pd.DataFrame()),
+            "storage_session": infer_storage_session(path, pd.DataFrame(), asset_class),
             "catalog_visible": display in catalog_paths,
         })
     visible_count = sum(1 for row in file_rows if row["catalog_visible"])
@@ -2520,6 +2522,7 @@ def audit_data_root(
         "asset_class_guess_counts": count_values(file_rows, "asset_class"),
         "source_guess_counts": count_values(file_rows, "source"),
         "bar_size_guess_counts": count_values(file_rows, "bar_size"),
+        "storage_session_guess_counts": count_values(file_rows, "storage_session"),
         "sample_hidden_paths": [row["path"] for row in hidden_rows[:10]],
         "unsupported_file_count": unsupported["unsupported_file_count"],
         "unsupported_extension_counts": unsupported["unsupported_extension_counts"],
@@ -2623,10 +2626,12 @@ def build_data_storage_audit(
         "asset_class_guess_counts": merge_count_maps(configured_rows + suggested_rows, "asset_class_guess_counts"),
         "source_guess_counts": merge_count_maps(configured_rows + suggested_rows, "source_guess_counts"),
         "bar_size_guess_counts": merge_count_maps(configured_rows + suggested_rows, "bar_size_guess_counts"),
+        "storage_session_guess_counts": merge_count_maps(configured_rows + suggested_rows, "storage_session_guess_counts"),
         "configured_extension_counts": merge_count_maps(configured_rows, "extension_counts"),
         "configured_asset_class_guess_counts": merge_count_maps(configured_rows, "asset_class_guess_counts"),
         "configured_source_guess_counts": merge_count_maps(configured_rows, "source_guess_counts"),
         "configured_bar_size_guess_counts": merge_count_maps(configured_rows, "bar_size_guess_counts"),
+        "configured_storage_session_guess_counts": merge_count_maps(configured_rows, "storage_session_guess_counts"),
         "configured_roots": configured_rows,
         "suggested_roots": suggested_rows,
     }
@@ -2736,6 +2741,7 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "asset_class_guess_counts",
     "source_guess_counts",
     "bar_size_guess_counts",
+    "storage_session_guess_counts",
     "sample_hidden_paths",
     "errors",
 )

@@ -829,6 +829,7 @@ def run_smoke(
             "renderDataCatalogHealth",
             "jsonDrilldown",
             "root_summaries",
+            "storage_session_guess_counts",
             "currentOpenOrderRows",
             "viewFromHash",
             "navigateToView",

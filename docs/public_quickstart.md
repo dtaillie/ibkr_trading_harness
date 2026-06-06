@@ -322,7 +322,9 @@ Diagnostics lens is opened. Use Storage Audit to compare CSV/parquet files on di
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
-large or slow roots are visible. Use Export Scan CSV in Catalog Scan
+large or slow roots are visible, plus asset, source, bar-size, and
+storage-session breakdowns so mixed RTH, extended-hours, and 24/7 roots are
+easier to spot. Use Export Scan CSV in Catalog Scan
 Diagnostics to download configured-root parser errors, unsupported-file counts,
 catalog caps, scan durations, and skipped-file samples. Use the coverage grid
 to see recent date-bin

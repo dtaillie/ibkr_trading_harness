@@ -59,6 +59,7 @@ def human_report(audit: dict[str, Any]) -> str:
         f"Assets: {count_summary(audit.get('asset_class_guess_counts'))}",
         f"Sources: {count_summary(audit.get('source_guess_counts'))}",
         f"Bar sizes: {count_summary(audit.get('bar_size_guess_counts'))}",
+        f"Storage sessions: {count_summary(audit.get('storage_session_guess_counts'))}",
     ]
     warnings = audit.get("warnings") or []
     if warnings:
@@ -91,6 +92,7 @@ def human_report(audit: dict[str, Any]) -> str:
         lines.append(f"  assets: {count_summary(row.get('asset_class_guess_counts'))}")
         lines.append(f"  sources: {count_summary(row.get('source_guess_counts'))}")
         lines.append(f"  bars: {count_summary(row.get('bar_size_guess_counts'))}")
+        lines.append(f"  sessions: {count_summary(row.get('storage_session_guess_counts'))}")
         hidden = row.get("sample_hidden_paths") or []
         if hidden:
             lines.append("  sample hidden:")

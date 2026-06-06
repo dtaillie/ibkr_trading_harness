@@ -188,6 +188,9 @@ Inspect, Filter, and Compare actions before you need to use the dense table.
 Use Data Source Map before searching if the catalog looks sparse: it summarizes
 which roots are scanned, which suggested roots are outside the config, whether
 files are hidden by caps, and whether parser/root errors explain missing data.
+Use Storage Audit in Diagnostics for the deeper per-root file comparison,
+including asset, source, bar-size, and storage-session breakdowns across
+configured and suggested roots.
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
 symbols over one date range. Use Find Dataset to narrow large catalogs without
