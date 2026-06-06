@@ -287,10 +287,21 @@ function normalizeOverviewLens(lens) {
   return new Set(["home", "activity", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizePerformanceLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "trades", "rollups", "diagnostics"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
   return parts.hasExplicitLens ? normalizeOverviewLens(parts.lens) : "";
+}
+
+function performanceLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "performance") return "";
+  return parts.hasExplicitLens ? normalizePerformanceLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -302,6 +313,17 @@ function selectedOverviewLens() {
     return "home";
   }
   return normalizeOverviewLens(sessionStorage.getItem("dashboardOverviewLens") || "home");
+}
+
+function selectedPerformanceLens() {
+  const hashLens = performanceLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "performance" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizePerformanceLens(sessionStorage.getItem("dashboardPerformanceLens") || "home");
 }
 
 function viewFromHash() {
@@ -329,6 +351,9 @@ function setActiveView(view) {
   renderPageIntro(targetView);
   if (targetView === "overview") {
     applyOverviewLens(selectedOverviewLens());
+  }
+  if (targetView === "performance") {
+    applyPerformanceLens(selectedPerformanceLens());
   }
 }
 
@@ -393,6 +418,60 @@ function navigateToOverviewLens(lens) {
     return;
   }
   setActiveView("overview");
+}
+
+function performanceLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Current result, evidence quality, risk, and the main charts.",
+    },
+    trades: {
+      title: "Trades",
+      note: "Open/closed trades, trade filters, and recent saved runs.",
+    },
+    rollups: {
+      title: "Rollups",
+      note: "Daily, monthly, and yearly live/paper and archived run summaries.",
+    },
+    diagnostics: {
+      title: "Diagnostics",
+      note: "Source quality, metric context, execution caveats, and next action.",
+    },
+  };
+  return content[normalizePerformanceLens(lens)] || content.home;
+}
+
+function applyPerformanceLens(lens) {
+  const selected = normalizePerformanceLens(lens);
+  sessionStorage.setItem("dashboardPerformanceLens", selected);
+  for (const section of document.querySelectorAll('.dashboard-section[data-view="performance"]')) {
+    const configured = String(section.dataset.performanceLens || "").trim();
+    if (!configured) {
+      section.hidden = false;
+      continue;
+    }
+    const lenses = new Set(configured.split(/\s+/).filter(Boolean));
+    section.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-performance-lens-target]")) {
+    const active = normalizePerformanceLens(button.dataset.performanceLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = performanceLensContent(selected);
+  if ($("performance-lens-title")) $("performance-lens-title").textContent = content.title;
+  if ($("performance-lens-note")) $("performance-lens-note").textContent = content.note;
+}
+
+function navigateToPerformanceLens(lens) {
+  const selected = normalizePerformanceLens(lens);
+  const nextHash = selected === "home" ? "#performance" : `#performance/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("performance");
 }
 
 function pageIntroAction(id, action) {
@@ -11438,6 +11517,9 @@ function init() {
   }
   for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
     button.addEventListener("click", () => navigateToOverviewLens(button.dataset.overviewLensTarget));
+  }
+  for (const button of document.querySelectorAll("[data-performance-lens-target]")) {
+    button.addEventListener("click", () => navigateToPerformanceLens(button.dataset.performanceLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 

@@ -812,6 +812,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-benchmark-note" in html
         assert "performance-source-mode" in html
         assert "performance-period" in html
+        assert "performance-lens-title" in html
+        assert "performance-lens-note" in html
+        assert "performance-lens-home" in html
+        assert "performance-lens-trades" in html
+        assert "performance-lens-rollups" in html
+        assert "performance-lens-diagnostics" in html
         assert "performance-triage-note" in html
         assert "performance-triage-cards" in html
         assert "performance-story-note" in html

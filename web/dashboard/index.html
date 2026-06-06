@@ -369,11 +369,28 @@
           <span id="performance-note" class="section-note">No performance data loaded</span>
         </span>
       </div>
+      <div class="overview-lens-bar performance-lens-bar" aria-label="Performance focus">
+        <div>
+          <span class="eyebrow">Performance Focus</span>
+          <strong id="performance-lens-title">Home</strong>
+          <small id="performance-lens-note">Current result, evidence quality, risk, and the main charts.</small>
+        </div>
+        <div class="overview-lens-actions performance-lens-actions" role="tablist" aria-label="Performance focus tabs">
+          <button id="performance-lens-home" class="overview-lens-button" type="button" data-performance-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="performance-lens-trades" class="overview-lens-button" type="button" data-performance-lens-target="trades" role="tab" aria-selected="false">Trades</button>
+          <button id="performance-lens-rollups" class="overview-lens-button" type="button" data-performance-lens-target="rollups" role="tab" aria-selected="false">Rollups</button>
+          <button id="performance-lens-diagnostics" class="overview-lens-button" type="button" data-performance-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
+        </div>
+      </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
       <div class="section-head artifact-head">
         <h2>Performance Triage</h2>
         <span id="performance-triage-note" class="section-note">No performance source selected</span>
       </div>
       <div id="performance-triage-cards" class="action-card-grid"></div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <section class="performance-home-panel">
         <div class="performance-home-main">
           <span class="eyebrow">Performance Home</span>
@@ -387,6 +404,8 @@
         </div>
         <div id="performance-home-tiles" class="performance-home-tiles"></div>
       </section>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <section class="nested-section performance-story-section">
         <div class="section-head">
           <h2>Performance Story</h2>
@@ -394,6 +413,8 @@
         </div>
         <div id="performance-story-cards" class="action-card-grid"></div>
       </section>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="performance-layout">
         <div class="performance-card">
           <span class="eyebrow">Latest Equity</span>
@@ -435,6 +456,8 @@
           </div>
         </div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
       <div class="performance-kpis">
         <div class="status-tile">
           <span>Source</span>
@@ -457,6 +480,8 @@
           <strong id="performance-activity">n/a</strong>
         </div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
       <section class="nested-section">
         <div class="section-head">
           <h2>Metric Context</h2>
@@ -464,6 +489,8 @@
         </div>
         <dl id="performance-metric-context" class="kv wide-kv"></dl>
       </section>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Today / Latest Session</h2>
@@ -489,6 +516,8 @@
         </div>
         <div id="performance-intraday-chart" class="detail-chart-wrap compact-chart"></div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Equity Curve</h2>
@@ -496,6 +525,8 @@
         </div>
         <div id="performance-equity-chart" class="detail-chart-wrap"></div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Benchmark Overlay</h2>
@@ -503,6 +534,8 @@
         </div>
         <div id="performance-benchmark-chart" class="detail-chart-wrap compact-chart"></div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-grid">
         <div class="chart-panel">
           <div class="section-head">
@@ -526,6 +559,8 @@
           <div id="performance-calendar-chart" class="detail-chart-wrap compact-chart"></div>
         </div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="trades" hidden>
       <div class="table-wrap compact-table">
         <div class="section-head inline-section-head">
           <h2>Trades</h2>
@@ -570,6 +605,8 @@
           <tbody id="performance-trades-body"></tbody>
         </table>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="trades" hidden>
       <div class="table-wrap compact-table">
         <div class="section-head inline-section-head">
           <h2>Recent Runs</h2>
@@ -592,6 +629,8 @@
           <tbody id="performance-runs-body"></tbody>
         </table>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="section-head artifact-head">
         <h2>Live/Paper Status Rollups</h2>
         <span class="button-pair">
@@ -615,6 +654,8 @@
           <div id="performance-status-return-chart" class="detail-chart-wrap compact-chart"></div>
         </div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="table-wrap compact-table">
         <table>
           <thead>
@@ -634,6 +675,8 @@
           <tbody id="performance-status-rollups-body"></tbody>
         </table>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="section-head artifact-head">
         <h2>Live/Paper Period Rollups</h2>
         <span id="performance-status-period-rollups-note" class="section-note">Month/year summaries from sanitized status history</span>
@@ -657,6 +700,8 @@
           <tbody id="performance-status-period-rollups-body"></tbody>
         </table>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="section-head artifact-head">
         <h2>Period Rollups</h2>
         <span id="performance-period-rollups-note" class="section-note">Month/year summaries from archived account artifacts</span>
@@ -679,6 +724,8 @@
           <tbody id="performance-period-rollups-body"></tbody>
         </table>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="section-head artifact-head">
         <h2>Daily Run Rollups</h2>
         <span id="performance-rollups-note" class="section-note">Summarized from archived account artifacts</span>

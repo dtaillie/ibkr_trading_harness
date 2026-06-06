@@ -70,6 +70,10 @@ strategy-private.
     deep-linkable hashes such as `#overview/activity`, so the default first
     screen stays portfolio-first while orders, timelines, runtime checks, and
     setup diagnostics remain one click away.
+  - partial; Performance now has Home / Trades / Rollups / Diagnostics lenses
+    with deep-linkable hashes such as `#performance/trades`, keeping the
+    default result/risk/chart view separate from trade tables, rollup archives,
+    and metric caveats.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -444,6 +448,9 @@ strategy-private.
     - partial; Overview now defaults to a Home lens that keeps dense activity
       and diagnostic tables out of the first scroll while preserving Activity
       and Diagnostics lenses for users who need the detail.
+    - partial; Performance now defaults to a Home lens with the result, story,
+      latest equity, intraday session, and core charts, while Trades, Rollups,
+      and Diagnostics carry the denser tables and context.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
