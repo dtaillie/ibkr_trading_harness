@@ -821,6 +821,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Compare Saved Data can now send the selected compared datasets
       and date window directly into the Workbench Config Builder, closing the
       compare-to-simulation workflow without reselecting files manually.
+    - partial; Compare Saved Data now has a comparison stats strip for leader,
+      laggard, return spread, timestamp overlap, sampling mode, and warnings,
+      so multi-file historical comparisons are readable before the dense
+      symbol/path table.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred

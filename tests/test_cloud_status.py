@@ -747,6 +747,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "copy-data-compare-json" in html
         assert "use-data-compare-workbench" in html
         assert "export-data-compare-csv" in html
+        assert "data-compare-stats" in html
         assert "copy-data-path" in html
         assert "copy-data-root-flag" in html
         assert "copy-data-replay-command" in html

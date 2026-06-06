@@ -8064,6 +8064,7 @@ function renderDataCompare() {
     ? `${escapeHtml(numberText(comparison.dataset_count, 0))} datasets / ${escapeHtml(numberText(comparison.common_timestamp_count, 0))} common timestamps / ${escapeHtml(numberText(comparison.union_timestamp_count, 0))} union timestamps${comparison.warning_count ? ` <span class="status-warn">${escapeHtml((comparison.warnings || []).join("; "))}</span>` : ""}`
     : "Select two or more datasets to compare normalized close paths.";
   $("data-compare-readiness").innerHTML = dataCompareReadinessCards(comparison, timezoneMode);
+  renderDataCompareStats(comparison, timezoneMode);
   $("data-compare-chart").innerHTML = compareChart(series, timezoneMode);
   $("data-compare-body").innerHTML = series.length
     ? series.map((item) => row([
@@ -8077,6 +8078,79 @@ function renderDataCompare() {
         `<span class="mono">${escapeHtml(item.path)}</span>`,
       ])).join("")
     : row([`<span class="muted">No comparison loaded</span>`, "", "", "", "", "", "", ""]);
+}
+
+function renderDataCompareStats(comparison = {}, timezoneMode = "utc") {
+  const container = $("data-compare-stats");
+  if (!container) return;
+  const series = comparison.series || [];
+  if (!comparison.generated_at || !series.length) {
+    container.innerHTML = `
+      <div class="data-range-stat">
+        <span>Comparison Stats</span>
+        <strong>No Comparison</strong>
+        <small>Select and compare at least two saved datasets to see leader, laggard, spread, overlap, and sampling stats.</small>
+      </div>
+    `;
+    return;
+  }
+  const returnRows = series.map((item) => ({
+    symbol: text(item.symbol),
+    source: `${text(item.source)} ${text(item.bar_size)}`,
+    value: finiteNumber(item.total_return_pct),
+  })).filter((item) => item.value !== null);
+  const leader = returnRows.slice().sort((left, right) => right.value - left.value)[0] || null;
+  const laggard = returnRows.slice().sort((left, right) => left.value - right.value)[0] || null;
+  const spread = leader && laggard ? leader.value - laggard.value : null;
+  const common = finiteNumber(comparison.common_timestamp_count) || 0;
+  const union = finiteNumber(comparison.union_timestamp_count) || 0;
+  const overlapPct = union > 0 ? (common / union) * 100 : null;
+  const warningCount = finiteNumber(comparison.warning_count) || 0;
+  const cards = [
+    {
+      label: "Leader",
+      title: leader ? `${leader.symbol} ${pctText(leader.value)}` : "n/a",
+      note: leader ? leader.source : "No valid return series in this comparison.",
+      status: leader ? leader.value >= 0 ? "ok" : "bad" : "unknown",
+    },
+    {
+      label: "Laggard",
+      title: laggard ? `${laggard.symbol} ${pctText(laggard.value)}` : "n/a",
+      note: laggard ? laggard.source : "No valid return series in this comparison.",
+      status: laggard ? laggard.value >= 0 ? "ok" : "bad" : "unknown",
+    },
+    {
+      label: "Spread",
+      title: pctText(spread),
+      note: leader && laggard ? `${leader.symbol} minus ${laggard.symbol}.` : "Need at least two return series.",
+      status: spread === null ? "unknown" : spread > 10 ? "warn" : "ok",
+    },
+    {
+      label: "Overlap",
+      title: overlapPct === null ? "n/a" : pctText(overlapPct),
+      note: `${numberText(common, 0)} common / ${numberText(union, 0)} union timestamps.`,
+      status: common <= 0 ? "bad" : overlapPct !== null && overlapPct < 50 ? "warn" : "ok",
+    },
+    {
+      label: "Sampling",
+      title: text(comparison.sample_mode || "unknown"),
+      note: `${numberText(comparison.preview_points, 0)} requested points; range ${timeRangeLabel(comparison.common_first_timestamp, comparison.common_last_timestamp, timezoneMode)}.`,
+      status: comparison.sample_mode === "full" ? "ok" : "warn",
+    },
+    {
+      label: "Warnings",
+      title: numberText(warningCount, 0),
+      note: warningCount ? (comparison.warnings || []).slice(0, 2).join("; ") : "No comparison warnings reported.",
+      status: warningCount ? "warn" : "ok",
+    },
+  ];
+  container.innerHTML = cards.map((card) => `
+    <div class="data-range-stat status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${statusClass(card.status)}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function dataCompareReadinessCards(comparison, timezoneMode = "utc") {

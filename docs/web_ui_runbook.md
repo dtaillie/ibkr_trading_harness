@@ -58,6 +58,9 @@ or diagnostic panel holds the answer.
 When inspecting a single saved file, Data Detail now shows range stats above
 the chart for return, close range, movement, volume, gaps, and sampling state
 before the lower metadata and gap tables.
+When comparing saved files, Compare Saved Data shows leader, laggard, return
+spread, overlap, sampling, and warning stats above the chart before the
+symbol/path table.
 
 ## Find Current Strategy Performance
 

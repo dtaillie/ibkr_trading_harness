@@ -185,6 +185,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".data-workflow-grid small",
     ".data-detail-range-stats strong",
     ".data-detail-range-stats small",
+    ".data-compare-stats strong",
+    ".data-compare-stats small",
     ".fetch-workflow-grid strong",
     ".fetch-workflow-grid small",
     ".workbench-workflow-grid strong",

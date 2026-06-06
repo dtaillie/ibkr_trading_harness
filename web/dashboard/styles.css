@@ -2094,6 +2094,13 @@ section {
   margin: 12px 0;
 }
 
+.data-compare-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
 .fetch-recovery-cards {
   margin: 0 0 12px;
 }
