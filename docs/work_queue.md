@@ -1630,7 +1630,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       fills through the file broker orders log, reports before/after
       cash/positions, and refuses non-file broker adapters. Live flattening
       remains explicitly separate higher-risk work. The Operations command form
-      now exposes this action through the `config_id` field.
+      now exposes this action through the `config_id` field, with action-boundary
+      copy and a required local confirmation before queueing.
   - restart child process
     - partial; `restart_child_process` is now queueable as a launcher-class
       command, gated by the local enable marker, and only writes a configured
@@ -1638,7 +1639,8 @@ QQQ show up, treat that as a bug until proven otherwise.
       marker, terminate the owned child process, apply the existing restart
       cap/pause guard, and publish `operator_restart_marker` restart evidence.
       The Operations command form now exposes this action and its `job_id`
-      parameter. Remaining gap: richer operator confirmation copy.
+      parameter, with action-boundary copy and a required local confirmation
+      before queueing launcher/control commands.
   - request fresh status
 - Keep higher-risk commands behind stronger local confirmations:
   - live flattening

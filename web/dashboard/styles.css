@@ -288,6 +288,42 @@ footer {
   flex-wrap: wrap;
 }
 
+.command-boundary {
+  flex: 1 1 100%;
+  min-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-panel);
+}
+
+.command-boundary span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.command-boundary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.command-boundary small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.command-confirm-field {
+  flex: 1 1 260px;
+}
+
 label {
   display: grid;
   gap: 4px;
@@ -2375,6 +2411,10 @@ tr:last-child td {
 
 .status-warn {
   color: var(--warn);
+}
+
+.status-neutral {
+  color: var(--muted);
 }
 
 .status-bad {

@@ -75,6 +75,69 @@ const commandParamNames = {
   supervisor: "supervisor_id",
 };
 
+const commandBoundaries = {
+  flatten_simulated_positions: {
+    klass: "control",
+    title: "Flatten simulated file-broker positions",
+    note: "Submits offsetting orders only against configured file-backed local broker state. It refuses IBKR and other broker adapters.",
+    confirm: true,
+  },
+  pause_runner: {
+    klass: "control",
+    title: "Pause runner",
+    note: "Writes the configured local pause marker. A runner or supervisor must be configured to honor that marker.",
+    confirm: true,
+  },
+  request_status: {
+    klass: "read-only",
+    title: "Request fresh status",
+    note: "Collects and posts a fresh public-safe status snapshot from the configured local status publisher.",
+    confirm: false,
+  },
+  restart_child_process: {
+    klass: "launcher",
+    title: "Restart managed child process",
+    note: "Writes a configured supervisor job restart marker. The local supervisor owns the process stop/start and applies its restart limits.",
+    confirm: true,
+  },
+  resume_runner: {
+    klass: "control",
+    title: "Resume runner",
+    note: "Removes the configured local pause marker if it exists.",
+    confirm: true,
+  },
+  run_supervisor_once: {
+    klass: "launcher",
+    title: "Run supervisor once",
+    note: "Runs the configured local supervisor evaluation once and may launch due configured jobs.",
+    confirm: true,
+  },
+  summarize_run: {
+    klass: "read-only",
+    title: "Summarize saved run",
+    note: "Reads a configured local run directory and returns a bounded public-safe summary.",
+    confirm: false,
+  },
+  supervisor_status: {
+    klass: "read-only",
+    title: "Read supervisor status",
+    note: "Reads the configured supervisor state file without launching jobs.",
+    confirm: false,
+  },
+  validate_config: {
+    klass: "read-only",
+    title: "Validate runner config",
+    note: "Validates a configured plugin-runner config without running it.",
+    confirm: false,
+  },
+  validate_supervisor_config: {
+    klass: "read-only",
+    title: "Validate supervisor config",
+    note: "Validates a configured supervisor config without running jobs.",
+    confirm: false,
+  },
+};
+
 const $ = (id) => document.getElementById(id);
 const MAX_DATA_COMPARE_DATASETS = 8;
 
@@ -14384,6 +14447,12 @@ async function copyText(value) {
 async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
+  const boundary = commandBoundaries[action] || {};
+  if (boundary.confirm && !$("command-confirm").checked) {
+    $("command-confirm").focus();
+    $("last-refresh").textContent = "Review and confirm the command boundary before queueing this action";
+    return;
+  }
   const params = {};
   for (const field of commandFields[action] || []) {
     const value = $(`command-${field}`).value.trim();
@@ -14427,6 +14496,18 @@ function updateCommandFields() {
     input.required = shown;
     input.disabled = !shown;
   }
+  const boundary = commandBoundaries[action] || {};
+  const confirmField = $("command-confirm-field");
+  const confirmInput = $("command-confirm");
+  confirmInput.checked = false;
+  confirmInput.required = Boolean(boundary.confirm);
+  confirmInput.disabled = !boundary.confirm;
+  confirmField.classList.toggle("hidden", !boundary.confirm);
+  $("command-boundary").innerHTML = `
+    <span class="status-${boundary.klass === "read-only" ? "ok" : boundary.klass === "launcher" ? "warn" : "neutral"}">${escapeHtml(boundary.klass || "unknown")}</span>
+    <strong>${escapeHtml(boundary.title || action)}</strong>
+    <small>${escapeHtml(boundary.note || "No boundary metadata is available for this action.")}</small>
+  `;
 }
 
 function initToken() {

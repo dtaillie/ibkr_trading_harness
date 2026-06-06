@@ -980,6 +980,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "export-command-audit-csv" in html
         assert "flatten_simulated_positions" in html
         assert "restart_child_process" in html
+        assert "command-boundary" in html
+        assert "command-confirm" in html
         assert "command-job" in html
         assert "Signature" in html
         assert "current-orders-body" in html
