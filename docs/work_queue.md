@@ -756,10 +756,13 @@ QQQ show up, treat that as a bug until proven otherwise.
       catalog-backed Jump to Symbol input that opens the best matching saved
       file directly, and Find Missing Symbol shares the same suggestions.
   - gap markers
-    - partial; gaps are listed in the detail table, chart markers remain open
+    - done for Data Detail line/candlestick charts and gap tables
     - partial; Data Detail charts now render gap bands/markers over the price
       area for returned gap rows, while still listing the exact gap intervals
       in the table below the chart.
+    - partial; Data Detail chart gap markers now include a compact legend that
+      shows how many returned gaps are visible in the current chart window and
+      names the largest visible gap.
     - partial; Data Detail now has a Focus Largest Gap action that applies the
       selected file's largest returned gap as the chart/table date range, so
       suspicious missing-data regions can be inspected without manual date

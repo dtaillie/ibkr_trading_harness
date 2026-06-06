@@ -62,7 +62,8 @@ when the Data Diagnostics lens is opened or explicitly refreshed.
 When inspecting a single saved file, Data Detail now shows range stats above
 the chart for close return, OHLC high/low span, open-to-close move, candle
 direction balance, movement, volume, gaps, and sampling state before the lower
-metadata and gap tables.
+metadata and gap tables. The chart shades returned gap intervals and includes a
+small legend/count so visible chart gaps can be reconciled with the table rows.
 When comparing saved files, Compare Saved Data shows leader, laggard, return
 spread, overlap, sampling, and warning stats above the chart before the
 symbol/path table.

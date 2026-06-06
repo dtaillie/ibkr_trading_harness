@@ -1007,6 +1007,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert ".topbar" in css
         assert ".json-drilldown" in css
         assert ".metric-source" in css
+        assert ".gap-marker-legend" in css
+
+        with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/app.js", timeout=5) as resp:
+            js = resp.read().decode("utf-8")
+        assert "function gapMarkerLegend" in js
+        assert "gap-legend-swatch" in js
     finally:
         server.shutdown()
         server.server_close()

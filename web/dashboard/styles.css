@@ -2531,6 +2531,16 @@ tr:last-child td {
   vector-effect: non-scaling-stroke;
 }
 
+.gap-marker-legend {
+  justify-content: space-between;
+}
+
+.gap-legend-swatch {
+  background: var(--warn) !important;
+  border-radius: 2px !important;
+  opacity: 0.78;
+}
+
 .candle-wick {
   stroke: currentColor;
   stroke-width: 1.4;

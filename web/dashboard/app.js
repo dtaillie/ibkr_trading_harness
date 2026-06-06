@@ -4857,16 +4857,38 @@ function compactDataPreviewChart(dataset) {
 
 function gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode = "utc") {
   const timeSpan = maxTime - minTime || 1;
-  return (gaps || []).map((gap) => {
+  return visibleGapRows(gaps, minTime, maxTime).map((gap) => {
     const start = timestampMillis(gap.from_timestamp);
     const end = timestampMillis(gap.to_timestamp);
-    if (start === null || end === null || end <= minTime || start >= maxTime) return "";
     const x1 = Math.max(0, ((start - minTime) / timeSpan) * width);
     const x2 = Math.min(width, ((end - minTime) / timeSpan) * width);
     const bandWidth = Math.max(2, x2 - x1);
     const label = `${formatTimestampForMode(gap.from_timestamp, timezoneMode)} -> ${formatTimestampForMode(gap.to_timestamp, timezoneMode)} gap ${interval(gap.gap_seconds)}`;
     return `<rect class="gap-marker-band" x="${x1.toFixed(1)}" y="0" width="${bandWidth.toFixed(1)}" height="${priceHeight.toFixed(1)}"><title>${escapeHtml(label)}</title></rect><line class="gap-marker-line" x1="${x2.toFixed(1)}" y1="0" x2="${x2.toFixed(1)}" y2="${priceHeight.toFixed(1)}"><title>${escapeHtml(label)}</title></line>`;
   }).join("");
+}
+
+function visibleGapRows(gaps, minTime, maxTime) {
+  return (gaps || []).filter((gap) => {
+    const start = timestampMillis(gap.from_timestamp);
+    const end = timestampMillis(gap.to_timestamp);
+    return start !== null && end !== null && end > minTime && start < maxTime;
+  });
+}
+
+function gapMarkerLegend(gaps, minTime, maxTime, timezoneMode = "utc") {
+  const rows = gaps || [];
+  if (!rows.length) return "";
+  const visible = visibleGapRows(rows, minTime, maxTime);
+  const largest = visible.slice().sort((left, right) => (
+    (finiteNumber(right.gap_seconds) ?? finiteNumber(right.estimated_missing_intervals) ?? 0)
+    - (finiteNumber(left.gap_seconds) ?? finiteNumber(left.estimated_missing_intervals) ?? 0)
+  ))[0];
+  const visibleText = `${numberText(visible.length, 0)} of ${numberText(rows.length, 0)} returned gap${rows.length === 1 ? "" : "s"} visible`;
+  const detailText = largest
+    ? `Largest visible ${interval(largest.gap_seconds)} from ${formatTimestampForMode(largest.from_timestamp, timezoneMode)} to ${formatTimestampForMode(largest.to_timestamp, timezoneMode)}`
+    : "Returned gaps are outside the current chart window";
+  return `<div class="chart-legend gap-marker-legend"><span class="legend-item"><span class="gap-legend-swatch"></span>${escapeHtml(visibleText)}</span><span class="muted">${escapeHtml(detailText)}</span></div>`;
 }
 
 function detailChart(points, timezoneMode = "utc", gaps = []) {
@@ -4914,8 +4936,9 @@ function detailChart(points, timezoneMode = "utc", gaps = []) {
     }).join("");
   }
   const gapMarkers = gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode);
+  const gapLegend = gapMarkerLegend(gaps, minTime, maxTime, timezoneMode);
   const caption = `${formatTimestampForMode(rows[0].timestamp, timezoneMode)} close ${numberText(first)} | ${formatTimestampForMode(rows[rows.length - 1].timestamp, timezoneMode)} close ${numberText(last)}`;
-  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price, gaps, and volume">${gapMarkers}<polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
+  return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price, gaps, and volume">${gapMarkers}<polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function candlestickChart(points, timezoneMode = "utc", gaps = []) {
@@ -4980,10 +5003,11 @@ function candlestickChart(points, timezoneMode = "utc", gaps = []) {
     }).join("");
   }
   const gapMarkers = gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode);
+  const gapLegend = gapMarkerLegend(gaps, minTime, maxTime, timezoneMode);
   const first = rows[0];
   const last = rows[rows.length - 1];
   const caption = `${formatTimestampForMode(first.timestamp, timezoneMode)} close ${numberText(first.close)} | ${formatTimestampForMode(last.timestamp, timezoneMode)} close ${numberText(last.close)}`;
-  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data candlestick, gaps, and volume">${gapMarkers}${candles}${volumeBars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
+  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data candlestick, gaps, and volume">${gapMarkers}${candles}${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function compareChart(series, timezoneMode = "utc") {
