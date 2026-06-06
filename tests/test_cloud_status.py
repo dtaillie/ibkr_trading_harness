@@ -720,6 +720,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "show-fetch-outputs-data" in html
         assert "copy-fetch-output-paths" in html
         assert "export-fetch-detail-csv" in html
+        assert "fetch-recovery-plan" in html
         assert "overview-health-grid" in html
         assert "overview-alerts-note" in html
         assert "overview-alerts-body" in html

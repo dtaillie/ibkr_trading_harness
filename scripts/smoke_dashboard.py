@@ -407,6 +407,7 @@ def run_smoke(
             "fetch-jobs-guide",
             "fetch-detail-summary",
             "fetch-recovery-cards",
+            "fetch-recovery-plan",
             "fetch-events-body",
             "copy-fetch-resume-command",
             "fetch-outputs-body",

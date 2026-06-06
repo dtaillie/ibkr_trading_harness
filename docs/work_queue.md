@@ -734,6 +734,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail now includes recovery cards that summarize symbol
       coverage, permission blockers, retry events, pacing waits, and whether a
       selected job is ready to inspect, retry, or fix before resuming.
+    - partial; Fetch Detail now also renders a plain-language Recovery Plan
+      checklist that translates backend `recovery_action` values into concrete
+      operator steps for permissions, contracts, no-data review, data-root
+      fixes, resume commands, and Data Library output review.
     - partial; fetch manifest list/detail/export payloads now expose explicit
       recovery status/action/note fields, resume support, and permission,
       no-data, and retryable error counts so recovery triage does not have to

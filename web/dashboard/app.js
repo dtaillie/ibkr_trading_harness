@@ -5909,6 +5909,7 @@ function renderFetchManifestDetail() {
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
   $("fetch-recovery-cards").innerHTML = fetchRecoveryCards(detail, resumeCommand);
+  $("fetch-recovery-plan").innerHTML = fetchRecoveryPlan(detail, resumeCommand, visibleOutputPaths);
   const pairs = [
     ["Job", text(detail.job_id)],
     ["Kind", text(detail.kind)],
@@ -6155,6 +6156,84 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
       <span>${statusText(card.status)}</span>
       <strong>${escapeHtml(card.title)}</strong>
       <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
+function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) {
+  if (!detail || !detail.job_id) {
+    return `
+      <div class="check-item status-warn">
+        <span>warn</span>
+        <div><strong>Select a fetch job</strong><small>Choose Inspect on a manifest to see recovery steps, resume support, and output visibility.</small></div>
+      </div>
+    `;
+  }
+  const action = String(detail.recovery_action || "");
+  const status = detail.recovery_status || "unknown";
+  const hasResume = Boolean(resumeCommand);
+  const steps = [];
+  if (action === "fix_permissions") {
+    steps.push({
+      status: "bad",
+      label: "Fix market-data permissions",
+      detail: "Permission errors are blocking recovery; update subscriptions/contracts before retrying this manifest.",
+    });
+  } else if (action === "fix_contracts") {
+    steps.push({
+      status: "bad",
+      label: "Fix symbol or contract settings",
+      detail: "Contract/security-definition failures need symbol, exchange, or data-type corrections before retrying.",
+    });
+  } else if (action === "review_no_data") {
+    steps.push({
+      status: "warn",
+      label: "Review no-data symbols",
+      detail: "No-data responses may be valid for inactive symbols or unsupported dates; inspect symbol/error rows before retrying.",
+    });
+  } else if (action === "fix_data_roots") {
+    steps.push({
+      status: "warn",
+      label: "Fix Data Library roots",
+      detail: "Outputs exist but are missing, unsupported, or outside configured roots; update data_roots or inspect output paths.",
+    });
+  } else if (action === "resume_manifest") {
+    steps.push({
+      status: "warn",
+      label: "Resume failed work",
+      detail: "Use the generated resume command after checking Gateway/API stability and any retryable errors.",
+    });
+  } else if (status === "ready") {
+    steps.push({
+      status: "ok",
+      label: "Inspect outputs",
+      detail: "No recovery blockers are visible; review Data Library-visible outputs or export detail rows.",
+    });
+  } else {
+    steps.push({
+      status: status === "blocked" ? "bad" : status === "retry" || status === "review" ? "warn" : "ok",
+      label: text(action || status),
+      detail: text(detail.recovery_note || "Review recovery cards and detail rows."),
+    });
+  }
+  steps.push({
+    status: hasResume ? "ok" : "warn",
+    label: hasResume ? "Resume command available" : "No resume command",
+    detail: hasResume
+      ? "Copy Resume Command to retry only failed or missing manifest work."
+      : "This manifest kind is not resumable through the generic resume command.",
+  });
+  steps.push({
+    status: visibleOutputPaths.length ? "ok" : Number(detail.output_total || 0) ? "warn" : "bad",
+    label: visibleOutputPaths.length ? "Review visible outputs" : "No visible outputs",
+    detail: visibleOutputPaths.length
+      ? `Show ${numberText(visibleOutputPaths.length, 0)} Data Library-visible output${visibleOutputPaths.length === 1 ? "" : "s"} as a filtered saved-data set.`
+      : "Recorded outputs are missing, outside configured data roots, unsupported, or absent.",
+  });
+  return steps.map((step) => `
+    <div class="check-item status-${escapeHtml(step.status)}">
+      <span>${escapeHtml(step.status)}</span>
+      <div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div>
     </div>
   `).join("");
 }
