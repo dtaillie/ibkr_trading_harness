@@ -13,6 +13,7 @@ pushing this working tree.
 - Generic local supervisor:
   - `scripts/plugin_supervisor.py`
   - `config/plugin_supervisor.example.yaml`
+  - `ops/systemd/algo-trade-plugin-supervisor.service`
 - Gateway service wrapper.
 - Read-only telemetry prototype:
   - `scripts/publish_status.py`
@@ -36,6 +37,7 @@ pushing this working tree.
   - `ops/systemd/algo-trade-command-worker.service`
 - Operational dashboard:
   - `web/dashboard/`
+  - `ops/systemd/algo-trade-plugin-supervisor.service`
   - `ops/systemd/algo-trade-status-publisher.service`
   - `ops/systemd/algo-trade-status-publisher.timer`
 - Public strategy plugin contract and non-viable example plugins:

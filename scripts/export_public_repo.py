@@ -46,6 +46,7 @@ COPY_FILES = [
     "live/plugin_runner.py",
     "ops/systemd/ibgateway-paper.service",
     "ops/systemd/ibgateway-paper.timer",
+    "ops/systemd/algo-trade-plugin-supervisor.service",
     "ops/systemd/algo-trade-status-publisher.service",
     "ops/systemd/algo-trade-status-publisher.timer",
     "ops/systemd/algo-trade-command-worker.service",

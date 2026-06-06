@@ -20,7 +20,8 @@ local files.
 - Strategy plugin contracts for generic, stock, and crypto runners.
 - Example strategies that deliberately emit no edge.
 - Example configs that show shape and operational wiring only.
-- Local service scripts for IBKR Gateway startup.
+- Local service scripts for IBKR Gateway startup, the generic plugin
+  supervisor, status publishing, and the command worker.
 
 ## What This Is Not
 
@@ -205,6 +206,12 @@ paper/shadow processes that should be monitored without blocking other jobs.
 Each job can reference the same `pause_marker` used by the command worker and
 generic runner, so remote pause/resume can stop scheduled launches and prevent
 order evaluation.
+
+The public systemd example
+`ops/systemd/algo-trade-plugin-supervisor.service` runs the generic supervisor
+from an ignored local config at `~/.config/algo-trade/plugin_supervisor.yaml`.
+Copy and edit `config/plugin_supervisor.example.yaml` before enabling that
+service.
 
 ## Cloud Checking
 

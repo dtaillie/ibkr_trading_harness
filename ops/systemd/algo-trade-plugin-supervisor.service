@@ -1,0 +1,19 @@
+[Unit]
+Description=Algo Trade generic plugin supervisor
+Documentation=file:%h/git/algo_trade_public/docs/public_quickstart.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/git/algo_trade_public
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-%h/.config/algo-trade/plugin-supervisor.env
+ExecStartPre=python3 %h/git/algo_trade_public/scripts/plugin_supervisor.py --config %h/.config/algo-trade/plugin_supervisor.yaml --validate-only
+ExecStart=python3 %h/git/algo_trade_public/scripts/plugin_supervisor.py --config %h/.config/algo-trade/plugin_supervisor.yaml
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45s
+
+[Install]
+WantedBy=default.target

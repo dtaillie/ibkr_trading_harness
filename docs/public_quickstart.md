@@ -210,6 +210,24 @@ Managed jobs can opt into a conservative `restart` policy. Set
 plugin-runner job when its `runner_status.json` heartbeat goes stale. Leave
 restart disabled for one-shot replay/fetch jobs.
 
+To run the generic supervisor as a user-level systemd service, copy the example
+config to an ignored local path and edit it before enabling the unit:
+
+```bash
+mkdir -p ~/.config/algo-trade ~/.config/systemd/user
+cp config/plugin_supervisor.example.yaml ~/.config/algo-trade/plugin_supervisor.yaml
+$EDITOR ~/.config/algo-trade/plugin_supervisor.yaml
+
+cp ops/systemd/algo-trade-plugin-supervisor.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now algo-trade-plugin-supervisor.service
+systemctl --user status algo-trade-plugin-supervisor.service --no-pager
+```
+
+The service validates `~/.config/algo-trade/plugin_supervisor.yaml` before it
+starts and uses the public repo as its working directory. Keep private strategy
+commands and tuned configs only in the ignored local YAML.
+
 ## 8. Cloud Checking Prototype
 
 Publish read-only local telemetry to a file:

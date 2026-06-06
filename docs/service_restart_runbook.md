@@ -12,9 +12,9 @@ systemctl --user list-units 'ibgateway*' 'algo-trade*' --all
 Common public service names:
 
 - `ibgateway-paper.service`
-- `algo-trade-paper-supervisor.service`
-- `algo-trade-sip-orb-paper.service`
-- `algo-trade-crypto-hourly-reversal.service`
+- `algo-trade-plugin-supervisor.service`
+- `algo-trade-status-publisher.service`
+- `algo-trade-command-worker.service`
 
 Private installs may use different names.
 
@@ -24,7 +24,7 @@ Stop paper/shadow runners first so they do not reconnect during Gateway
 restart:
 
 ```bash
-systemctl --user stop algo-trade-paper-supervisor.service
+systemctl --user stop algo-trade-plugin-supervisor.service
 systemctl --user restart ibgateway-paper.service
 systemctl --user status ibgateway-paper.service --no-pager
 ```
@@ -33,8 +33,8 @@ Complete any local login or approval dialog. Then restart the runner or
 supervisor:
 
 ```bash
-systemctl --user start algo-trade-paper-supervisor.service
-systemctl --user status algo-trade-paper-supervisor.service --no-pager
+systemctl --user start algo-trade-plugin-supervisor.service
+systemctl --user status algo-trade-plugin-supervisor.service --no-pager
 ```
 
 ## Restart Dashboard
@@ -51,7 +51,8 @@ If you wrap it as a service, restart that service instead.
 
 ```bash
 journalctl --user -u ibgateway-paper.service -n 100 --no-pager
-journalctl --user -u algo-trade-paper-supervisor.service -n 100 --no-pager
+journalctl --user -u algo-trade-plugin-supervisor.service -n 100 --no-pager
+journalctl --user -u algo-trade-status-publisher.service -n 100 --no-pager
 ```
 
 Runner-specific logs usually live under `paper_logs/`. The dashboard Runs and
@@ -75,4 +76,3 @@ ID. Stop old processes or services before starting replacements.
 - Operations shows the expected supervisor state.
 - Runs page shows only the intended active run.
 - No queued remote command is unexpectedly pending.
-

@@ -1393,6 +1393,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `runner_status.json` heartbeat is stale, with a per-hour restart cap and
     pause-marker guard. Richer UI controls and provider/service-specific
     restart recipes remain open.
+  - partial; the public repo now includes
+    `ops/systemd/algo-trade-plugin-supervisor.service`, a user-level systemd
+    service for the generic local supervisor that validates an ignored local
+    supervisor config before start. The quickstart and restart runbook document
+    the install/start/restart flow.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version
