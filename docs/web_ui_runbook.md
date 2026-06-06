@@ -241,7 +241,9 @@ rows from the Minute Coverage Heatmap.
 8. In Workbench Run, read Run Readiness before pressing Run. It calls out the
    selected draft, validation state, run action, latest run, available results,
    blockers, and warnings, and it can jump directly to Validate, Run, or Open
-   Results.
+   Results. Use Run Selected to stay in Workbench after completion, or Run +
+   Performance to run replay/simulated paper and land on the Performance page
+   after artifacts load.
 9. After a completed replay or simulated-paper run, the dashboard loads the
    exact archived run artifacts when available and refreshes run comparison and
    performance rollups. If a run fails or only validates, stay in Workbench Run

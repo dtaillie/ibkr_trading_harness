@@ -9909,7 +9909,7 @@ function workbenchRunReadinessModel() {
     status = "ok";
     title = "Ready To Run";
     note = `${text(selectedDraftId)} can run ${text(runAction)} with the current settings.`;
-    primaryAction = "run";
+    primaryAction = runAction && runAction !== "validate" ? "run_performance" : "run";
   } else if (selectedDraft && validation && validation.valid === false) {
     primaryAction = "validation";
   } else if (selectedDraft && !validation) {
@@ -9979,6 +9979,12 @@ function workbenchRunReadinessModel() {
       secondary: primaryAction !== "run",
     },
     {
+      id: "run_performance",
+      label: "Run + Performance",
+      enabled: Boolean(selectedDraft && runAction && runAction !== "validate" && !blockers.length),
+      secondary: primaryAction !== "run_performance",
+    },
+    {
       id: "results",
       label: "Open Results",
       enabled: Boolean(latestRun && latestRun.status === "completed" && latestRun.action !== "validate"),
@@ -10030,6 +10036,12 @@ function handleWorkbenchRunReadinessAction(action) {
   }
   if (action === "run" && $("config-run-form")) {
     $("config-run-form").requestSubmit();
+    return;
+  }
+  if (action === "run_performance") {
+    runConfigDraft(null, { openPerformance: true }).catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
     return;
   }
   if (action === "results") {
@@ -12885,17 +12897,17 @@ async function loadRunArtifacts(runId, options = {}) {
     : `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadCompletedRunOutput(run, draftId) {
+async function loadCompletedRunOutput(run, draftId, options = {}) {
   const action = text(run && run.action);
   const status = text(run && run.status);
   if (!run || action === "validate" || status !== "completed") {
     return false;
   }
   if (run.run_id && run.artifact_path) {
-    await loadRunArtifacts(run.run_id);
+    await loadRunArtifacts(run.run_id, options);
     return true;
   }
-  await loadConfigArtifacts(draftId);
+  await loadConfigArtifacts(draftId, options);
   return true;
 }
 
@@ -12906,8 +12918,8 @@ async function loadRunDetail(runId) {
   $("last-refresh").textContent = `Run log loaded: ${new Date().toLocaleString()}`;
 }
 
-async function runConfigDraft(event) {
-  event.preventDefault();
+async function runConfigDraft(event = null, options = {}) {
+  if (event && typeof event.preventDefault === "function") event.preventDefault();
   const draftId = $("config-run-draft").value;
   if (!draftId) {
     $("config-run-status").innerHTML = `<span class="status-bad">Save a generated draft locally before running.</span>`;
@@ -12930,7 +12942,9 @@ async function runConfigDraft(event) {
   state.performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
   state.workbenchStatus = await fetchJson("/workbench_status");
   state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
-  const loadedArtifacts = await loadCompletedRunOutput(run, draftId);
+  const loadedArtifacts = await loadCompletedRunOutput(run, draftId, {
+    openPerformance: Boolean(options.openPerformance),
+  });
   renderWorkbenchRuns();
   renderRunComparison();
   renderPerformanceRollups();
