@@ -1602,7 +1602,19 @@
           <span id="fetch-jobs-note" class="section-note">No fetch manifests loaded</span>
         </span>
       </div>
-      <div class="data-library-summary">
+      <div class="overview-lens-bar fetch-lens-bar" aria-label="Fetch Jobs focus">
+        <div>
+          <span class="eyebrow">Fetch Focus</span>
+          <strong id="fetch-lens-title">Home</strong>
+          <small id="fetch-lens-note">Manifest roots, fetch health, recovery pressure, and next action.</small>
+        </div>
+        <div class="overview-lens-actions fetch-lens-actions" role="tablist" aria-label="Fetch Jobs focus tabs">
+          <button id="fetch-lens-home" class="overview-lens-button" type="button" data-fetch-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="fetch-lens-jobs" class="overview-lens-button" type="button" data-fetch-lens-target="jobs" role="tab" aria-selected="false">Jobs</button>
+          <button id="fetch-lens-detail" class="overview-lens-button" type="button" data-fetch-lens-target="detail" role="tab" aria-selected="false">Detail</button>
+        </div>
+      </div>
+      <div class="data-library-summary" data-fetch-lens="home jobs">
         <div class="data-library-card">
           <span class="eyebrow">Jobs</span>
           <strong id="fetch-job-count">0</strong>
@@ -1619,27 +1631,27 @@
           <span id="fetch-root-note">The dashboard only sees configured manifest roots.</span>
         </div>
       </div>
-      <div class="section-head">
+      <div class="section-head" data-fetch-lens="home">
         <h2>Manifest Roots</h2>
         <span class="button-pair">
           <button id="copy-fetch-roots-yaml" class="secondary" type="button" disabled>Copy fetch_manifest_roots YAML</button>
           <span id="fetch-root-config-note" class="section-note">No manifest roots loaded</span>
         </span>
       </div>
-      <div id="fetch-root-cards" class="root-grid"></div>
-      <section class="nested-section">
+      <div id="fetch-root-cards" class="root-grid" data-fetch-lens="home"></div>
+      <section class="nested-section" data-fetch-lens="home">
         <div class="section-head">
           <h2>Fetch Triage</h2>
           <span id="fetch-triage-note" class="section-note">No fetch triage loaded</span>
         </div>
         <div id="fetch-triage-cards" class="action-card-grid"></div>
       </section>
-      <div class="section-head">
+      <div class="section-head" data-fetch-lens="home">
         <h2>Fetch Workflow</h2>
         <span id="fetch-jobs-guide-note" class="section-note">No fetch guide loaded</span>
       </div>
-      <div id="fetch-jobs-guide" class="checklist"></div>
-      <div class="filter-row">
+      <div id="fetch-jobs-guide" class="checklist" data-fetch-lens="home"></div>
+      <div class="filter-row" data-fetch-lens="jobs">
         <label>
           <span>Search</span>
           <input id="fetch-filter-text" type="search" placeholder="Job, symbol, output, or error">
@@ -1668,7 +1680,7 @@
           </select>
         </label>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" data-fetch-lens="jobs">
         <table>
           <thead>
             <tr>
@@ -1692,7 +1704,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="fetch" hidden>
+    <section class="dashboard-section" data-view="fetch" data-fetch-lens="detail" hidden>
       <div class="section-head">
         <h2>Fetch Detail</h2>
         <span class="button-pair">

@@ -78,6 +78,9 @@ strategy-private.
     Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
     root visibility, catalog browsing, saved-file inspection, comparisons, and
     storage diagnostics are no longer one continuous page.
+  - partial; Fetch Jobs now has Home / Jobs / Detail lenses with deep-linkable
+    hashes such as `#fetch/detail`, separating manifest-root/recovery overview,
+    manifest table scanning, and selected-job recovery/output detail.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -459,6 +462,9 @@ strategy-private.
       browsing, file inspection, comparisons, and storage diagnostics into
       explicit focus lenses instead of showing every saved-data workflow at
       once.
+    - partial; Fetch Jobs now defaults to a Home lens for root and recovery
+      guidance, with Jobs and Detail lenses for dense manifest tables and
+      selected fetch recovery/output inspection.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
@@ -903,6 +909,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Jobs now adds first-screen triage cards for manifest-root
       coverage, active/non-terminal jobs, jobs needing review, output
       visibility, and retry/pacing pressure before the dense manifest table.
+    - partial; Fetch Jobs now uses Home / Jobs / Detail focus lenses so active
+      and completed jobs can be scanned in a dedicated Jobs view while root
+      setup and selected-manifest detail stay out of the way.
     - partial; Fetch detail recovery cards now consume backend recovery
       status/action guidance, distinguishing permission blockers, contract
       fixes, retryable failures, no-data review, and data-root visibility

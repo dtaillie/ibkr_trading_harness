@@ -297,6 +297,11 @@ function normalizeDataLens(lens) {
   return new Set(["home", "browse", "inspect", "compare", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizeFetchLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "jobs", "detail"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
@@ -313,6 +318,12 @@ function dataLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "data") return "";
   return parts.hasExplicitLens ? normalizeDataLens(parts.lens) : "";
+}
+
+function fetchLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "fetch") return "";
+  return parts.hasExplicitLens ? normalizeFetchLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -348,6 +359,17 @@ function selectedDataLens() {
   return normalizeDataLens(sessionStorage.getItem("dashboardDataLens") || "home");
 }
 
+function selectedFetchLens() {
+  const hashLens = fetchLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "fetch" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeFetchLens(sessionStorage.getItem("dashboardFetchLens") || "home");
+}
+
 function viewFromHash() {
   return normalizeView(decodeURIComponent(window.location.hash || ""));
 }
@@ -379,6 +401,9 @@ function setActiveView(view) {
   }
   if (targetView === "data") {
     applyDataLens(selectedDataLens());
+  }
+  if (targetView === "fetch") {
+    applyFetchLens(selectedFetchLens());
   }
 }
 
@@ -557,6 +582,58 @@ function navigateToDataLens(lens) {
     return;
   }
   setActiveView("data");
+}
+
+function fetchLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Manifest roots, fetch health, recovery pressure, and next action.",
+    },
+    jobs: {
+      title: "Jobs",
+      note: "Search, filter, sort, export, and open fetch manifests.",
+    },
+    detail: {
+      title: "Detail",
+      note: "Selected job recovery, resume command, output visibility, errors, events, and output files.",
+    },
+  };
+  return content[normalizeFetchLens(lens)] || content.home;
+}
+
+function applyFetchLens(lens) {
+  const selected = normalizeFetchLens(lens);
+  sessionStorage.setItem("dashboardFetchLens", selected);
+  for (const element of document.querySelectorAll('[data-view="fetch"], [data-fetch-lens]')) {
+    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view !== "fetch") continue;
+    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view === "fetch" && !element.dataset.fetchLens) {
+      element.hidden = false;
+      continue;
+    }
+    const configured = String(element.dataset.fetchLens || "").trim();
+    if (!configured) continue;
+    const lenses = new Set(configured.split(/\s+/).filter(Boolean));
+    element.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-fetch-lens-target]")) {
+    const active = normalizeFetchLens(button.dataset.fetchLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = fetchLensContent(selected);
+  if ($("fetch-lens-title")) $("fetch-lens-title").textContent = content.title;
+  if ($("fetch-lens-note")) $("fetch-lens-note").textContent = content.note;
+}
+
+function navigateToFetchLens(lens) {
+  const selected = normalizeFetchLens(lens);
+  const nextHash = selected === "home" ? "#fetch" : `#fetch/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("fetch");
 }
 
 function pageIntroAction(id, action) {
@@ -10965,6 +11042,7 @@ async function loadFetchManifestDetail(jobId) {
   const response = await fetchJson(`/fetch_manifest_detail?job_id=${encodeURIComponent(jobId)}&limit=500`);
   state.fetchManifestDetail = response;
   renderFetchManifestDetail();
+  if (activeView() === "fetch") applyFetchLens("detail");
   $("last-refresh").textContent = `Fetch manifest loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -11611,6 +11689,9 @@ function init() {
   }
   for (const button of document.querySelectorAll("[data-data-lens-target]")) {
     button.addEventListener("click", () => navigateToDataLens(button.dataset.dataLensTarget));
+  }
+  for (const button of document.querySelectorAll("[data-fetch-lens-target]")) {
+    button.addEventListener("click", () => navigateToFetchLens(button.dataset.fetchLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 
