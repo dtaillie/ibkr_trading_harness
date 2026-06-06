@@ -1573,7 +1573,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     hash-chained audit records for completed/rejected commands and poll
     failures. The status publisher now verifies that local audit hash chain,
     emits a warning on tampering/broken rows, and Operations shows local audit
-    integrity beside remote-control freshness.
+    integrity beside remote-control freshness. Operations Home and its
+    Command Audit workflow card now also factor local worker-audit integrity
+    into first-screen audit health.
   - partial; receiver now rate-limits command queue requests per node and writes
     sanitized queue/cancel/result audit events to an append-only JSONL file with
     a bounded `/command_audit` endpoint. Explicit duplicate `command_id` values

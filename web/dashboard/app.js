@@ -12496,9 +12496,18 @@ function operationsHomeState() {
   const commandAudit = state.commandAudit || {};
   const auditEvents = commandAudit.events || [];
   const integrity = commandAudit.integrity || {};
-  const auditBad = ["broken", "invalid"].includes(String(integrity.status || "").toLowerCase())
+  const localRemote = status.remote_control || {};
+  const localIntegrity = localRemote.integrity || {};
+  const localIntegrityStatus = String(localIntegrity.status || "").toLowerCase();
+  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus);
+  const localAuditWarn = !localAuditBad && Boolean(localRemote.enabled) && (
+    !localIntegrityStatus || ["empty", "legacy", "missing", "unknown"].includes(localIntegrityStatus)
+  );
+  const auditBad = localAuditBad
+    || ["broken", "invalid"].includes(String(integrity.status || "").toLowerCase())
     || ["invalid", "failed"].includes(String(integrity.signature_status || "").toLowerCase());
   const auditWarn = !auditBad && (
+    localAuditWarn ||
     !auditEvents.length
     || ["legacy", "unsigned", "disabled", "mixed"].includes(String(integrity.signature_status || "").toLowerCase())
     || ["legacy", "unchecked", "missing"].includes(String(integrity.status || "").toLowerCase())
@@ -12523,8 +12532,8 @@ function operationsHomeState() {
     nextAction = "remote";
   } else if (auditBad || auditWarn) {
     result = auditBad ? "Command Audit Broken" : "Command Audit Needs Review";
-    note = integrity.status
-      ? `Integrity ${text(integrity.status)}; signature ${text(integrity.signature_status || "not loaded")}.`
+    note = integrity.status || localIntegrity.status
+      ? `Receiver ${text(integrity.status || "not loaded")}; local ${text(localIntegrity.status || "not loaded")}; signature ${text(integrity.signature_status || "not loaded")}.`
       : "No command audit events or integrity status loaded yet.";
     nextAction = "audit";
   } else if (alerts.length || paperWarn) {
@@ -12558,8 +12567,8 @@ function operationsHomeState() {
     {
       label: "Audit",
       status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
-      title: integrity.status ? text(integrity.status) : "Not Loaded",
-      note: `${numberText(auditEvents.length, 0)} events; signature ${text(integrity.signature_status || "n/a")}.`,
+      title: auditBad ? "Broken" : auditWarn ? "Review" : "OK",
+      note: `receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")} / signature ${text(integrity.signature_status || "n/a")}.`,
     },
     {
       label: "Alerts",
@@ -12607,10 +12616,18 @@ function operationsWorkflowCards() {
   const commandAudit = state.commandAudit || {};
   const auditEvents = commandAudit.events || [];
   const integrity = commandAudit.integrity || {};
+  const localRemote = status.remote_control || {};
+  const localIntegrity = localRemote.integrity || {};
   const integrityStatus = String(integrity.status || "").toLowerCase();
   const signatureStatus = String(integrity.signature_status || "").toLowerCase();
-  const auditBad = ["broken", "invalid"].includes(integrityStatus) || ["invalid", "failed"].includes(signatureStatus);
+  const localIntegrityStatus = String(localIntegrity.status || "").toLowerCase();
+  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus);
+  const localAuditWarn = !localAuditBad && Boolean(localRemote.enabled) && (
+    !localIntegrityStatus || ["empty", "legacy", "missing", "unknown"].includes(localIntegrityStatus)
+  );
+  const auditBad = localAuditBad || ["broken", "invalid"].includes(integrityStatus) || ["invalid", "failed"].includes(signatureStatus);
   const auditWarn = !auditBad && (
+    localAuditWarn ||
     !auditEvents.length ||
     ["legacy", "unsigned", "disabled", "mixed"].includes(signatureStatus) ||
     ["legacy", "unchecked", "missing"].includes(integrityStatus)
@@ -12670,12 +12687,12 @@ function operationsWorkflowCards() {
     },
     {
       label: "Command Audit",
-      title: integrity.status ? text(integrity.status) : "Not Loaded",
-      value: signatureStatus ? `signature ${signatureStatus}` : `${numberText(auditEvents.length, 0)} events`,
+      title: auditBad ? "Broken" : auditWarn ? "Needs Review" : "OK",
+      value: `local ${text(localIntegrity.status || "n/a")}`,
       status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
       detail: auditBad
-        ? "Hash-chain or signature status is broken/invalid; review audit rows before issuing controls."
-        : auditWarn ? "Command audit is missing, legacy, unsigned, or partially unchecked." : "Command audit integrity and signature coverage have no visible blockers.",
+        ? "Receiver or local worker audit integrity is broken/invalid; review audit rows before issuing controls."
+        : auditWarn ? "Command audit is missing, legacy, unsigned, locally unchecked, or partially unchecked." : "Receiver and local command audit integrity have no visible blockers.",
       href: workflowHref("operations", "control"),
       cta: "Audit",
     },
