@@ -9,6 +9,7 @@ simulated-paper, or explicitly confirmed IBKR paper mode.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -162,6 +163,11 @@ def section(config: dict[str, Any], name: str, errors: list[str]) -> dict[str, A
 def validate_bool(value: Any, field: str, errors: list[str]) -> None:
     if value is not None and not isinstance(value, bool):
         errors.append(f"{field} must be true or false")
+
+
+def validate_optional_string(value: Any, field: str, errors: list[str]) -> None:
+    if value is not None and (not isinstance(value, str) or not value.strip()):
+        errors.append(f"{field} must be a non-empty string")
 
 
 def validate_positive_int(value: Any, field: str, errors: list[str], *, allow_zero: bool = False) -> None:
@@ -504,6 +510,7 @@ def validate_config(
     validate_bool(execution_cfg.get("require_current_price"), "execution.require_current_price", errors)
     validate_bool(execution_cfg.get("allow_quantity_and_cash"), "execution.allow_quantity_and_cash", errors)
     validate_bool(execution_cfg.get("require_order_approval"), "execution.require_order_approval", errors)
+    validate_optional_string(execution_cfg.get("approval_dir"), "execution.approval_dir", errors)
     validate_positive_int(execution_cfg.get("max_orders_per_run"), "execution.max_orders_per_run", errors)
     validate_nonnegative_float(execution_cfg.get("max_quantity"), "execution.max_quantity", errors, positive=True)
     validate_nonnegative_float(execution_cfg.get("max_cash_quantity"), "execution.max_cash_quantity", errors, positive=True)
@@ -664,6 +671,14 @@ def write_json_atomic(path: Path, record: dict[str, Any]) -> None:
         json.dump(jsonable(record), f, indent=2, sort_keys=True)
         f.write("\n")
     tmp.replace(path)
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    with path.open() as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict):
+        raise ValueError("JSON file must contain an object")
+    return payload
 
 
 def finite_float(raw: Any) -> float | None:
@@ -1563,20 +1578,48 @@ def order_preview_record(
     equity: float | None,
     positions: dict[str, float],
     approval_status: str,
+    approval_dir: Path,
 ) -> dict[str, Any]:
-    return {
+    basis = {
         "timestamp": now,
         "step": step,
         "mode": mode,
-        "approval_required": True,
-        "approval_status": approval_status,
         **intent_record(intent, status="preview"),
         "price": finite_float(price),
         "estimated_notional": finite_float(estimate_intent_notional(intent, price)),
+    }
+    digest = hashlib.sha256(
+        json.dumps(jsonable(basis), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    approval_id = digest[:24]
+    return {
+        **basis,
+        "approval_required": True,
+        "approval_status": approval_status,
+        "approval_id": approval_id,
+        "approval_digest": digest,
+        "approval_file": str(approval_dir / f"{approval_id}.approved.json"),
         "cash": finite_float(cash),
         "equity": finite_float(equity),
         "positions": {symbol: finite_float(qty) for symbol, qty in positions.items()},
     }
+
+
+def order_preview_approved(preview: dict[str, Any]) -> tuple[bool, str]:
+    approval_file = Path(str(preview.get("approval_file") or ""))
+    if not approval_file.exists():
+        return False, "manual approval required"
+    try:
+        approval = read_json(approval_file)
+    except Exception as exc:
+        return False, f"approval file invalid: {exc}"
+    if str(approval.get("approval_id") or "") != str(preview.get("approval_id") or ""):
+        return False, "approval file id does not match preview"
+    if str(approval.get("approval_digest") or "") != str(preview.get("approval_digest") or ""):
+        return False, "approval file digest does not match preview"
+    if str(approval.get("action") or "").lower() != "approve":
+        return False, "approval file action must be approve"
+    return True, "approved by local approval file"
 
 
 def normalize_intent(intent: OrderIntent) -> OrderIntent:
@@ -1790,6 +1833,12 @@ def run_from_config(
     if bool(runner_cfg.get("clean_output_dir", False)) and output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    approval_dir_raw = execution_cfg.get("approval_dir")
+    approval_dir = (
+        Path(str(approval_dir_raw).strip())
+        if approval_dir_raw is not None
+        else output_dir / "order_approvals"
+    )
     runner_starting_cash = finite_float(runner_cfg.get("starting_cash", execution_cfg.get("starting_cash", 10000.0)))
 
     spec = plugin_spec(config)
@@ -2048,8 +2097,7 @@ def run_from_config(
             require_order_approval = bool(execution_cfg.get("require_order_approval", False))
             if require_order_approval:
                 price = final_prices.get(intent.symbol)
-                approval_status = "approved" if approve_orders else "required"
-                append_jsonl(output_dir / "order_previews.jsonl", order_preview_record(
+                preview = order_preview_record(
                     intent,
                     now=now,
                     step=step,
@@ -2058,17 +2106,27 @@ def run_from_config(
                     cash=float(cash) if cash is not None else None,
                     equity=float(equity) if equity is not None else None,
                     positions=positions,
-                    approval_status=approval_status,
-                ))
+                    approval_status="approved" if approve_orders else "required",
+                    approval_dir=approval_dir,
+                )
+                approval_reason = "approved by --approve-orders"
                 if not approve_orders:
+                    file_approved, approval_reason = order_preview_approved(preview)
+                    if file_approved:
+                        preview["approval_status"] = "approved_file"
+                    else:
+                        preview["approval_status"] = "required"
+                append_jsonl(output_dir / "order_previews.jsonl", preview)
+                if not approve_orders and preview["approval_status"] != "approved_file":
                     approval_required_orders += 1
-                    reason = "manual approval required"
+                    reason = approval_reason
                     append_jsonl(output_dir / "orders.jsonl", {
                         "timestamp": now,
                         **intent_record(intent, status="approval_required", reason=reason),
                     })
                     log.warning("%s held: %s", intent.symbol, reason)
                     continue
+                log.info("%s approved: %s", intent.symbol, approval_reason)
 
             accepted_orders += 1
 

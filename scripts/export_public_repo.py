@@ -64,6 +64,7 @@ COPY_FILES = [
     "ops/cloud/render-status-receiver.example.yaml",
     "ops/cloud/sync-command-audit.example.sh",
     "scripts/audit_data_storage.py",
+    "scripts/approve_order_preview.py",
     "scripts/build_zerohash_crypto_universe.py",
     "scripts/cloud_status_server.py",
     "scripts/command_worker.py",

@@ -45,6 +45,9 @@ execution:
     - market
   allow_short: false
   require_current_price: true
+  require_order_approval: false
+  # For manual per-order approval, keep approvals outside a cleaned output_dir.
+  # approval_dir: paper_logs/control/order_approvals
   max_orders_per_run: 1
   max_notional_per_order: 100
   max_quantity: 10

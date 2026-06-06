@@ -6583,6 +6583,8 @@ def summarize_order_preview_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "mode": row.get("mode"),
         "approval_required": bool(row.get("approval_required")),
         "approval_status": row.get("approval_status"),
+        "approval_id": row.get("approval_id"),
+        "approval_file": row.get("approval_file"),
         "status": row.get("status"),
         "symbol": row.get("symbol"),
         "side": row.get("side"),

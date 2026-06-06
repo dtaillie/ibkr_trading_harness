@@ -168,6 +168,27 @@ or `metadata.sim_cost_model`; unmatched intents use the global settings. For
 simulated shorts, `sim_short_borrow_bps_annual` sets a global annual borrow-fee
 drag in basis points, and
 `sim_short_borrow_bps_annual_by_symbol` can override that rate by symbol.
+Configs can also set `execution.require_order_approval: true` for
+simulated-paper or paper runs. In that mode, each executable order first writes
+an `order_previews.jsonl` row with an `approval_id`, digest, estimated notional,
+cash/equity context, and the expected local approval-file path. The runner
+holds the order until either the run is launched with `--approve-orders` or a
+matching approval file exists. To approve one held preview without globally
+approving every order:
+
+```bash
+python3 scripts/approve_order_preview.py \
+  paper_logs/example_plugin_runner/order_previews.jsonl
+
+python3 live/plugin_runner.py \
+  --config config/plugin_runner.yaml \
+  --mode simulated-paper
+```
+
+For real paper workflows, set `execution.approval_dir` to a durable ignored
+directory such as `paper_logs/control/order_approvals`. Avoid keeping approvals
+inside a run directory that uses `runner.clean_output_dir: true`, because that
+directory is intentionally refreshed before the next run.
 `--validate-only` checks the static parts of this config before a run starts.
 Private strategy modules or factory functions can also expose
 `validate_config(config, *, full_config=None)` or

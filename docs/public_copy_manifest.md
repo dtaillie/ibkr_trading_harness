@@ -14,6 +14,8 @@ pushing this working tree.
   - `scripts/plugin_supervisor.py`
   - `config/plugin_supervisor.example.yaml`
   - `ops/systemd/algo-trade-plugin-supervisor.service`
+- Manual order approval helper:
+  - `scripts/approve_order_preview.py`
 - Gateway service wrapper.
 - Read-only telemetry prototype:
   - `scripts/publish_status.py`

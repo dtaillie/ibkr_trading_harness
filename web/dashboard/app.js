@@ -11065,6 +11065,7 @@ function renderWorkbenchArtifacts() {
     ? orderPreviews.map((preview) => row([
         escapeHtml(preview.timestamp),
         statusText(preview.approval_status || (preview.approval_required ? "required" : "preview")),
+        `<span class="mono">${escapeHtml(preview.approval_id)}</span>`,
         escapeHtml(preview.symbol),
         escapeHtml(preview.side),
         escapeHtml(preview.order_type),
@@ -11072,9 +11073,10 @@ function renderWorkbenchArtifacts() {
         escapeHtml(money(preview.cash_quantity)),
         escapeHtml(money(preview.estimated_notional)),
         escapeHtml(money(preview.equity)),
+        `<span class="mono">${escapeHtml(preview.approval_file)}</span>`,
         escapeHtml(preview.tag),
       ])).join("")
-    : row([`<span class="muted">Order previews appear when execution.require_order_approval holds orders for operator approval.</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">Order previews appear when execution.require_order_approval holds orders for operator approval.</span>`, "", "", "", "", "", "", "", "", "", "", ""]);
 
   const fills = artifacts.fills || [];
   $("artifact-fills-body").innerHTML = fills.length

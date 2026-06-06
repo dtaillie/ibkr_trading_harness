@@ -57,6 +57,9 @@ This roadmap is broader context; the queue is the current execution order.
   as descriptions, placeholders, units, affixes, advanced badges, ordering, and
   select-option descriptions.
 - Add optional order previews and manual approval hooks for paper/live mode.
+  The public runner now writes deterministic approval IDs/digests and supports
+  local approval files through `scripts/approve_order_preview.py`; richer
+  dashboard-native approval actions remain future work.
 - Add richer simulated-paper accounting: realized PnL, average cost, borrow
   constraints, commission schedules, and slippage models. The public runner now
   covers basic shortable/cap checks, side-specific slippage, simple market

@@ -3865,6 +3865,8 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
             "mode": "simulated_paper",
             "approval_required": True,
             "approval_status": "required",
+            "approval_id": "abc123",
+            "approval_file": "paper_logs/workbench/order_approvals/abc123.approved.json",
             "status": "preview",
             "symbol": "SPY",
             "side": "buy",
@@ -3906,6 +3908,8 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
         assert payload["counts"]["order_previews"] == 1
         preview = payload["order_previews"][0]
         assert preview["approval_status"] == "required"
+        assert preview["approval_id"] == "abc123"
+        assert preview["approval_file"].endswith("abc123.approved.json")
         assert preview["symbol"] == "SPY"
         assert preview["estimated_notional"] == 1500.75
         assert preview["equity"] == 10000.0

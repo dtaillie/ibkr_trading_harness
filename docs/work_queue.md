@@ -1442,12 +1442,16 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes
     `order_previews.jsonl` and holds simulated-paper/paper orders unless the
-    run is launched with `--approve-orders`. Dashboard performance and
-    artifact summaries surface approval-hold counts. Richer interactive
-    approval flows remain open.
+    run is launched with `--approve-orders` or a matching local approval file
+    is present. Each preview now has a deterministic `approval_id`, full digest,
+    and expected approval-file path, and `scripts/approve_order_preview.py`
+    writes the matching approval JSON for one held preview. Dashboard
+    performance and artifact summaries surface approval-hold counts. Richer
+    dashboard-native interactive approval flows remain open.
   - partial; archived/draft run artifact loading now preserves bounded
     `order_previews.jsonl` rows, sanitizes approval preview details, and the
-    Runs artifact view shows a dedicated Order Previews table for held orders.
+    Runs artifact view shows a dedicated Order Previews table with approval IDs
+    and local approval-file paths for held orders.
 - Add richer simulated-paper accounting:
   - realized PnL
   - average cost
