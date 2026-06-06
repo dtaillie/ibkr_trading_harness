@@ -14,7 +14,7 @@ import yaml
 
 from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
-from scripts.command_worker import execute_command, poll_once
+from scripts.command_worker import audit_record_hash, execute_command, poll_once
 from scripts.publish_status import collect_status, gateway_alerts, post_status, publish_status
 
 
@@ -5515,6 +5515,8 @@ def test_command_worker_poll_once_round_trip(tmp_path):
         audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
         assert audit_rows[0]["event"] == "command_result"
         assert audit_rows[0]["result"]["command_id"]
+        assert audit_rows[0]["prev_hash"] == ""
+        assert audit_rows[0]["record_hash"] == audit_record_hash(audit_rows[0])
         with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
             pending = json.loads(resp.read().decode("utf-8"))
         assert pending["commands"] == []
@@ -5564,6 +5566,9 @@ def test_command_worker_poll_once_rejects_commands_over_local_limit(tmp_path):
         assert "worker command limit exceeded" in results[1]["error"]
         audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
         assert [row["result"]["status"] for row in audit_rows] == ["completed", "rejected"]
+        assert audit_rows[0]["record_hash"] == audit_record_hash(audit_rows[0])
+        assert audit_rows[1]["prev_hash"] == audit_rows[0]["record_hash"]
+        assert audit_rows[1]["record_hash"] == audit_record_hash(audit_rows[1])
         with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
             pending = json.loads(resp.read().decode("utf-8"))
         assert pending["commands"] == []

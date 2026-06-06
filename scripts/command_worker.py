@@ -8,6 +8,7 @@ support arbitrary shell commands, strategy changes, or broker actions.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -135,6 +136,40 @@ def audit_path(config: dict[str, Any]) -> Path | None:
     return Path(str(audit.get("log_file") or "paper_logs/remote_control/audit.jsonl"))
 
 
+def audit_hash_payload(payload: dict[str, Any]) -> str:
+    normalized = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"prev_hash", "record_hash"}
+    }
+    return json.dumps(normalized, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def audit_record_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(audit_hash_payload(payload).encode("utf-8")).hexdigest()
+
+
+def latest_audit_hash(path: Path) -> str:
+    if not path.exists():
+        return ""
+    latest = ""
+    try:
+        with path.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict) and row.get("record_hash"):
+                    latest = str(row["record_hash"])
+    except OSError:
+        return ""
+    return latest
+
+
 def append_audit(config: dict[str, Any], record: dict[str, Any]) -> None:
     path = audit_path(config)
     if path is None:
@@ -144,6 +179,8 @@ def append_audit(config: dict[str, Any], record: dict[str, Any]) -> None:
         "audited_at": utc_now(),
         **record,
     }
+    payload["prev_hash"] = latest_audit_hash(path)
+    payload["record_hash"] = audit_record_hash(payload)
     with path.open("a") as f:
         f.write(json.dumps(payload, sort_keys=True) + "\n")
 

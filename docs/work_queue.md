@@ -1570,7 +1570,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   local safety gates before expanding remote commands.
   - partial; command worker now enforces a local command cap, action risk
     metadata, explicit local enable markers for launcher actions, and local
-    audit records for completed/rejected commands
+    hash-chained audit records for completed/rejected commands and poll
+    failures
   - partial; receiver now rate-limits command queue requests per node and writes
     sanitized queue/cancel/result audit events to an append-only JSONL file with
     a bounded `/command_audit` endpoint. Explicit duplicate `command_id` values
