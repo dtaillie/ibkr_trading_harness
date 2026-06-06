@@ -511,7 +511,10 @@ strategy drilldowns in the dashboard, publish only sanitized fields under
 `StrategyDecision.diagnostics["dashboard"]`; the dashboard allowlists fields
 such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
 `near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,
-`stop_state`, `mae_pct`, and `mfe_pct`. For open-position cards, plugins can
+`stop_state`, `mae_pct`, and `mfe_pct`. Plugin registry rows can also declare
+`result_fields` for public-safe `diagnostics.dashboard` keys so Run Artifacts
+can label those values without exposing private strategy logic. For
+open-position cards, plugins can
 also publish public-safe per-symbol fields under
 `diagnostics.dashboard.position_details` or
 `diagnostics.dashboard.position_metadata`; the generic runner keeps only

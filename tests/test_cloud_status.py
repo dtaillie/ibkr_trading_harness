@@ -977,6 +977,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-result-open-runs" in html
         assert "workbench-result-open-log" in html
         assert "workbench-result-tiles" in html
+        assert "artifact-plugin-fields-note" in html
+        assert "artifact-plugin-fields-body" in html
         assert "workbench-run-readiness-note" in html
         assert "workbench-run-readiness-cards" in html
         assert "workbench-run-readiness-actions" in html
@@ -2997,6 +2999,12 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
+        assert [field["name"] for field in plugin["result_fields"]] == [
+            "reason",
+            "signal_value",
+            "threshold_distance",
+        ]
+        assert plugin["result_fields"][1]["label"] == "Example Score"
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         assert options["guide_schema_version"] == 1
         assert [step["id"] for step in options["guide_steps"]] == [
@@ -3363,6 +3371,8 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             run_artifacts = json.loads(resp.read().decode("utf-8"))
         assert run_artifacts["run_id"] == replay["run_id"]
         assert run_artifacts["draft_id"] == "Run_Draft"
+        assert run_artifacts["plugin"]["id"] == "no_edge_template"
+        assert run_artifacts["plugin"]["result_fields"][0]["name"] == "reason"
         assert run_artifacts["summary"]["mode"] == "replay"
         assert run_artifacts["counts"] == {
             "account": 2,
@@ -3383,6 +3393,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert "signal" not in run_artifacts["decisions"][0]
         assert "diagnostics" not in run_artifacts["decisions"][0]
         assert run_artifacts["decisions"][0]["drilldown"]["signal_label"] == "Example score"
+        assert run_artifacts["decisions"][0]["drilldown"]["reason"] == "example_only_no_signal"
         assert run_artifacts["decisions"][0]["drilldown"]["threshold"] == 1.0
         assert run_artifacts["performance"]["max_gross_exposure"] == 0.0
         assert run_artifacts["performance"]["max_gross_exposure_pct"] == 0.0
@@ -3407,6 +3418,8 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
+        assert artifacts["plugin"]["id"] == "no_edge_template"
+        assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {
             "account": 2,

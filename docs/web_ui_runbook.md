@@ -257,6 +257,10 @@ matrix rows offline.
    performance rollups. If a run fails or only validates, stay in Workbench Run
    and open the log before trusting outputs.
 
+Run Artifacts reads public-safe `diagnostics.dashboard` values from plugin
+decisions. Add `result_fields` to a public or ignored local plugin registry
+entry when those values need clearer labels or formatting in the artifact view.
+
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
 artifacts, and the next action. Use its buttons to jump to data selection,

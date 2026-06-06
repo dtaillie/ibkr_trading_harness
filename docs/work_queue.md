@@ -1215,6 +1215,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench guide step metadata is now schema-driven through
     `/config_options.guide_steps` and exported workbench snapshots include
     `guide_schema_version` for downstream UI/schema compatibility checks.
+  - partial; plugin registry entries can now expose public-safe
+    `result_fields`, artifact payloads preserve those labels/format hints, and
+    Run Artifacts renders a bounded Plugin Result Fields table from matching
+    `diagnostics.dashboard` keys without exposing raw private signal payloads.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

@@ -151,6 +151,29 @@ CONFIG_BUILDER_PLUGINS = (
                 "help": "Demonstrates plugin-specific config wiring only.",
             },
         ],
+        "result_fields": [
+            {
+                "name": "reason",
+                "label": "Example Reason",
+                "kind": "text",
+                "help": "Example-only public diagnostic emitted by diagnostics.dashboard.",
+                "order": 10,
+            },
+            {
+                "name": "signal_value",
+                "label": "Example Score",
+                "kind": "number",
+                "help": "No-edge demonstration score; this is not a tradable signal.",
+                "order": 20,
+            },
+            {
+                "name": "threshold_distance",
+                "label": "Threshold Distance",
+                "kind": "number",
+                "help": "Demonstrates labeled result-field rendering for plugin diagnostics.",
+                "order": 30,
+            },
+        ],
     },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
@@ -160,6 +183,8 @@ CONFIG_FORM_SCHEMA_VERSION = 4
 CONFIG_GUIDE_SCHEMA_VERSION = 1
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
+PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
+PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
@@ -4247,6 +4272,7 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         "description": description,
         "boundary": boundary,
         "strategy_fields": normalize_plugin_strategy_fields(row.get("strategy_fields"), plugin_id=plugin_id),
+        "result_fields": normalize_plugin_result_fields(row.get("result_fields"), plugin_id=plugin_id),
         "source": source,
     }
     if source_path:
@@ -4350,6 +4376,50 @@ def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list
     return sorted_fields
 
 
+def normalize_plugin_result_fields(raw_fields: Any, *, plugin_id: str) -> list[dict[str, Any]]:
+    if raw_fields is None:
+        return []
+    if not isinstance(raw_fields, list):
+        raise ValueError(f"plugin {plugin_id} result_fields must be a list")
+    normalized = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_fields, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"plugin {plugin_id} result_fields[{idx}] must be a mapping")
+        name = str(raw.get("name") or "").strip()
+        if not name or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError(f"plugin {plugin_id} result_fields[{idx}].name must be a safe identifier")
+        if name in seen:
+            raise ValueError(f"plugin {plugin_id} result_fields contains duplicate field {name}")
+        seen.add(name)
+        kind = str(raw.get("kind") or "text").strip().lower()
+        if kind not in PLUGIN_RESULT_FIELD_KINDS:
+            raise ValueError(
+                f"plugin {plugin_id} result_fields[{name}].kind must be one of {sorted(PLUGIN_RESULT_FIELD_KINDS)}"
+            )
+        field = {
+            "name": name,
+            "label": str(raw.get("label") or name.replace("_", " ").title()).strip(),
+            "kind": kind,
+            "plugin_id": plugin_id,
+            "help": str(raw.get("help") or "").strip(),
+            "_source_order": idx,
+        }
+        for key in PLUGIN_RESULT_FIELD_DISPLAY_KEYS:
+            if raw.get(key) is not None:
+                field[key] = str(raw[key]).strip()
+        if raw.get("order") is not None:
+            try:
+                field["order"] = float(raw["order"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} result_fields[{name}].order must be numeric") from exc
+        normalized.append(field)
+    sorted_fields = sorted(normalized, key=lambda field: (float(field.get("order", field["_source_order"])), int(field["_source_order"])))
+    for field in sorted_fields:
+        field.pop("_source_order", None)
+    return sorted_fields
+
+
 def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:
     plugins = [normalize_config_plugin(plugin, source="builtin") for plugin in CONFIG_BUILDER_PLUGINS]
     seen = {plugin["id"] for plugin in plugins}
@@ -4373,6 +4443,37 @@ def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None)
 
 def config_plugin_by_id(plugin_id: str, plugins: list[dict[str, Any]]) -> dict[str, Any] | None:
     return next((plugin for plugin in plugins if plugin["id"] == plugin_id), None)
+
+
+def config_plugin_by_spec(spec: str, plugins: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next((plugin for plugin in plugins if str(plugin.get("spec") or "") == spec), None)
+
+
+def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[str, Any]] | None) -> dict[str, Any]:
+    metadata = config.get("metadata") if isinstance(config, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    spec = str(metadata.get("strategy_plugin") or metadata.get("plugin") or "").strip()
+    plugin = config_plugin_by_spec(spec, plugins or []) if spec else None
+    if not plugin:
+        return {
+            "id": None,
+            "label": None,
+            "spec": spec or None,
+            "status": str(metadata.get("status") or "").strip() or None,
+            "visibility": None,
+            "result_fields": [],
+        }
+    return {
+        "id": plugin.get("id"),
+        "label": plugin.get("label"),
+        "spec": plugin.get("spec"),
+        "status": plugin.get("status"),
+        "visibility": plugin.get("visibility"),
+        "description": plugin.get("description"),
+        "boundary": plugin.get("boundary"),
+        "result_fields": plugin.get("result_fields") or [],
+    }
 
 
 def data_path_allowed(raw_path: str, data_roots: list[Path]) -> tuple[Path, str]:
@@ -6522,7 +6623,7 @@ def read_jsonl_tail(path: Path, *, limit: int) -> list[dict[str, Any]]:
     return list(rows)
 
 
-def summarize_decision_artifact(row: dict[str, Any]) -> dict[str, Any]:
+def summarize_decision_artifact(row: dict[str, Any], *, result_fields: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     intents = row.get("intents")
     diagnostics = row.get("diagnostics") if isinstance(row.get("diagnostics"), dict) else {}
     symbols = diagnostics.get("symbols") or diagnostics.get("symbols_seen")
@@ -6535,7 +6636,7 @@ def summarize_decision_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "intent_count": len(intents) if isinstance(intents, list) else 0,
         "paused": bool(diagnostics.get("paused")),
         "symbols": [str(symbol) for symbol in symbols[:25]],
-        "drilldown": sanitize_public_decision_drilldown(diagnostics),
+        "drilldown": sanitize_public_decision_drilldown(diagnostics, result_fields=result_fields),
     }
 
 
@@ -6548,12 +6649,21 @@ def safe_public_drilldown_value(value: Any) -> Any:
     return None
 
 
-def sanitize_public_decision_drilldown(diagnostics: dict[str, Any]) -> dict[str, Any]:
+def sanitize_public_decision_drilldown(
+    diagnostics: dict[str, Any],
+    *,
+    result_fields: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     raw = diagnostics.get("dashboard") if isinstance(diagnostics, dict) else None
     if not isinstance(raw, dict):
         return {}
     out = {}
-    for key in PUBLIC_DECISION_DRILLDOWN_FIELDS:
+    allowed_fields = list(PUBLIC_DECISION_DRILLDOWN_FIELDS)
+    for field in result_fields or []:
+        name = str(field.get("name") or "")
+        if name and name not in allowed_fields:
+            allowed_fields.append(name)
+    for key in allowed_fields:
         if key not in raw:
             continue
         value = safe_public_drilldown_value(raw.get(key))
@@ -7085,6 +7195,8 @@ def load_config_draft_artifacts(
     )
     if errors:
         raise ValueError("; ".join(errors))
+    plugin = artifact_plugin_metadata(config, plugins)
+    result_fields = plugin.get("result_fields") or []
     output_dir = safe_workbench_output_dir(config)
     summary = read_json_file(output_dir / "summary.json")
     runner_status_raw = read_json_file(output_dir / "runner_status.json")
@@ -7098,6 +7210,7 @@ def load_config_draft_artifacts(
     return {
         "draft_id": path.stem,
         "output_dir": display_path(output_dir),
+        "plugin": plugin,
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
@@ -7112,7 +7225,7 @@ def load_config_draft_artifacts(
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
-        "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
+        "decisions": [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
         "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
@@ -7139,6 +7252,7 @@ def load_config_draft_run_artifacts(
     state_dir: Path,
     run_id: str,
     *,
+    plugins: list[dict[str, Any]] | None = None,
     limit: int = 100,
 ) -> dict[str, Any]:
     record = find_config_draft_run(state_dir, run_id)
@@ -7152,6 +7266,17 @@ def load_config_draft_run_artifacts(
         raise ValueError("run artifact path is invalid")
     if not path.exists() or not path.is_dir():
         raise ValueError(f"run artifacts not found: {record.get('run_id')}")
+    config: dict[str, Any] | None = None
+    draft_id = str(record.get("draft_id") or "").strip()
+    if draft_id:
+        draft_path = config_draft_path(state_dir, draft_id)
+        if draft_path.exists():
+            try:
+                config = read_yaml_mapping(draft_path)
+            except Exception:
+                config = None
+    plugin = artifact_plugin_metadata(config, plugins)
+    result_fields = plugin.get("result_fields") or []
     summary = read_json_file(path / "summary.json")
     runner_status_raw = read_json_file(path / "runner_status.json")
     performance_rollups_raw = read_json_file(path / "performance_rollups.json")
@@ -7166,6 +7291,7 @@ def load_config_draft_run_artifacts(
         "draft_id": record.get("draft_id"),
         "action": record.get("action"),
         "status": record.get("status"),
+        "plugin": plugin,
         "output_dir": record.get("summary", {}).get("output_dir") if isinstance(record.get("summary"), dict) else None,
         "artifact_path": str(path),
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
@@ -7182,7 +7308,7 @@ def load_config_draft_run_artifacts(
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
-        "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
+        "decisions": [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw],
         "orders": [summarize_order_artifact(row) for row in orders_raw],
         "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
@@ -9205,7 +9331,12 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = parse_limit(params, default=100, maximum=MAX_ARTIFACT_ROWS)
-                payload = load_config_draft_run_artifacts(self.state_dir, run_id, limit=limit)
+                payload = load_config_draft_run_artifacts(
+                    self.state_dir,
+                    run_id,
+                    plugins=load_config_builder_plugins(self.plugin_registry_paths),
+                    limit=limit,
+                )
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -9220,7 +9351,12 @@ class StatusHandler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = parse_limit(params, default=100, maximum=MAX_ARTIFACT_ROWS)
-                payload = load_config_draft_run_artifacts(self.state_dir, run_id, limit=limit)
+                payload = load_config_draft_run_artifacts(
+                    self.state_dir,
+                    run_id,
+                    plugins=load_config_builder_plugins(self.plugin_registry_paths),
+                    limit=limit,
+                )
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

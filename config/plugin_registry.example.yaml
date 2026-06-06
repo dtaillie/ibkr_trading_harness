@@ -19,3 +19,12 @@ plugins:
         description: Example-only toggle that proves plugin field rendering.
         help: Public-safe wiring example only; do not publish tuned values.
         advanced: false
+    result_fields:
+      - name: example_score
+        label: Example Score
+        kind: number
+        help: Public-safe diagnostics.dashboard field label for artifact tables.
+      - name: example_reason
+        label: Example Reason
+        kind: text
+        help: Human-readable reason emitted by the private plugin.

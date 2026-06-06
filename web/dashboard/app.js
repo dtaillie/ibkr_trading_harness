@@ -10902,6 +10902,40 @@ function drilldownMaeMfeText(drilldown) {
   return `${mae} / ${mfe}`;
 }
 
+function pluginResultFieldValue(field, value) {
+  if (value === undefined || value === null || value === "") return "n/a";
+  const kind = text(field.kind || "text");
+  if (kind === "percent") return pctText(value);
+  if (kind === "currency") return money(value);
+  if (kind === "boolean") return value ? "yes" : "no";
+  if (kind === "duration_minutes") return `${numberText(value, 2)} min`;
+  if (kind === "number") return numberText(value, 4);
+  if (Array.isArray(value)) return value.map((item) => text(item)).join(", ");
+  return text(value);
+}
+
+function pluginResultFieldRows(artifacts) {
+  const fields = ((artifacts.plugin || {}).result_fields || [])
+    .filter((field) => field && field.name)
+    .slice(0, 12);
+  if (!fields.length) return [];
+  const rows = [];
+  for (const decision of artifacts.decisions || []) {
+    const drilldown = decision.drilldown || {};
+    for (const field of fields) {
+      if (!(field.name in drilldown)) continue;
+      rows.push({
+        timestamp: decision.timestamp,
+        symbols: decision.symbols || [],
+        field,
+        value: drilldown[field.name],
+      });
+      if (rows.length >= 100) return rows;
+    }
+  }
+  return rows;
+}
+
 function artifactChartMarkers(artifacts) {
   const markers = [];
   for (const fill of artifacts.fills || []) {
@@ -11044,6 +11078,23 @@ function renderWorkbenchArtifacts() {
         ]);
       }).join("")
     : row([`<span class="muted">Plugins can publish public-safe fields under diagnostics.dashboard to populate this table.</span>`, "", "", "", "", "", "", ""]);
+  const pluginFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
+  const pluginFieldRows = pluginResultFieldRows(artifacts);
+  const pluginLabel = text((artifacts.plugin || {}).label || (artifacts.plugin || {}).id || (artifacts.plugin || {}).spec);
+  $("artifact-plugin-fields-note").textContent = pluginFields.length
+    ? pluginFieldRows.length
+      ? `${numberText(pluginFieldRows.length, 0)} labeled public diagnostic value${pluginFieldRows.length === 1 ? "" : "s"} from ${pluginLabel}`
+      : `${numberText(pluginFields.length, 0)} configured result field${pluginFields.length === 1 ? "" : "s"} for ${pluginLabel}; no matching decision diagnostics in this artifact`
+    : "No plugin result field metadata is configured for this artifact";
+  $("artifact-plugin-fields-body").innerHTML = pluginFieldRows.length
+    ? pluginFieldRows.map((item) => row([
+        escapeHtml(item.timestamp),
+        escapeHtml((item.symbols || []).join(", ")),
+        escapeHtml(text(item.field.label || item.field.name)),
+        escapeHtml(pluginResultFieldValue(item.field, item.value)),
+        escapeHtml(text(item.field.help || item.field.description || "")),
+      ])).join("")
+    : row([`<span class="muted">Declare result_fields in the public or ignored local plugin registry, then emit matching diagnostics.dashboard keys.</span>`, "", "", "", ""]);
   const nearMisses = nearThresholdMissRows(drilldowns);
   $("artifact-near-threshold-note").textContent = nearMisses.length
     ? `${numberText(nearMisses.length, 0)} close decision${nearMisses.length === 1 ? "" : "s"} without order intents`
