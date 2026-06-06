@@ -15176,6 +15176,19 @@ function handleControlAssistantAction(action) {
   $("command-audit-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
+function prepareRequestStatusCommand(nodeId = "") {
+  const cleanNode = text(nodeId);
+  if (cleanNode && cleanNode !== "n/a") $("command-node").value = cleanNode;
+  $("command-action").value = "request_status";
+  updateCommandFields();
+  applyOperationsLens("control");
+  $("command-form").scrollIntoView({ block: "start", behavior: "smooth" });
+  $("last-refresh").textContent = cleanNode && cleanNode !== "n/a"
+    ? `Read-only request_status prepared for ${cleanNode}; review before queueing`
+    : "Read-only request_status prepared; choose a node before queueing";
+  renderControlAssistant();
+}
+
 function remoteNodeFilters() {
   return {
     text: ($("remote-filter-text").value || "").trim().toLowerCase(),
@@ -15483,7 +15496,7 @@ function renderRemoteNodes() {
         escapeHtml(timestampAgeLabel(node.latest_account_time)),
         escapeHtml(timestampAgeLabel(node.latest_data_time)),
         escapeHtml(numberText(node.alert_count, 0)),
-        `<button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button>`,
+        `<span class="button-pair"><button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button><button type="button" class="secondary request-remote-status" data-node-id="${escapeHtml(node.node_id)}">Status</button></span>`,
       ])).join("")
     : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
@@ -17825,6 +17838,10 @@ function init() {
       loadRemoteNodeDetail(target.dataset.nodeId || "").catch((err) => {
         $("last-refresh").textContent = `Remote node detail failed: ${err.message}`;
       });
+      return;
+    }
+    if (target.classList.contains("request-remote-status")) {
+      prepareRequestStatusCommand(target.dataset.nodeId || "");
     }
   });
   $("data-catalog-body").addEventListener("click", (event) => {

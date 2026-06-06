@@ -904,6 +904,8 @@ def run_smoke(
             "renderRemoteNodeDetail",
             "renderRemoteNodeRunHealth",
             "inspect-remote-node",
+            "request-remote-status",
+            "prepareRequestStatusCommand",
             "No cloud monitoring snapshots yet",
             "status_label",
             "draft.folder",

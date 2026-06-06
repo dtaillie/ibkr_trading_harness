@@ -1723,6 +1723,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       parameter, with action-boundary copy and a required local confirmation
       before queueing launcher/control commands.
   - request fresh status
+    - partial; `request_status` is queueable as a read-only command, the worker
+      collects/posts a fresh sanitized status snapshot from configured local
+      publisher settings, and Remote Nodes now has a Status action that prepares
+      that command for a selected node without auto-queueing it.
 - Keep higher-risk commands behind stronger local confirmations:
   - live flattening
   - changing strategy config
