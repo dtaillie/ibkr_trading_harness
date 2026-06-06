@@ -11377,6 +11377,137 @@ function renderOperationsHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderOperationsWorkflowLauncher();
+}
+
+function operationsWorkflowCards() {
+  const status = state.status || {};
+  const gateway = status.gateway || {};
+  const alerts = status.alerts || [];
+  const paperItems = paperMonitorItems();
+  const paperBad = paperItems.filter((item) => item.status === "bad").length;
+  const paperWarn = paperItems.filter((item) => item.status === "warn").length;
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const staleRemote = remoteNodes.filter((node) => {
+    const millis = timestampMillis(node.received_at || node.generated_at);
+    return millis === null || ((Date.now() - millis) / 1000) > 900;
+  }).length;
+  const commandAudit = state.commandAudit || {};
+  const auditEvents = commandAudit.events || [];
+  const integrity = commandAudit.integrity || {};
+  const integrityStatus = String(integrity.status || "").toLowerCase();
+  const signatureStatus = String(integrity.signature_status || "").toLowerCase();
+  const auditBad = ["broken", "invalid"].includes(integrityStatus) || ["invalid", "failed"].includes(signatureStatus);
+  const auditWarn = !auditBad && (
+    !auditEvents.length ||
+    ["legacy", "unsigned", "disabled", "mixed"].includes(signatureStatus) ||
+    ["legacy", "unchecked", "missing"].includes(integrityStatus)
+  );
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failedResults = results.filter((result) => {
+    const value = String(result.status || "").toLowerCase();
+    return ["failed", "error", "rejected", "cancelled", "canceled"].includes(value);
+  });
+  const supervisors = status.supervisors || [];
+  const supervisorIssues = supervisors.filter((supervisor) => supervisor.status && supervisor.status !== "ok");
+  const diagnostics = state.diagnostics || {};
+  const cleanup = state.cleanupPlan || {};
+  const diagnosticWarnings = [
+    ...(diagnostics.warnings || []),
+    ...(diagnostics.errors || []),
+    ...(cleanup.warnings || []),
+    ...(cleanup.errors || []),
+  ];
+
+  return [
+    {
+      label: "Paper Monitor",
+      title: paperBad ? `${numberText(paperBad, 0)} Blockers` : paperWarn ? `${numberText(paperWarn, 0)} Warnings` : "Ready",
+      value: `${numberText(paperItems.length, 0)} checks`,
+      status: paperBad ? "bad" : paperWarn ? "warn" : "ok",
+      detail: paperBad
+        ? "Gateway, account, mode, market-data, or order-context checks need review before trusting paper automation."
+        : paperWarn ? "Paper monitoring is partially visible, but one or more readiness checks need review." : "Local paper-monitor checks have no visible blockers.",
+      href: workflowHref("operations", "paper"),
+      cta: "Paper",
+    },
+    {
+      label: "Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      value: gateway.enabled ? `${text(gateway.host)}:${text(gateway.port)}` : "not checked",
+      status: gatewayStatus,
+      detail: gateway.enabled
+        ? gateway.reachable ? "Gateway/API check is reachable from this dashboard host." : text(gateway.error || "Gateway/API check is enabled but unreachable.")
+        : "Gateway reachability checks are disabled in the current status payload.",
+      href: workflowHref("operations", "diagnostics"),
+      cta: "Gateway",
+    },
+    {
+      label: "Remote Nodes",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} Nodes` : "No Nodes",
+      value: `${numberText(remoteAlerts, 0)} alerts`,
+      status: remoteNodes.length ? remoteAlerts || staleRemote ? "warn" : "ok" : "warn",
+      detail: remoteNodes.length
+        ? `${numberText(staleRemote, 0)} stale heartbeat${staleRemote === 1 ? "" : "s"}; inspect node detail for sanitized runs, alerts, and activity.`
+        : "No read-only cloud monitoring snapshots are loaded yet.",
+      href: workflowHref("operations", "remote"),
+      cta: "Remote",
+    },
+    {
+      label: "Command Audit",
+      title: integrity.status ? text(integrity.status) : "Not Loaded",
+      value: signatureStatus ? `signature ${signatureStatus}` : `${numberText(auditEvents.length, 0)} events`,
+      status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
+      detail: auditBad
+        ? "Hash-chain or signature status is broken/invalid; review audit rows before issuing controls."
+        : auditWarn ? "Command audit is missing, legacy, unsigned, or partially unchecked." : "Command audit integrity and signature coverage have no visible blockers.",
+      href: workflowHref("operations", "control"),
+      cta: "Audit",
+    },
+    {
+      label: "Control Queue",
+      title: pendingCommands.length ? `${numberText(pendingCommands.length, 0)} Pending` : commands.length ? "No Pending" : "No Commands",
+      value: failedResults.length ? `${numberText(failedResults.length, 0)} failed` : `${numberText(results.length, 0)} results`,
+      status: failedResults.length ? "bad" : pendingCommands.length ? "warn" : commands.length || results.length ? "ok" : "warn",
+      detail: pendingCommands.length
+        ? "Remote-control commands are waiting for a worker; confirm node, action, and audit state."
+        : failedResults.length ? "Recent command results include failures or rejections." : "Queue and result tables are available for remote-control review.",
+      href: workflowHref("operations", "control"),
+      cta: "Queue",
+    },
+    {
+      label: "Diagnostics",
+      title: alerts.length || diagnosticWarnings.length || supervisorIssues.length ? "Review" : "Clean",
+      value: `${numberText(alerts.length, 0)} alerts`,
+      status: alerts.length || diagnosticWarnings.length || supervisorIssues.length ? "warn" : "ok",
+      detail: alerts.length || diagnosticWarnings.length || supervisorIssues.length
+        ? `${numberText(supervisorIssues.length, 0)} supervisor issue${supervisorIssues.length === 1 ? "" : "s"} and ${numberText(diagnosticWarnings.length, 0)} diagnostic warning${diagnosticWarnings.length === 1 ? "" : "s"} are visible.`
+        : "No local alerts, supervisor issues, or diagnostic warnings are visible.",
+      href: workflowHref("operations", "diagnostics"),
+      cta: "Diagnostics",
+    },
+  ];
+}
+
+function renderOperationsWorkflowLauncher() {
+  const container = $("operations-workflows");
+  if (!container) return;
+  const cards = operationsWorkflowCards();
+  container.innerHTML = cards.map((card) => `
+    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+      <div class="workflow-card-foot">
+        <em>${escapeHtml(card.value)}</em>
+        <b>${escapeHtml(card.cta)}</b>
+      </div>
+    </a>
+  `).join("");
 }
 
 function handleOperationsHomeAction(action) {

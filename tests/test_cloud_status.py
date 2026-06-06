@@ -868,6 +868,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime-status-note" in html
         assert "operations-home-result" in html
         assert "operations-home-tiles" in html
+        assert "operations-workflows" in html
         assert "operations-home-paper" in html
         assert "operations-home-remote" in html
         assert "operations-home-audit" in html

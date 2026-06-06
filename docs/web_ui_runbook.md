@@ -106,6 +106,10 @@ opening individual artifacts.
 Open Operations when reviewing remote-control activity. Use Export Audit CSV
 to download sanitized command queue, cancel, and result events together with
 hash-chain and signature status for offline review.
+Use Operations workflow cards first when the task is operational: Paper
+Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, or
+Diagnostics. They route into the Paper, Remote, Control, or Diagnostics lenses
+without scanning the full operations surface.
 
 ## Review a Completed Fetch
 

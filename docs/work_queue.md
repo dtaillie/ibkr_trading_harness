@@ -1222,6 +1222,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Operations now has Paper Monitor Health cards that summarize
     blocker/warning counts, next action, mode safety, and order-context
     visibility before the detailed checklist.
+  - partial; Operations Home now also includes workflow cards for Paper
+    Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, and
+    Diagnostics, giving users a job-oriented route into paper readiness,
+    cloud monitoring, command review, and local setup checks.
 
 ## P1: Operations and cloud monitoring
 
