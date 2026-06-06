@@ -97,6 +97,10 @@ strategy-private.
     deep-linkable hashes such as `#workbench/builder`, keeping the guided
     simulation path separate from config editing, run tables, and loaded
     artifact/log inspection.
+  - partial; Workbench Builder now includes a Builder Assistant that synthesizes
+    selected data, plugin visibility, alignment, draft validation, save state,
+    and run readiness with direct Data, Preview, Generate, and Run actions
+    before the dense config form.
   - partial; Runs now has Home / State / Runs / Events lenses with
     deep-linkable hashes such as `#runs/events`, separating triage, account
     boundary/current order state, run search, and event timelines.

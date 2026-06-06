@@ -10528,6 +10528,7 @@ function renderConfigBuilder() {
   renderWorkbenchGuide();
   renderConfigPluginBoundary();
   renderConfigBrokerBoundary();
+  renderWorkbenchBuilderAssistant();
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderConfigValidationMessages();
@@ -10743,6 +10744,142 @@ function renderConfigBuilderReadiness() {
   `).join("");
 }
 
+function renderWorkbenchBuilderAssistant() {
+  if (!$("workbench-builder-assistant-title") || !$("workbench-builder-assistant-cards") || !$("workbench-builder-assistant-actions")) return;
+  const selected = selectedConfigDatasets();
+  const plugin = selectedConfigPlugin();
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const draftErrors = normalizeConfigDraftErrors(state.configDraftErrors || []);
+  const savedPath = draft.saved_path || "";
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const warningRows = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const allowQualityWarnings = $("config-allow-quality-warnings") ? $("config-allow-quality-warnings").checked : false;
+  const qualityBlocked = Boolean(warningRows.length && !allowQualityWarnings);
+  let title = "Select Saved Data";
+  let note = "Choose one or more Data Library files before generating a replay or simulated-paper draft.";
+  if (selected.length && !alignment.dataset_count) {
+    title = "Preview Alignment Next";
+    note = `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected; preview timestamp overlap before trusting the replay window.`;
+  } else if (selected.length && alignment.dataset_count && !draft.yaml) {
+    title = qualityBlocked ? "Acknowledge Data Warnings" : "Ready To Generate Draft";
+    note = qualityBlocked
+      ? `${numberText(warningRows.length, 0)} selected dataset${warningRows.length === 1 ? "" : "s"} have quality warnings; inspect them before allowing warnings.`
+      : `Alignment has ${numberText(alignment.common_timestamp_count, 0)} common timestamps; generate a public-safe draft next.`;
+  } else if (draft.yaml && !draftValid) {
+    title = "Draft Needs Fixes";
+    note = draftErrors.length ? draftErrors.join("; ") : "Generated draft is invalid; review validation messages and field highlights.";
+  } else if (draftValid && !savedPath) {
+    title = "Draft Valid But Unsaved";
+    note = "Enable save or generate a saved draft before running it from the Run lens.";
+  } else if (draftValid) {
+    title = "Draft Ready To Run";
+    note = `${text(savedPath)} is valid; open Run to validate saved drafts or execute replay/simulated paper.`;
+  }
+  $("workbench-builder-assistant-title").textContent = title;
+  $("workbench-builder-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: selected.length ? qualityBlocked ? "warn" : "ok" : "bad",
+      label: "Data",
+      title: numberText(selected.length, 0),
+      note: selected.length
+        ? warningRows.length ? `${numberText(warningRows.length, 0)} quality warning${warningRows.length === 1 ? "" : "s"}.` : "Selected files are ready for review."
+        : "No saved files selected.",
+    },
+    {
+      status: plugin.id ? plugin.visibility === "public_example" ? "warn" : "ok" : "bad",
+      label: "Plugin",
+      title: text(plugin.label || plugin.id),
+      note: plugin.id ? text(plugin.visibility || plugin.boundary || "registry loaded") : "No plugin selected.",
+    },
+    {
+      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "bad",
+      label: "Alignment",
+      title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
+      note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Alignment has not been previewed.",
+    },
+    {
+      status: draft.yaml ? draftValid ? "ok" : "bad" : "warn",
+      label: "Draft",
+      title: draft.yaml ? draftValid ? "Valid" : "Invalid" : "None",
+      note: draft.yaml ? savedPath ? "Saved draft path exists." : "Generated draft is not saved." : "Generate YAML and local commands.",
+    },
+    {
+      status: draftValid && savedPath ? "ok" : draftValid ? "warn" : "bad",
+      label: "Run",
+      title: draftValid && savedPath ? "Ready" : "Not Ready",
+      note: draftValid && savedPath ? "Open Run to execute or validate saved drafts." : "Run requires a valid saved draft.",
+    },
+  ];
+  $("workbench-builder-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const actions = [
+    {
+      action: "data",
+      title: selected.length ? "Change Selected Data" : "Select Data",
+      note: selected.length ? "Open Data Library to add or replace saved files." : "Browse saved historical datasets.",
+      label: "Data",
+      disabled: false,
+    },
+    {
+      action: "alignment",
+      title: "Preview Alignment",
+      note: selected.length ? "Check common timestamps across selected files." : "Select data before previewing alignment.",
+      label: "Preview",
+      disabled: !selected.length,
+    },
+    {
+      action: draft.yaml && !draftValid ? "preview-draft" : "generate",
+      title: draft.yaml && !draftValid ? "Preview Draft Again" : "Generate Draft",
+      note: selected.length && plugin.id ? "Build YAML and server-side validation output." : "Select data and plugin before generating.",
+      label: draft.yaml && !draftValid ? "Preview" : "Generate",
+      disabled: !selected.length || !plugin.id,
+    },
+    {
+      action: "run",
+      title: "Open Run",
+      note: draftValid && savedPath ? "Run or validate the saved draft." : "Generate and save a valid draft first.",
+      label: "Run",
+      disabled: !(draftValid && savedPath),
+    },
+  ];
+  $("workbench-builder-assistant-actions").innerHTML = actions.map((action) => `
+    <button type="button" class="workbench-builder-assistant-action ${action.disabled ? "secondary" : ""}" data-workbench-builder-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleWorkbenchBuilderAssistantAction(action) {
+  if (action === "data") {
+    navigateToDataLens("browse");
+    return;
+  }
+  if (action === "alignment") {
+    $("config-preview-alignment").click();
+    return;
+  }
+  if (action === "preview-draft") {
+    $("config-preview-draft").click();
+    return;
+  }
+  if (action === "run") {
+    navigateToWorkbenchLens("run");
+    return;
+  }
+  $("config-generate-draft").click();
+}
+
 function selectedRunDraft() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   return ((state.configDrafts && state.configDrafts.drafts) || [])
@@ -10881,6 +11018,7 @@ function renderConfigLivePanels() {
   renderConfigDataQuality();
   updatePluginStrategyFields();
   renderConfigPluginBoundary();
+  renderWorkbenchBuilderAssistant();
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchGuide();
@@ -14672,6 +14810,9 @@ async function previewConfigAlignment() {
   });
   state.alignmentPreview = response.alignment || {};
   renderConfigAlignment(state.alignmentPreview);
+  renderWorkbenchBuilderAssistant();
+  renderConfigBuilderReadiness();
+  renderConfigCompatibility();
   $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -16143,6 +16284,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-run-readiness-action") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleWorkbenchRunReadinessAction(target.dataset.runReadinessAction || "");
+  });
+  $("workbench-builder-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-builder-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleWorkbenchBuilderAssistantAction(target.dataset.workbenchBuilderAction || "");
   });
   $("workbench-result-open-performance").addEventListener("click", () => {
     openWorkbenchResultPerformance().catch((err) => {
