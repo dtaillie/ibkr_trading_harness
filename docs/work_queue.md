@@ -784,6 +784,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail can now filter Data Library to the selected job's
       visible output files, making completed fetch output sets reviewable as a
       group.
+    - partial; Fetch Detail can now send Data Library-visible output files
+      directly into the Workbench Config Builder, carrying the manifest date
+      range when available so completed fetches can become replay inputs
+      without manual re-selection.
     - partial; Fetch Detail can now copy the selected job's Data
       Library-visible output paths as a newline-separated list for local
       scripts or manual audit.

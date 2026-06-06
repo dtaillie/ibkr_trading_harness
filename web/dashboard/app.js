@@ -6691,6 +6691,7 @@ function renderFetchManifestDetail() {
     : "No fetch job selected";
   $("copy-fetch-resume-command").disabled = !resumeCommand;
   $("show-fetch-outputs-data").disabled = !visibleOutputPaths.length;
+  $("use-fetch-outputs-workbench").disabled = !visibleOutputPaths.length;
   $("copy-fetch-output-paths").disabled = !visibleOutputPaths.length;
   $("export-fetch-detail-csv").disabled = !detail.job_id;
   const counts = detail.counts || {};
@@ -6806,6 +6807,44 @@ function applyFetchOutputDataFilter() {
   navigateToView("data");
   renderDataCatalog();
   $("last-refresh").textContent = `Data Library filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
+}
+
+function useFetchOutputsInWorkbench() {
+  const detail = state.fetchManifestDetail || {};
+  const paths = fetchVisibleOutputPaths(detail);
+  if (!paths.length) {
+    $("last-refresh").textContent = "Selected fetch has no Data Library-visible outputs for Workbench";
+    return;
+  }
+  const datasetSelect = $("config-dataset");
+  if (!datasetSelect) return;
+  const selectedPaths = new Set(paths);
+  for (const option of datasetSelect.options) {
+    option.selected = selectedPaths.has(option.value);
+  }
+  const catalogByPath = new Map((state.dataCatalog.datasets || []).map((dataset) => [dataset.path, dataset]));
+  for (const path of paths) {
+    if (Array.from(datasetSelect.options).some((option) => option.value === path)) continue;
+    const dataset = catalogByPath.get(path) || { path };
+    const option = document.createElement("option");
+    option.value = path;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${path}`;
+    option.selected = true;
+    datasetSelect.appendChild(option);
+  }
+  const plan = detail.plan || {};
+  const parameters = detail.parameters || {};
+  const start = dateInputValueFromTimestamp(plan.range_start || parameters.start);
+  const end = dateInputValueFromTimestamp(plan.range_end || parameters.end);
+  if ($("config-start-date")) $("config-start-date").value = start;
+  if ($("config-end-date")) $("config-end-date").value = end;
+  renderConfigLivePanels();
+  navigateToView("workbench");
+  window.setTimeout(() => {
+    const target = $("workbench-stepper") || $("config-form");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, 50);
+  $("last-refresh").textContent = `Selected ${numberText(paths.length, 0)} fetch output${paths.length === 1 ? "" : "s"} for Workbench simulation`;
 }
 
 function copyFetchVisibleOutputPaths() {
@@ -11387,6 +11426,7 @@ function init() {
     });
   });
   $("show-fetch-outputs-data").addEventListener("click", applyFetchOutputDataFilter);
+  $("use-fetch-outputs-workbench").addEventListener("click", useFetchOutputsInWorkbench);
   $("copy-fetch-output-paths").addEventListener("click", copyFetchVisibleOutputPaths);
   $("export-fetch-detail-csv").addEventListener("click", () => {
     downloadFetchDetailCsv().catch((err) => {
