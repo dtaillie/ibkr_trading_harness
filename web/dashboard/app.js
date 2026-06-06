@@ -6628,6 +6628,8 @@ function symbolDirectoryRows() {
         sources: (summary.sources || []).map(text).filter((value) => value !== "n/a").sort(),
         bars: (summary.bar_sizes || []).map(text).filter((value) => value !== "n/a").sort(),
         sessions: (summary.storage_sessions || []).map(text).filter((value) => value !== "n/a").sort(),
+        mixed_sessions: Boolean(summary.mixed_storage_sessions),
+        session_profile: text(summary.storage_session_profile || ((summary.storage_sessions || []).join(", "))),
         qualities: summary.quality_counts || {},
         first_day: summary.first_timestamp,
         last_day: summary.last_timestamp,
@@ -6645,6 +6647,8 @@ function symbolDirectoryRows() {
           sources: Array.from(new Set(datasets.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
           bars: Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
           sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
+          mixed_sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).length > 1,
+          session_profile: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).join(", ") || "unknown",
           qualities: countBy(datasets, "quality_status"),
           first_day: ranges.start,
           last_day: ranges.end,
@@ -6703,6 +6707,7 @@ function renderSymbolDirectorySummary(directory) {
     .map((item) => timestampMillis(item.last_day) || 0)
     .reduce((max, value) => Math.max(max, value), 0);
   const qualityIssueCount = rows.filter((item) => symbolDirectoryQualityScore(item.qualities) > 0).length;
+  const mixedSessionCount = rows.filter((item) => item.mixed_sessions).length;
   const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
   const barTop = topCountEntries(countArrayValues(rows, "bars"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
   const activeFilters = [
@@ -6741,6 +6746,14 @@ function renderSymbolDirectorySummary(directory) {
       note: qualityIssueCount
         ? "Matched symbols include at least one warn/bad best-quality file."
         : rows.length ? "Matched symbols currently start with ok-quality files." : "No symbols matched.",
+    },
+    {
+      status: mixedSessionCount ? "warn" : rows.length ? "ok" : "bad",
+      title: numberText(mixedSessionCount, 0),
+      label: "Mixed Sessions",
+      note: mixedSessionCount
+        ? "Matched symbols combine RTH, extended-hours, or 24/7 files; verify the intended replay session."
+        : rows.length ? "Matched symbols have a single storage-session profile." : "No symbols matched.",
     },
   ];
   $("data-symbol-directory-summary").innerHTML = cards.map((card) => `
@@ -6897,7 +6910,7 @@ function renderSymbolDirectory() {
               <strong>${symbol}</strong>
               <small>${escapeHtml(numberText(item.file_count, 0))} file${item.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(item.row_count, 0))} rows</small>
               <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")}</small>
-              <small>${escapeHtml(item.sessions.join(", ") || "unknown session")}</small>
+              <small>${escapeHtml(item.session_profile || item.sessions.join(", ") || "unknown session")}${item.mixed_sessions ? " / mixed session review" : ""}</small>
               <small>${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
               <small>quality ${escapeHtml(countSummary(item.qualities))}</small>
             </div>
@@ -6964,6 +6977,8 @@ function dataUniverseRows() {
       sources: (summary.sources || []).map(text).filter((value) => value !== "n/a").sort(),
       bars: (summary.bar_sizes || []).map(text).filter((value) => value !== "n/a").sort(),
       sessions: (summary.storage_sessions || []).map(text).filter((value) => value !== "n/a").sort(),
+      mixed_sessions: Boolean(summary.mixed_storage_sessions),
+      session_profile: text(summary.storage_session_profile || ((summary.storage_sessions || []).join(", "))),
       qualities: summary.quality_counts || {},
       first_day: summary.first_timestamp,
       last_day: summary.last_timestamp,
@@ -6983,6 +6998,8 @@ function dataUniverseRows() {
       sources: Array.from(new Set(rows.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort(),
       bars: Array.from(new Set(rows.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort(),
       sessions: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).sort(),
+      mixed_sessions: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).length > 1,
+      session_profile: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).join(", ") || "unknown",
       qualities: countBy(rows, "quality_status"),
       first_day: ranges.start,
       last_day: ranges.end,
@@ -7002,6 +7019,7 @@ function renderDataUniversePanel() {
     .reduce((max, value) => Math.max(max, value), 0);
   const qualityIssueSymbols = rows.filter((item) => Number(item.qualities.bad || 0) || Number(item.qualities.warn || 0));
   const multiFileSymbols = rows.filter((item) => Number(item.file_count || 0) >= 2);
+  const mixedSessionSymbols = rows.filter((item) => item.mixed_sessions);
   const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 4);
   const barTop = topCountEntries(countArrayValues(rows, "bars"), 4);
   const sessionTop = topCountEntries(countArrayValues(rows, "sessions"), 4);
@@ -7042,9 +7060,11 @@ function renderDataUniversePanel() {
     },
     {
       label: "Bars And Sessions",
-      status: barTop.length || sessionTop.length ? "ok" : rows.length ? "warn" : "bad",
+      status: mixedSessionSymbols.length ? "warn" : barTop.length || sessionTop.length ? "ok" : rows.length ? "warn" : "bad",
       title: barTop.length ? barTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") : "none",
-      note: sessionTop.length ? `Sessions: ${sessionTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ")}.` : "No storage-session metadata found.",
+      note: mixedSessionSymbols.length
+        ? `${numberText(mixedSessionSymbols.length, 0)} symbol${mixedSessionSymbols.length === 1 ? "" : "s"} have mixed session files; verify RTH/extended scope before replay.`
+        : sessionTop.length ? `Sessions: ${sessionTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ")}.` : "No storage-session metadata found.",
     },
     {
       label: "Replay Readiness",
@@ -7067,7 +7087,7 @@ function renderDataUniversePanel() {
       <button type="button" class="data-universe-symbol" data-home-action="filter" data-symbol="${escapeHtml(item.symbol)}">
         <strong>${escapeHtml(item.symbol)}</strong>
         <span>${escapeHtml(numberText(item.file_count, 0))} files / ${escapeHtml(numberText(item.row_count, 0))} rows</span>
-        <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")} / ${escapeHtml(countSummary(item.qualities))}</small>
+        <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")} / ${escapeHtml(item.session_profile || item.sessions.join(", ") || "unknown session")}</small>
       </button>
     `).join("")
     : `<div class="empty-card"><strong>No symbols to rank</strong><span>Refresh Data Library after adding saved data roots.</span></div>`;

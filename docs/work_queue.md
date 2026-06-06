@@ -1179,11 +1179,15 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; parser failures and unsupported files are covered by catalog
       scan diagnostics. Catalog rows and Data Detail now also warn on malformed
       minute bars with high below low, closes outside high/low, and negative
-      volume; broader multi-session fixture coverage remains open.
+      volume.
     - partial; ingestion regression coverage now includes a mixed RTH,
       extended-hours, and 24/7 crypto fixture in one data root, asserting that
       catalog, coverage, gap summary, minute heatmap, and their CSV exports
       preserve storage-session metadata across the same bounded scan.
+    - done; symbol-level catalog and coverage summaries now explicitly mark
+      mixed-session symbols when the same ticker has both RTH and extended
+      files, and the Data Library universe/directory panels surface that
+      review state before replay.
     - partial; storage-audit regression coverage now also asserts mixed
       RTH/extended/24_7 storage-session guesses across configured and suggested
       roots, including API payloads, CSV export headers, and CLI human/JSON

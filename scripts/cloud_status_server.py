@@ -2383,6 +2383,15 @@ def symbol_summary_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
     )
 
 
+def storage_session_profile(values: Iterable[Any]) -> tuple[list[str], int, bool, str]:
+    sessions = sorted({str(value) for value in values if value})
+    if len(sessions) > 1:
+        return sessions, len(sessions), True, "mixed: " + ", ".join(sessions)
+    if len(sessions) == 1:
+        return sessions, 1, False, sessions[0]
+    return sessions, 0, False, "unknown"
+
+
 def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for dataset in datasets:
@@ -2401,6 +2410,9 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
         quality_counts = count_values(rows, "quality_status")
         warnings = sum(int(item.get("quality_warning_count") or 0) for item in rows)
         missing_intervals = sum(int(item.get("estimated_missing_intervals") or 0) for item in rows)
+        storage_sessions, storage_session_count, mixed_storage_sessions, storage_session_profile_value = storage_session_profile(
+            item.get("storage_session") for item in rows
+        )
         summaries.append({
             "symbol": symbol,
             "canonical_symbol": best.get("canonical_symbol") or canonical_symbol(symbol, best.get("asset_class")),
@@ -2410,7 +2422,10 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
             "asset_classes": sorted({str(item.get("asset_class")) for item in rows if item.get("asset_class")}),
             "sources": sorted({str(item.get("source")) for item in rows if item.get("source")}),
             "bar_sizes": sorted({str(item.get("bar_size")) for item in rows if item.get("bar_size")}),
-            "storage_sessions": sorted({str(item.get("storage_session")) for item in rows if item.get("storage_session")}),
+            "storage_sessions": storage_sessions,
+            "storage_session_count": storage_session_count,
+            "mixed_storage_sessions": mixed_storage_sessions,
+            "storage_session_profile": storage_session_profile_value,
             "adjustment_statuses": sorted({str(item.get("adjustment_status")) for item in rows if item.get("adjustment_status")}),
             "formats": sorted({str(item.get("format")) for item in rows if item.get("format")}),
             "roots": sorted({str(item.get("root")) for item in rows if item.get("root")}),
@@ -2676,6 +2691,9 @@ DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
     "sources",
     "bar_sizes",
     "storage_sessions",
+    "storage_session_count",
+    "mixed_storage_sessions",
+    "storage_session_profile",
     "adjustment_statuses",
     "formats",
     "roots",
@@ -2753,6 +2771,9 @@ DATA_COVERAGE_EXPORT_FIELDS = (
     "sources",
     "bar_sizes",
     "storage_sessions",
+    "storage_session_count",
+    "mixed_storage_sessions",
+    "storage_session_profile",
     "dataset_count",
     "row_count",
     "date_count",
@@ -3012,6 +3033,9 @@ def build_data_coverage_csv(
                 "sources": compact_csv_value(item.get("sources")),
                 "bar_sizes": compact_csv_value(item.get("bar_sizes")),
                 "storage_sessions": compact_csv_value(item.get("storage_sessions")),
+                "storage_session_count": item.get("storage_session_count"),
+                "mixed_storage_sessions": item.get("mixed_storage_sessions"),
+                "storage_session_profile": item.get("storage_session_profile"),
                 "dataset_count": item.get("dataset_count"),
                 "row_count": item.get("row_count"),
                 "date_count": item.get("date_count"),
@@ -3226,12 +3250,16 @@ def build_data_coverage(
     symbol_rows = []
     for item in sorted(by_symbol.values(), key=lambda row: (-len(row["dates"]), str(row["symbol"])))[:max_symbols]:
         dates = set(item["dates"])
+        storage_sessions, storage_session_count, mixed_storage_sessions, storage_session_profile_value = storage_session_profile(item["storage_sessions"])
         symbol_rows.append({
             "symbol": item["symbol"],
             "asset_class": item["asset_class"],
             "sources": sorted(item["sources"]),
             "bar_sizes": sorted(item["bar_sizes"]),
-            "storage_sessions": sorted(item["storage_sessions"]),
+            "storage_sessions": storage_sessions,
+            "storage_session_count": storage_session_count,
+            "mixed_storage_sessions": mixed_storage_sessions,
+            "storage_session_profile": storage_session_profile_value,
             "dataset_count": item["dataset_count"],
             "row_count": item["row_count"],
             "date_count": len(dates),
