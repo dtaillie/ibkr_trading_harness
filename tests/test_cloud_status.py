@@ -920,6 +920,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-lens-builder" in html
         assert "workbench-lens-run" in html
         assert "workbench-lens-artifacts" in html
+        assert "runs-lens-title" in html
+        assert "runs-lens-note" in html
+        assert "runs-lens-home" in html
+        assert "runs-lens-state" in html
+        assert "runs-lens-runs" in html
+        assert "runs-lens-events" in html
         assert "workbench-home-tiles" in html
         assert "workbench-home-select-data" in html
         assert "workbench-home-preview-alignment" in html

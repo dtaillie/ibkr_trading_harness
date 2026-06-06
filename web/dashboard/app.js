@@ -307,6 +307,11 @@ function normalizeWorkbenchLens(lens) {
   return new Set(["home", "builder", "run", "artifacts"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizeRunsLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "state", "runs", "events"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
@@ -335,6 +340,12 @@ function workbenchLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "workbench") return "";
   return parts.hasExplicitLens ? normalizeWorkbenchLens(parts.lens) : "";
+}
+
+function runsLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "runs") return "";
+  return parts.hasExplicitLens ? normalizeRunsLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -392,6 +403,17 @@ function selectedWorkbenchLens() {
   return normalizeWorkbenchLens(sessionStorage.getItem("dashboardWorkbenchLens") || "home");
 }
 
+function selectedRunsLens() {
+  const hashLens = runsLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "runs" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeRunsLens(sessionStorage.getItem("dashboardRunsLens") || "home");
+}
+
 function viewFromHash() {
   return normalizeView(decodeURIComponent(window.location.hash || ""));
 }
@@ -429,6 +451,9 @@ function setActiveView(view) {
   }
   if (targetView === "workbench") {
     applyWorkbenchLens(selectedWorkbenchLens());
+  }
+  if (targetView === "runs") {
+    applyRunsLens(selectedRunsLens());
   }
 }
 
@@ -708,6 +733,55 @@ function navigateToWorkbenchLens(lens) {
     return;
   }
   setActiveView("workbench");
+}
+
+function runsLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Run triage, latest activity, artifact readiness, and next action.",
+    },
+    state: {
+      title: "State",
+      note: "Account boundary, current open orders, managed positions, and recent status snapshots.",
+    },
+    runs: {
+      title: "Runs",
+      note: "Searchable run telemetry, mode/status filters, freshness, metrics, and artifact actions.",
+    },
+    events: {
+      title: "Events",
+      note: "Decision, order, fill, reject, and symbol timeline filters for recent run activity.",
+    },
+  };
+  return content[normalizeRunsLens(lens)] || content.home;
+}
+
+function applyRunsLens(lens) {
+  const selected = normalizeRunsLens(lens);
+  sessionStorage.setItem("dashboardRunsLens", selected);
+  for (const element of document.querySelectorAll("[data-runs-lens]")) {
+    const lenses = new Set(String(element.dataset.runsLens || "").split(/\s+/).filter(Boolean));
+    element.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-runs-lens-target]")) {
+    const active = normalizeRunsLens(button.dataset.runsLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = runsLensContent(selected);
+  if ($("runs-lens-title")) $("runs-lens-title").textContent = content.title;
+  if ($("runs-lens-note")) $("runs-lens-note").textContent = content.note;
+}
+
+function navigateToRunsLens(lens) {
+  const selected = normalizeRunsLens(lens);
+  const nextHash = selected === "home" ? "#runs" : `#runs/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("runs");
 }
 
 function pageIntroAction(id, action) {
@@ -11302,7 +11376,7 @@ async function openWorkbenchResultLog() {
     return;
   }
   await loadRunDetail(model.latestRun.run_id);
-  navigateToView("runs");
+  navigateToRunsLens("events");
 }
 
 async function refreshCleanupPlan() {
@@ -11784,6 +11858,9 @@ function init() {
   for (const button of document.querySelectorAll("[data-workbench-lens-target]")) {
     button.addEventListener("click", () => navigateToWorkbenchLens(button.dataset.workbenchLensTarget));
   }
+  for (const button of document.querySelectorAll("[data-runs-lens-target]")) {
+    button.addEventListener("click", () => navigateToRunsLens(button.dataset.runsLensTarget));
+  }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 
   initToken();
@@ -12153,7 +12230,7 @@ function init() {
     renderPerformance();
     renderOverview();
   });
-  $("performance-home-open-runs").addEventListener("click", () => navigateToView("runs"));
+  $("performance-home-open-runs").addEventListener("click", () => navigateToRunsLens("runs"));
   $("performance-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("performance-home-open-data").addEventListener("click", () => navigateToView("data"));
   $("performance-period").addEventListener("change", renderPerformance);
@@ -12225,7 +12302,7 @@ function init() {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
-  $("workbench-result-open-runs").addEventListener("click", () => navigateToView("runs"));
+  $("workbench-result-open-runs").addEventListener("click", () => navigateToRunsLens("runs"));
   $("workbench-result-open-log").addEventListener("click", () => {
     openWorkbenchResultLog().catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

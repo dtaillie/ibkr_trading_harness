@@ -2321,14 +2321,29 @@
     </section>
 
     <section class="dashboard-section" data-view="runs" hidden>
+      <div class="overview-lens-bar runs-lens-bar" aria-label="Runs focus">
+        <div>
+          <span class="eyebrow">Runs Focus</span>
+          <strong id="runs-lens-title">Home</strong>
+          <small id="runs-lens-note">Run triage, latest activity, artifact readiness, and next action.</small>
+        </div>
+        <div class="overview-lens-actions runs-lens-actions" role="tablist" aria-label="Runs focus tabs">
+          <button id="runs-lens-home" class="overview-lens-button" type="button" data-runs-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="runs-lens-state" class="overview-lens-button" type="button" data-runs-lens-target="state" role="tab" aria-selected="false">State</button>
+          <button id="runs-lens-runs" class="overview-lens-button" type="button" data-runs-lens-target="runs" role="tab" aria-selected="false">Runs</button>
+          <button id="runs-lens-events" class="overview-lens-button" type="button" data-runs-lens-target="events" role="tab" aria-selected="false">Events</button>
+        </div>
+      </div>
+      <div data-runs-lens="home">
       <div class="section-head">
         <h2>Runs Triage</h2>
         <span id="runs-triage-note" class="section-note">No run activity loaded</span>
       </div>
       <div id="runs-triage-cards" class="action-card-grid"></div>
+      </div>
     </section>
 
-    <section class="dashboard-section" data-view="runs" hidden>
+    <section class="dashboard-section" data-view="runs" data-runs-lens="state" hidden>
       <div class="section-head">
         <h2>Account State Boundary</h2>
         <span id="runs-account-boundary-note" class="section-note">No account state source selected</span>
@@ -2336,7 +2351,7 @@
       <div id="runs-account-boundary-cards" class="action-card-grid"></div>
     </section>
 
-    <section class="dashboard-section" data-view="runs" hidden>
+    <section class="dashboard-section" data-view="runs" data-runs-lens="state" hidden>
       <div class="section-head">
         <h2>Current Orders And Positions</h2>
         <span id="current-orders-note" class="section-note">Recent non-terminal order events and latest managed positions</span>
@@ -2374,7 +2389,7 @@
       </section>
     </section>
 
-    <section class="dashboard-section" data-view="runs" hidden>
+    <section class="dashboard-section" data-view="runs" data-runs-lens="state" hidden>
       <div class="section-head">
         <h2>Recent Status</h2>
       </div>
@@ -2397,7 +2412,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="runs" hidden>
+    <section class="dashboard-section" data-view="runs" data-runs-lens="runs" hidden>
       <div class="section-head">
         <h2>Runs</h2>
         <span id="runs-table-note" class="section-note">Current published run telemetry</span>
@@ -2453,7 +2468,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="runs" hidden>
+    <section class="dashboard-section" data-view="runs" data-runs-lens="events" hidden>
       <div class="section-head">
         <h2>Recent Run Events</h2>
         <span id="run-events-note" class="section-note">Latest decisions, orders, and fills</span>

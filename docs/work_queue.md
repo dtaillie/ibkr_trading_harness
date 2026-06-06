@@ -85,6 +85,9 @@ strategy-private.
     deep-linkable hashes such as `#workbench/builder`, keeping the guided
     simulation path separate from config editing, run tables, and loaded
     artifact/log inspection.
+  - partial; Runs now has Home / State / Runs / Events lenses with
+    deep-linkable hashes such as `#runs/events`, separating triage, account
+    boundary/current order state, run search, and event timelines.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -321,6 +324,9 @@ strategy-private.
     - partial; the Runs page now has client-side search, status/mode filters,
       and sort controls for current published run telemetry, plus search,
       type/status filters, and sorting for the recent run-event timeline.
+    - partial; Runs now puts the searchable run table behind an explicit Runs
+      focus lens so it is reachable without forcing current-state and event
+      tables into the same scroll path.
   - session timeline of decisions, orders, fills, rejects, account snapshots
     - partial; Run Artifacts now include a combined sanitized session timeline
       that interleaves decisions, orders, rejected orders, fills, and account
@@ -335,6 +341,8 @@ strategy-private.
       telemetry
     - partial; the Overview page now surfaces the same recent non-terminal
       order telemetry before users drill into Runs and Orders.
+    - partial; Runs now groups account-boundary cards, current open orders,
+      managed positions, and recent status snapshots under a State lens.
   - drilldown for a run with artifacts, logs, and performance charts
     - partial; artifacts, logs, and performance charts are inspectable for
       archived public workbench runs
@@ -348,6 +356,8 @@ strategy-private.
       selected source type, live/paper/simulated/replay authority, account
       snapshot freshness, managed positions, current telemetry, open-order
       signals, and the next verification action.
+    - partial; Runs now defaults to a Home lens for triage while State, Runs,
+      and Events lenses carry account state, run search, and timeline tables.
 - Add strategy drilldowns:
   - entry and exit chart markers
   - signal values and thresholds
@@ -472,6 +482,9 @@ strategy-private.
     - partial; Workbench now defaults to a Home lens, with Builder, Run, and
       Artifacts lenses carrying config forms, run controls/tables, and loaded
       artifact/log detail respectively.
+    - partial; Runs now defaults to a Home lens, with State, Runs, and Events
+      lenses carrying current account/order state, run search, and decision /
+      order / fill timelines respectively.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
