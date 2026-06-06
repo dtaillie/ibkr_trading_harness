@@ -302,8 +302,10 @@ catalog caps, scan durations, and skipped-file samples. Use the coverage grid
 to see recent date-bin
 coverage by symbol, or Export Coverage CSV to download symbol/date coverage
 rows for offline review. Use Export Gap CSV to download aggregate timestamp-gap
-and calendar-gap rows. Use Export Minute CSV to download intraday hour and
-date/hour completeness rows. Use Export Compare CSV after Compare Saved Data to
+and calendar-gap rows. The Minute Coverage Heatmap shows both per-file UTC hour
+strips and bounded worst date/hour strips for missing intraday intervals. Use
+Export Minute CSV to download intraday hour, date/hour, and date/hour-matrix
+completeness rows. Use Export Compare CSV after Compare Saved Data to
 download normalized close-return paths by symbol and timestamp. Use Export
 Range CSV in Data Detail to download the selected saved-file date range with
 normalized UTC timestamps and original file columns. Use Find Missing Symbol to diagnose whether a ticker is visible,

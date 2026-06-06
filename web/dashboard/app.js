@@ -7445,6 +7445,25 @@ function renderDataMinuteHeatmap() {
       }).join("")
     : row([`<span class="muted">No intraday interval gaps in the current catalog scan.</span>`, "", "", "", "", "", ""]);
   const dateHourRows = summary.date_hour_rows || [];
+  const dateHourMatrix = summary.date_hour_matrix || [];
+  $("data-minute-date-hour-grid").innerHTML = dateHourMatrix.length
+    ? dateHourMatrix.slice(0, 20).map((item) => {
+        const cells = (item.hours || []).map((hour) => {
+          const label = `${text(item.symbol)} ${text(item.date_utc)} ${String(hour.hour_utc).padStart(2, "0")}:00 UTC completeness ${pctText(hour.completeness_pct)}, missing ${numberText(hour.estimated_missing_intervals, 0)} of ${numberText(hour.expected_intervals, 0)}`;
+          return `<span class="coverage-cell heatmap-${heatmapCellClass(hour)}" title="${escapeHtml(label)}"></span>`;
+        }).join("");
+        return `
+          <div class="coverage-row minute-heatmap-row">
+            <div class="coverage-label">
+              <strong>${escapeHtml(item.symbol)} ${escapeHtml(item.date_utc)}</strong>
+              <small>${escapeHtml(text(item.bar_size))} / ${escapeHtml(text(item.source))} / ${escapeHtml(numberText(item.estimated_missing_intervals, 0))} missing</small>
+            </div>
+            <div class="coverage-strip minute-heatmap-strip">${cells}</div>
+            <small>${escapeHtml(pctText(item.completeness_pct))} complete</small>
+          </div>
+        `;
+      }).join("")
+    : "";
   $("data-minute-date-hour-body").innerHTML = dateHourRows.length
     ? dateHourRows.slice(0, 20).map((item) => row([
         escapeHtml(item.symbol),

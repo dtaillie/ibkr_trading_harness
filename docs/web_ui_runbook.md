@@ -220,8 +220,10 @@ grid as a downloadable table for offline review.
 Use Export Gap CSV when you want aggregate timestamp-gap and missing
 calendar-day rows across the current catalog scan.
 
-Use Export Minute CSV when you want intraday hour and date/hour completeness
-rows from the Minute Coverage Heatmap.
+Use the Minute Coverage Heatmap when you want per-file UTC hour strips plus
+bounded worst date/hour strips for missing intraday intervals. Use Export
+Minute CSV when you want the same intraday hour, date/hour, and date/hour
+matrix rows offline.
 
 ## Replay From Saved Data
 

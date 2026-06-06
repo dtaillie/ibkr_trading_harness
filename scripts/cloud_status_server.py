@@ -462,8 +462,8 @@ PUBLIC_ENDPOINTS = (
         "method": "GET",
         "path": "/data_minute_heatmap",
         "category": "data",
-        "description": "Summarize saved-data intraday interval completeness by UTC hour.",
-        "response": "JSON hourly missing-interval heatmap rows",
+        "description": "Summarize saved-data intraday interval completeness by UTC hour and worst date/hour.",
+        "response": "JSON hourly and date/hour missing-interval heatmap rows",
     },
     {
         "method": "GET",
@@ -2941,6 +2941,13 @@ def build_data_minute_heatmap_csv(
             })
     for item in summary.get("date_hour_rows") or []:
         rows.append({**item, "row_type": "date_hour"})
+    for item in summary.get("date_hour_matrix") or []:
+        for hour in item.get("hours") or []:
+            rows.append({
+                **{key: value for key, value in item.items() if key != "hours"},
+                **hour,
+                "row_type": "date_hour_matrix",
+            })
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_MINUTE_HEATMAP_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -3310,6 +3317,48 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
             int(row.get("hour_utc") or 0),
         ),
     )[:12]
+    worst_dates = []
+    for row in worst_date_hours:
+        day = str(row.get("date_utc") or "")
+        if day and day not in worst_dates:
+            worst_dates.append(day)
+        if len(worst_dates) >= 3:
+            break
+    date_hour_lookup = {
+        (str(row.get("date_utc") or ""), int(row.get("hour_utc") or 0)): row
+        for row in date_hour_rows
+    }
+    worst_date_hour_matrix = []
+    for day in worst_dates:
+        matrix_hours = []
+        date_actual = 0
+        date_expected = 0
+        date_missing = 0
+        for hour in range(24):
+            item = date_hour_lookup.get((day, hour), {})
+            actual = int(item.get("actual_intervals") or 0)
+            missing = int(item.get("estimated_missing_intervals") or 0)
+            expected = int(item.get("expected_intervals") or 0)
+            date_actual += actual
+            date_missing += missing
+            date_expected += expected
+            completeness = (actual / expected * 100.0) if expected else None
+            matrix_hours.append({
+                "hour_utc": hour,
+                "actual_intervals": actual,
+                "estimated_missing_intervals": missing,
+                "expected_intervals": expected,
+                "completeness_pct": finite_float(completeness),
+            })
+        date_completeness = (date_actual / date_expected * 100.0) if date_expected else None
+        worst_date_hour_matrix.append({
+            "date_utc": day,
+            "actual_intervals": date_actual,
+            "estimated_missing_intervals": date_missing,
+            "expected_intervals": date_expected,
+            "completeness_pct": finite_float(date_completeness),
+            "hours": matrix_hours,
+        })
     asset_class = infer_asset_class(path, symbol)
     return {
         "path": display_path(path),
@@ -3331,6 +3380,7 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
         "hours": hours,
         "worst_hours": worst_hours,
         "worst_date_hours": worst_date_hours,
+        "worst_date_hour_matrix": worst_date_hour_matrix,
     }
 
 
@@ -3360,9 +3410,20 @@ def build_data_minute_heatmap(
     total_missing = sum(int(row.get("estimated_missing_intervals") or 0) for row in rows)
     completeness = ((total_expected - total_missing) / total_expected * 100.0) if total_expected else None
     date_hour_rows = []
+    date_hour_matrix = []
     for row in rows:
         for item in row.get("worst_date_hours") or []:
             date_hour_rows.append({
+                "symbol": row.get("symbol"),
+                "asset_class": row.get("asset_class"),
+                "source": row.get("source"),
+                "bar_size": row.get("bar_size"),
+                "storage_session": row.get("storage_session"),
+                "path": row.get("path"),
+                **item,
+            })
+        for item in row.get("worst_date_hour_matrix") or []:
+            date_hour_matrix.append({
                 "symbol": row.get("symbol"),
                 "asset_class": row.get("asset_class"),
                 "source": row.get("source"),
@@ -3377,6 +3438,12 @@ def build_data_minute_heatmap(
         str(row.get("symbol") or ""),
         str(row.get("date_utc") or ""),
         int(row.get("hour_utc") or 0),
+    ))
+    date_hour_matrix.sort(key=lambda row: (
+        float(row["completeness_pct"] if row.get("completeness_pct") is not None else 100.0),
+        -int(row.get("estimated_missing_intervals") or 0),
+        str(row.get("symbol") or ""),
+        str(row.get("date_utc") or ""),
     ))
     warnings = []
     if total_missing:
@@ -3399,6 +3466,7 @@ def build_data_minute_heatmap(
         "overall_completeness_pct": finite_float(completeness),
         "rows": rows[:top_limit],
         "date_hour_rows": date_hour_rows[:top_limit],
+        "date_hour_matrix": date_hour_matrix[:top_limit],
         "errors": errors[:top_limit],
     }
 
