@@ -301,6 +301,11 @@ results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.
+The dashboard also persists the latest sanitized status rollups under
+`paper_logs/cloud_status_server/status_equity_rollups/` as JSON snapshots, with
+`latest_all.json` for all nodes and `latest_<node>.json` for node-filtered
+views. Use `/status_equity_rollups_snapshot` when external tooling needs the
+latest saved rollup artifact instead of recomputing from `status_history.jsonl`.
 Use Export Audit CSV from Operations when you want sanitized command audit rows
 plus hash-chain and signature status outside the dashboard.
 Use Export Snapshot from Workbench State to download a public-safe JSON bundle

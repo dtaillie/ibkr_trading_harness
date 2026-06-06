@@ -914,6 +914,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
         assert ("GET", "/status_equity_rollups") in endpoints
+        assert ("GET", "/status_equity_rollups_snapshot") in endpoints
         assert ("GET", "/status_equity_rollups_export") in endpoints
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
@@ -1007,7 +1008,8 @@ def test_dashboard_screenshot_smoke_prepares_seeded_and_empty_state(tmp_path):
 
 
 def test_cloud_status_server_serves_status_history(tmp_path):
-    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    state_dir = tmp_path / "state"
+    server = create_server("127.0.0.1", 0, state_dir)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -1074,6 +1076,13 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                 },
             },
         )
+        snapshot_path = state_dir / "status_equity_rollups" / "latest_test-node.json"
+        assert snapshot_path.exists()
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["artifact_path"] == str(snapshot_path)
+        assert snapshot["persisted_at"]
+        assert snapshot["node_id"] == "test-node"
+        assert snapshot["total"] == 1
 
         with request.urlopen(f"{base}/status_history?node_id=test-node&limit=1", timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -1264,6 +1273,18 @@ def test_cloud_status_server_serves_status_equity_rollups(tmp_path):
         assert month["day_count"] == 2
         assert month["node_count"] == 1
         assert abs(month["total_return_pct"] - 1.475) < 1e-9
+        snapshot_path = state_dir / "status_equity_rollups" / "latest_paper-node.json"
+        assert snapshot_path.exists()
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        assert snapshot["artifact_path"] == str(snapshot_path)
+        assert snapshot["persisted_at"]
+        assert snapshot["node_id"] == "paper-node"
+        assert snapshot["total"] == 2
+
+        with request.urlopen(f"{base}/status_equity_rollups_snapshot?node_id=paper-node", timeout=5) as resp:
+            persisted = json.loads(resp.read().decode("utf-8"))
+        assert persisted["artifact_path"] == str(snapshot_path)
+        assert persisted["rollups"][0]["node_id"] == "paper-node"
 
         with request.urlopen(f"{base}/status_equity_rollups_export?node_id=paper-node&limit=10&history_limit=10", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

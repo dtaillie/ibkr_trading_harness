@@ -265,8 +265,12 @@ strategy-private.
     open
   - partial; `/status_equity_rollups` now derives daily/month/year summaries
     from sanitized status-history snapshots, and Performance shows Live/Paper
-    Status Rollups without opening archived artifacts. Dedicated runner-owned
-    rollup files are still future work.
+    Status Rollups without opening archived artifacts.
+  - partial; the dashboard now persists latest sanitized status rollups under
+    `paper_logs/cloud_status_server/status_equity_rollups/` on status ingest
+    and rollup reads, and `/status_equity_rollups_snapshot` exposes the latest
+    saved JSON artifact. Dedicated runner-owned rollup files are still future
+    work.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.

@@ -322,6 +322,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/status_equity_rollups_snapshot",
+        "category": "telemetry",
+        "description": "Return the latest persisted sanitized status-history equity rollup artifact.",
+        "response": "JSON persisted rollup snapshot",
+    },
+    {
+        "method": "GET",
         "path": "/status_equity_rollups_export",
         "category": "telemetry",
         "description": "Download sanitized status-history daily, monthly, and yearly equity rollups.",
@@ -794,6 +801,15 @@ def load_latest(state_dir: Path) -> dict[str, Any] | None:
 
 def status_history_path(state_dir: Path) -> Path:
     return state_dir / "status_history.jsonl"
+
+
+def status_equity_rollups_dir(state_dir: Path) -> Path:
+    return state_dir / "status_equity_rollups"
+
+
+def status_equity_rollups_snapshot_path(state_dir: Path, *, node_id: str | None = None) -> Path:
+    suffix = slugify(node_id) if node_id else "all"
+    return status_equity_rollups_dir(state_dir) / f"latest_{suffix}.json"
 
 
 def count_by_status(items: Iterable[dict[str, Any]]) -> dict[str, int]:
@@ -1344,6 +1360,43 @@ def build_status_equity_rollups(
         "history_scanned": scanned,
         "node_id": node_id,
     }
+
+
+def persist_status_equity_rollups_snapshot(
+    state_dir: Path,
+    payload: dict[str, Any],
+    *,
+    node_id: str | None = None,
+) -> dict[str, Any]:
+    path = status_equity_rollups_snapshot_path(state_dir, node_id=node_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot = dict(payload)
+    snapshot["persisted_at"] = utc_now()
+    snapshot["artifact_path"] = str(path)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, sort_keys=True)
+        f.write("\n")
+    tmp_path.replace(path)
+    return snapshot
+
+
+def load_status_equity_rollups_snapshot(state_dir: Path, *, node_id: str | None = None) -> dict[str, Any]:
+    path = status_equity_rollups_snapshot_path(state_dir, node_id=node_id)
+    if not path.exists():
+        return {
+            "generated_at": utc_now(),
+            "persisted_at": None,
+            "artifact_path": str(path),
+            "rollups": [],
+            "period_rollups": {"month": [], "year": []},
+            "count": 0,
+            "total": 0,
+            "node_id": node_id,
+        }
+    with path.open(encoding="utf-8") as f:
+        payload = json.load(f)
+    return payload if isinstance(payload, dict) else {"error": "snapshot payload is invalid", "artifact_path": str(path)}
 
 
 STATUS_EQUITY_ROLLUP_EXPORT_FIELDS = (
@@ -6569,6 +6622,12 @@ def save_status(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
         f.write("\n")
     with status_history_path(state_dir).open("a") as f:
         f.write(json.dumps(stored, sort_keys=True) + "\n")
+    for node in (None, str(stored.get("node_id") or "").strip() or None):
+        try:
+            rollups = build_status_equity_rollups(state_dir, node_id=node, limit=500, history_limit=50000)
+            persist_status_equity_rollups_snapshot(state_dir, rollups, node_id=node)
+        except Exception:
+            pass
     return stored
 
 
@@ -7613,6 +7672,13 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             payload = build_status_equity_rollups(self.state_dir, node_id=node_id, limit=limit, history_limit=history_limit)
+            payload = persist_status_equity_rollups_snapshot(self.state_dir, payload, node_id=node_id)
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/status_equity_rollups_snapshot":
+            if not self.require_auth():
+                return
+            payload = load_status_equity_rollups_snapshot(self.state_dir, node_id=node_id)
             json_response(self, 200, payload)
             return
         if parsed.path == "/status_equity_rollups_export":

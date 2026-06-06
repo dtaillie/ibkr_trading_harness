@@ -802,6 +802,8 @@ def run_smoke(
         endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
         if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
+        if ("GET", "/status_equity_rollups_snapshot") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing status_equity_rollups_snapshot")
         if ("GET", "/status_equity_rollups_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing status_equity_rollups_export")
         if ("GET", "/remote_nodes_export") not in endpoint_paths:
@@ -871,6 +873,9 @@ def run_smoke(
         status_rollups_csv = fetch_text(base_url, "/status_equity_rollups_export?limit=5&history_limit=100")
         if "row_type,label,day,node_id" not in status_rollups_csv:
             raise RuntimeError("status equity rollup CSV header is missing")
+        status_rollups_snapshot = fetch_json(base_url, "/status_equity_rollups_snapshot")
+        if "rollups" not in status_rollups_snapshot or "artifact_path" not in status_rollups_snapshot:
+            raise RuntimeError("status equity rollup snapshot is invalid")
         command_audit_csv = fetch_text(base_url, "/command_audit_export?limit=5")
         if "audited_at,event,node_id,command_id" not in command_audit_csv:
             raise RuntimeError("command audit CSV header is missing")

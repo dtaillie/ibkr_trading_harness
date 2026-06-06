@@ -66,6 +66,10 @@ Open Performance for equity, return, drawdown, exposure, daily return bars,
 period rollups, and open/closed trade rows when artifacts include fills.
 Use Export Status CSV to download live/paper status-history daily, monthly, and
 yearly equity rollups for offline review.
+Latest status rollups are also persisted as public-safe JSON snapshots in
+`paper_logs/cloud_status_server/status_equity_rollups/`, and
+`/status_equity_rollups_snapshot` returns the latest saved artifact for local
+or cloud-side monitoring scripts.
 The Live/Paper Status Rollups section also charts end-of-day equity by node and
 recent daily status-history returns, which is the quickest view when the
 strategy is publishing status but no archived artifact is loaded.
