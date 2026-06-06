@@ -1600,6 +1600,7 @@ section {
 .data-directory-assistant,
 .data-detail-assistant,
 .data-compare-assistant,
+.remote-detail-assistant,
 .control-assistant,
 .performance-trade-assistant,
 .performance-rollup-assistant,
@@ -1625,6 +1626,8 @@ section {
 .data-detail-assistant > div:first-child span,
 .data-compare-assistant > div:first-child strong,
 .data-compare-assistant > div:first-child span,
+.remote-detail-assistant > div:first-child strong,
+.remote-detail-assistant > div:first-child span,
 .control-assistant > div:first-child strong,
 .control-assistant > div:first-child span,
 .performance-trade-assistant > div:first-child strong,
@@ -1644,6 +1647,7 @@ section {
 .data-directory-assistant > div:first-child strong,
 .data-detail-assistant > div:first-child strong,
 .data-compare-assistant > div:first-child strong,
+.remote-detail-assistant > div:first-child strong,
 .control-assistant > div:first-child strong,
 .performance-trade-assistant > div:first-child strong,
 .performance-rollup-assistant > div:first-child strong,
@@ -1659,6 +1663,7 @@ section {
 .data-directory-assistant > div:first-child > span:last-of-type,
 .data-detail-assistant > div:first-child > span:last-of-type,
 .data-compare-assistant > div:first-child > span:last-of-type,
+.remote-detail-assistant > div:first-child > span:last-of-type,
 .control-assistant > div:first-child > span:last-of-type,
 .performance-trade-assistant > div:first-child > span:last-of-type,
 .performance-rollup-assistant > div:first-child > span:last-of-type,
@@ -1676,6 +1681,7 @@ section {
 .data-directory-assistant-cards,
 .data-detail-assistant-cards,
 .data-compare-assistant-cards,
+.remote-detail-assistant-cards,
 .control-assistant-cards,
 .performance-trade-assistant-cards,
 .performance-rollup-assistant-cards,
@@ -1692,6 +1698,7 @@ section {
 .data-directory-assistant-actions,
 .data-detail-assistant-actions,
 .data-compare-assistant-actions,
+.remote-detail-assistant-actions,
 .control-assistant-actions,
 .performance-trade-assistant-actions,
 .performance-rollup-assistant-actions,
@@ -1708,6 +1715,7 @@ section {
 .data-directory-action-card,
 .data-detail-assistant-action,
 .data-compare-assistant-action,
+.remote-detail-assistant-action,
 .control-assistant-action,
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
@@ -1737,6 +1745,9 @@ section {
 .data-compare-assistant-action strong,
 .data-compare-assistant-action span,
 .data-compare-assistant-action small,
+.remote-detail-assistant-action strong,
+.remote-detail-assistant-action span,
+.remote-detail-assistant-action small,
 .control-assistant-action strong,
 .control-assistant-action span,
 .control-assistant-action small,
@@ -1767,6 +1778,8 @@ section {
 .data-detail-assistant-action small,
 .data-compare-assistant-action span,
 .data-compare-assistant-action small,
+.remote-detail-assistant-action span,
+.remote-detail-assistant-action small,
 .control-assistant-action span,
 .control-assistant-action small,
 .performance-trade-assistant-action span,
@@ -1800,14 +1813,16 @@ section {
 }
 
 .data-detail-assistant-action,
-.data-compare-assistant-action {
+.data-compare-assistant-action,
+.remote-detail-assistant-action {
   width: 100%;
   color: var(--text);
   text-align: left;
 }
 
 .data-detail-assistant-action:hover,
-.data-compare-assistant-action:hover {
+.data-compare-assistant-action:hover,
+.remote-detail-assistant-action:hover {
   border-color: var(--accent);
   filter: none;
 }
@@ -1817,6 +1832,7 @@ section {
 .performance-rollup-assistant-action,
 .data-detail-assistant-action,
 .data-compare-assistant-action,
+.remote-detail-assistant-action,
 .workbench-builder-assistant-action,
 .workbench-artifacts-assistant-action,
 .help-next-action {
@@ -1829,6 +1845,7 @@ section {
 .performance-rollup-assistant-action span,
 .data-detail-assistant-action span,
 .data-compare-assistant-action span,
+.remote-detail-assistant-action span,
 .workbench-builder-assistant-action span,
 .workbench-artifacts-assistant-action span,
 .help-next-action span {
@@ -1840,6 +1857,7 @@ section {
 .performance-rollup-assistant-action strong,
 .data-detail-assistant-action strong,
 .data-compare-assistant-action strong,
+.remote-detail-assistant-action strong,
 .workbench-builder-assistant-action strong,
 .workbench-artifacts-assistant-action strong,
 .help-next-action strong {
@@ -1852,6 +1870,7 @@ section {
 .performance-rollup-assistant-action b,
 .data-detail-assistant-action b,
 .data-compare-assistant-action b,
+.remote-detail-assistant-action b,
 .workbench-builder-assistant-action b,
 .workbench-artifacts-assistant-action b,
 .help-next-action b {
@@ -3400,6 +3419,10 @@ footer {
   .data-compare-assistant-cards,
   .data-compare-assistant-actions,
   .data-compare-assistant-action,
+  .remote-detail-assistant,
+  .remote-detail-assistant-cards,
+  .remote-detail-assistant-actions,
+  .remote-detail-assistant-action,
   .fetch-search-assistant,
   .fetch-search-cards,
   .fetch-search-actions,

@@ -1479,6 +1479,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     generic runner output directories, and Remote Node Detail plus its CSV
     export show expected public artifact file presence, byte counts, modified
     times, and JSONL row counts without posting raw artifact contents or logs.
+  - partial; Remote Node Detail now has a Remote Detail Assistant that
+    summarizes heartbeat freshness, alerts, latest-run health, activity mix,
+    artifact evidence, and the sanitized cloud boundary, with direct actions
+    for activity filters, CSV export, and command-target selection.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

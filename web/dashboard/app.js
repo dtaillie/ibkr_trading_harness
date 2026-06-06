@@ -14953,6 +14953,156 @@ function remoteDetailActivityFilter() {
   return $("remote-detail-activity-filter") ? $("remote-detail-activity-filter").value || "" : "";
 }
 
+function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, context = {}) {
+  if (!$("remote-detail-assistant-title") || !$("remote-detail-assistant-cards") || !$("remote-detail-assistant-actions")) return;
+  const summary = detail.summary || {};
+  const runs = detail.runs || [];
+  const alerts = detail.alerts || [];
+  const activity = context.activity || remoteNodeActivityEvents(runs);
+  const artifactRows = context.artifactRows || remoteRunArtifactEvidenceRows(runs);
+  const filteredActivity = context.filteredActivity || activity;
+  const artifactFileCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).existing_count || 0), 0);
+  const artifactRowCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).jsonl_row_count || 0), 0);
+  const latestActivity = activity[0] || null;
+  const completedRuns = runs.filter((run) => text(run.status).toLowerCase() === "completed");
+  const failedRuns = runs.filter((run) => ["failed", "error", "timeout", "cancelled", "canceled"].includes(text(run.status).toLowerCase()));
+  const rejectedActivity = activity.filter((event) => eventStatusIsBad({
+    status: eventStatus(event, event.type),
+  }));
+  const heartbeatMillis = timestampMillis(summary.received_at || summary.generated_at || detail.generated_at);
+  const heartbeatAgeSeconds = heartbeatMillis === null ? null : (Date.now() - heartbeatMillis) / 1000;
+  const heartbeatStale = heartbeatAgeSeconds === null || heartbeatAgeSeconds > 900;
+  let status = "bad";
+  let title = "Select Remote Node";
+  let note = "Click Detail on a Remote Nodes row to inspect sanitized monitoring detail.";
+  if (detail.node_id) {
+    status = alerts.length || failedRuns.length || rejectedActivity.length || heartbeatStale ? "warn" : "ok";
+    title = status === "ok" ? "Remote Node Healthy" : "Remote Node Needs Review";
+    note = status === "ok"
+      ? "Heartbeat, alerts, activity, and bounded artifact evidence have no visible blockers."
+      : "Review stale heartbeat, alerts, failed runs, rejected activity, or missing artifact evidence before trusting remote state.";
+  }
+  $("remote-detail-assistant-title").textContent = title;
+  $("remote-detail-assistant-title").className = statusClass(status);
+  $("remote-detail-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      title: detail.node_id ? timestampAgeLabel(summary.received_at || summary.generated_at || detail.generated_at) : "No Node",
+      label: "Heartbeat",
+      note: detail.node_id ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored snapshots.` : "No remote detail payload loaded.",
+    },
+    {
+      status: alerts.length ? "bad" : detail.node_id ? "ok" : "bad",
+      title: numberText(alerts.length, 0),
+      label: "Alerts",
+      note: alerts.length ? text((alerts[0] || {}).message || (alerts[0] || {}).kind) : "No latest alerts in the selected node snapshot.",
+    },
+    {
+      status: failedRuns.length ? "bad" : completedRuns.length ? "ok" : runs.length ? "warn" : detail.node_id ? "warn" : "bad",
+      title: `${numberText(completedRuns.length, 0)} completed`,
+      label: "Latest Runs",
+      note: `${numberText(failedRuns.length, 0)} failed/error run${failedRuns.length === 1 ? "" : "s"} / ${numberText(runs.length, 0)} loaded.`,
+    },
+    {
+      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      title: numberText(filteredActivity.length, 0),
+      label: "Activity",
+      note: latestActivity ? `${text(latestActivity.type)} ${timestampAgeLabel(eventTimestamp(latestActivity))}; ${numberText(rejectedActivity.length, 0)} issue events.` : "No sanitized decision/order/fill activity loaded.",
+    },
+    {
+      status: artifactRows.length ? "ok" : detail.node_id ? "warn" : "bad",
+      title: numberText(artifactFileCount, 0),
+      label: "Artifact Files",
+      note: artifactRows.length ? `${numberText(artifactRows.length, 0)} runs / ${numberText(artifactRowCount, 0)} JSONL rows.` : "No bounded artifact evidence in latest run summaries.",
+    },
+  ];
+  $("remote-detail-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("remote-detail-assistant-actions").innerHTML = [
+    {
+      action: "decisions",
+      status: activity.some((event) => event.type === "decision") ? "ok" : "bad",
+      title: "Show Decisions",
+      note: "Filter remote activity to sanitized strategy decisions.",
+      disabled: !activity.some((event) => event.type === "decision"),
+    },
+    {
+      action: "orders",
+      status: activity.some((event) => event.type === "order") ? "warn" : "bad",
+      title: "Show Orders",
+      note: "Filter remote activity to sanitized order rows.",
+      disabled: !activity.some((event) => event.type === "order"),
+    },
+    {
+      action: "fills",
+      status: activity.some((event) => event.type === "fill") ? "ok" : "bad",
+      title: "Show Fills",
+      note: "Filter remote activity to fills.",
+      disabled: !activity.some((event) => event.type === "fill"),
+    },
+    {
+      action: "clear",
+      status: remoteDetailActivityFilter() ? "ok" : "warn",
+      title: "Clear Activity Filter",
+      note: "Return to all sanitized activity rows.",
+      disabled: !remoteDetailActivityFilter(),
+    },
+    {
+      action: "control",
+      status: detail.node_id ? "warn" : "bad",
+      title: "Use As Control Target",
+      note: detail.node_id ? `Fill command target with ${text(detail.node_id)} and open Control.` : "Select a node before targeting controls.",
+      disabled: !detail.node_id,
+    },
+    {
+      action: "export",
+      status: detail.node_id ? "ok" : "bad",
+      title: "Export Detail CSV",
+      note: "Download bounded sanitized node detail rows.",
+      disabled: !detail.node_id,
+    },
+  ].map((item) => `
+    <button class="remote-detail-assistant-action status-${escapeHtml(item.status)}" data-remote-detail-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+function handleRemoteDetailAssistantAction(action) {
+  if (action === "decisions" || action === "orders" || action === "fills") {
+    $("remote-detail-activity-filter").value = action.slice(0, -1);
+    renderRemoteNodeDetail();
+    return;
+  }
+  if (action === "clear") {
+    $("remote-detail-activity-filter").value = "";
+    renderRemoteNodeDetail();
+    return;
+  }
+  if (action === "control") {
+    const nodeId = text((state.remoteNodeDetail || {}).node_id);
+    if (nodeId && nodeId !== "n/a") $("command-node").value = nodeId;
+    applyOperationsLens("control");
+    $("command-form").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "export") {
+    downloadRemoteNodeDetailCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote node detail CSV export failed: ${err.message}`;
+    });
+  }
+}
+
 function eventTimestamp(event) {
   return event.timestamp
     || event.time
@@ -15215,6 +15365,11 @@ function renderRemoteNodeDetail() {
   const activityFilter = remoteDetailActivityFilter();
   const filteredActivity = activityFilter ? activity.filter((event) => event.type === activityFilter) : activity;
   const latestActivity = activity[0] || {};
+  renderRemoteDetailAssistant(detail, {
+    activity,
+    artifactRows,
+    filteredActivity,
+  });
   $("remote-node-detail-note").textContent = detail.node_id
     ? `${text(detail.node_id)} / ${numberText(detail.total, 0)} stored status snapshot${detail.total === 1 ? "" : "s"}`
     : "Select a remote node to inspect bounded sanitized status detail";
@@ -16827,6 +16982,14 @@ function init() {
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
   $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
   $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
+  $("remote-detail-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-remote-detail-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    handleRemoteDetailAssistantAction(button.dataset.remoteDetailAction || "");
+  });
   $("runs-filter-text").addEventListener("input", renderRuns);
   $("runs-filter-status").addEventListener("change", renderRuns);
   $("runs-filter-mode").addEventListener("change", renderRuns);
