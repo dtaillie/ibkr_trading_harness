@@ -143,6 +143,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".section-note",
     ".guide-item strong",
     ".guide-item span",
+    ".guide-step-actions button",
     ".config-field-section legend",
     ".config-field-section p",
     ".help-card strong",

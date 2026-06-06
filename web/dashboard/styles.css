@@ -1050,6 +1050,19 @@ section {
   line-height: 1.35;
 }
 
+.guide-step-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.guide-step-actions button {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
 .check-item.status-ok {
   border-left-color: var(--good);
 }

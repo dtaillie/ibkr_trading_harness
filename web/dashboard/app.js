@@ -776,6 +776,20 @@ function configGuideStepMetadata() {
   });
 }
 
+function workbenchGuideAction(step) {
+  const id = String((step && step.id) || "");
+  const actions = {
+    data: { label: "Select Data", target: "config-dataset" },
+    quality: { label: "Review Quality", target: "config-data-quality-body" },
+    range: { label: "Set Range", target: "config-start-date" },
+    alignment: { label: "Preview Alignment", target: "config-alignment", click: "config-preview-alignment" },
+    draft: { label: "Review Builder", target: "config-form" },
+    run: { label: "Run Draft", target: "config-run-form" },
+    results: { label: "Open Results", target: "config-runs-body" },
+  };
+  return actions[id] || { label: "Open Step", target: "config-form" };
+}
+
 function renderWorkbenchGuide() {
   if (!$("workbench-guide") || !$("workbench-guide-note")) return;
   const selected = selectedConfigDatasets();
@@ -876,9 +890,42 @@ function renderWorkbenchGuide() {
   ];
   const complete = steps.filter((step) => step.status === "ok").length;
   $("workbench-guide-note").textContent = `${complete} of ${steps.length} steps ready`;
-  $("workbench-guide").innerHTML = steps.map((step) => (
-    `<div class="check-item status-${escapeHtml(step.status)}"><span>${escapeHtml(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div></div>`
-  )).join("");
+  $("workbench-guide").innerHTML = steps.map((step) => {
+    const action = workbenchGuideAction(step);
+    return `
+      <div class="check-item status-${escapeHtml(step.status)}">
+        <span>${escapeHtml(step.status)}</span>
+        <div>
+          <strong>${escapeHtml(step.label)}</strong>
+          <small>${escapeHtml(step.detail)}</small>
+          <div class="guide-step-actions">
+            <button
+              type="button"
+              class="secondary workbench-guide-action"
+              data-guide-target="${escapeHtml(action.target)}"
+              data-guide-click="${escapeHtml(action.click || "")}"
+            >${escapeHtml(action.label)}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function activateWorkbenchGuideAction(target) {
+  const targetId = String(target.dataset.guideTarget || "");
+  const clickId = String(target.dataset.guideClick || "");
+  const clickElement = clickId ? $(clickId) : null;
+  if (clickElement instanceof HTMLButtonElement && !clickElement.disabled) {
+    clickElement.click();
+    return;
+  }
+  const element = targetId ? $(targetId) : null;
+  if (!element) return;
+  element.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof element.focus === "function") {
+    element.focus({ preventScroll: true });
+  }
 }
 
 function selectedConfigPlugin() {
@@ -9144,6 +9191,11 @@ function init() {
     generateConfigDraft(event).catch((err) => {
       $("config-validation").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("workbench-guide").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-guide-action") : null;
+    if (!(target instanceof HTMLElement)) return;
+    activateWorkbenchGuideAction(target);
   });
   $("data-symbol-diagnostic-form").addEventListener("submit", (event) => {
     diagnoseDataSymbol(event).catch((err) => {

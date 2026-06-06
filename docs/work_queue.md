@@ -866,6 +866,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; `/config_options` now exposes `guide_schema_version` and
     `guide_steps`, and the Workbench guide consumes backend step labels/order
     while keeping dynamic readiness details in the frontend.
+  - partial; Workbench guide rows now include compact action buttons that jump
+    to the relevant schema-rendered form control, quality section, alignment
+    preview, draft/run form, or results table, making the guide an actionable
+    stepper instead of only a status checklist.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary

@@ -156,6 +156,10 @@ rows from the Minute Coverage Heatmap.
 6. Run replay or simulated paper.
 7. Open the result from the Runs or Workbench table and inspect Performance.
 
+The Simulate From Saved Data guide is actionable: use each step's button to
+jump to the relevant data picker, quality table, alignment preview, draft
+builder, run form, or results table.
+
 Use Export Drafts CSV when you want an offline inventory of saved draft folder,
 status, plugin, symbol, tag, validation, output, and YAML path metadata.
 
