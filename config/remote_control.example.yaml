@@ -18,6 +18,7 @@ safety:
   require_local_enable_marker: true
   local_enable_marker: paper_logs/control/remote_commands.enabled
   actions_requiring_local_enable:
+    - restart_child_process
     - run_supervisor_once
   disabled_actions: []
 
@@ -31,6 +32,7 @@ allowed_actions:
   - summarize_run
   - validate_config
   - validate_supervisor_config
+  - restart_child_process
   - run_supervisor_once
   - pause_runner
   - resume_runner
@@ -53,6 +55,7 @@ notes:
   - No arbitrary shell commands are supported.
   - No broker credentials are stored here.
   - run_supervisor_once can launch configured local jobs; remove it from allowed_actions for monitoring-only deployments.
+  - restart_child_process writes only a configured supervisor job restart marker; the local supervisor owns the actual restart.
   - With require_local_enable_marker=true, launcher actions are rejected until local_enable_marker exists on this machine.
   - max_commands_per_poll limits how many queued commands the worker will consume in one poll cycle.
   - Pause/resume writes/removes the marker used by config/plugin_runner.example.yaml.

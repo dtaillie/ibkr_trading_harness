@@ -33,6 +33,7 @@ jobs:
       max_runtime_seconds: 60
     # For long-running loop jobs, switch process_mode to managed and enable a
     # conservative restart policy after reviewing the command and output dir.
+    # restart_marker: paper_logs/control/example_plugin_runner.restart
     # restart:
     #   on_exit: true
     #   on_stale_runner_status: true

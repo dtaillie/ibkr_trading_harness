@@ -253,6 +253,37 @@ def test_supervisor_restarts_managed_job_when_runner_status_is_stale(tmp_path):
     assert restarted["jobs"][0]["runner_status"]["age_seconds"] == 1920.0
 
 
+def test_supervisor_restarts_managed_job_when_restart_marker_exists(tmp_path):
+    started = tmp_path / "started.txt"
+    finished = tmp_path / "finished.txt"
+    restart_marker = tmp_path / "control" / "runner.restart"
+    script = tmp_path / "long_managed_job.py"
+    slow_helper_script(script, started, finished, sleep_seconds=10)
+    config = base_config(tmp_path, command=[sys.executable, str(script)], process_mode="managed")
+    config["jobs"][0]["restart_marker"] = str(restart_marker)
+    config["jobs"][0]["schedule"]["max_runtime_seconds"] = 1000
+    config["jobs"][0]["restart"] = {
+        "stop_grace_seconds": 2,
+        "max_restarts_per_hour": 2,
+    }
+    first = datetime(2026, 1, 2, 14, 30, tzinfo=timezone.utc)
+
+    state = evaluate_once(config, now=first)
+    first_pid = state["jobs"][0]["pid"]
+    old_proc = MANAGED_PROCESSES["example"]
+    restart_marker.parent.mkdir()
+    restart_marker.write_text("restart\n")
+    restarted = evaluate_once(config, now=first + timedelta(seconds=1))
+
+    assert old_proc.poll() is not None
+    assert not restart_marker.exists()
+    assert restarted["jobs"][0]["status"] == "running"
+    assert restarted["jobs"][0]["reason"] == "restart_operator_restart_marker"
+    assert restarted["jobs"][0]["restart_trigger"] == "operator_restart_marker"
+    assert restarted["jobs"][0]["restart_count_last_hour"] == 1
+    assert restarted["jobs"][0]["pid"] != first_pid
+
+
 def test_supervisor_blocks_managed_restart_after_limit(tmp_path):
     started = tmp_path / "started.txt"
     finished = tmp_path / "finished.txt"
@@ -294,6 +325,15 @@ def test_supervisor_rejects_invalid_process_mode(tmp_path):
     errors = validate_config(config)
 
     assert any("process_mode" in err for err in errors)
+
+
+def test_supervisor_rejects_empty_restart_marker(tmp_path):
+    config = base_config(tmp_path, command=[sys.executable, "-c", "print('ok')"], process_mode="managed")
+    config["jobs"][0]["restart_marker"] = "  "
+
+    errors = validate_config(config)
+
+    assert any("restart_marker must not be empty" in err for err in errors)
 
 
 def test_supervisor_rejects_invalid_restart_policy(tmp_path):

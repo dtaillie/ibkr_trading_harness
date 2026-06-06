@@ -39,6 +39,7 @@ ALLOWED_COMMAND_ACTIONS = {
     "pause_runner",
     "resume_runner",
     "request_status",
+    "restart_child_process",
     "run_supervisor_once",
     "summarize_run",
     "supervisor_status",
@@ -49,6 +50,7 @@ ALLOWED_COMMAND_ACTIONS = {
 COMMAND_PARAM_FIELDS = {
     "pause_runner": (),
     "request_status": (),
+    "restart_child_process": ("supervisor_id", "job_id"),
     "resume_runner": (),
     "run_supervisor_once": ("supervisor_id",),
     "summarize_run": ("run_id",),
@@ -60,6 +62,7 @@ COMMAND_PARAM_FIELDS = {
 COMMAND_ACTION_CLASSES = {
     "pause_runner": "control",
     "request_status": "read_only",
+    "restart_child_process": "launcher",
     "resume_runner": "control",
     "run_supervisor_once": "launcher",
     "summarize_run": "read_only",

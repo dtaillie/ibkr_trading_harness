@@ -1625,6 +1625,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   - resume
   - flatten simulated positions
   - restart child process
+    - partial; `restart_child_process` is now queueable as a launcher-class
+      command, gated by the local enable marker, and only writes a configured
+      supervisor-job `restart_marker`. Managed supervisor jobs consume that
+      marker, terminate the owned child process, apply the existing restart
+      cap/pause guard, and publish `operator_restart_marker` restart evidence.
+      Remaining gap: richer dashboard controls and operator confirmation copy.
   - request fresh status
 - Keep higher-risk commands behind stronger local confirmations:
   - live flattening

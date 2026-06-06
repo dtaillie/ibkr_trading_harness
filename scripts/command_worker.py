@@ -52,9 +52,10 @@ ACTION_CLASSES = {
     "pause_runner": "control",
     "resume_runner": "control",
     "run_supervisor_once": "launcher",
+    "restart_child_process": "launcher",
 }
 
-DEFAULT_LOCAL_ENABLE_ACTIONS = {"run_supervisor_once"}
+DEFAULT_LOCAL_ENABLE_ACTIONS = {"restart_child_process", "run_supervisor_once"}
 
 
 def utc_now() -> str:
@@ -154,6 +155,14 @@ def supervisor_state_path(supervisor_config_path: Path) -> Path:
     supervisor_config = load_supervisor_config(supervisor_config_path)
     supervisor = supervisor_config.get("supervisor") or {}
     return Path(str(supervisor.get("state_file") or "paper_logs/plugin_supervisor/status.json"))
+
+
+def configured_supervisor_job(supervisor_config_path: Path, job_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    supervisor_config = validate_supervisor_config_file(supervisor_config_path)
+    for job in supervisor_config.get("jobs") or []:
+        if str(job.get("id") or "") == job_id:
+            return supervisor_config, job
+    raise ValueError(f"supervisor job id is not configured: {job_id}")
 
 
 def action_class(action: str) -> str:
@@ -282,6 +291,36 @@ def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str
                 "supervisor_id": supervisor_id,
                 "config_path": str(supervisor_config_path),
                 "state": evaluate_supervisor_once(supervisor_config),
+            }
+        elif action == "restart_child_process":
+            supervisor_id = str(params.get("supervisor_id") or "")
+            job_id = str(params.get("job_id") or "")
+            supervisor_config_path = configured_path(config.get("supervisors") or {}, supervisor_id, kind="supervisor")
+            _, job = configured_supervisor_job(supervisor_config_path, job_id)
+            if str(job.get("process_mode", "blocking")) != "managed":
+                raise ValueError(f"supervisor job must use process_mode=managed for restart_child_process: {job_id}")
+            restart_marker_value = job.get("restart_marker")
+            if not restart_marker_value:
+                raise ValueError(f"supervisor job must configure restart_marker for restart_child_process: {job_id}")
+            restart_marker = Path(str(restart_marker_value))
+            restart_marker.parent.mkdir(parents=True, exist_ok=True)
+            restart_marker.write_text(
+                "\n".join(
+                    [
+                        f"requested_at={utc_now()}",
+                        f"command_id={command_id}",
+                        f"supervisor_id={supervisor_id}",
+                        f"job_id={job_id}",
+                    ]
+                )
+                + "\n"
+            )
+            result["result"] = {
+                "supervisor_id": supervisor_id,
+                "job_id": job_id,
+                "config_path": str(supervisor_config_path),
+                "restart_marker": str(restart_marker),
+                "restart_requested": True,
             }
         elif action == "pause_runner":
             marker = Path(str((config.get("control") or {}).get("pause_marker") or "paper_logs/control/runner.pause"))

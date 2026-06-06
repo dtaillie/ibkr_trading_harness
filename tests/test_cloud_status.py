@@ -62,7 +62,15 @@ def write_supervisor_state(path: Path, *, generated_at: str = "2026-01-02T14:35:
     )
 
 
-def write_supervisor_config(path: Path, *, marker: Path, state_file: Path, log_dir: Path) -> None:
+def write_supervisor_config(
+    path: Path,
+    *,
+    marker: Path,
+    state_file: Path,
+    log_dir: Path,
+    process_mode: str = "blocking",
+    restart_marker: Path | None = None,
+) -> None:
     script = path.parent / "supervisor_job.py"
     script.write_text(
         "\n".join(
@@ -73,6 +81,21 @@ def write_supervisor_config(path: Path, *, marker: Path, state_file: Path, log_d
         )
         + "\n"
     )
+    job = {
+        "id": "example",
+        "enabled": True,
+        "cwd": str(path.parent),
+        "process_mode": process_mode,
+        "command": [sys.executable, str(script)],
+        "schedule": {
+            "market": "always",
+            "run_on_start": True,
+            "interval_seconds": 3600,
+            "max_runtime_seconds": 10,
+        },
+    }
+    if restart_marker is not None:
+        job["restart_marker"] = str(restart_marker)
     path.write_text(
         json.dumps(
             {
@@ -82,21 +105,7 @@ def write_supervisor_config(path: Path, *, marker: Path, state_file: Path, log_d
                     "log_dir": str(log_dir),
                     "poll_seconds": 1,
                 },
-                "jobs": [
-                    {
-                        "id": "example",
-                        "enabled": True,
-                        "cwd": str(path.parent),
-                        "process_mode": "blocking",
-                        "command": [sys.executable, str(script)],
-                        "schedule": {
-                            "market": "always",
-                            "run_on_start": True,
-                            "interval_seconds": 3600,
-                            "max_runtime_seconds": 10,
-                        },
-                    }
-                ],
+                "jobs": [job],
             },
             sort_keys=True,
         )
@@ -5291,6 +5300,41 @@ def test_command_worker_executes_allowlisted_supervisor_actions(tmp_path):
     assert status_result["status"] == "completed"
     assert status_result["result"]["state_exists"] is True
     assert status_result["result"]["state"]["jobs"][0]["status"] == "ok"
+
+
+def test_command_worker_requests_configured_child_restart_marker(tmp_path):
+    marker = tmp_path / "ran.txt"
+    restart_marker = tmp_path / "control" / "runner.restart"
+    state_file = tmp_path / "supervisor" / "status.json"
+    supervisor_config = tmp_path / "supervisor.yaml"
+    write_supervisor_config(
+        supervisor_config,
+        marker=marker,
+        state_file=state_file,
+        log_dir=tmp_path / "supervisor" / "jobs",
+        process_mode="managed",
+        restart_marker=restart_marker,
+    )
+    config = {
+        "node_id": "test-node",
+        "allowed_actions": ["restart_child_process"],
+        "supervisors": {"example": str(supervisor_config)},
+    }
+
+    result = execute_command(
+        {
+            "command_id": "cmd-1",
+            "action": "restart_child_process",
+            "params": {"supervisor_id": "example", "job_id": "example"},
+        },
+        config,
+    )
+
+    assert result["status"] == "completed"
+    assert result["action_class"] == "launcher"
+    assert result["result"]["restart_marker"] == str(restart_marker)
+    assert result["result"]["restart_requested"] is True
+    assert "command_id=cmd-1" in restart_marker.read_text()
 
 
 def test_command_worker_requires_local_enable_marker_for_gated_actions(tmp_path):

@@ -156,6 +156,8 @@ def validate_config(config: dict[str, Any], *, check_paths: bool = True) -> list
             errors.append(f"{prefix}.cwd does not exist: {cwd}")
         if raw_job.get("pause_marker") is not None and not str(raw_job["pause_marker"]).strip():
             errors.append(f"{prefix}.pause_marker must not be empty")
+        if raw_job.get("restart_marker") is not None and not str(raw_job["restart_marker"]).strip():
+            errors.append(f"{prefix}.restart_marker must not be empty")
         if raw_job.get("run_dir") is not None and not str(raw_job["run_dir"]).strip():
             errors.append(f"{prefix}.run_dir must not be empty")
         process_mode = str(raw_job.get("process_mode", "blocking"))
@@ -254,6 +256,7 @@ def status_from_previous(job: dict[str, Any], previous: dict[str, Any] | None, n
         "command": list(job.get("command") or []),
         "run_dir": str(job.get("run_dir") or ""),
         "pause_marker": str(job.get("pause_marker") or ""),
+        "restart_marker": str(job.get("restart_marker") or ""),
     })
     return status
 
@@ -481,6 +484,29 @@ def monitor_managed_job(
             runner_status = runner_status_summary(job, now)
             if runner_status is not None:
                 status["runner_status"] = runner_status
+            restart_marker_value = job.get("restart_marker")
+            if restart_marker_value and Path(str(restart_marker_value)).exists():
+                restart_marker = Path(str(restart_marker_value))
+                grace = float((job.get("restart") or {}).get("stop_grace_seconds", 5.0))
+                stopped = terminate_process(proc, grace_seconds=grace)
+                if stopped:
+                    MANAGED_PROCESSES.pop(job_id, None)
+                    try:
+                        restart_marker.unlink()
+                    except OSError as exc:
+                        status["restart_marker_cleanup_error"] = str(exc)
+                    status["status"] = "failed"
+                    status["reason"] = "operator_restart_marker"
+                    status["restart_requested"] = True
+                    status["restart_marker"] = str(restart_marker)
+                    status["last_returncode"] = proc.poll()
+                    status["last_finished_at"] = now.isoformat()
+                else:
+                    status["status"] = "failed"
+                    status["reason"] = "operator_restart_stop_pending"
+                    status["restart_marker"] = str(restart_marker)
+                    status["error"] = f"operator restart marker exists but process did not stop within {grace:.3f}s"
+                return status
             max_runtime = schedule.get("max_runtime_seconds")
             runtime = runtime_seconds_from_status(status, now)
             if max_runtime is not None and runtime is not None and runtime > float(max_runtime):
@@ -641,7 +667,7 @@ def evaluate_once(config: dict[str, Any], *, now: datetime | None = None) -> dic
                     if marker_value and Path(str(marker_value)).exists():
                         statuses.append(paused_status(job, current, now, Path(str(marker_value))))
                         continue
-                    trigger = "runner_status_stale" if current.get("restart_requested") else str(current.get("reason") or "process_exit")
+                    trigger = str(current.get("reason") or "process_exit")
                     statuses.append(start_managed_job(
                         job,
                         current,
