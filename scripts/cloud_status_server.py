@@ -36,6 +36,7 @@ from live.broker_adapters import broker_adapter_capabilities
 
 
 ALLOWED_COMMAND_ACTIONS = {
+    "flatten_simulated_positions",
     "pause_runner",
     "resume_runner",
     "request_status",
@@ -48,6 +49,7 @@ ALLOWED_COMMAND_ACTIONS = {
 }
 
 COMMAND_PARAM_FIELDS = {
+    "flatten_simulated_positions": ("config_id",),
     "pause_runner": (),
     "request_status": (),
     "restart_child_process": ("supervisor_id", "job_id"),
@@ -60,6 +62,7 @@ COMMAND_PARAM_FIELDS = {
 }
 
 COMMAND_ACTION_CLASSES = {
+    "flatten_simulated_positions": "control",
     "pause_runner": "control",
     "request_status": "read_only",
     "restart_child_process": "launcher",

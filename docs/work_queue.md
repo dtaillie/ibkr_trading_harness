@@ -1624,6 +1624,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   - pause
   - resume
   - flatten simulated positions
+    - partial; `flatten_simulated_positions` is now queueable as a
+      control-class command for configured plugin-runner configs that use the
+      file-backed local broker. It submits offsetting simulated orders, records
+      fills through the file broker orders log, reports before/after
+      cash/positions, and refuses non-file broker adapters. Live flattening
+      remains explicitly separate higher-risk work.
   - restart child process
     - partial; `restart_child_process` is now queueable as a launcher-class
       command, gated by the local enable marker, and only writes a configured

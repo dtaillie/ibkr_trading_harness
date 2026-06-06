@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib import error, request
 
 import pytest
+import yaml
 
 from scripts import cloud_status_server as status_server
 from scripts.cloud_status_server import create_server
@@ -109,6 +110,61 @@ def write_supervisor_config(
             },
             sort_keys=True,
         )
+    )
+
+
+def write_runner_config(path: Path, *, bars_path: Path, state_path: Path, orders_path: Path) -> None:
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "metadata": {"strategy_plugin": "examples.strategies.no_edge_template:create_strategy"},
+                "strategy": {"example_parameter": True},
+                "runner": {
+                    "mode": "paper",
+                    "starting_cash": 10000,
+                    "history_bars": 3,
+                    "output_dir": str(path.parent / "run"),
+                },
+                "data": {
+                    "source": "files",
+                    "timestamp_column": "timestamp",
+                    "files": {"SPY": str(bars_path)},
+                },
+                "execution": {
+                    "allowed_sides": ["buy", "sell"],
+                    "allowed_order_types": ["market"],
+                    "allow_short": False,
+                    "max_orders_per_run": 1,
+                    "max_notional_per_order": 1000,
+                    "max_quantity": 100,
+                    "max_cash_quantity": 1000,
+                    "max_gross_exposure_pct": 1,
+                },
+                "broker": {
+                    "adapter": "file",
+                    "account_mode": "paper",
+                    "state_path": str(state_path),
+                    "orders_path": str(orders_path),
+                    "starting_cash": 10000,
+                    "commission_bps": 0,
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+
+def write_sample_bars(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume",
+                "2026-01-02T14:30:00Z,100,101,99,100,1000",
+                "2026-01-02T14:35:00Z,100,102,99,101,1000",
+                "2026-01-02T14:40:00Z,101,103,100,102,1000",
+            ]
+        )
+        + "\n"
     )
 
 
@@ -5335,6 +5391,47 @@ def test_command_worker_requests_configured_child_restart_marker(tmp_path):
     assert result["result"]["restart_marker"] == str(restart_marker)
     assert result["result"]["restart_requested"] is True
     assert "command_id=cmd-1" in restart_marker.read_text()
+
+
+def test_command_worker_flattens_file_broker_positions(tmp_path):
+    bars_path = tmp_path / "SPY.csv"
+    state_path = tmp_path / "broker" / "state.json"
+    orders_path = tmp_path / "broker" / "orders.jsonl"
+    runner_config = tmp_path / "plugin_runner.yaml"
+    write_sample_bars(bars_path)
+    state_path.parent.mkdir()
+    state_path.write_text(json.dumps({
+        "account_id": "file-paper",
+        "cash": 9000.0,
+        "positions": {"SPY": 2.0},
+        "prices": {"SPY": 101.0},
+    }))
+    write_runner_config(runner_config, bars_path=bars_path, state_path=state_path, orders_path=orders_path)
+    config = {
+        "node_id": "test-node",
+        "allowed_actions": ["flatten_simulated_positions"],
+        "configs": {"example": str(runner_config)},
+    }
+
+    result = execute_command(
+        {
+            "command_id": "cmd-1",
+            "action": "flatten_simulated_positions",
+            "params": {"config_id": "example"},
+        },
+        config,
+    )
+
+    updated_state = json.loads(state_path.read_text())
+    order_rows = [json.loads(line) for line in orders_path.read_text().splitlines()]
+    assert result["status"] == "completed"
+    assert result["action_class"] == "control"
+    assert result["result"]["positions_before"] == {"SPY": 2.0}
+    assert result["result"]["positions_after"] == {}
+    assert result["result"]["cash_after"] == pytest.approx(9202.0)
+    assert updated_state["positions"] == {}
+    assert order_rows[-1]["side"] == "sell"
+    assert order_rows[-1]["tag"] == "remote_flatten_simulated_positions:cmd-1"
 
 
 def test_command_worker_requires_local_enable_marker_for_gated_actions(tmp_path):

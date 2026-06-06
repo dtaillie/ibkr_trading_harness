@@ -21,6 +21,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from core import Order, Side
+from live.broker_adapters import create_broker_adapter
 from live.plugin_runner import ConfigValidationError, validate_config_file as validate_runner_config_file
 from scripts.plugin_supervisor import (
     SupervisorConfigError,
@@ -49,13 +51,14 @@ ACTION_CLASSES = {
     "summarize_run": "read_only",
     "validate_config": "read_only",
     "validate_supervisor_config": "read_only",
+    "flatten_simulated_positions": "control",
     "pause_runner": "control",
     "resume_runner": "control",
     "run_supervisor_once": "launcher",
     "restart_child_process": "launcher",
 }
 
-DEFAULT_LOCAL_ENABLE_ACTIONS = {"restart_child_process", "run_supervisor_once"}
+DEFAULT_LOCAL_ENABLE_ACTIONS = {"flatten_simulated_positions", "restart_child_process", "run_supervisor_once"}
 
 
 def utc_now() -> str:
@@ -163,6 +166,61 @@ def configured_supervisor_job(supervisor_config_path: Path, job_id: str) -> tupl
         if str(job.get("id") or "") == job_id:
             return supervisor_config, job
     raise ValueError(f"supervisor job id is not configured: {job_id}")
+
+
+def flatten_file_broker_positions(config_path: Path, *, command_id: str) -> dict[str, Any]:
+    runner_config = validate_runner_config_file(config_path)
+    broker_cfg = runner_config.get("broker") or {}
+    adapter = str(broker_cfg.get("adapter", broker_cfg.get("provider", "ibkr"))).lower().replace("-", "_")
+    if adapter != "file":
+        raise ValueError(f"flatten_simulated_positions requires broker.adapter=file, observed {adapter}")
+
+    broker = create_broker_adapter(broker_cfg)
+    broker.connect()
+    fills: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    try:
+        cash_before = broker.get_cash()
+        positions_before = broker.get_positions()
+        for symbol, quantity in sorted(positions_before.items()):
+            if abs(quantity) <= 1e-9:
+                continue
+            order = Order(
+                symbol=symbol,
+                side=Side.SELL if quantity > 0 else Side.BUY,
+                quantity=abs(quantity),
+                timestamp=datetime.now(timezone.utc),
+                tag=f"remote_flatten_simulated_positions:{command_id}",
+            )
+            fill = broker.submit_order(order)
+            if fill is None:
+                failures.append({
+                    "symbol": symbol,
+                    "quantity": quantity,
+                    "status": broker.last_order_status,
+                    "message": broker.last_order_message,
+                })
+                continue
+            fills.append({
+                "timestamp": fill.timestamp.isoformat(),
+                "symbol": fill.symbol,
+                "side": fill.side.name.lower(),
+                "quantity": fill.quantity,
+                "price": fill.price,
+                "commission": fill.commission,
+                "tag": fill.tag,
+            })
+        return {
+            "config_path": str(config_path),
+            "cash_before": cash_before,
+            "positions_before": positions_before,
+            "cash_after": broker.get_cash(),
+            "positions_after": broker.get_positions(),
+            "fills": fills,
+            "failures": failures,
+        }
+    finally:
+        broker.disconnect()
 
 
 def action_class(action: str) -> str:
@@ -283,6 +341,16 @@ def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str
                     "config_path": str(supervisor_config_path),
                     "errors": exc.errors,
                 }
+        elif action == "flatten_simulated_positions":
+            config_id = str(params.get("config_id") or "")
+            config_path = configured_path(config.get("configs") or {}, config_id, kind="config")
+            flatten_result = flatten_file_broker_positions(config_path, command_id=command_id)
+            result["result"] = {
+                "config_id": config_id,
+                **flatten_result,
+            }
+            if flatten_result["failures"]:
+                result["status"] = "failed"
         elif action == "run_supervisor_once":
             supervisor_id = str(params.get("supervisor_id") or "")
             supervisor_config_path = configured_path(config.get("supervisors") or {}, supervisor_id, kind="supervisor")
