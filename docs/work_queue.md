@@ -1629,14 +1629,16 @@ QQQ show up, treat that as a bug until proven otherwise.
       file-backed local broker. It submits offsetting simulated orders, records
       fills through the file broker orders log, reports before/after
       cash/positions, and refuses non-file broker adapters. Live flattening
-      remains explicitly separate higher-risk work.
+      remains explicitly separate higher-risk work. The Operations command form
+      now exposes this action through the `config_id` field.
   - restart child process
     - partial; `restart_child_process` is now queueable as a launcher-class
       command, gated by the local enable marker, and only writes a configured
       supervisor-job `restart_marker`. Managed supervisor jobs consume that
       marker, terminate the owned child process, apply the existing restart
       cap/pause guard, and publish `operator_restart_marker` restart evidence.
-      Remaining gap: richer dashboard controls and operator confirmation copy.
+      The Operations command form now exposes this action and its `job_id`
+      parameter. Remaining gap: richer operator confirmation copy.
   - request fresh status
 - Keep higher-risk commands behind stronger local confirmations:
   - live flattening

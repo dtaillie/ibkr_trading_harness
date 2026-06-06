@@ -56,8 +56,10 @@ const state = {
 };
 
 const commandFields = {
+  flatten_simulated_positions: ["config"],
   pause_runner: [],
   request_status: [],
+  restart_child_process: ["supervisor", "job"],
   resume_runner: [],
   run_supervisor_once: ["supervisor"],
   summarize_run: ["run"],
@@ -68,6 +70,7 @@ const commandFields = {
 
 const commandParamNames = {
   config: "config_id",
+  job: "job_id",
   run: "run_id",
   supervisor: "supervisor_id",
 };
@@ -14416,7 +14419,7 @@ async function cancelCommand(commandId, nodeId) {
 function updateCommandFields() {
   const action = $("command-action").value;
   const visible = new Set(commandFields[action] || []);
-  for (const field of ["run", "config", "supervisor"]) {
+  for (const field of ["run", "config", "supervisor", "job"]) {
     const label = $(`command-${field}-field`);
     const input = $(`command-${field}`);
     const shown = visible.has(field);

@@ -3016,7 +3016,9 @@
         <label>
           <span>Action</span>
           <select id="command-action" name="action">
+            <option value="flatten_simulated_positions">flatten_simulated_positions</option>
             <option value="request_status">request_status</option>
+            <option value="restart_child_process">restart_child_process</option>
             <option value="supervisor_status">supervisor_status</option>
             <option value="summarize_run">summarize_run</option>
             <option value="validate_config">validate_config</option>
@@ -3037,6 +3039,10 @@
         <label id="command-supervisor-field">
           <span>Supervisor ID</span>
           <input id="command-supervisor" name="supervisor_id" type="text">
+        </label>
+        <label id="command-job-field">
+          <span>Job ID</span>
+          <input id="command-job" name="job_id" type="text">
         </label>
         <button type="submit">Queue</button>
       </form>

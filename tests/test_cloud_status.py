@@ -978,6 +978,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "command-audit-health" in html
         assert "command-audit-body" in html
         assert "export-command-audit-csv" in html
+        assert "flatten_simulated_positions" in html
+        assert "restart_child_process" in html
+        assert "command-job" in html
         assert "Signature" in html
         assert "current-orders-body" in html
         assert "current-positions-grid" in html
