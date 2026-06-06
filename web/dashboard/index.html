@@ -781,6 +781,21 @@
     </section>
 
     <section class="dashboard-section" data-view="operations" hidden>
+      <div class="overview-lens-bar operations-lens-bar" aria-label="Operations focus">
+        <div>
+          <span class="eyebrow">Operations Focus</span>
+          <strong id="operations-lens-title">Home</strong>
+          <small id="operations-lens-note">Local readiness, remote freshness, command safety, and next action.</small>
+        </div>
+        <div class="overview-lens-actions operations-lens-actions" role="tablist" aria-label="Operations focus tabs">
+          <button id="operations-lens-home" class="overview-lens-button" type="button" data-operations-lens-target="home" role="tab" aria-selected="true">Home</button>
+          <button id="operations-lens-paper" class="overview-lens-button" type="button" data-operations-lens-target="paper" role="tab" aria-selected="false">Paper</button>
+          <button id="operations-lens-remote" class="overview-lens-button" type="button" data-operations-lens-target="remote" role="tab" aria-selected="false">Remote</button>
+          <button id="operations-lens-control" class="overview-lens-button" type="button" data-operations-lens-target="control" role="tab" aria-selected="false">Control</button>
+          <button id="operations-lens-diagnostics" class="overview-lens-button" type="button" data-operations-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
+        </div>
+      </div>
+      <div data-operations-lens="diagnostics">
       <div class="section-head">
         <h2>Workbench State</h2>
         <span class="button-pair">
@@ -789,9 +804,10 @@
         </span>
       </div>
       <dl id="workbench-status-list" class="kv wide-kv"></dl>
+      </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <div class="section-head">
         <h2>Workbench Maintenance</h2>
         <span id="cleanup-note" class="section-note">Not loaded</span>
@@ -804,7 +820,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <div class="section-head">
         <h2>Setup Diagnostics</h2>
         <span id="diagnostics-note" class="section-note">Not loaded</span>
@@ -812,7 +828,7 @@
       <dl id="diagnostics-list" class="kv wide-kv"></dl>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <div class="section-head">
         <h2>Endpoint Map</h2>
         <span id="endpoint-map-note" class="section-note">Not loaded</span>
@@ -2522,6 +2538,7 @@
     </section>
 
     <section class="dashboard-section" data-view="operations" hidden>
+      <div data-operations-lens="home">
       <section class="operations-home-panel">
         <div class="operations-home-main">
           <span class="eyebrow">Operations Home</span>
@@ -2536,15 +2553,18 @@
         </div>
         <div id="operations-home-tiles" class="operations-home-tiles"></div>
       </section>
+      </div>
+      <div data-operations-lens="paper">
       <div class="section-head">
         <h2>Paper Monitor</h2>
         <span id="paper-monitor-note" class="section-note">Verify Gateway, telemetry, mode, and next-order context before trusting a paper run.</span>
       </div>
       <div id="paper-monitor-health" class="health-grid paper-monitor-health"></div>
       <div id="paper-monitor-guide" class="checklist"></div>
+      </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="remote" hidden>
       <div class="section-head">
         <h2>Remote Nodes</h2>
         <span class="button-pair">
@@ -2622,7 +2642,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="remote" hidden>
       <div class="section-head">
         <h2>Remote Node Detail</h2>
         <span class="button-pair">
@@ -2733,7 +2753,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
         <h2>Supervisors</h2>
       </div>
@@ -2754,7 +2774,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
         <h2>Remote Control</h2>
       </div>
@@ -2775,7 +2795,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
         <h2>Command Audit</h2>
         <span id="command-audit-note" class="section-note">Sanitized queue, cancel, and result events from the receiver</span>
@@ -2802,7 +2822,7 @@
       </div>
     </section>
 
-    <section class="split dashboard-section" data-view="operations" hidden>
+    <section class="split dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <div>
         <div class="section-head">
           <h2>Alerts</h2>
@@ -2829,7 +2849,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
         <h2>Commands</h2>
       </div>
@@ -2884,7 +2904,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section" data-view="operations" hidden>
+    <section class="dashboard-section" data-view="operations" data-operations-lens="control" hidden>
       <div class="section-head">
         <h2>Command Results</h2>
       </div>

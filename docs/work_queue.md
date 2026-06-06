@@ -88,6 +88,10 @@ strategy-private.
   - partial; Runs now has Home / State / Runs / Events lenses with
     deep-linkable hashes such as `#runs/events`, separating triage, account
     boundary/current order state, run search, and event timelines.
+  - partial; Operations now has Home / Paper / Remote / Control / Diagnostics
+    lenses with deep-linkable hashes such as `#operations/control`, separating
+    local readiness, remote monitoring, command controls, and maintenance
+    diagnostics.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
@@ -485,6 +489,10 @@ strategy-private.
     - partial; Runs now defaults to a Home lens, with State, Runs, and Events
       lenses carrying current account/order state, run search, and decision /
       order / fill timelines respectively.
+    - partial; Operations now defaults to a Home lens, with Paper, Remote,
+      Control, and Diagnostics lenses carrying paper-readiness checks, cloud
+      node monitoring, command/supervisor surfaces, and setup/cleanup/Gateway
+      diagnostics respectively.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
@@ -1214,6 +1222,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     local paper-monitor readiness, Gateway/API reachability, remote-node
     freshness, command-audit integrity/signature status, and alerts before the
     detailed remote/control tables.
+  - partial; Operations now uses Home / Paper / Remote / Control / Diagnostics
+    focus lenses so paper readiness, cloud monitoring, command controls, and
+    setup/cleanup/Gateway diagnostics are no longer one continuous operations
+    page.
   - partial; Operations now has Command Audit Health cards that surface
     hash-chain status, HMAC signature coverage, latest sanitized command
     event, and local/off-host retention next steps before the dense audit rows.

@@ -312,6 +312,11 @@ function normalizeRunsLens(lens) {
   return new Set(["home", "state", "runs", "events"]).has(cleaned) ? cleaned : "home";
 }
 
+function normalizeOperationsLens(lens) {
+  const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
+  return new Set(["home", "paper", "remote", "control", "diagnostics"]).has(cleaned) ? cleaned : "home";
+}
+
 function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
@@ -346,6 +351,12 @@ function runsLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "runs") return "";
   return parts.hasExplicitLens ? normalizeRunsLens(parts.lens) : "";
+}
+
+function operationsLensFromHash(value) {
+  const parts = dashboardHashParts(value);
+  if (normalizeView(parts.view) !== "operations") return "";
+  return parts.hasExplicitLens ? normalizeOperationsLens(parts.lens) : "";
 }
 
 function selectedOverviewLens() {
@@ -414,6 +425,17 @@ function selectedRunsLens() {
   return normalizeRunsLens(sessionStorage.getItem("dashboardRunsLens") || "home");
 }
 
+function selectedOperationsLens() {
+  const hashLens = operationsLensFromHash(window.location.hash);
+  if (hashLens) return hashLens;
+  const parts = dashboardHashParts(window.location.hash);
+  const hashView = normalizeView(parts.view);
+  if (window.location.hash && hashView === "operations" && !parts.hasExplicitLens) {
+    return "home";
+  }
+  return normalizeOperationsLens(sessionStorage.getItem("dashboardOperationsLens") || "home");
+}
+
 function viewFromHash() {
   return normalizeView(decodeURIComponent(window.location.hash || ""));
 }
@@ -454,6 +476,9 @@ function setActiveView(view) {
   }
   if (targetView === "runs") {
     applyRunsLens(selectedRunsLens());
+  }
+  if (targetView === "operations") {
+    applyOperationsLens(selectedOperationsLens());
   }
 }
 
@@ -782,6 +807,59 @@ function navigateToRunsLens(lens) {
     return;
   }
   setActiveView("runs");
+}
+
+function operationsLensContent(lens) {
+  const content = {
+    home: {
+      title: "Home",
+      note: "Local readiness, remote freshness, command safety, and next action.",
+    },
+    paper: {
+      title: "Paper",
+      note: "Gateway, telemetry, mode, signal freshness, and next-order readiness checks.",
+    },
+    remote: {
+      title: "Remote",
+      note: "Cloud monitoring nodes, bounded node detail, latest remote activity, and alerts.",
+    },
+    control: {
+      title: "Control",
+      note: "Supervisors, remote-control audit state, command queue, command audit, and command results.",
+    },
+    diagnostics: {
+      title: "Diagnostics",
+      note: "Workbench state, cleanup, setup diagnostics, endpoint map, alerts, and Gateway status.",
+    },
+  };
+  return content[normalizeOperationsLens(lens)] || content.home;
+}
+
+function applyOperationsLens(lens) {
+  const selected = normalizeOperationsLens(lens);
+  sessionStorage.setItem("dashboardOperationsLens", selected);
+  for (const element of document.querySelectorAll("[data-operations-lens]")) {
+    const lenses = new Set(String(element.dataset.operationsLens || "").split(/\s+/).filter(Boolean));
+    element.hidden = !lenses.has(selected);
+  }
+  for (const button of document.querySelectorAll("[data-operations-lens-target]")) {
+    const active = normalizeOperationsLens(button.dataset.operationsLensTarget) === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const content = operationsLensContent(selected);
+  if ($("operations-lens-title")) $("operations-lens-title").textContent = content.title;
+  if ($("operations-lens-note")) $("operations-lens-note").textContent = content.note;
+}
+
+function navigateToOperationsLens(lens) {
+  const selected = normalizeOperationsLens(lens);
+  const nextHash = selected === "home" ? "#operations" : `#operations/${selected}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+  setActiveView("operations");
 }
 
 function pageIntroAction(id, action) {
@@ -10392,6 +10470,13 @@ function handleOperationsHomeAction(action) {
     audit: "command-audit-body",
     gateway: "gateway-list",
   };
+  const lenses = {
+    paper: "paper",
+    remote: "remote",
+    audit: "control",
+    gateway: "diagnostics",
+  };
+  applyOperationsLens(lenses[action] || "paper");
   const element = $(targets[action] || "paper-monitor-guide");
   if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
 }
@@ -11860,6 +11945,9 @@ function init() {
   }
   for (const button of document.querySelectorAll("[data-runs-lens-target]")) {
     button.addEventListener("click", () => navigateToRunsLens(button.dataset.runsLensTarget));
+  }
+  for (const button of document.querySelectorAll("[data-operations-lens-target]")) {
+    button.addEventListener("click", () => navigateToOperationsLens(button.dataset.operationsLensTarget));
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 
