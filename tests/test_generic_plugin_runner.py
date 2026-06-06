@@ -113,6 +113,23 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
     assert summary["performance_rollups_path"] == str(output_dir / "performance_rollups.json")
+    assert summary["runner_status_path"] == str(output_dir / "runner_status.json")
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["schema_version"] == 1
+    assert status["state"] == "completed"
+    assert status["mode"] == "replay"
+    assert status["latest_data_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["last_decision_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["counts"] == {
+        "account": 3,
+        "approval_required_orders": 0,
+        "decisions": 3,
+        "fills": 0,
+        "orders": 0,
+        "rejections": 0,
+    }
+    assert status["loop"]["enabled"] is False
+    assert status["result"]["summary_path"] == str(output_dir / "summary.json")
     rollups = json.loads((output_dir / "performance_rollups.json").read_text())
     assert rollups["schema_version"] == 1
     assert rollups["source"] == "plugin_runner"
@@ -618,6 +635,11 @@ def test_shadow_loop_records_bounded_iterations(tmp_path):
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["loop_enabled"] is True
     assert summary["loop_iterations"] == 2
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["state"] == "completed"
+    assert status["loop"]["enabled"] is True
+    assert status["loop"]["iterations"] == 2
+    assert status["counts"]["decisions"] == 2
 
 
 def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):
@@ -675,6 +697,11 @@ def test_shadow_loop_stops_cleanly_when_stop_marker_exists(tmp_path):
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["stopped_by_control"] is True
     assert summary["stop_marker"] == str(stop_marker)
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["state"] == "stopped"
+    assert status["control"]["stopped_by_control"] is True
+    assert status["control"]["stop_marker"] == str(stop_marker)
+    assert status["counts"]["decisions"] == 0
 
 
 def test_shadow_loop_records_idle_decision_outside_session(tmp_path):
@@ -724,6 +751,11 @@ def test_shadow_loop_records_idle_decision_outside_session(tmp_path):
     assert summary["session_enabled"] is True
     assert summary["session_idle_iterations"] == 2
     assert summary["session_status"] == "outside_session"
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["state"] == "completed"
+    assert status["session"]["enabled"] is True
+    assert status["session"]["status"] == "outside_session"
+    assert status["session"]["idle_iterations"] == 2
 
 
 def test_shadow_loop_runs_inside_session_window(tmp_path):

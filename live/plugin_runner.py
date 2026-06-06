@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import re
 import shutil
 import sys
@@ -73,6 +74,7 @@ class RunnerResult:
     final_positions: dict[str, float]
     output_dir: Path
     performance_rollups_path: Path | None = None
+    runner_status_path: Path | None = None
     account_snapshot_count: int = 0
     initial_equity: float | None = None
     total_return_pct: float | None = None
@@ -579,6 +581,15 @@ def write_json(path: Path, record: dict[str, Any]) -> None:
     with path.open("w") as f:
         json.dump(jsonable(record), f, indent=2, sort_keys=True)
         f.write("\n")
+
+
+def write_json_atomic(path: Path, record: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with tmp.open("w") as f:
+        json.dump(jsonable(record), f, indent=2, sort_keys=True)
+        f.write("\n")
+    tmp.replace(path)
 
 
 def finite_float(raw: Any) -> float | None:
@@ -1661,6 +1672,73 @@ def run_from_config(
     if control_cfg.get("stop_marker") is not None:
         stop_marker = Path(str(control_cfg["stop_marker"]))
     stopped_by_control = False
+    runner_status_path = output_dir / "runner_status.json"
+    run_started_at = datetime.now(timezone.utc)
+    latest_error: dict[str, str] | None = None
+    last_decision_time: str | None = None
+
+    def update_runner_status(
+        state: str,
+        *,
+        note: str | None = None,
+        result: RunnerResult | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "schema_version": 1,
+            "state": state,
+            "mode": mode,
+            "pid": os.getpid(),
+            "started_at": run_started_at,
+            "updated_at": datetime.now(timezone.utc),
+            "output_dir": output_dir,
+            "latest_data_time": latest_data_time,
+            "last_decision_time": last_decision_time,
+            "counts": {
+                "decisions": decisions,
+                "orders": orders,
+                "fills": fills,
+                "rejections": rejections,
+                "approval_required_orders": approval_required_orders,
+                "account": len(account_records),
+            },
+            "loop": {
+                "enabled": loop_enabled,
+                "iterations": loop_iterations,
+                "max_iterations": max_loop_iterations,
+                "interval_seconds": loop_interval,
+                "skip_duplicate_latest": skip_duplicate_latest,
+            },
+            "session": {
+                "enabled": session_cfg is not None,
+                "status": latest_session_status,
+                "idle_iterations": session_idle_iterations,
+            },
+            "control": {
+                "stopped_by_control": stopped_by_control,
+                "stop_marker": str(stop_marker) if stop_marker is not None else None,
+                "pause_marker": str(pause_marker) if pause_marker is not None else None,
+            },
+            "last_error": latest_error,
+        }
+        if note:
+            payload["note"] = note
+        if result is not None:
+            payload["result"] = {
+                "summary_path": output_dir / "summary.json",
+                "performance_rollups_path": result.performance_rollups_path,
+                "final_cash": result.final_cash,
+                "final_equity": result.final_equity,
+                "final_positions": result.final_positions,
+                "total_return_pct": result.total_return_pct,
+                "max_drawdown_pct": result.max_drawdown_pct,
+                "account_snapshot_count": result.account_snapshot_count,
+            }
+        try:
+            write_json_atomic(runner_status_path, payload)
+        except Exception as exc:
+            log.warning("Could not write runner status: %s", exc)
+
+    update_runner_status("starting")
 
     def process_step(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame]) -> None:
         nonlocal decisions
@@ -1673,9 +1751,11 @@ def run_from_config(
         nonlocal latest_data_time
         nonlocal paper_final_cash
         nonlocal paper_final_positions
+        nonlocal last_decision_time
 
         snapshot = snapshot_at(panels, now, history_bars=history_bars)
         if not snapshot:
+            update_runner_status("waiting_for_data", note="no snapshot data for current step")
             return
         snapshot_time = latest_snapshot_time(snapshot)
         if snapshot_time is not None:
@@ -1717,6 +1797,8 @@ def run_from_config(
             )
             account_records.append(account_record)
             append_jsonl(output_dir / "account.jsonl", account_record)
+            last_decision_time = now.isoformat()
+            update_runner_status("paused", note=f"pause marker exists: {pause_marker}")
             log.info("Decision step=%d time=%s paused by %s", step, now.isoformat(), pause_marker)
             return
         if simulated is not None:
@@ -1748,6 +1830,7 @@ def run_from_config(
         )
         decision = plugin.on_data(snapshot, context)
         decisions += 1
+        last_decision_time = decision.timestamp.isoformat()
         append_jsonl(output_dir / "decisions.jsonl", {
             "timestamp": decision.timestamp,
             "step": step,
@@ -1891,6 +1974,7 @@ def run_from_config(
         )
         account_records.append(account_record)
         append_jsonl(output_dir / "account.jsonl", account_record)
+        update_runner_status("running")
 
     def record_session_idle(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame], state: dict[str, Any]) -> None:
         nonlocal decisions
@@ -1898,6 +1982,7 @@ def run_from_config(
         nonlocal latest_data_time
         nonlocal session_idle_iterations
         nonlocal latest_session_status
+        nonlocal last_decision_time
 
         snapshot = snapshot_at(panels, now, history_bars=history_bars)
         snapshot_time = latest_snapshot_time(snapshot)
@@ -1927,6 +2012,8 @@ def run_from_config(
             step,
             now.isoformat(),
         )
+        last_decision_time = now.isoformat()
+        update_runner_status("idle", note="outside configured session")
 
     try:
         if not loop_enabled:
@@ -1945,6 +2032,7 @@ def run_from_config(
                 if stop_marker is not None and stop_marker.exists():
                     stopped_by_control = True
                     log.info("Loop stopped by control marker: %s", stop_marker)
+                    update_runner_status("stopped", note=f"stop marker exists: {stop_marker}")
                     break
                 loop_iterations += 1
                 panels = load_panels(config.get("data") or {})
@@ -1955,6 +2043,8 @@ def run_from_config(
                         loop_iterations,
                         now.isoformat(),
                     )
+                    latest_data_time = now.isoformat()
+                    update_runner_status("waiting_for_new_data", note="latest data timestamp was already processed")
                 else:
                     state = session_state(now, session_cfg)
                     step += 1
@@ -1968,6 +2058,10 @@ def run_from_config(
                     break
                 if loop_interval > 0:
                     time.sleep(loop_interval)
+    except Exception as exc:
+        latest_error = {"type": type(exc).__name__, "message": str(exc)}
+        update_runner_status("failed", note=str(exc))
+        raise
     finally:
         if paper is not None:
             if paper.connected:
@@ -2004,6 +2098,7 @@ def run_from_config(
         final_positions=final_positions,
         output_dir=output_dir,
         performance_rollups_path=performance_rollups_path,
+        runner_status_path=runner_status_path,
         account_snapshot_count=int(perf["account_snapshot_count"]),
         initial_equity=perf["initial_equity"],
         total_return_pct=perf["total_return_pct"],
@@ -2038,6 +2133,7 @@ def run_from_config(
     )
     write_json(performance_rollups_path, account_rollup_artifact(account_records, result))
     write_json(output_dir / "summary.json", asdict(result))
+    update_runner_status("stopped" if stopped_by_control else "completed", result=result)
     log.info(
         "Run complete: decisions=%d orders=%d fills=%d rejections=%d approval_required=%d loop_iterations=%d session_idle=%d stopped_by_control=%s output_dir=%s",
         decisions,

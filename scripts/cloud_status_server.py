@@ -263,6 +263,7 @@ MAX_DATA_COMPARE_DATASETS = 8
 OUTPUT_TAIL_BYTES = 8000
 RUN_ARTIFACT_FILES = (
     "summary.json",
+    "runner_status.json",
     "performance_rollups.json",
     "decisions.jsonl",
     "orders.jsonl",
@@ -6567,6 +6568,33 @@ def summarize_performance_rollups_artifact(payload: dict[str, Any] | None, *, li
     }
 
 
+def summarize_runner_status_artifact(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {"available": False}
+    control = payload.get("control") if isinstance(payload.get("control"), dict) else {}
+    return {
+        "available": True,
+        "schema_version": payload.get("schema_version"),
+        "state": payload.get("state"),
+        "mode": payload.get("mode"),
+        "pid": payload.get("pid"),
+        "started_at": payload.get("started_at"),
+        "updated_at": payload.get("updated_at"),
+        "latest_data_time": payload.get("latest_data_time"),
+        "last_decision_time": payload.get("last_decision_time"),
+        "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
+        "loop": payload.get("loop") if isinstance(payload.get("loop"), dict) else {},
+        "session": payload.get("session") if isinstance(payload.get("session"), dict) else {},
+        "control": {
+            "stopped_by_control": bool(control.get("stopped_by_control", False)),
+            "has_stop_marker": bool(control.get("stop_marker")),
+            "has_pause_marker": bool(control.get("pause_marker")),
+        },
+        "last_error": payload.get("last_error") if isinstance(payload.get("last_error"), dict) else None,
+        "result": payload.get("result") if isinstance(payload.get("result"), dict) else {},
+    }
+
+
 def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
     summary = summary or {}
     timestamps = []
@@ -6886,6 +6914,7 @@ def load_config_draft_artifacts(
         raise ValueError("; ".join(errors))
     output_dir = safe_workbench_output_dir(config)
     summary = read_json_file(output_dir / "summary.json")
+    runner_status_raw = read_json_file(output_dir / "runner_status.json")
     performance_rollups_raw = read_json_file(output_dir / "performance_rollups.json")
     decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
@@ -6896,6 +6925,7 @@ def load_config_draft_artifacts(
         "draft_id": path.stem,
         "output_dir": output_dir.relative_to(ROOT).as_posix() if output_dir.is_relative_to(ROOT) else str(output_dir),
         "summary": summary,
+        "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "performance": performance_from_account(account_raw, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
@@ -6904,6 +6934,7 @@ def load_config_draft_artifacts(
             "fills": len(fills_raw),
             "account": len(account_raw),
             "order_previews": len(previews_raw),
+            "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
@@ -6947,6 +6978,7 @@ def load_config_draft_run_artifacts(
     if not path.exists() or not path.is_dir():
         raise ValueError(f"run artifacts not found: {record.get('run_id')}")
     summary = read_json_file(path / "summary.json")
+    runner_status_raw = read_json_file(path / "runner_status.json")
     performance_rollups_raw = read_json_file(path / "performance_rollups.json")
     decisions_raw = read_jsonl_tail(path / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
@@ -6961,6 +6993,7 @@ def load_config_draft_run_artifacts(
         "output_dir": record.get("summary", {}).get("output_dir") if isinstance(record.get("summary"), dict) else None,
         "artifact_path": str(path),
         "summary": summary,
+        "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "performance": performance_from_account(account_raw, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
@@ -6969,6 +7002,7 @@ def load_config_draft_run_artifacts(
             "fills": len(fills_raw),
             "account": len(account_raw),
             "order_previews": len(previews_raw),
+            "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
         "decisions": [summarize_decision_artifact(row) for row in decisions_raw],

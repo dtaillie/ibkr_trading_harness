@@ -309,11 +309,14 @@ publish them. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. It also shows read-only workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
-Generic plugin-runner runs write `performance_rollups.json` beside
-`summary.json`, so each run carries durable daily, monthly, and yearly
-account-equity summaries in addition to dashboard-level status rollups. Runs
-loads those rows in Runner Rollups / Runner Period Rollups, and Export JSON
-includes the sanitized rollup artifact.
+Generic plugin-runner runs write `runner_status.json` and
+`performance_rollups.json` beside `summary.json`. `runner_status.json` is a
+small heartbeat/status artifact with the current lifecycle state, loop/session
+metadata, counters, latest data time, and final result pointers. Each run also
+carries durable daily, monthly, and yearly account-equity summaries in addition
+to dashboard-level status rollups. Runs loads those rows in Runner Rollups /
+Runner Period Rollups, and Export JSON includes the sanitized status and rollup
+artifacts.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.
 The dashboard also persists the latest sanitized status rollups under
@@ -571,7 +574,8 @@ the local machine must be deliberately armed first. Pause/resume
 writes or removes a local marker file. The generic plugin runner honors
 `control.pause_marker` by recording paused decisions without evaluating the
 strategy or submitting orders. It also honors `control.stop_marker` in loop
-mode by exiting cleanly and writing `stopped_by_control` in `summary.json`.
+mode by exiting cleanly and writing `stopped_by_control` in `summary.json` and
+`runner_status.json`.
 The dashboard and server validate action-specific parameters before queueing:
 `summarize_run` needs `run_id`, `validate_config` needs `config_id`, and
 supervisor actions need `supervisor_id`. Pending commands can be canceled from

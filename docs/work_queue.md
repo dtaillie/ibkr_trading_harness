@@ -1362,8 +1362,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `outside_session: idle`; outside-window loop iterations write visible idle
     decision artifacts without evaluating the plugin or broker. Loop configs
     can also set `control.stop_marker` for a clean operator-requested loop exit
-    before the next data/plugin/broker pass. Richer process supervision remains
-    open.
+    before the next data/plugin/broker pass. Generic runner executions now
+    maintain a public-safe `runner_status.json` heartbeat/status artifact with
+    lifecycle state, loop/session counters, latest data time, stop/pause marker
+    presence, and final result pointers. Richer external process supervision
+    and restart policy remains open.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version
