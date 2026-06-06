@@ -3011,6 +3011,8 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             "threshold_distance",
         ]
         assert plugin["result_fields"][1]["label"] == "Example Score"
+        assert plugin["result_fields"][1]["decimals"] == 2
+        assert plugin["result_fields"][2]["suffix"] == "score units"
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         assert options["guide_schema_version"] == 1
         assert [step["id"] for step in options["guide_steps"]] == [
@@ -3460,8 +3462,12 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["plugin"]["id"] == "no_edge_template"
         assert artifacts["plugin"]["matched"] is True
         assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
+        assert artifacts["plugin"]["result_fields"][1]["decimals"] == 2
+        assert artifacts["plugin"]["result_fields"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["status"] == "ok"
+        assert artifacts["plugin_result_summary"]["field_coverage"][1]["decimals"] == 2
         assert artifacts["plugin_result_summary"]["field_coverage"][1]["latest_value"] == 0.0
+        assert artifacts["plugin_result_summary"]["field_coverage"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["coverage_pct"] == 100.0
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {

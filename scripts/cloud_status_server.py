@@ -164,6 +164,7 @@ CONFIG_BUILDER_PLUGINS = (
                 "label": "Example Score",
                 "kind": "number",
                 "help": "No-edge demonstration score; this is not a tradable signal.",
+                "decimals": 2,
                 "order": 20,
             },
             {
@@ -171,6 +172,8 @@ CONFIG_BUILDER_PLUGINS = (
                 "label": "Threshold Distance",
                 "kind": "number",
                 "help": "Demonstrates labeled result-field rendering for plugin diagnostics.",
+                "suffix": "score units",
+                "decimals": 2,
                 "order": 30,
             },
         ],
@@ -4416,6 +4419,14 @@ def normalize_plugin_result_fields(raw_fields: Any, *, plugin_id: str) -> list[d
         for key in PLUGIN_RESULT_FIELD_DISPLAY_KEYS:
             if raw.get(key) is not None:
                 field[key] = str(raw[key]).strip()
+        if raw.get("decimals") is not None:
+            try:
+                decimals = int(raw["decimals"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} result_fields[{name}].decimals must be an integer") from exc
+            if decimals < 0 or decimals > 8:
+                raise ValueError(f"plugin {plugin_id} result_fields[{name}].decimals must be between 0 and 8")
+            field["decimals"] = decimals
         if raw.get("order") is not None:
             try:
                 field["order"] = float(raw["order"])
@@ -6868,6 +6879,11 @@ def summarize_plugin_result_field_coverage(
             "label": field.get("label"),
             "kind": field.get("kind"),
             "help": field.get("help"),
+            "description": field.get("description"),
+            "unit": field.get("unit"),
+            "prefix": field.get("prefix"),
+            "suffix": field.get("suffix"),
+            "decimals": field.get("decimals"),
             "emitted_count": emitted_count,
             "coverage_pct": finite_float((emitted_count / decision_count) * 100.0) if decision_count else None,
             "latest_value": latest_value,

@@ -1231,6 +1231,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     Run Artifacts shows a Plugin Boundary / Result Coverage view with matched
     plugin metadata, declared input/result counts, emitted values, latest
     declared values, and sanitized but unlabeled dashboard keys.
+  - partial; plugin result fields now support public-safe display formatting
+    through `decimals`, `prefix`, `suffix`, and `unit` metadata, and Run
+    Artifacts applies those hints in Plugin Result Fields and Result Coverage
+    instead of showing only raw scalar values.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
@@ -1251,8 +1255,7 @@ QQQ show up, treat that as a bug until proven otherwise.
     plugin strategy fields inline when messages reference `strategy.<field>`.
     Plugin-authored field display now also supports public-safe descriptions,
     placeholders, units, affixes, advanced badges, ordering, and select-option
-    descriptions. Deeper per-plugin custom result formatting remains future
-    polish.
+    descriptions plus result-field formatting hints.
 - Add a "copy command" affordance for local CLI commands.
   - done for generated Workbench local commands
 - Add a guided "simulate from saved data" path:

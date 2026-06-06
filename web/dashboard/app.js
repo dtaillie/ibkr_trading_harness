@@ -11057,13 +11057,33 @@ function drilldownMaeMfeText(drilldown) {
 function pluginResultFieldValue(field, value) {
   if (value === undefined || value === null || value === "") return "n/a";
   const kind = text(field.kind || "text");
-  if (kind === "percent") return pctText(value);
-  if (kind === "currency") return money(value);
-  if (kind === "boolean") return value ? "yes" : "no";
-  if (kind === "duration_minutes") return `${numberText(value, 2)} min`;
-  if (kind === "number") return numberText(value, 4);
-  if (Array.isArray(value)) return value.map((item) => text(item)).join(", ");
-  return text(value);
+  const decimals = Number(field.decimals);
+  const hasDecimals = Number.isInteger(decimals) && decimals >= 0 && decimals <= 8;
+  const prefix = text(field.prefix || "");
+  const suffixParts = [field.suffix, field.unit].map((item) => text(item || "")).filter((item) => item && item !== "n/a");
+  let formatted = "";
+  if (kind === "percent") formatted = pctText(value);
+  else if (kind === "currency") formatted = money(value);
+  else if (kind === "boolean") formatted = value ? "yes" : "no";
+  else if (kind === "duration_minutes") formatted = `${numberText(value, hasDecimals ? decimals : 2)} min`;
+  else if (kind === "number") formatted = numberText(value, hasDecimals ? decimals : 4);
+  else if (Array.isArray(value)) formatted = value.map((item) => text(item)).join(", ");
+  else formatted = text(value);
+  if (formatted === "n/a") return formatted;
+  return `${prefix && prefix !== "n/a" ? prefix : ""}${formatted}${suffixParts.length ? ` ${suffixParts.join(" ")}` : ""}`;
+}
+
+function pluginResultFieldHelp(field) {
+  const parts = [
+    text(field.help || ""),
+    text(field.description || ""),
+    field.kind ? `kind ${text(field.kind)}` : "",
+    field.decimals !== undefined ? `${numberText(field.decimals, 0)} decimals` : "",
+    field.prefix ? `prefix ${text(field.prefix)}` : "",
+    field.suffix ? `suffix ${text(field.suffix)}` : "",
+    field.unit ? `unit ${text(field.unit)}` : "",
+  ].filter((item) => item && item !== "n/a");
+  return parts.length ? parts.join("; ") : "n/a";
 }
 
 function pluginResultFieldRows(artifacts) {
@@ -11193,6 +11213,10 @@ function renderArtifactPluginBoundary(artifacts) {
       name: field.name,
       label: field.label,
       kind: field.kind,
+      unit: field.unit,
+      prefix: field.prefix,
+      suffix: field.suffix,
+      decimals: field.decimals,
     })), pluginFieldList(resultFields)), true],
     ["Result Coverage", `${coverage}; ${numberText(decisionCount, 0)} decision${decisionCount === 1 ? "" : "s"} loaded`],
     ["Observed Dashboard Keys", jsonDrilldown(contractKeys, contractKeys.length ? contractKeys.join(", ") : "none"), true],
@@ -11387,7 +11411,7 @@ function renderWorkbenchArtifacts() {
         escapeHtml((item.symbols || []).join(", ")),
         escapeHtml(text(item.field.label || item.field.name)),
         escapeHtml(pluginResultFieldValue(item.field, item.value)),
-        escapeHtml(text(item.field.help || item.field.description || "")),
+        escapeHtml(pluginResultFieldHelp(item.field)),
       ])).join("")
     : row([`<span class="muted">Declare result_fields in the public or ignored local plugin registry, then emit matching diagnostics.dashboard keys.</span>`, "", "", "", ""]);
   const nearMisses = nearThresholdMissRows(drilldowns);

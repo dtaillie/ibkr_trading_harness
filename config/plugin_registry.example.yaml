@@ -24,6 +24,8 @@ plugins:
         label: Example Score
         kind: number
         help: Public-safe diagnostics.dashboard field label for artifact tables.
+        decimals: 2
+        suffix: example units
       - name: example_reason
         label: Example Reason
         kind: text

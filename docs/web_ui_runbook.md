@@ -270,7 +270,9 @@ first when a run failed, timed out, or completed without visible artifacts.
 Run Artifacts reads public-safe `diagnostics.dashboard` values from plugin
 decisions. Add `result_fields` to a public or ignored local plugin registry
 entry when those values need clearer labels or formatting in the artifact view.
-The Plugin Boundary and Result Coverage panels show the matched registry
+Those fields can include `kind`, `decimals`, `prefix`, `suffix`, and `unit`
+display hints, which the Plugin Result Fields and Result Coverage panels use
+when rendering values. The Plugin Boundary and Result Coverage panels show the matched registry
 plugin, declared public inputs/results, emitted result counts, latest declared
 values, the runner-owned `plugin_contract.json` summary, and sanitized
 dashboard keys that are still unlabeled.

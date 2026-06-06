@@ -520,10 +520,12 @@ such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
 `near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,
 `stop_state`, `mae_pct`, and `mfe_pct`. Plugin registry rows can also declare
 `result_fields` for public-safe `diagnostics.dashboard` keys so Run Artifacts
-can label those values without exposing private strategy logic. The artifact
-view also summarizes declared result-field coverage and flags sanitized
-dashboard keys that were emitted without registry labels, helping you see
-whether a private plugin is publishing the public diagnostics you expect. For
+can label and format those values without exposing private strategy logic.
+Result fields support public-safe `kind`, `decimals`, `prefix`, `suffix`, and
+`unit` hints for artifact display. The artifact view also summarizes declared
+result-field coverage and flags sanitized dashboard keys that were emitted
+without registry labels, helping you see whether a private plugin is publishing
+the public diagnostics you expect. For
 open-position cards, plugins can
 also publish public-safe per-symbol fields under
 `diagnostics.dashboard.position_details` or
