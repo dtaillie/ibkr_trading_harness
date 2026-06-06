@@ -6035,7 +6035,8 @@ function renderConfigField(field) {
   if (field.kind === "select") {
     const multiple = field.multiple ? " multiple" : "";
     const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}></select>${help}</label>`;
+    const required = field.required ? " required" : "";
+    return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><select id="${id}"${multiple}${size}${required}></select>${help}</label>`;
   }
   if (field.kind === "checkbox") {
     return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox"><span>${label}</span>${help}</label>`;
@@ -6047,6 +6048,7 @@ function renderConfigField(field) {
     field.min !== undefined ? `min="${escapeHtml(String(field.min))}"` : "",
     field.max !== undefined ? `max="${escapeHtml(String(field.max))}"` : "",
     field.step !== undefined ? `step="${escapeHtml(String(field.step))}"` : "",
+    field.required ? "required" : "",
   ].filter(Boolean).join(" ");
   return `<label class="${escapeHtml(cls)}"${pluginAttr}><span>${label}</span><input ${attrs}>${help}</label>`;
 }

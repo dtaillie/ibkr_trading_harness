@@ -155,7 +155,7 @@ CONFIG_BUILDER_PLUGINS = (
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
-CONFIG_FORM_SCHEMA_VERSION = 2
+CONFIG_FORM_SCHEMA_VERSION = 3
 CONFIG_GUIDE_SCHEMA_VERSION = 1
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
@@ -3665,10 +3665,20 @@ def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list
             "section": "plugin_strategy",
             "plugin_id": plugin_id,
             "help": str(raw.get("help") or "").strip(),
+            "required": bool(raw.get("required", False)),
         }
         for key in ("default", "min", "max", "step"):
             if key in raw:
                 field[key] = raw[key]
+        if kind == "number":
+            for key in ("min", "max", "step"):
+                if key in field:
+                    try:
+                        float(field[key])
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].{key} must be numeric") from exc
+            if "min" in field and "max" in field and float(field["min"]) > float(field["max"]):
+                raise ValueError(f"plugin {plugin_id} strategy_fields[{name}].min must be <= max")
         if raw.get("wide") is not None:
             field["wide"] = bool(raw["wide"])
         if raw.get("options") is not None:
@@ -4404,38 +4414,64 @@ def number_field(payload: dict[str, Any], key: str, default: float, *, integer: 
 
 def plugin_strategy_value(raw: Any, field: dict[str, Any]) -> Any:
     kind = str(field.get("kind") or "text")
+    name = str(field["name"])
+    required = bool(field.get("required", False))
+    missing = raw is None or str(raw).strip() == ""
     if kind == "checkbox":
         return bool(raw)
     if kind == "number":
-        if raw is None or str(raw).strip() == "":
+        if missing:
+            if required and "default" not in field:
+                raise ValueError(f"strategy.{name} is required")
             raw = field.get("default", 0)
         try:
             value = float(raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"strategy.{field['name']} must be numeric") from exc
+            raise ValueError(f"strategy.{name} must be numeric") from exc
+        if field.get("min") is not None and value < float(field["min"]):
+            raise ValueError(f"strategy.{name} must be >= {field['min']}")
+        if field.get("max") is not None and value > float(field["max"]):
+            raise ValueError(f"strategy.{name} must be <= {field['max']}")
         if field.get("step") and str(field.get("step")).strip() in {"1", "1.0"}:
             value = int(value)
         return value
     if kind == "select":
-        value = str(raw if raw is not None and str(raw) != "" else field.get("default", "")).strip()
+        if missing and required and "default" not in field:
+            raise ValueError(f"strategy.{name} is required")
+        value = str(raw if not missing else field.get("default", "")).strip()
         allowed = {
             str(option.get("value") if isinstance(option, dict) else option)
             for option in field.get("options", [])
         }
         if allowed and value not in allowed:
-            raise ValueError(f"strategy.{field['name']} must be one of {sorted(allowed)}")
+            raise ValueError(f"strategy.{name} must be one of {sorted(allowed)}")
         return value
+    if missing and required and "default" not in field:
+        raise ValueError(f"strategy.{name} is required")
     return str(raw if raw is not None else field.get("default", "")).strip()
 
 
 def plugin_strategy_config(payload: dict[str, Any], plugin: dict[str, Any]) -> dict[str, Any]:
     raw_strategy = payload.get("strategy") if isinstance(payload.get("strategy"), dict) else {}
+    allowed_names = {str(field["name"]) for field in plugin.get("strategy_fields") or []}
+    unknown = sorted(str(key) for key in raw_strategy if str(key) not in allowed_names)
+    if unknown:
+        raise ValueError(f"strategy contains unsupported field(s): {', '.join(unknown)}")
     strategy: dict[str, Any] = {}
     for field in plugin.get("strategy_fields") or []:
         name = str(field["name"])
         raw = raw_strategy.get(name, field.get("default"))
         strategy[name] = plugin_strategy_value(raw, field)
     return strategy
+
+
+def validate_plugin_strategy_config(strategy: Any, plugin: dict[str, Any]) -> list[str]:
+    payload = {"strategy": strategy if isinstance(strategy, dict) else {}}
+    try:
+        plugin_strategy_config(payload, plugin)
+    except ValueError as exc:
+        return [str(exc)]
+    return []
 
 
 def build_config_draft(
@@ -4903,6 +4939,10 @@ def validate_workbench_draft_config(
         errors.append("workbench drafts can only run configured Workbench plugins")
     elif metadata.get("status") != plugin.get("status"):
         errors.append(f"workbench draft metadata.status must match plugin status {plugin.get('status')}")
+    elif isinstance(config.get("strategy"), dict):
+        errors.extend(validate_plugin_strategy_config(config.get("strategy"), plugin))
+    elif plugin.get("strategy_fields"):
+        errors.append("strategy must be a mapping for the selected Workbench plugin")
     mode = str(runner.get("mode", "replay")).replace("-", "_").lower()
     if mode not in CONFIG_BUILDER_MODES:
         errors.append(f"runner.mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")

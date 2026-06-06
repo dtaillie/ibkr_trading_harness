@@ -2554,7 +2554,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert plugin_ids == {"no_edge_template"}
         plugin = options["plugins"][0]
         assert options["config_schema_version"] == 1
-        assert options["form_schema_version"] == 2
+        assert options["form_schema_version"] == 3
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
@@ -3130,7 +3130,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
             snapshot = json.loads(resp.read().decode("utf-8"))
         assert snapshot["schema_version"] == 1
         assert snapshot["config_schema_version"] == 1
-        assert snapshot["form_schema_version"] == 2
+        assert snapshot["form_schema_version"] == 3
         assert snapshot["guide_schema_version"] == 1
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
@@ -3140,7 +3140,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["config_options"]["risk_presets"]
         assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file"}
         assert snapshot["config_options"]["config_schema_version"] == 1
-        assert snapshot["config_options"]["form_schema_version"] == 2
+        assert snapshot["config_options"]["form_schema_version"] == 3
         assert snapshot["config_options"]["guide_schema_version"] == 1
         assert snapshot["config_options"]["guide_steps"][0]["id"] == "data"
         assert snapshot["run_comparison"]["count"] == 0
@@ -3746,6 +3746,117 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         assert draft["config"]["metadata"]["status"] == "private_local"
         assert draft["config"]["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
         assert "Loaded from an ignored local registry." in draft["config"]["notes"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY.csv"
+    data_file.write_text("timestamp,close\n2026-01-02T14:30:00Z,100\n", encoding="utf-8")
+    state_dir = tmp_path / "state"
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: bounded_demo",
+                "    label: Bounded demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    status: private_local",
+                "    visibility: private_local",
+                "    strategy_fields:",
+                "      - name: threshold",
+                "        label: Threshold",
+                "        kind: number",
+                "        required: true",
+                "        min: 0.1",
+                "        max: 1.0",
+                "        step: 0.05",
+                "      - name: mode",
+                "        label: Mode",
+                "        kind: select",
+                "        required: true",
+                "        options:",
+                "          - value: conservative",
+                "            label: Conservative",
+                "          - value: active",
+                "            label: Active",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server(
+        "127.0.0.1",
+        0,
+        state_dir,
+        data_roots=[data_root],
+        plugin_registry_paths=[registry],
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+
+        def post_draft(strategy: dict, *, name: str = "Bounded Draft", save: bool = False):
+            return request.Request(
+                f"{base}/config_draft",
+                data=json.dumps({
+                    "name": name,
+                    "plugin_id": "bounded_demo",
+                    "mode": "replay",
+                    "strategy": strategy,
+                    "datasets": [{"symbol": "SPY", "path": str(data_file)}],
+                    "history_bars": 1,
+                    "max_steps": 1,
+                    "max_orders_per_run": 1,
+                    "max_notional_per_order": 100,
+                    "max_quantity": 10,
+                    "max_cash_quantity": 100,
+                    "max_gross_exposure_pct": 0.05,
+                    "allow_quality_warnings": True,
+                    "save": save,
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+        try:
+            request.urlopen(post_draft({"threshold": 2.0, "mode": "active"}), timeout=5)
+            raise AssertionError("expected threshold validation response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "strategy.threshold must be <= 1.0"
+
+        try:
+            request.urlopen(post_draft({"threshold": 0.5, "mode": "active", "secret": "x"}), timeout=5)
+            raise AssertionError("expected unsupported strategy field response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "strategy contains unsupported field(s): secret"
+
+        with request.urlopen(
+            post_draft({"threshold": 0.75, "mode": "active"}, name="Saved Bounded Draft", save=True),
+            timeout=5,
+        ) as resp:
+            draft_payload = json.loads(resp.read().decode("utf-8"))
+
+        draft_path = Path(draft_payload["draft"]["saved_path"])
+        assert draft_payload["draft"]["config"]["strategy"] == {"mode": "active", "threshold": 0.75}
+        draft_path.write_text(
+            draft_path.read_text(encoding="utf-8").replace("threshold: 0.75", "threshold: 2.0"),
+            encoding="utf-8",
+        )
+        with request.urlopen(f"{base}/config_draft_validations", timeout=5) as resp:
+            validations = json.loads(resp.read().decode("utf-8"))
+        saved = next(item for item in validations["validations"] if item["draft_id"] == "Saved_Bounded_Draft")
+        assert saved["valid"] is False
+        assert "strategy.threshold must be <= 1.0" in saved["errors"]
     finally:
         server.shutdown()
         server.server_close()

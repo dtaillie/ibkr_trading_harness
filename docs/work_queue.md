@@ -888,7 +888,8 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those
     controls from schema while preserving existing draft/alignment behavior.
-    Versioned schemas and deeper plugin-specific validation remain future work.
+    Versioned schemas are now explicit; richer plugin-authored validation hooks
+    remain future work.
   - partial; the generated Config Builder form now groups schema fields into
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields
@@ -902,12 +903,13 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench now adds a Compatibility Review that summarizes schema
     versions, plugin registry boundary, exposed strategy fields, selected data
     sources/bar sizes, alignment coverage, saved-draft validation state, and
-    the next action before running. Deeper plugin-defined validation rules
-    remain future work.
+    the next action before running.
   - partial; plugin registry entries can now expose public-safe
     `strategy_fields`, the Workbench renders fields for the selected plugin,
     and generated drafts write only those allowlisted values under `strategy`.
-    The form schema version was bumped to v2 for this expansion.
+    The form schema version was bumped to v3 after adding `required`,
+    numeric min/max, select-options validation, unknown-key rejection, and
+    saved-draft strategy revalidation for those fields.
   - partial; Workbench guide step metadata is now schema-driven through
     `/config_options.guide_steps` and exported workbench snapshots include
     `guide_schema_version` for downstream UI/schema compatibility checks.
@@ -1052,7 +1054,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     `validate_config` or `validate_strategy_config` hooks that run during
     plugin-runner config validation. Plugin registry entries can now expose
     public-safe `strategy_fields` that the Workbench renders and serializes
-    into generated drafts. Deeper plugin-specific validation remains open.
+    into generated drafts. Workbench draft generation and saved-draft
+    validation now enforce those field definitions for required fields,
+    numeric min/max bounds, select choices, and unknown strategy keys. Deeper
+    plugin-authored validation messages in the Workbench remain open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes
