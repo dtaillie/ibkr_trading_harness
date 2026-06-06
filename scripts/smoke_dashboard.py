@@ -795,6 +795,8 @@ def run_smoke(
             "renderWorkbenchRunResult",
             "renderWorkbenchRunReadiness",
             "workbenchRunReadinessModel",
+            "loadCompletedRunOutput",
+            "config_draft_daily_rollups",
             "openWorkbenchResultPerformance",
             "openWorkbenchResultLog",
             "renderConfigDataActions",

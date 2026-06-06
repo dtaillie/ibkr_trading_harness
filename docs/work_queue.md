@@ -1220,6 +1220,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     actual run form, showing selected-draft, validation, action, latest-run,
     and result-artifact state with explicit blockers, warnings, and direct
     Validate / Run / Open Results actions.
+  - partial; completed replay/simulated-paper runs now load the exact archived
+    run artifacts when available, refresh run-comparison and daily/period
+    performance rollups, and move the Workbench into artifact inspection instead
+    of leaving users to hunt through run tables after pressing Run.
   - partial; before generating a draft, Workbench Selected Data Actions now
     let users re-open the selected file in Data Detail or compare the selected
     files over the configured Workbench date range, closing the loop between

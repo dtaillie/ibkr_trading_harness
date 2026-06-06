@@ -242,7 +242,10 @@ rows from the Minute Coverage Heatmap.
    selected draft, validation state, run action, latest run, available results,
    blockers, and warnings, and it can jump directly to Validate, Run, or Open
    Results.
-9. Open the result from the Runs or Workbench table and inspect Performance.
+9. After a completed replay or simulated-paper run, the dashboard loads the
+   exact archived run artifacts when available and refreshes run comparison and
+   performance rollups. If a run fails or only validates, stay in Workbench Run
+   and open the log before trusting outputs.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded

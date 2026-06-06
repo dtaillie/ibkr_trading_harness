@@ -12785,6 +12785,8 @@ async function loadConfigArtifacts(draftId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchRunReadiness();
+  renderWorkbenchTriage();
   renderWorkbenchRunResult();
   renderPerformance();
   renderOverview();
@@ -12870,6 +12872,8 @@ async function loadRunArtifacts(runId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchRunReadiness();
+  renderWorkbenchTriage();
   renderWorkbenchRunResult();
   renderPerformance();
   renderOverview();
@@ -12879,6 +12883,20 @@ async function loadRunArtifacts(runId, options = {}) {
   $("last-refresh").textContent = options.openPerformance
     ? `Run results opened: ${new Date().toLocaleString()}`
     : `Run artifacts loaded: ${new Date().toLocaleString()}`;
+}
+
+async function loadCompletedRunOutput(run, draftId) {
+  const action = text(run && run.action);
+  const status = text(run && run.status);
+  if (!run || action === "validate" || status !== "completed") {
+    return false;
+  }
+  if (run.run_id && run.artifact_path) {
+    await loadRunArtifacts(run.run_id);
+    return true;
+  }
+  await loadConfigArtifacts(draftId);
+  return true;
 }
 
 async function loadRunDetail(runId) {
@@ -12909,17 +12927,20 @@ async function runConfigDraft(event) {
   $("config-run-status").innerHTML = statusText(run.status);
   state.configRuns = await fetchJson("/config_draft_runs?limit=20");
   state.runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
+  state.performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
   state.workbenchStatus = await fetchJson("/workbench_status");
   state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
-  if (($("config-run-action").value || "") !== "validate") {
-    await loadConfigArtifacts(draftId);
-  }
+  const loadedArtifacts = await loadCompletedRunOutput(run, draftId);
   renderWorkbenchRuns();
   renderRunComparison();
+  renderPerformanceRollups();
+  renderPerformancePeriodRollups();
   renderWorkbenchStatus();
   renderCleanupPlan();
   renderWorkbenchGuide();
-  $("last-refresh").textContent = `Config draft run finished: ${new Date().toLocaleString()}`;
+  $("last-refresh").textContent = loadedArtifacts
+    ? `Config draft run finished and results loaded: ${new Date().toLocaleString()}`
+    : `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
 async function openWorkbenchResultPerformance() {
