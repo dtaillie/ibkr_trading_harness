@@ -368,6 +368,7 @@ def run_smoke(
             "data-symbol-profile-title",
             "data-symbol-profile-note",
             "data-symbol-profile-cards",
+            "data-symbol-profile-chart",
             "data-symbol-profile-files",
             "data-symbol-profile-workbench",
             "data-symbol-directory",

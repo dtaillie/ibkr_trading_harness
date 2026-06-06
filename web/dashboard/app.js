@@ -3416,6 +3416,67 @@ function miniChart(points) {
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
 }
 
+function compactDataPreviewChart(dataset) {
+  const points = (dataset && dataset.preview) || [];
+  const rows = points.map((point) => ({
+    timestamp: point.timestamp,
+    millis: timestampMillis(point.timestamp),
+    close: Number(point.close),
+    volume: Number(point.volume),
+  })).filter((point) => point.millis !== null && Number.isFinite(point.close));
+  if (rows.length < 2) {
+    return `<div class="empty-card"><strong>No preview chart</strong><span>Open Data Detail to fetch a fresh sampled view for this saved file.</span></div>`;
+  }
+  const closes = rows.map((point) => point.close);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const minTime = Math.min(...rows.map((point) => point.millis));
+  const maxTime = Math.max(...rows.map((point) => point.millis));
+  const width = 520;
+  const priceHeight = 118;
+  const volumeHeight = rows.some((point) => Number.isFinite(point.volume)) ? 28 : 0;
+  const volumeGap = volumeHeight ? 10 : 0;
+  const height = priceHeight + volumeGap + volumeHeight;
+  const priceSpan = max - min || 1;
+  const timeSpan = maxTime - minTime || 1;
+  const xFor = (millis) => ((millis - minTime) / timeSpan) * width;
+  const coords = rows.map((point) => {
+    const x = xFor(point.millis);
+    const y = priceHeight - ((point.close - min) / priceSpan) * priceHeight;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const returnPct = first.close ? ((last.close - first.close) / first.close) : null;
+  const cls = last.close >= first.close ? "spark-good" : "spark-bad";
+  let volumeBars = "";
+  const volumes = rows.map((point) => point.volume).filter((value) => Number.isFinite(value));
+  if (volumes.length) {
+    const maxVolume = Math.max(...volumes, 1);
+    const barWidth = Math.max(1, width / rows.length);
+    const baseY = priceHeight + volumeGap;
+    volumeBars = rows.map((point) => {
+      if (!Number.isFinite(point.volume)) return "";
+      const x = Math.max(0, xFor(point.millis) - barWidth / 2);
+      const barHeight = Math.max(1, (point.volume / maxVolume) * volumeHeight);
+      const y = baseY + volumeHeight - barHeight;
+      return `<rect class="volume-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"></rect>`;
+    }).join("");
+  }
+  const caption = `${text(dataset.symbol)} ${text(dataset.bar_size)} best-file preview / ${numberText(rows.length, 0)} sampled points / ${pctText(returnPct)}`;
+  return `
+    <div class="symbol-profile-chart-head">
+      <strong>${escapeHtml(text(dataset.symbol))} Preview</strong>
+      <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))} / ${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.quality_status))}</span>
+    </div>
+    <svg class="detail-chart symbol-profile-preview ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="selected symbol best-file price preview">
+      <polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>
+      ${volumeBars}
+    </svg>
+    <span class="chart-caption">${escapeHtml(caption)}</span>
+  `;
+}
+
 function gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode = "utc") {
   const timeSpan = maxTime - minTime || 1;
   return (gaps || []).map((gap) => {
@@ -4336,6 +4397,9 @@ function renderSymbolProfile(symbol) {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+  $("data-symbol-profile-chart").innerHTML = model.best
+    ? compactDataPreviewChart(model.best)
+    : `<div class="empty-card"><strong>No chartable file selected</strong><span>${hasQuery ? "Diagnose this symbol or inspect fetch jobs for saved output clues." : "Pick a symbol from the browser or directory."}</span></div>`;
   $("data-symbol-profile-files").innerHTML = hasRows
     ? model.rows.slice(0, 4).map((dataset) => `
       <div class="symbol-profile-file">

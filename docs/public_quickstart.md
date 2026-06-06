@@ -377,9 +377,9 @@ under configured data roots. Use Copy Compare JSON to copy the exact
 `/data_compare` request body for scripts, notes, or reproducible offline
 reviews.
 Use Symbol Profile when you want a ticker-first view: it summarizes the
-selected symbol's saved files, coverage, quality, best file, and direct Inspect,
-Workbench, Compare, Filter, and Diagnose actions before the dense catalog
-table.
+selected symbol's saved files, coverage, quality, best file, compact best-file
+preview chart, and direct Inspect, Workbench, Compare, Filter, and Diagnose
+actions before the dense catalog table.
 The catalog header summarizes quality counts, bar-size counts, total rows, and
 total local file size. Use the search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and

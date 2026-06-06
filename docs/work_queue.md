@@ -127,6 +127,9 @@ strategy-private.
       Browser that summarizes a selected symbol's files, coverage, quality,
       best saved file, and direct Inspect, Workbench, Compare, Filter, and
       Diagnose actions before the dense catalog table.
+    - partial; Symbol Profile now also renders a compact best-file preview
+      chart from catalog preview points, making a symbol visually inspectable
+      before opening the full Data Detail viewer.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.

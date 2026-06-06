@@ -156,9 +156,9 @@ Use Symbol Browser quick picks when you only remember part of a ticker; the
 cards summarize matching symbols and select one into the existing Inspect,
 Compare, Filter, and Diagnose actions.
 The Symbol Profile under the browser summarizes the selected symbol's saved
-files, date coverage, quality, best file, and direct next actions: inspect,
-send to Workbench, compare saved files, filter the catalog, or diagnose a
-missing symbol.
+files, date coverage, quality, best file, a compact best-file preview chart,
+and direct next actions: inspect, send to Workbench, compare saved files, filter
+the catalog, or diagnose a missing symbol.
 
 Use Export Compare CSV after running Compare Saved Data when you want the
 normalized close-return paths by symbol and timestamp.
