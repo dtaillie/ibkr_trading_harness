@@ -977,6 +977,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-result-open-runs" in html
         assert "workbench-result-open-log" in html
         assert "workbench-result-tiles" in html
+        assert "artifact-plugin-boundary-note" in html
+        assert "artifact-plugin-boundary-cards" in html
+        assert "artifact-plugin-boundary" in html
+        assert "artifact-plugin-coverage-note" in html
+        assert "artifact-plugin-coverage-body" in html
         assert "artifact-plugin-fields-note" in html
         assert "artifact-plugin-fields-body" in html
         assert "workbench-run-readiness-note" in html
@@ -3372,7 +3377,16 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["run_id"] == replay["run_id"]
         assert run_artifacts["draft_id"] == "Run_Draft"
         assert run_artifacts["plugin"]["id"] == "no_edge_template"
+        assert run_artifacts["plugin"]["matched"] is True
+        assert run_artifacts["plugin"]["strategy_fields"][0]["name"] == "example_parameter"
         assert run_artifacts["plugin"]["result_fields"][0]["name"] == "reason"
+        assert run_artifacts["plugin_result_summary"]["status"] == "ok"
+        assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
+        assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
+        assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
+        assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
         assert run_artifacts["summary"]["mode"] == "replay"
         assert run_artifacts["counts"] == {
             "account": 2,
@@ -3419,7 +3433,11 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
         assert artifacts["plugin"]["id"] == "no_edge_template"
+        assert artifacts["plugin"]["matched"] is True
         assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
+        assert artifacts["plugin_result_summary"]["status"] == "ok"
+        assert artifacts["plugin_result_summary"]["field_coverage"][1]["latest_value"] == 0.0
+        assert artifacts["plugin_result_summary"]["field_coverage"][2]["coverage_pct"] == 100.0
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {
             "account": 2,

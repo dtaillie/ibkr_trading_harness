@@ -260,6 +260,9 @@ matrix rows offline.
 Run Artifacts reads public-safe `diagnostics.dashboard` values from plugin
 decisions. Add `result_fields` to a public or ignored local plugin registry
 entry when those values need clearer labels or formatting in the artifact view.
+The Plugin Boundary and Result Coverage panels show the matched registry
+plugin, declared public inputs/results, emitted result counts, latest declared
+values, and sanitized dashboard keys that are still unlabeled.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded

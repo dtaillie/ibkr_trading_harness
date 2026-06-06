@@ -4460,18 +4460,22 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
             "id": None,
             "label": None,
             "spec": spec or None,
+            "matched": False,
             "status": str(metadata.get("status") or "").strip() or None,
             "visibility": None,
+            "strategy_fields": [],
             "result_fields": [],
         }
     return {
         "id": plugin.get("id"),
         "label": plugin.get("label"),
         "spec": plugin.get("spec"),
+        "matched": True,
         "status": plugin.get("status"),
         "visibility": plugin.get("visibility"),
         "description": plugin.get("description"),
         "boundary": plugin.get("boundary"),
+        "strategy_fields": plugin.get("strategy_fields") or [],
         "result_fields": plugin.get("result_fields") or [],
     }
 
@@ -6672,6 +6676,95 @@ def sanitize_public_decision_drilldown(
     return out
 
 
+def summarize_plugin_result_field_coverage(
+    decisions: list[dict[str, Any]],
+    plugin: dict[str, Any] | None,
+) -> dict[str, Any]:
+    plugin = plugin or {}
+    fields = [
+        field
+        for field in (plugin.get("result_fields") if isinstance(plugin.get("result_fields"), list) else [])
+        if isinstance(field, dict) and field.get("name")
+    ]
+    declared_names = [str(field.get("name")) for field in fields]
+    declared_name_set = set(declared_names)
+    decision_count = len(decisions)
+    emitted_value_count = 0
+    emitted_field_count = 0
+    field_rows: list[dict[str, Any]] = []
+
+    for field in fields:
+        name = str(field.get("name"))
+        emitted_count = 0
+        latest_value: Any = None
+        latest_timestamp: Any = None
+        latest_symbols: list[str] = []
+        for decision in decisions:
+            drilldown = decision.get("drilldown") if isinstance(decision.get("drilldown"), dict) else {}
+            if name not in drilldown:
+                continue
+            emitted_count += 1
+            emitted_value_count += 1
+            latest_value = drilldown.get(name)
+            latest_timestamp = decision.get("timestamp")
+            latest_symbols = [
+                str(symbol)
+                for symbol in (decision.get("symbols") if isinstance(decision.get("symbols"), list) else [])[:25]
+            ]
+        if emitted_count:
+            emitted_field_count += 1
+        field_rows.append({
+            "name": name,
+            "label": field.get("label"),
+            "kind": field.get("kind"),
+            "help": field.get("help"),
+            "emitted_count": emitted_count,
+            "coverage_pct": finite_float((emitted_count / decision_count) * 100.0) if decision_count else None,
+            "latest_value": latest_value,
+            "latest_timestamp": latest_timestamp,
+            "latest_symbols": latest_symbols,
+            "status": "ok" if emitted_count else "waiting" if not decision_count else "warn",
+        })
+
+    unlabeled_keys: set[str] = set()
+    for decision in decisions:
+        drilldown = decision.get("drilldown") if isinstance(decision.get("drilldown"), dict) else {}
+        for key in drilldown:
+            if key not in declared_name_set:
+                unlabeled_keys.add(str(key))
+
+    if not plugin.get("matched"):
+        status = "bad"
+        note = "No matching Workbench plugin registry entry was found for this artifact."
+    elif not fields:
+        status = "warn"
+        note = "The selected plugin does not declare public-safe result_fields metadata."
+    elif not decision_count:
+        status = "waiting"
+        note = "No decision artifacts were loaded, so result field coverage cannot be measured."
+    elif not emitted_value_count:
+        status = "warn"
+        note = "Configured result fields were declared, but none appeared in loaded decision diagnostics."
+    elif emitted_field_count < len(fields):
+        status = "warn"
+        note = "Some declared result fields were not emitted in the loaded decision diagnostics."
+    else:
+        status = "ok"
+        note = "All declared result fields appeared in the loaded decision diagnostics."
+
+    return {
+        "status": status,
+        "note": note,
+        "decision_count": decision_count,
+        "declared_field_count": len(fields),
+        "emitted_field_count": emitted_field_count,
+        "emitted_value_count": emitted_value_count,
+        "unlabeled_public_keys": sorted(unlabeled_keys)[:50],
+        "unlabeled_public_key_count": len(unlabeled_keys),
+        "field_coverage": field_rows,
+    }
+
+
 def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "timestamp": row.get("timestamp"),
@@ -7207,10 +7300,12 @@ def load_config_draft_artifacts(
     account_raw = read_jsonl_tail(output_dir / "account.jsonl", limit=limit)
     order_preview_file = output_dir / "order_previews.jsonl"
     previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
+    decisions = [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw]
     return {
         "draft_id": path.stem,
         "output_dir": display_path(output_dir),
         "plugin": plugin,
+        "plugin_result_summary": summarize_plugin_result_field_coverage(decisions, plugin),
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
@@ -7225,7 +7320,7 @@ def load_config_draft_artifacts(
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
-        "decisions": [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw],
+        "decisions": decisions,
         "orders": [summarize_order_artifact(row) for row in orders_raw],
         "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],
@@ -7286,12 +7381,14 @@ def load_config_draft_run_artifacts(
     account_raw = read_jsonl_tail(path / "account.jsonl", limit=limit)
     order_preview_file = path / "order_previews.jsonl"
     previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
+    decisions = [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw]
     return {
         "run_id": record.get("run_id"),
         "draft_id": record.get("draft_id"),
         "action": record.get("action"),
         "status": record.get("status"),
         "plugin": plugin,
+        "plugin_result_summary": summarize_plugin_result_field_coverage(decisions, plugin),
         "output_dir": record.get("summary", {}).get("output_dir") if isinstance(record.get("summary"), dict) else None,
         "artifact_path": str(path),
         "order_preview_file": display_path(order_preview_file) if order_preview_file.exists() else None,
@@ -7308,7 +7405,7 @@ def load_config_draft_run_artifacts(
             "runner_status": 1 if runner_status_raw else 0,
             "performance_rollups": 1 if performance_rollups_raw else 0,
         },
-        "decisions": [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw],
+        "decisions": decisions,
         "orders": [summarize_order_artifact(row) for row in orders_raw],
         "order_previews": [summarize_order_preview_artifact(row) for row in previews_raw],
         "fills": [summarize_fill_artifact(row) for row in fills_raw],

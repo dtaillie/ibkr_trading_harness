@@ -1219,6 +1219,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     `result_fields`, artifact payloads preserve those labels/format hints, and
     Run Artifacts renders a bounded Plugin Result Fields table from matching
     `diagnostics.dashboard` keys without exposing raw private signal payloads.
+    Artifact payloads now also include public-safe plugin result coverage, and
+    Run Artifacts shows a Plugin Boundary / Result Coverage view with matched
+    plugin metadata, declared input/result counts, emitted values, latest
+    declared values, and sanitized but unlabeled dashboard keys.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

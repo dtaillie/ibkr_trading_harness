@@ -10936,6 +10936,129 @@ function pluginResultFieldRows(artifacts) {
   return rows;
 }
 
+function pluginFieldList(fields) {
+  const names = (fields || [])
+    .filter((field) => field && field.name)
+    .map((field) => text(field.label || field.name));
+  return names.length ? names.join(", ") : "none";
+}
+
+function renderArtifactPluginBoundary(artifacts) {
+  if (!$("artifact-plugin-boundary-note") || !$("artifact-plugin-boundary-cards") || !$("artifact-plugin-boundary")) return;
+  const plugin = artifacts.plugin || {};
+  const summary = artifacts.plugin_result_summary || {};
+  const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
+  const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
+  const declared = Number(summary.declared_field_count ?? resultFields.length);
+  const emittedFields = Number(summary.emitted_field_count || 0);
+  const emittedValues = Number(summary.emitted_value_count || 0);
+  const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
+  const unlabeledCount = Number(summary.unlabeled_public_key_count || 0);
+  const pluginLabel = text(plugin.label || plugin.id || plugin.spec || "Unknown plugin");
+  const pluginStatus = plugin.matched
+    ? plugin.visibility === "public_example" ? "warn" : "ok"
+    : "bad";
+  $("artifact-plugin-boundary-note").textContent = summary.note || (plugin.matched
+    ? `${pluginLabel} metadata loaded from the Workbench plugin registry`
+    : "No matching Workbench plugin registry entry for this artifact");
+  const cards = [
+    {
+      status: pluginStatus,
+      title: pluginLabel,
+      label: "Plugin",
+      note: plugin.matched
+        ? plugin.visibility === "public_example"
+          ? "Public example wiring only; not a viable strategy."
+          : text(plugin.boundary || "Local/private plugin metadata.")
+        : "Load or restore the matching plugin registry entry for this draft.",
+    },
+    {
+      status: strategyFields.length ? "ok" : "warn",
+      title: numberText(strategyFields.length, 0),
+      label: "Declared Inputs",
+      note: strategyFields.length
+        ? pluginFieldList(strategyFields)
+        : "No public-safe strategy_fields metadata declared.",
+    },
+    {
+      status: declared ? summary.status || "ok" : "warn",
+      title: `${numberText(emittedFields, 0)} / ${numberText(declared, 0)}`,
+      label: "Declared Results",
+      note: declared
+        ? `${numberText(emittedValues, 0)} value${emittedValues === 1 ? "" : "s"} emitted across ${numberText(decisionCount, 0)} loaded decision${decisionCount === 1 ? "" : "s"}.`
+        : "Declare result_fields to label public diagnostics in artifacts.",
+    },
+    {
+      status: unlabeledCount ? "warn" : emittedValues ? "ok" : "waiting",
+      title: numberText(unlabeledCount, 0),
+      label: "Unlabeled Keys",
+      note: unlabeledCount
+        ? "Sanitized dashboard keys were emitted without result_fields labels."
+        : "No extra sanitized dashboard keys beyond declared result metadata.",
+    },
+  ];
+  $("artifact-plugin-boundary-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const coverage = declared
+    ? `${numberText(emittedFields, 0)} / ${numberText(declared, 0)} fields, ${numberText(emittedValues, 0)} values`
+    : "No declared result fields";
+  const unlabeledKeys = summary.unlabeled_public_keys || [];
+  $("artifact-plugin-boundary").innerHTML = kvRows([
+    ["Plugin", pluginLabel],
+    ["Registry Match", statusText(plugin.matched ? "ok" : "bad"), true],
+    ["Visibility", text(plugin.visibility || "n/a")],
+    ["Status", text(plugin.status || "n/a")],
+    ["Spec", plugin.spec ? `<span class="mono">${escapeHtml(plugin.spec)}</span>` : "n/a", Boolean(plugin.spec)],
+    ["Boundary", text(plugin.boundary || plugin.description || "n/a")],
+    ["Strategy Inputs", jsonDrilldown(strategyFields.map((field) => ({
+      name: field.name,
+      label: field.label,
+      kind: field.kind,
+      required: Boolean(field.required),
+    })), pluginFieldList(strategyFields)), true],
+    ["Result Fields", jsonDrilldown(resultFields.map((field) => ({
+      name: field.name,
+      label: field.label,
+      kind: field.kind,
+    })), pluginFieldList(resultFields)), true],
+    ["Result Coverage", `${coverage}; ${numberText(decisionCount, 0)} decision${decisionCount === 1 ? "" : "s"} loaded`],
+    ["Unlabeled Keys", jsonDrilldown(unlabeledKeys, unlabeledKeys.length ? unlabeledKeys.join(", ") : "none"), true],
+  ]);
+}
+
+function renderArtifactPluginCoverage(artifacts) {
+  if (!$("artifact-plugin-coverage-note") || !$("artifact-plugin-coverage-body")) return;
+  const summary = artifacts.plugin_result_summary || {};
+  const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
+  const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
+  $("artifact-plugin-coverage-note").textContent = coverageRows.length
+    ? `${numberText(summary.emitted_field_count || 0, 0)} / ${numberText(summary.declared_field_count || coverageRows.length, 0)} declared field${coverageRows.length === 1 ? "" : "s"} emitted in ${numberText(decisionCount, 0)} loaded decision${decisionCount === 1 ? "" : "s"}`
+    : "No declared plugin result fields to measure";
+  $("artifact-plugin-coverage-body").innerHTML = coverageRows.length
+    ? coverageRows.map((item) => {
+        const emitted = decisionCount
+          ? `${numberText(item.emitted_count, 0)} / ${numberText(decisionCount, 0)} (${pctText(item.coverage_pct)})`
+          : numberText(item.emitted_count, 0);
+        const latestValue = item.latest_timestamp
+          ? `${pluginResultFieldValue(item, item.latest_value)} @ ${text(item.latest_timestamp)}`
+          : pluginResultFieldValue(item, item.latest_value);
+        const latestSymbols = (item.latest_symbols || []).length ? `; ${(item.latest_symbols || []).join(", ")}` : "";
+        return row([
+          escapeHtml(text(item.label || item.name)),
+          escapeHtml(text(item.kind)),
+          escapeHtml(emitted),
+          escapeHtml(`${latestValue}${latestSymbols}`),
+          statusText(item.status || "waiting"),
+        ]);
+      }).join("")
+    : row([`<span class="muted">Declare result_fields in the plugin registry to summarize artifact diagnostics.</span>`, "", "", "", ""]);
+}
+
 function artifactChartMarkers(artifacts) {
   const markers = [];
   for (const fill of artifacts.fills || []) {
@@ -11010,6 +11133,7 @@ function renderWorkbenchArtifacts() {
   ];
   $("artifact-summary").innerHTML = kvRows(pairs);
   $("artifact-equity-chart").innerHTML = equityChart(artifacts.account || [], artifactChartMarkers(artifacts));
+  renderArtifactPluginBoundary(artifacts);
   const timeline = artifactSessionRows(artifacts);
   $("artifact-session-body").innerHTML = timeline.length
     ? timeline.map((item) => row([
@@ -11078,6 +11202,7 @@ function renderWorkbenchArtifacts() {
         ]);
       }).join("")
     : row([`<span class="muted">Plugins can publish public-safe fields under diagnostics.dashboard to populate this table.</span>`, "", "", "", "", "", "", ""]);
+  renderArtifactPluginCoverage(artifacts);
   const pluginFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
   const pluginFieldRows = pluginResultFieldRows(artifacts);
   const pluginLabel = text((artifacts.plugin || {}).label || (artifacts.plugin || {}).id || (artifacts.plugin || {}).spec);

@@ -2269,6 +2269,11 @@ section {
   gap: 12px;
 }
 
+.artifact-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
