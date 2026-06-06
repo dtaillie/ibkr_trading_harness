@@ -8,6 +8,16 @@ const state = {
   dataGapSummary: { gap_rows: [], calendar_rows: [] },
   dataMinuteHeatmap: { rows: [], errors: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
+  dataLibrary: {
+    catalogLoading: false,
+    diagnosticsLoading: false,
+    catalogLoaded: false,
+    diagnosticsLoaded: false,
+    catalogError: "",
+    diagnosticsError: "",
+    diagnosticsRequested: false,
+    requestId: 0,
+  },
   dataCompare: null,
   dataCompareSelectedPaths: [],
   dataCompareSelectionCleared: false,
@@ -62,6 +72,11 @@ const commandParamNames = {
 
 const $ = (id) => document.getElementById(id);
 const MAX_DATA_COMPARE_DATASETS = 8;
+
+function onOptional(id, eventName, handler) {
+  const element = $(id);
+  if (element) element.addEventListener(eventName, handler);
+}
 
 function token() {
   return sessionStorage.getItem("statusToken") || "";
@@ -253,6 +268,38 @@ function syncDataCatalogLimitControl() {
 function selectedDataCatalogLimit() {
   syncDataCatalogLimitControl();
   return $("data-catalog-limit").value || String(dataCatalogSettings().defaultLimit);
+}
+
+function dataCatalogPreviewPoints() {
+  return 8;
+}
+
+function dataLibraryLoadState() {
+  if (!state.dataLibrary) {
+    state.dataLibrary = {
+      catalogLoading: false,
+      diagnosticsLoading: false,
+      catalogLoaded: false,
+      diagnosticsLoaded: false,
+      catalogError: "",
+      diagnosticsError: "",
+      diagnosticsRequested: false,
+      requestId: 0,
+    };
+  }
+  return state.dataLibrary;
+}
+
+function setDataDiagnosticsLoadingNote(message, status = "warn") {
+  const formatted = `<span class="${statusClass(status)}">${escapeHtml(message)}</span>`;
+  for (const id of [
+    "data-storage-audit-note",
+    "data-coverage-note",
+    "data-gap-summary-note",
+    "data-minute-heatmap-note",
+  ]) {
+    if ($(id)) $(id).innerHTML = formatted;
+  }
 }
 
 function availableViews() {
@@ -672,6 +719,11 @@ function applyDataLens(lens) {
   const content = dataLensContent(selected);
   if ($("data-lens-title")) $("data-lens-title").textContent = content.title;
   if ($("data-lens-note")) $("data-lens-note").textContent = content.note;
+  if (state.refreshLoaded && activeView() === "data") {
+    refreshDataLibrary({ includeDiagnostics: selected === "diagnostics" }).catch((err) => {
+      $("last-refresh").textContent = `Data Library refresh failed: ${err.message}`;
+    });
+  }
 }
 
 function navigateToDataLens(lens) {
@@ -1512,7 +1564,9 @@ function renderPerformanceBenchmarkOptions() {
 }
 
 function selectedConfigDatasets() {
-  const selectedPaths = Array.from($("config-dataset").selectedOptions).map((option) => option.value);
+  const select = $("config-dataset");
+  if (!select) return [];
+  const selectedPaths = Array.from(select.selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
@@ -6029,6 +6083,8 @@ function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
   const filtered = filteredDataCatalog(datasets);
+  const loadState = dataLibraryLoadState();
+  const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
   renderDataHome(filtered);
@@ -6055,7 +6111,9 @@ function renderDataCatalog() {
         `<span class="mono">${escapeHtml(dataset.path)}</span>`,
         `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : firstCatalogLoad
+      ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+      : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
@@ -6070,9 +6128,18 @@ function renderDataCatalog() {
   const errorText = errors.length
     ? errors.map((item) => `<span class="status-warn">${escapeHtml(item.path)}: ${escapeHtml(item.error)}</span>`).join("<br>")
     : "";
-  $("data-catalog-errors").innerHTML = errorText
-    ? `${escapeHtml(filterLabel)}<br>${errorText}`
-    : escapeHtml(filterLabel);
+  if (loadState.catalogLoading) {
+    const loadingText = loadState.catalogLoaded
+      ? "Refreshing saved-data catalog in the background"
+      : "Loading saved-data catalog from configured roots";
+    $("data-catalog-errors").innerHTML = `<span class="status-warn">${escapeHtml(loadingText)}; large local caches can take tens of seconds.</span>`;
+  } else if (loadState.catalogError) {
+    $("data-catalog-errors").innerHTML = `<span class="status-bad">Data catalog refresh failed: ${escapeHtml(loadState.catalogError)}</span>`;
+  } else {
+    $("data-catalog-errors").innerHTML = errorText
+      ? `${escapeHtml(filterLabel)}<br>${errorText}`
+      : escapeHtml(filterLabel);
+  }
 }
 
 function dataFilterSummary() {
@@ -6097,6 +6164,8 @@ function renderDataHome(filteredRows = []) {
   const diagnostics = state.diagnostics || {};
   const roots = diagnostics.data_roots || [];
   const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const loadState = dataLibraryLoadState();
+  const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
   const catalogCount = Number(catalog.count || datasets.length || 0);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const totalRows = Number(catalog.row_count_total || 0);
@@ -6112,7 +6181,10 @@ function renderDataHome(filteredRows = []) {
 
   let nextStep = "Inspect";
   let nextNote = "Pick a saved file, inspect its chart, then use Workbench for replay setup.";
-  if (!roots.length || !totalRootFiles) {
+  if (firstCatalogLoad) {
+    nextStep = "Loading";
+    nextNote = "Scanning configured roots in the background; large caches can take tens of seconds.";
+  } else if (!roots.length || !totalRootFiles) {
     nextStep = suggestedRoots.length ? "Add Root" : "Fetch Data";
     nextNote = suggestedRoots.length
       ? `Add suggested root ${text(suggestedRoots[0].display_path || suggestedRoots[0].path)} to dashboard.data_roots.`
@@ -6134,10 +6206,14 @@ function renderDataHome(filteredRows = []) {
     nextNote = `${numberText(warnCount, 0)} warn-quality files are usable only after reviewing gaps/nulls.`;
   }
 
-  $("data-home-title").textContent = catalogCount
+  $("data-home-title").textContent = firstCatalogLoad
+    ? "Loading saved data catalog"
+    : catalogCount
     ? `${numberText(symbols.size, 0)} symbols across ${numberText(catalogCount, 0)} files`
     : "No saved data loaded";
-  $("data-home-note").textContent = catalogCount
+  $("data-home-note").textContent = firstCatalogLoad
+    ? `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"} are being scanned. Keep using other dashboard pages while this finishes.`
+    : catalogCount
     ? `${numberText(totalRows, 0)} rows under configured roots. Use filters, Symbol Browser, or Inspect First Match to browse offline history.`
     : "Configure data roots or refresh the catalog to inspect historical files.";
   $("data-home-filtered-count").textContent = `${numberText(filteredRows.length, 0)} / ${numberText(catalogCount, 0)}`;
@@ -6589,6 +6665,8 @@ function renderDataLibrarySummary() {
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
+  const loadState = dataLibraryLoadState();
+  const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
   const roots = diagnostics.data_roots || [];
   const suggestedRoots = diagnostics.suggested_data_roots || [];
   const existingRoots = roots.filter((root) => root.exists && root.is_dir);
@@ -6612,25 +6690,40 @@ function renderDataLibrarySummary() {
   $("data-symbol-count").textContent = numberText(symbols.size, 0);
   $("data-symbol-note").textContent = symbols.size
     ? `${countSummary(catalog.asset_class_counts)} assets`
-    : "No scanned symbols found under configured roots.";
-  $("data-file-count").textContent = numberText(catalogCount, 0);
-  $("data-file-note").textContent = `${numberText(catalog.row_count_total, 0)} rows / ${bytes(catalog.size_bytes_total)}`;
-  $("data-date-range").textContent = timestampRange.start && timestampRange.end
+    : firstCatalogLoad
+      ? "Catalog scan is running."
+      : "No scanned symbols found under configured roots.";
+  $("data-file-count").textContent = firstCatalogLoad ? "Loading" : numberText(catalogCount, 0);
+  $("data-file-note").textContent = firstCatalogLoad
+    ? "Scanning saved CSV/parquet files under configured roots."
+    : `${numberText(catalog.row_count_total, 0)} rows / ${bytes(catalog.size_bytes_total)}`;
+  $("data-date-range").textContent = firstCatalogLoad
+    ? "Loading"
+    : timestampRange.start && timestampRange.end
     ? `${timestampRange.start} -> ${timestampRange.end}`
     : "n/a";
   $("data-date-range-note").textContent = catalog.latest_modified_at
     ? `Latest file modified ${timestampAgeLabel(catalog.latest_modified_at)}`
-    : "No file modification timestamp published.";
-  $("data-quality-summary").textContent = badCount || warnCount || parseErrorCount
+    : firstCatalogLoad
+      ? "Timestamp range appears after the catalog scan completes."
+      : "No file modification timestamp published.";
+  $("data-quality-summary").textContent = firstCatalogLoad
+    ? "Loading"
+    : badCount || warnCount || parseErrorCount
     ? `${numberText(badCount, 0)} bad / ${numberText(warnCount, 0)} warn`
     : "ok";
-  $("data-quality-summary").className = statusClass(badCount || parseErrorCount ? "bad" : warnCount ? "warn" : catalogCount ? "ok" : "unknown");
+  $("data-quality-summary").className = statusClass(firstCatalogLoad ? "warn" : badCount || parseErrorCount ? "bad" : warnCount ? "warn" : catalogCount ? "ok" : "unknown");
   $("data-quality-note").textContent = parseErrorCount
     ? `${numberText(parseErrorCount, 0)} parser error${parseErrorCount === 1 ? "" : "s"}; check scan diagnostics.`
-    : `${countSummary(qualityCounts)} quality / ${countSummary(catalog.source_counts)} sources`;
+    : firstCatalogLoad
+      ? "Quality counts appear after parser metadata is loaded."
+      : `${countSummary(qualityCounts)} quality / ${countSummary(catalog.source_counts)} sources`;
   let visibilityStatus = "ok";
   let visibilityNote = `${numberText(catalogCount, 0)} catalog rows loaded from configured roots.`;
-  if (!roots.length || !totalRootFiles) {
+  if (firstCatalogLoad) {
+    visibilityStatus = "warn";
+    visibilityNote = `Scanning ${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; catalog rows are loading.`;
+  } else if (!roots.length || !totalRootFiles) {
     visibilityStatus = "bad";
     visibilityNote = "No CSV/parquet files are visible under the configured roots.";
   } else if (catalogCount <= 2 && roots.some((root) => String(root.path || "").includes("examples/data"))) {
@@ -10180,6 +10273,7 @@ function renderWorkbenchRunResult() {
 }
 
 function applyRiskPreset() {
+  if (!$("config-risk-preset")) return;
   const presetId = $("config-risk-preset").value;
   const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
   const values = preset && preset.values ? preset.values : {};
@@ -10193,7 +10287,7 @@ function applyRiskPreset() {
     "config-commission": values.sim_commission_bps,
   };
   for (const [id, value] of Object.entries(fieldMap)) {
-    if (value !== undefined) {
+    if ($(id) && value !== undefined) {
       $(`${id}`).value = String(value);
     }
   }
@@ -12546,45 +12640,154 @@ function renderAll() {
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
 }
 
-async function refresh() {
+function shouldLoadDataDiagnostics() {
+  return activeView() === "data" && selectedDataLens() === "diagnostics";
+}
+
+async function refreshDataDiagnostics({ force = false } = {}) {
+  const loadState = dataLibraryLoadState();
+  if (loadState.diagnosticsLoading && !force) return;
+  if (loadState.diagnosticsLoaded && !force) return;
+  loadState.diagnosticsLoading = true;
+  loadState.diagnosticsError = "";
+  setDataDiagnosticsLoadingNote("Loading Data Library diagnostics; large local caches can take a while.", "warn");
+  const requestId = loadState.requestId;
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
+  try {
+    const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
+    if (requestId !== loadState.requestId) return;
+    state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
+    renderDataCoverage();
+    const dataGapSummary = await fetchJson(`/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`);
+    if (requestId !== loadState.requestId) return;
+    state.dataGapSummary = dataGapSummary || { gap_rows: [], calendar_rows: [] };
+    renderDataGapSummary();
+    const dataMinuteHeatmap = await fetchJson(`/data_minute_heatmap?catalog_limit=${catalogLimit}&top_limit=20`);
+    if (requestId !== loadState.requestId) return;
+    state.dataMinuteHeatmap = dataMinuteHeatmap || { rows: [], errors: [] };
+    renderDataMinuteHeatmap();
+    const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
+    if (requestId !== loadState.requestId) return;
+    state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
+    loadState.diagnosticsLoaded = true;
+    loadState.diagnosticsRequested = false;
+    renderDataStorageAudit();
+    renderDataLibrarySummary();
+    renderPageIntro();
+  } catch (err) {
+    if (requestId !== loadState.requestId) return;
+    loadState.diagnosticsError = err.message;
+    setDataDiagnosticsLoadingNote(`Data diagnostics refresh failed: ${err.message}`, "bad");
+  } finally {
+    if (requestId === loadState.requestId) {
+      loadState.diagnosticsLoading = false;
+    }
+  }
+}
+
+async function refreshDataLibrary({ includeDiagnostics = false, force = false } = {}) {
+  const loadState = dataLibraryLoadState();
+  if (includeDiagnostics) loadState.diagnosticsRequested = true;
+  if (loadState.catalogLoading && !force) return;
+  if (loadState.catalogLoaded && !force) {
+    if (includeDiagnostics || loadState.diagnosticsRequested) {
+      await refreshDataDiagnostics({ force: false });
+    }
+    return;
+  }
+  const requestId = loadState.requestId + 1;
+  loadState.requestId = requestId;
+  loadState.catalogLoading = true;
+  loadState.catalogError = "";
+  loadState.diagnosticsLoaded = false;
+  loadState.diagnosticsError = "";
+  loadState.diagnosticsRequested = Boolean(includeDiagnostics);
+  state.dataCoverage = { symbols: [], date_bins: [], errors: [] };
+  state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
+  state.dataMinuteHeatmap = { rows: [], errors: [] };
+  state.dataStorageAudit = { configured_roots: [], suggested_roots: [], warnings: [] };
+  renderDataCatalog();
+  renderDataCoverage();
+  renderDataGapSummary();
+  renderDataMinuteHeatmap();
+  renderDataStorageAudit();
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  try {
+    const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=${dataCatalogPreviewPoints()}`);
+    if (requestId !== loadState.requestId) return;
+    state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+    loadState.catalogLoaded = true;
+    loadState.catalogLoading = false;
+    renderDataCatalog();
+    renderDataDetail();
+    renderDataCompareControls();
+    renderConfigBuilder();
+    renderMetrics();
+    renderPageIntro();
+    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()}`;
+    if (includeDiagnostics || loadState.diagnosticsRequested) {
+      await refreshDataDiagnostics({ force });
+    }
+  } catch (err) {
+    if (requestId !== loadState.requestId) return;
+    loadState.catalogError = err.message;
+    $("last-refresh").textContent = `Data catalog refresh failed: ${err.message}`;
+  } finally {
+    if (requestId === loadState.requestId) {
+      loadState.catalogLoading = false;
+      renderDataCatalog();
+    }
+  }
+}
+
+async function refresh(options = {}) {
   const node = $("command-node").value || (state.status && state.status.node_id) || "";
   const beforeActivity = state.refreshLoaded ? activitySnapshot() : null;
   const status = await fetchJson("/status");
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
-  const history = await fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`);
-  const remoteNodes = await fetchJson("/remote_nodes?limit=100");
-  const diagnostics = await fetchJson("/workbench_diagnostics");
+  const [
+    history,
+    remoteNodes,
+    diagnostics,
+    fetchManifests,
+    workbenchStatus,
+    cleanupPlan,
+    endpointMap,
+    configOptions,
+    configDrafts,
+    draftValidations,
+    configRuns,
+    runComparison,
+    performanceRollups,
+    statusEquityRollups,
+    commands,
+    results,
+    commandAudit,
+  ] = await Promise.all([
+    fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`),
+    fetchJson("/remote_nodes?limit=100"),
+    fetchJson("/workbench_diagnostics"),
+    fetchJson("/fetch_manifests?limit=50"),
+    fetchJson("/workbench_status"),
+    fetchJson("/workbench_cleanup_plan"),
+    fetchJson("/workbench_endpoints"),
+    fetchJson("/config_options"),
+    fetchJson("/config_drafts"),
+    fetchJson("/config_draft_validations"),
+    fetchJson("/config_draft_runs?limit=20"),
+    fetchJson("/config_draft_run_comparison?limit=50"),
+    fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100"),
+    fetchJson("/status_equity_rollups?limit=100&history_limit=5000"),
+    fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`),
+    fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`),
+    fetchJson(`/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`),
+  ]);
   state.diagnostics = diagnostics || {};
   syncDataCatalogLimitControl();
-  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
-  const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
-  const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=80`);
-  const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
-  const dataGapSummary = await fetchJson(`/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`);
-  const dataMinuteHeatmap = await fetchJson(`/data_minute_heatmap?catalog_limit=${catalogLimit}&top_limit=20`);
-  const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
-  const fetchManifests = await fetchJson("/fetch_manifests?limit=50");
-  const workbenchStatus = await fetchJson("/workbench_status");
-  const cleanupPlan = await fetchJson("/workbench_cleanup_plan");
-  const endpointMap = await fetchJson("/workbench_endpoints");
-  const configOptions = await fetchJson("/config_options");
-  const configDrafts = await fetchJson("/config_drafts");
-  const draftValidations = await fetchJson("/config_draft_validations");
-  const configRuns = await fetchJson("/config_draft_runs?limit=20");
-  const runComparison = await fetchJson("/config_draft_run_comparison?limit=50");
-  const performanceRollups = await fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100");
-  const statusEquityRollups = await fetchJson("/status_equity_rollups?limit=100&history_limit=5000");
-  const commands = await fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`);
-  const results = await fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`);
-  const commandAudit = await fetchJson(`/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`);
   state.history = history.history || [];
   state.remoteNodes = remoteNodes || { nodes: [] };
-  state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
-  state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
-  state.dataGapSummary = dataGapSummary || { gap_rows: [], calendar_rows: [] };
-  state.dataMinuteHeatmap = dataMinuteHeatmap || { rows: [], errors: [] };
-  state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
@@ -12602,6 +12805,12 @@ async function refresh() {
   state.activityChanges = activityChanges(beforeActivity, activitySnapshot());
   state.refreshLoaded = true;
   renderAll();
+  refreshDataLibrary({
+    includeDiagnostics: Boolean(options.forceDataDiagnostics || shouldLoadDataDiagnostics()),
+    force: Boolean(options.forceData),
+  }).catch((err) => {
+    $("last-refresh").textContent = `Data Library refresh failed: ${err.message}`;
+  });
 }
 
 function configDraftRequestPayload({ saveOverride = null } = {}) {
@@ -13523,7 +13732,7 @@ function initToken() {
   $("auth-token").value = token();
   $("save-token").addEventListener("click", () => {
     sessionStorage.setItem("statusToken", $("auth-token").value);
-    refresh().catch((err) => {
+    refresh({ forceData: true, forceDataDiagnostics: shouldLoadDataDiagnostics() }).catch((err) => {
       $("last-refresh").textContent = `Refresh failed: ${err.message}`;
     });
   });
@@ -13565,7 +13774,7 @@ function init() {
   updateCommandFields();
   $("command-action").addEventListener("change", updateCommandFields);
   $("refresh").addEventListener("click", () => {
-    refresh().catch((err) => {
+    refresh({ forceData: true, forceDataDiagnostics: shouldLoadDataDiagnostics() }).catch((err) => {
       $("last-refresh").textContent = `Refresh failed: ${err.message}`;
     });
   });
@@ -13661,9 +13870,9 @@ function init() {
   $("run-events-filter-type").addEventListener("change", renderRunEvents);
   $("run-events-filter-status").addEventListener("change", renderRunEvents);
   $("run-events-filter-sort").addEventListener("change", renderRunEvents);
-  $("config-dataset").addEventListener("change", renderConfigLivePanels);
-  $("config-start-date").addEventListener("change", renderConfigLivePanels);
-  $("config-end-date").addEventListener("change", renderConfigLivePanels);
+  for (const id of ["config-dataset", "config-start-date", "config-end-date"]) {
+    if ($(id)) $(id).addEventListener("change", renderConfigLivePanels);
+  }
   $("config-data-open-detail").addEventListener("click", () => {
     openFirstConfigDatasetDetail().catch((err) => {
       $("config-data-actions-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -13681,7 +13890,7 @@ function init() {
     renderWorkbenchRunResult();
     renderConfigCompatibility();
   });
-  $("config-plugin").addEventListener("change", () => {
+  onOptional("config-plugin", "change", () => {
     renderConfigLivePanels();
   });
   $("data-detail-timezone").addEventListener("change", renderDataDetail);
@@ -13742,12 +13951,12 @@ function init() {
   $("data-compare-select-shown").addEventListener("click", selectShownCompareDatasets);
   $("data-compare-clear").addEventListener("click", clearCompareSelection);
   $("data-catalog-limit").addEventListener("change", () => {
-    refresh().catch((err) => {
+    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
     });
   });
   $("data-storage-scan-limit").addEventListener("change", () => {
-    refresh().catch((err) => {
+    refreshDataDiagnostics({ force: true }).catch((err) => {
       $("last-refresh").textContent = `Storage audit refresh failed: ${err.message}`;
     });
   });
@@ -13964,7 +14173,12 @@ function init() {
     });
   });
   $("config-form").addEventListener("input", renderConfigLivePanels);
-  $("config-form").addEventListener("change", renderConfigLivePanels);
+  $("config-form").addEventListener("change", (event) => {
+    if (event.target instanceof HTMLElement && event.target.id === "config-risk-preset") {
+      applyRiskPreset();
+    }
+    renderConfigLivePanels();
+  });
   $("workbench-guide").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-guide-action") : null;
     if (!(target instanceof HTMLElement)) return;
@@ -14026,7 +14240,7 @@ function init() {
       $("last-refresh").textContent = `Copy failed: ${err.message}`;
     });
   });
-  $("config-risk-preset").addEventListener("change", applyRiskPreset);
+  onOptional("config-risk-preset", "change", applyRiskPreset);
   for (const id of ["config-drafts-body", "config-runs-body", "comparison-body", "performance-rollups-body"]) {
     $(id).addEventListener("click", (event) => {
       const target = event.target;

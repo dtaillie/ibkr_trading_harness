@@ -764,13 +764,22 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def write_response_body(handler: BaseHTTPRequestHandler, body: bytes) -> None:
+    try:
+        handler.wfile.write(body)
+    except (BrokenPipeError, ConnectionResetError):
+        # Browsers can navigate away while background dashboard requests are
+        # still returning. Treat that as a client disconnect, not a server error.
+        return
+
+
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
     body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
-    handler.wfile.write(body)
+    write_response_body(handler, body)
 
 
 def text_response(handler: BaseHTTPRequestHandler, status: int, body: str, content_type: str = "text/html") -> None:
@@ -779,7 +788,7 @@ def text_response(handler: BaseHTTPRequestHandler, status: int, body: str, conte
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
-    handler.wfile.write(raw)
+    write_response_body(handler, raw)
 
 
 def download_text_response(
@@ -796,7 +805,7 @@ def download_text_response(
     handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
-    handler.wfile.write(raw)
+    write_response_body(handler, raw)
 
 
 def file_response(handler: BaseHTTPRequestHandler, path: Path) -> None:
@@ -809,7 +818,7 @@ def file_response(handler: BaseHTTPRequestHandler, path: Path) -> None:
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
-    handler.wfile.write(raw)
+    write_response_body(handler, raw)
 
 
 def public_doc_response(handler: BaseHTTPRequestHandler, name: str) -> None:

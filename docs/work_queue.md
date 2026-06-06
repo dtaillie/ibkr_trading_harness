@@ -606,7 +606,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   symbol, inspecting history, comparing files, building simulations, checking
   quality, and fixing root visibility, with each card reflecting current
   catalog/root/workbench state and deep-linking to the focused page for that
-  job.
+  job. The web client now separates fast core dashboard refresh from expensive
+  saved-data scans: the catalog loads asynchronously with an explicit loading
+  state, heavy Data Diagnostics scans are lazy until the Diagnostics lens is
+  opened, and generated Workbench controls no longer crash dashboard startup
+  before the first refresh.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

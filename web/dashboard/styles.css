@@ -656,7 +656,7 @@ button.secondary {
 
 .symbol-directory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 10px;
 }
 
@@ -703,13 +703,13 @@ button.secondary {
 
 .symbol-directory-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(76px, auto));
+  grid-template-columns: repeat(2, minmax(96px, auto));
   gap: 6px;
   align-content: start;
 }
 
 .symbol-directory-actions button {
-  min-width: 0;
+  min-width: 96px;
 }
 
 .builder-form {
@@ -1144,6 +1144,8 @@ section {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .status-tile strong,
@@ -1976,6 +1978,20 @@ section {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.section-head h2 {
+  flex: 0 0 auto;
+}
+
+.section-head > .button-pair {
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.section-head .section-note {
+  min-width: 0;
+  text-align: right;
 }
 
 .inline-section-head {

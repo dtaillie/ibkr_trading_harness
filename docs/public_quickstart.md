@@ -263,7 +263,10 @@ rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, historical
 previews, and a Data Home shortlist with direct Inspect, Filter, and Compare
-actions for the best currently visible files. Use Storage Audit to compare CSV/parquet files on disk
+actions for the best currently visible files. Core dashboard status renders
+before expensive saved-data scans finish; the catalog loads in the background
+and heavier coverage/gap/storage diagnostics are lazy until the Data
+Diagnostics lens is opened. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
