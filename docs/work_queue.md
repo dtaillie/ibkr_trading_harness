@@ -1062,6 +1062,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Symbol Directory now uses backend symbol summaries when
       available and exposes `/data_symbol_directory_export` plus an Export
       Symbols CSV action for offline universe review.
+    - partial; Symbol Directory now includes a compact Symbol Coverage Ledger
+      table for the current filtered/sorted symbol set, showing range, files,
+      rows, source/bar/session mix, readiness, and direct Inspect/Filter/
+      Compare actions before the larger symbol-card grid.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.

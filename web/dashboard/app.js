@@ -8676,6 +8676,55 @@ function renderSymbolDirectoryAssistant(directory) {
     : `<div class="empty-card"><strong>No symbol recommendation</strong><span>Clear filters, increase the catalog limit, or configure/fetch saved data.</span></div>`;
 }
 
+function renderSymbolCoverageLedger(directory) {
+  if (!$("data-symbol-coverage-note") || !$("data-symbol-coverage-body")) return;
+  const rows = directory.rows || [];
+  const allRows = directory.all_rows || [];
+  const activeFilters = [
+    directory.controls.filter ? `search ${directory.controls.filter}` : "",
+    directory.controls.asset,
+    directory.controls.source,
+    directory.controls.bar,
+    directory.controls.session,
+    directory.controls.quality,
+    directory.controls.contract,
+  ].filter(Boolean);
+  $("data-symbol-coverage-note").textContent = rows.length
+    ? `${numberText(rows.length, 0)} shown / ${numberText(allRows.length, 0)} matched symbol${allRows.length === 1 ? "" : "s"}${activeFilters.length ? ` after ${activeFilters.join(", ")}` : ""}`
+    : allRows.length
+      ? "Current Show limit hides all rows; increase the directory limit or clear filters."
+      : "No symbol coverage rows match the current directory filters.";
+  $("data-symbol-coverage-body").innerHTML = rows.length
+    ? rows.map((item) => {
+        const symbol = text(item.symbol);
+        const bestPath = text((item.best || {}).path);
+        const qualityScore = symbolDirectoryQualityScore(item.qualities);
+        const contractScore = symbolDirectoryQualityScore(item.contracts);
+        const readinessStatus = qualityScore > 1 || contractScore > 1 ? "bad" : qualityScore || contractScore ? "warn" : "ok";
+        const canCompare = Number(item.file_count || 0) >= 2;
+        return row([
+          escapeHtml(symbol),
+          escapeHtml(rangeLabel(item.first_day, item.last_day)),
+          escapeHtml(numberText(item.file_count, 0)),
+          escapeHtml(numberText(item.row_count, 0)),
+          escapeHtml(item.sources.join(", ") || "unknown"),
+          escapeHtml(item.bars.join(", ") || "unknown"),
+          escapeHtml(item.session_profile || item.sessions.join(", ") || "unknown"),
+          `<div class="data-readiness-cell ${escapeHtml(statusClass(readinessStatus))}">
+            <strong>${escapeHtml(readinessStatus === "bad" ? "Blocked" : readinessStatus === "warn" ? "Review" : "Ready")}</strong>
+            <span>${escapeHtml(`Q ${countSummary(item.qualities) || "n/a"} / contract ${countSummary(item.contracts) || "n/a"}`)}</span>
+            <small>${escapeHtml(item.mixed_sessions ? "Mixed sessions; verify replay scope." : "Single session profile.")}</small>
+          </div>`,
+          `<span class="button-pair">
+            <button type="button" class="secondary symbol-directory-inspect" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}">Inspect</button>
+            <button type="button" class="secondary symbol-directory-filter" data-symbol="${escapeHtml(symbol)}">Filter</button>
+            <button type="button" class="secondary symbol-directory-compare" data-symbol="${escapeHtml(symbol)}"${canCompare ? "" : " disabled"}>Compare</button>
+          </span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+}
+
 function renderSymbolDirectory() {
   if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
   const groups = symbolBrowserGroups();
@@ -8699,6 +8748,7 @@ function renderSymbolDirectory() {
     : "No scanned symbols loaded";
   renderSymbolDirectorySummary(directory);
   renderSymbolDirectoryAssistant(directory);
+  renderSymbolCoverageLedger(directory);
   $("data-symbol-directory").innerHTML = rows.length
     ? rows.map((item) => {
         const symbol = escapeHtml(item.symbol);
@@ -22442,6 +22492,13 @@ function init() {
     if (!(target instanceof HTMLElement)) return;
     handleSymbolDirectoryAction(target).catch((err) => {
       $("data-symbol-directory-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-coverage-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-symbol]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleSymbolDirectoryAction(target).catch((err) => {
+      $("data-symbol-coverage-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-directory-assistant-actions").addEventListener("click", (event) => {
