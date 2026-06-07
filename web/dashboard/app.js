@@ -2616,6 +2616,7 @@ function strategyIdentityModel(source = latestArtifactPerformance()) {
   const sourceType = firstPresent(source && source.source_type, "none");
   const updatedAt = firstPresent(
     metrics.last_decision_time,
+    metrics.latest_bar_time,
     metrics.latest_data_time,
     metrics.latest_market_data_time,
     telemetryRun.generated_at,
@@ -4459,6 +4460,17 @@ function metricTimestamp(metrics, keys) {
   return null;
 }
 
+function metricLatestRejection(metrics) {
+  if (!metrics || !metrics.latest_rejection_time) return null;
+  return {
+    type: "order",
+    timestamp: metrics.latest_rejection_time,
+    symbol: metrics.latest_rejection_symbol || "",
+    status: metrics.latest_rejection_status || "rejected",
+    detail: metrics.latest_rejection_reason || "",
+  };
+}
+
 function eventStatusIsBad(event) {
   const status = String((event && event.status) || "").toLowerCase();
   return status.includes("reject") || status.includes("cancel") || status.includes("fail") || status.includes("error");
@@ -4475,7 +4487,7 @@ function runtimeStatusItems() {
   const events = runEventRows();
   const latestDecision = events.find((event) => event.type === "decision");
   const latestOrder = events.find((event) => event.type === "order");
-  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event)) || metricLatestRejection(metrics);
   const openOrders = currentOpenOrderRows();
   const heartbeatTimestamp = firstPresent(
     freshness.timestamp,
@@ -4484,9 +4496,9 @@ function runtimeStatusItems() {
     payload.generated_at,
   );
   const marketTimestamp = metricTimestamp(metrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);
@@ -4595,9 +4607,9 @@ function paperMonitorItems() {
     "account_snapshot_time",
   ]);
   const marketTimestamp = metricTimestamp(metrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);
@@ -5605,11 +5617,11 @@ function renderOverview() {
   const events = runEventRows();
   const latestSignal = events.find((event) => event.type === "decision");
   const latestFill = events.find((event) => event.type === "fill");
-  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const latestRejection = events.find((event) => event.type === "order" && eventStatusIsBad(event)) || metricLatestRejection(runMetrics);
   const latestBarTime = metricTimestamp(runMetrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);
@@ -5722,9 +5734,9 @@ function renderOverviewCommandCenter() {
   const latestRun = latestTelemetryRun();
   const runMetrics = (latestRun && latestRun.metrics) || {};
   const latestBarTime = metricTimestamp(runMetrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);
@@ -6001,9 +6013,9 @@ function overviewHealthReportModel() {
   const healthWorst = worstStatusFrom(healthChecks);
   const accountFresh = latestAccount.timestamp ? timestampAgeLabel(latestAccount.timestamp) : "missing";
   const marketTimestamp = metricTimestamp(metrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);
@@ -21387,9 +21399,9 @@ function paperObservationPacketModel() {
     "account_snapshot_time",
   ]);
   const marketTimestamp = metricTimestamp(metrics, [
+    "latest_bar_time",
     "latest_data_time",
     "latest_market_data_time",
-    "latest_bar_time",
     "last_bar_time",
     "market_data_time",
   ]);

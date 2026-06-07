@@ -122,7 +122,9 @@ symbol/path table.
 
 Start in Overview. The hero card and Runtime Status strip answer whether a
 runner is publishing telemetry, whether Gateway/API is reachable, what mode is
-active, and when the latest decision/account/data timestamps were published.
+active, and when the latest decision/account/bar timestamps were published.
+Generic plugin-runner status also includes latest rejected-order time, symbol,
+status, and reason when an order is rejected.
 Read Strategy Health Report on Overview Home for the fastest copyable summary:
 telemetry, runtime loop, alerts/orders, execution state, account/positions,
 saved data, Workbench readiness, and the next inspection action.

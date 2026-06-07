@@ -1086,7 +1086,12 @@ def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
         "rejection_count": int(metrics.get("rejections") or 0) if metrics.get("rejections") is not None else None,
         "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
         "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_market_data_time") or metrics.get("latest_bar_time"),
+        "latest_bar_time": metrics.get("latest_bar_time") or metrics.get("latest_data_time") or metrics.get("latest_market_data_time"),
         "latest_decision_time": metrics.get("last_decision_time"),
+        "latest_rejection_time": metrics.get("latest_rejection_time"),
+        "latest_rejection_symbol": metrics.get("latest_rejection_symbol"),
+        "latest_rejection_status": metrics.get("latest_rejection_status"),
+        "latest_rejection_reason": metrics.get("latest_rejection_reason"),
     }
 
 
@@ -1110,7 +1115,12 @@ REMOTE_NODES_EXPORT_FIELDS = (
     "rejection_count",
     "latest_account_time",
     "latest_data_time",
+    "latest_bar_time",
     "latest_decision_time",
+    "latest_rejection_time",
+    "latest_rejection_symbol",
+    "latest_rejection_status",
+    "latest_rejection_reason",
 )
 
 REMOTE_NODE_DETAIL_EXPORT_FIELDS = (
@@ -1138,7 +1148,12 @@ REMOTE_NODE_DETAIL_EXPORT_FIELDS = (
     "rejection_count",
     "latest_account_time",
     "latest_data_time",
+    "latest_bar_time",
     "latest_decision_time",
+    "latest_rejection_time",
+    "latest_rejection_symbol",
+    "latest_rejection_status",
+    "latest_rejection_reason",
     "detail",
 )
 
@@ -1278,7 +1293,12 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
             "rejection_count": summary.get("rejection_count"),
             "latest_account_time": summary.get("latest_account_time"),
             "latest_data_time": summary.get("latest_data_time"),
+            "latest_bar_time": summary.get("latest_bar_time"),
             "latest_decision_time": summary.get("latest_decision_time"),
+            "latest_rejection_time": summary.get("latest_rejection_time"),
+            "latest_rejection_symbol": summary.get("latest_rejection_symbol"),
+            "latest_rejection_status": summary.get("latest_rejection_status"),
+            "latest_rejection_reason": summary.get("latest_rejection_reason"),
         })
     boundary = detail.get("boundary_policy") if isinstance(detail.get("boundary_policy"), dict) else {}
     if boundary:
@@ -1478,9 +1498,14 @@ def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
         "final_equity": finite_float(metrics.get("final_equity")),
         "final_cash": finite_float(metrics.get("final_cash")),
         "position_count": nonzero_position_count(metrics.get("final_positions") or {}),
-        "latest_data_time": metrics.get("latest_data_time"),
+        "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_bar_time"),
+        "latest_bar_time": metrics.get("latest_bar_time") or metrics.get("latest_data_time"),
         "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
         "last_decision_time": metrics.get("last_decision_time"),
+        "latest_rejection_time": metrics.get("latest_rejection_time"),
+        "latest_rejection_symbol": metrics.get("latest_rejection_symbol"),
+        "latest_rejection_status": metrics.get("latest_rejection_status"),
+        "latest_rejection_reason": metrics.get("latest_rejection_reason"),
         "recent_decisions": recent.get("decisions", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
         "recent_orders": recent.get("orders", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
         "recent_fills": recent.get("fills", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
@@ -8255,7 +8280,13 @@ def summarize_runner_status_artifact(payload: dict[str, Any] | None) -> dict[str
         "started_at": payload.get("started_at"),
         "updated_at": payload.get("updated_at"),
         "latest_data_time": payload.get("latest_data_time"),
+        "latest_bar_time": payload.get("latest_bar_time") or payload.get("latest_data_time"),
         "last_decision_time": payload.get("last_decision_time"),
+        "latest_rejection": payload.get("latest_rejection") if isinstance(payload.get("latest_rejection"), dict) else None,
+        "latest_rejection_time": payload.get("latest_rejection_time"),
+        "latest_rejection_symbol": payload.get("latest_rejection_symbol"),
+        "latest_rejection_status": payload.get("latest_rejection_status"),
+        "latest_rejection_reason": payload.get("latest_rejection_reason"),
         "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
         "loop": payload.get("loop") if isinstance(payload.get("loop"), dict) else {},
         "session": payload.get("session") if isinstance(payload.get("session"), dict) else {},

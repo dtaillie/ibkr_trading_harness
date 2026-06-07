@@ -99,6 +99,11 @@ class RunnerResult:
     account_start_time: str | None = None
     account_end_time: str | None = None
     latest_data_time: str | None = None
+    latest_bar_time: str | None = None
+    latest_rejection_time: str | None = None
+    latest_rejection_symbol: str | None = None
+    latest_rejection_status: str | None = None
+    latest_rejection_reason: str | None = None
     elapsed_seconds: float | None = None
     elapsed_days: float | None = None
     return_per_day_pct: float | None = None
@@ -2084,6 +2089,7 @@ def run_from_config(
     run_started_at = datetime.now(timezone.utc)
     latest_error: dict[str, str] | None = None
     last_decision_time: str | None = None
+    latest_rejection: dict[str, Any] | None = None
     observed_dashboard_keys: set[str] = set()
     observed_intent_metadata_keys: set[str] = set()
     observed_order_tags: set[str] = set()
@@ -2106,7 +2112,13 @@ def run_from_config(
             "updated_at": datetime.now(timezone.utc),
             "output_dir": output_dir,
             "latest_data_time": latest_data_time,
+            "latest_bar_time": latest_data_time,
             "last_decision_time": last_decision_time,
+            "latest_rejection": latest_rejection,
+            "latest_rejection_time": latest_rejection.get("timestamp") if latest_rejection else None,
+            "latest_rejection_symbol": latest_rejection.get("symbol") if latest_rejection else None,
+            "latest_rejection_status": latest_rejection.get("status") if latest_rejection else None,
+            "latest_rejection_reason": latest_rejection.get("reason") if latest_rejection else None,
             "counts": {
                 "decisions": decisions,
                 "orders": orders,
@@ -2154,6 +2166,24 @@ def run_from_config(
             log.warning("Could not write runner status: %s", exc)
 
     update_runner_status("starting")
+
+    def record_order_rejection(intent: OrderIntent, now: pd.Timestamp, reason: str | None) -> None:
+        nonlocal rejections
+        nonlocal latest_rejection
+        rejections += 1
+        record = {
+            "timestamp": now,
+            **intent_record(intent, status="rejected", reason=reason),
+        }
+        append_jsonl(output_dir / "orders.jsonl", record)
+        latest_rejection = {
+            "timestamp": now.isoformat(),
+            "symbol": intent.symbol,
+            "side": intent.side,
+            "status": "rejected",
+            "reason": reason,
+            "tag": intent.tag,
+        }
 
     def process_step(step: int, now: pd.Timestamp, panels: dict[str, pd.DataFrame]) -> None:
         nonlocal decisions
@@ -2279,12 +2309,8 @@ def run_from_config(
             })
             max_orders = execution_cfg.get("max_orders_per_run")
             if max_orders is not None and accepted_orders >= int(max_orders):
-                rejections += 1
                 reason = f"max_orders_per_run {int(max_orders)} reached"
-                append_jsonl(output_dir / "orders.jsonl", {
-                    "timestamp": now,
-                    **intent_record(intent, status="rejected", reason=reason),
-                })
+                record_order_rejection(intent, now, reason)
                 log.warning("%s rejected: %s", intent.symbol, reason)
                 continue
 
@@ -2299,11 +2325,7 @@ def run_from_config(
                 equity=float(equity) if equity is not None else None,
             )
             if reason is not None:
-                rejections += 1
-                append_jsonl(output_dir / "orders.jsonl", {
-                    "timestamp": now,
-                    **intent_record(intent, status="rejected", reason=reason),
-                })
+                record_order_rejection(intent, now, reason)
                 log.warning("%s rejected: %s", intent.symbol, reason)
                 continue
 
@@ -2349,12 +2371,8 @@ def run_from_config(
             if mode == "simulated_paper" and simulated is not None:
                 price = final_prices.get(intent.symbol)
                 if price is None:
-                    rejections += 1
                     reason = "no current price for symbol"
-                    append_jsonl(output_dir / "orders.jsonl", {
-                        "timestamp": now,
-                        **intent_record(intent, status="rejected", reason=reason),
-                    })
+                    record_order_rejection(intent, now, reason)
                     continue
                 fill, reason = simulated.execute(intent, price, now)
             elif mode == "paper" and paper is not None:
@@ -2363,11 +2381,7 @@ def run_from_config(
                 fill, reason = None, "unsupported execution mode"
 
             if fill is None:
-                rejections += 1
-                append_jsonl(output_dir / "orders.jsonl", {
-                    "timestamp": now,
-                    **intent_record(intent, status="rejected", reason=reason),
-                })
+                record_order_rejection(intent, now, reason)
                 log.warning("%s rejected: %s", intent.symbol, reason)
                 continue
 
@@ -2546,6 +2560,11 @@ def run_from_config(
         account_start_time=perf["account_start_time"],
         account_end_time=perf["account_end_time"],
         latest_data_time=latest_data_time,
+        latest_bar_time=latest_data_time,
+        latest_rejection_time=latest_rejection.get("timestamp") if latest_rejection else None,
+        latest_rejection_symbol=latest_rejection.get("symbol") if latest_rejection else None,
+        latest_rejection_status=latest_rejection.get("status") if latest_rejection else None,
+        latest_rejection_reason=latest_rejection.get("reason") if latest_rejection else None,
         elapsed_seconds=perf["elapsed_seconds"],
         elapsed_days=perf["elapsed_days"],
         return_per_day_pct=perf["return_per_day_pct"],

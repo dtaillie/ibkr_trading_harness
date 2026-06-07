@@ -335,6 +335,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     first_ts, last_ts = first_last_timestamp(decisions)
 
     rejected_orders = [row for row in orders if row.get("status") == "rejected"]
+    latest_rejection = rejected_orders[-1] if rejected_orders else {}
     filled_notional = sum(fill_notional(row) for row in fills)
     fill_commission = sum_float(fills, "commission")
     performance = account_performance(account)
@@ -367,7 +368,12 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "max_drawdown_pct": summary.get("max_drawdown_pct", performance["max_drawdown_pct"]),
         "account_start_time": summary.get("account_start_time", performance["account_start_time"]),
         "account_end_time": summary.get("account_end_time", performance["account_end_time"]),
-        "latest_data_time": summary.get("latest_data_time") or summary.get("latest_market_data_time"),
+        "latest_data_time": summary.get("latest_data_time") or summary.get("latest_market_data_time") or summary.get("latest_bar_time"),
+        "latest_bar_time": summary.get("latest_bar_time") or summary.get("latest_data_time") or summary.get("latest_market_data_time"),
+        "latest_rejection_time": summary.get("latest_rejection_time") or latest_rejection.get("timestamp"),
+        "latest_rejection_symbol": summary.get("latest_rejection_symbol") or latest_rejection.get("symbol"),
+        "latest_rejection_status": summary.get("latest_rejection_status") or latest_rejection.get("status"),
+        "latest_rejection_reason": summary.get("latest_rejection_reason") or latest_rejection.get("reason"),
         "elapsed_seconds": summary.get("elapsed_seconds", performance["elapsed_seconds"]),
         "elapsed_days": summary.get("elapsed_days", performance["elapsed_days"]),
         "return_per_day_pct": summary.get("return_per_day_pct", performance["return_per_day_pct"]),

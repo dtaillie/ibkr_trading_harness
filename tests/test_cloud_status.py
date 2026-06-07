@@ -4115,6 +4115,8 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["runner_status"]["available"] is True
         assert run_artifacts["runner_status"]["state"] == "completed"
         assert run_artifacts["runner_status"]["counts"]["decisions"] == 2
+        assert run_artifacts["runner_status"]["latest_bar_time"] == "2026-01-02T14:35:00+00:00"
+        assert run_artifacts["runner_status"]["latest_rejection_time"] is None
         assert run_artifacts["plugin_contract"]["available"] is True
         assert run_artifacts["plugin_contract"]["plugin"]["name"] == "no_edge_template"
         assert run_artifacts["plugin_contract"]["data"]["symbols"] == ["QQQ", "SPY"]

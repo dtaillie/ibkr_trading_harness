@@ -102,6 +102,8 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert result.elapsed_seconds == pytest.approx(600.0)
     assert result.elapsed_days == pytest.approx(600.0 / 86400.0)
     assert result.latest_data_time == "2026-01-02T14:40:00+00:00"
+    assert result.latest_bar_time == "2026-01-02T14:40:00+00:00"
+    assert result.latest_rejection_time is None
     assert result.return_per_day_pct == pytest.approx(0.0)
     assert result.return_per_month_pct == pytest.approx(0.0)
     assert result.return_per_year_pct == pytest.approx(0.0)
@@ -117,6 +119,8 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert account[-1]["equity"] == pytest.approx(10000.0)
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
+    assert summary["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
+    assert summary["latest_rejection_time"] is None
     assert summary["performance_rollups_path"] == str(output_dir / "performance_rollups.json")
     assert summary["runner_status_path"] == str(output_dir / "runner_status.json")
     assert summary["plugin_contract_path"] == str(output_dir / "plugin_contract.json")
@@ -125,7 +129,10 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert status["state"] == "completed"
     assert status["mode"] == "replay"
     assert status["latest_data_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
     assert status["last_decision_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["latest_rejection"] is None
+    assert status["latest_rejection_time"] is None
     assert status["counts"] == {
         "account": 3,
         "approval_required_orders": 0,
@@ -1416,9 +1423,22 @@ def test_runner_rejects_order_above_notional_limit(tmp_path):
     assert result.orders == 1
     assert result.fills == 0
     assert result.rejections == 1
+    assert result.latest_bar_time == "2026-01-02T14:40:00+00:00"
+    assert result.latest_rejection_time == "2026-01-02T14:30:00+00:00"
+    assert result.latest_rejection_symbol == "SPY"
+    assert result.latest_rejection_status == "rejected"
+    assert "max_notional_per_order" in result.latest_rejection_reason
     records = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
     assert records[-1]["status"] == "rejected"
     assert "max_notional_per_order" in records[-1]["reason"]
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
+    assert summary["latest_rejection_symbol"] == "SPY"
+    assert "max_notional_per_order" in summary["latest_rejection_reason"]
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["latest_rejection"]["symbol"] == "SPY"
+    assert status["latest_rejection_status"] == "rejected"
 
 
 def test_runner_rejects_short_sale_when_disabled(tmp_path):

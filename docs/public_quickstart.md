@@ -472,8 +472,8 @@ count, archived artifact count, local disk usage, and the latest saved run.
 Generic plugin-runner runs write `runner_status.json`,
 `performance_rollups.json`, and `plugin_contract.json` beside `summary.json`.
 `runner_status.json` is a small heartbeat/status artifact with the current
-lifecycle state, loop/session metadata, counters, latest data time, and final
-result pointers. `plugin_contract.json` is public-safe metadata about the
+lifecycle state, loop/session metadata, counters, dedicated latest bar and
+latest rejection fields, and final result pointers. `plugin_contract.json` is public-safe metadata about the
 plugin spec/name, data symbols, runner mode, supported order types, observed
 dashboard keys, and artifact files; it intentionally omits raw strategy signal
 payloads and local data-file paths. Each run also carries durable daily,

@@ -124,6 +124,11 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["max_abs_net_exposure_pct"] == 10.2
     assert metrics["max_position_count"] == 1
     assert metrics["latest_data_time"] == "2026-01-02T14:35:00+00:00"
+    assert metrics["latest_bar_time"] == "2026-01-02T14:35:00+00:00"
+    assert metrics["latest_rejection_time"] == "2026-01-02T14:35:00+00:00"
+    assert metrics["latest_rejection_symbol"] == "SPY"
+    assert metrics["latest_rejection_status"] == "rejected"
+    assert metrics["latest_rejection_reason"] == "max_orders_per_run 1 reached"
     assert metrics["loop_enabled"] is True
     assert metrics["loop_iterations"] == 2
     assert metrics["plugin_contract_available"] is True

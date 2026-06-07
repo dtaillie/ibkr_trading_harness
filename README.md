@@ -255,7 +255,7 @@ auth, network boundary, retention, alerts, and manual provider hardening. The
 dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
 Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,
-new-activity cues since the prior refresh, and a latest decision/order/fill
+latest bar/rejection telemetry, new-activity cues since the prior refresh, and a latest decision/order/fill
 timeline. Its Strategy Health Report gives a copyable current-state summary for
 telemetry, runtime loop, alerts/orders, execution state, account/positions,
 saved data, Workbench readiness, and next action. Performance shows latest equity,
