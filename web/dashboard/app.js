@@ -6737,6 +6737,7 @@ function symbolProfileModel(symbol) {
   const range = timestampRangeFromDatasets(rows);
   const totalRows = rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
   const qualities = countBy(rows, "quality_status");
+  const contracts = countBy(rows, "storage_contract_status");
   const sources = Array.from(new Set(rows.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a"))).sort();
   const bars = Array.from(new Set(rows.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).sort();
   const assets = Array.from(new Set(rows.map((dataset) => text(dataset.asset_class)).filter((value) => value !== "n/a"))).sort();
@@ -6744,6 +6745,7 @@ function symbolProfileModel(symbol) {
     .map((dataset) => timestampMillis(dataset.last_timestamp) || timestampMillis(dataset.modified_at) || 0)
     .reduce((max, value) => Math.max(max, value), 0);
   const qualityScore = rows.length ? Math.min(...rows.map((dataset) => datasetQualityRank(dataset.quality_status))) : 3;
+  const contractScore = rows.length ? Math.min(...rows.map((dataset) => datasetQualityRank(dataset.storage_contract_status))) : 3;
   return {
     symbol: normalized,
     rows,
@@ -6752,11 +6754,13 @@ function symbolProfileModel(symbol) {
     range,
     totalRows,
     qualities,
+    contracts,
     sources,
     bars,
     assets,
     latestMillis,
     qualityScore,
+    contractScore,
   };
 }
 
@@ -6781,6 +6785,7 @@ function renderSymbolProfile(symbol) {
   $("data-symbol-profile-compare").disabled = model.rows.length < 2;
   $("data-symbol-profile-diagnose").disabled = !hasQuery;
   const qualityStatus = model.qualityScore === 0 ? "ok" : model.qualityScore === 1 ? "warn" : model.qualityScore === 2 ? "bad" : "warn";
+  const contractStatus = model.contractScore === 0 ? "ok" : model.contractScore === 1 ? "warn" : model.contractScore === 2 ? "bad" : "warn";
   const cards = [
     {
       status: hasRows ? "ok" : "bad",
@@ -6799,6 +6804,14 @@ function renderSymbolProfile(symbol) {
       label: "Quality",
       title: hasRows ? countSummary(model.qualities) : "n/a",
       note: qualityStatus === "ok" ? "Best available files report ok quality." : "Inspect gaps/nulls before simulation.",
+    },
+    {
+      status: contractStatus,
+      label: "Contract",
+      title: hasRows ? countSummary(model.contracts) : "n/a",
+      note: contractStatus === "ok"
+        ? "Best available files satisfy storage metadata checks."
+        : "Review timestamp/session/bar-size/adjustment metadata before replay.",
     },
     {
       status: model.best ? "ok" : "bad",
@@ -6823,7 +6836,7 @@ function renderSymbolProfile(symbol) {
         <div>
           <strong>${escapeHtml(text(dataset.bar_size))} ${escapeHtml(text(dataset.source))}</strong>
           <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</span>
-          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${escapeHtml(numberText(dataset.rows, 0))} rows / ${escapeHtml(text(dataset.storage_session))}</small>
+          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings)} ${escapeHtml(numberText(dataset.rows, 0))} rows / ${escapeHtml(text(dataset.storage_session))}</small>
           <small class="mono">${escapeHtml(text(dataset.path))}</small>
         </div>
         <button type="button" class="secondary symbol-profile-file-open" data-path="${escapeHtml(dataset.path)}">Open</button>
@@ -7949,6 +7962,8 @@ function renderSymbolSelectionPanel(symbol) {
   }
   const qualityScore = model.qualityScore;
   const qualityStatus = qualityScore === 0 ? "ok" : qualityScore === 1 ? "warn" : qualityScore === 2 ? "bad" : "warn";
+  const contractScore = model.contractScore;
+  const contractStatus = contractScore === 0 ? "ok" : contractScore === 1 ? "warn" : contractScore === 2 ? "bad" : "warn";
   const cards = [
     {
       status: hasRows ? "ok" : hasQuery ? "warn" : "bad",
@@ -7979,6 +7994,14 @@ function renderSymbolSelectionPanel(symbol) {
       note: qualityScore === 0
         ? "Best-ranked files report ok quality."
         : hasRows ? "Review warnings before simulation." : "No quality data available.",
+    },
+    {
+      status: contractStatus,
+      label: "Contract",
+      title: hasRows ? countSummary(model.contracts) : "n/a",
+      note: contractScore === 0
+        ? "Best-ranked files satisfy storage metadata checks."
+        : hasRows ? "Review metadata warnings before Workbench replay." : "No contract data available.",
     },
   ];
   $("data-symbol-selection-cards").innerHTML = cards.map((card) => `

@@ -186,6 +186,9 @@ strategy-private.
     - partial; Symbol Profile now also renders a compact best-file preview
       chart from catalog preview points, making a symbol visually inspectable
       before opening the full Data Detail viewer.
+    - partial; Symbol Profile and the selected-symbol action panel now surface
+      storage-contract counts/status beside quality, so symbol selection shows
+      metadata readiness before sending files to Workbench.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.
