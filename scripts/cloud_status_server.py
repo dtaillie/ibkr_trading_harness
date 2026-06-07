@@ -839,7 +839,7 @@ PUBLIC_ENDPOINTS = (
         "method": "GET",
         "path": "/commands",
         "category": "remote",
-        "description": "List pending local remote-control commands.",
+        "description": "List pending local remote-control commands and audit returned pending commands.",
         "response": "JSON command list",
     },
     {
@@ -874,14 +874,14 @@ PUBLIC_ENDPOINTS = (
         "method": "GET",
         "path": "/command_audit",
         "category": "remote",
-        "description": "List sanitized command queue/cancel/result audit events.",
+        "description": "List sanitized command queue/cancel/result/pending-return audit events.",
         "response": "JSON audit event list",
     },
     {
         "method": "GET",
         "path": "/command_audit_export",
         "category": "remote",
-        "description": "Download sanitized command queue/cancel/result audit events with integrity metadata.",
+        "description": "Download sanitized command queue/cancel/result/pending-return audit events with integrity metadata.",
         "response": "CSV audit event export",
     },
 )
@@ -9840,6 +9840,7 @@ def load_command_audit(state_dir: Path, *, node_id: str | None = None, limit: in
 COMMAND_AUDIT_EXPORT_FIELDS = (
     "audited_at",
     "event",
+    "auth_role",
     "node_id",
     "command_id",
     "action",
@@ -9912,7 +9913,7 @@ def command_audit_retention_policy(
             "ops/cloud/azure-blob-command-audit-retention.example.tf",
         ],
         "included": [
-            "sanitized queue/cancel/result audit rows",
+            "sanitized queue/cancel/result/pending-return/order-approval audit rows",
             "hash-chain metadata",
             "optional HMAC row signatures",
             "bounded dashboard/API/CSV audit views",
@@ -10070,6 +10071,25 @@ def pending_commands(state_dir: Path, node_id: str | None = None) -> list[dict[s
         if command.get("status") == "pending"
         and (node_id is None or command.get("node_id") == node_id)
     ]
+
+
+def audit_pending_commands_returned(
+    state_dir: Path,
+    commands: list[dict[str, Any]],
+    *,
+    auth_role: str = "",
+    signature_env: str | None = None,
+) -> None:
+    for command in commands:
+        append_command_audit(
+            state_dir,
+            {
+                "event": "command_pending_returned",
+                "auth_role": auth_role,
+                **sanitized_command_audit_payload(command),
+            },
+            signature_env=signature_env,
+        )
 
 
 def save_command_result(state_dir: Path, payload: dict[str, Any], *, signature_env: str | None = None) -> dict[str, Any]:
@@ -10720,7 +10740,15 @@ class StatusHandler(BaseHTTPRequestHandler):
         if parsed.path == "/commands":
             if not self.require_auth():
                 return
-            json_response(self, 200, {"commands": pending_commands(self.state_dir, node_id=node_id)})
+            commands = pending_commands(self.state_dir, node_id=node_id)
+            auth_context = getattr(self, "auth_context", {}) or {}
+            audit_pending_commands_returned(
+                self.state_dir,
+                commands,
+                auth_role=str(auth_context.get("role") or ""),
+                signature_env=self.command_audit_signature_env,
+            )
+            json_response(self, 200, {"commands": commands})
             return
         if parsed.path == "/command_results":
             if not self.require_auth():

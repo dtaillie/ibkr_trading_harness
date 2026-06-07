@@ -5844,16 +5844,22 @@ def test_cloud_status_server_command_queue(tmp_path):
 
         with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
             audit = json.loads(resp.read().decode("utf-8"))
-        assert [event["event"] for event in audit["events"]] == ["command_queued", "result_received"]
+        assert [event["event"] for event in audit["events"]] == [
+            "command_queued",
+            "command_pending_returned",
+            "result_received",
+        ]
         assert audit["events"][0]["param_keys"] == []
+        assert audit["events"][1]["param_keys"] == []
         assert audit["integrity"]["status"] == "ok"
-        assert audit["integrity"]["checked_records"] == 2
+        assert audit["integrity"]["checked_records"] == 3
         assert audit["integrity"]["signature_status"] == "disabled"
         assert audit["retention_policy"]["status"] == "local_hash_chain"
         assert audit["retention_policy"]["off_host_retention_verified"] is False
         assert audit["retention_policy"]["off_host_sync_helper"] == "ops/cloud/sync-command-audit.example.sh"
         assert audit["events"][0]["record_hash"]
         assert audit["events"][1]["prev_hash"] == audit["events"][0]["record_hash"]
+        assert audit["events"][2]["prev_hash"] == audit["events"][1]["record_hash"]
     finally:
         server.shutdown()
         server.server_close()
@@ -6009,7 +6015,11 @@ def test_cloud_status_server_rate_limits_command_queue(tmp_path):
 
         with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
             audit = json.loads(resp.read().decode("utf-8"))
-        assert [event["event"] for event in audit["events"]] == ["command_queued", "queue_rejected"]
+        assert [event["event"] for event in audit["events"]] == [
+            "command_queued",
+            "queue_rejected",
+            "command_pending_returned",
+        ]
     finally:
         server.shutdown()
         server.server_close()

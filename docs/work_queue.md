@@ -2274,6 +2274,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     stronger local-confirmation path instead of reusing the public example
     command surface.
 - Write immutable audit records locally and remotely for every command.
+  - progress; server-side command polling now appends hash-chained
+    `command_pending_returned` rows for every pending command returned by
+    `/commands`, so the remote audit covers queue, pending-return, cancel,
+    result, rejection, and order-approval events without persisting command
+    parameter values.
 
 ## P4: Execution quality
 
