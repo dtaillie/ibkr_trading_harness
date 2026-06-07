@@ -14,6 +14,16 @@
   --warn: #b45309;
   --bad: #b91c1c;
   --good: #047857;
+  --cash: #0f766e;
+  --equity: #047857;
+  --gain: #047857;
+  --loss: #b91c1c;
+  --neutral: #647069;
+  --warning: #b45309;
+  --status-ok-bg: #e8f7ef;
+  --status-warn-bg: #fff4d8;
+  --status-bad-bg: #feeceb;
+  --status-neutral-bg: #eef2ef;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-pill: 999px;
@@ -3293,11 +3303,29 @@ section {
 }
 
 .detail-chart-wrap {
+  display: grid;
+  align-items: center;
+  gap: 8px;
   min-height: 230px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+}
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: #fbfdfb;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .table-wrap {
@@ -3434,6 +3462,41 @@ tr:last-child td {
 }
 
 .status-bad {
+  color: var(--bad);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--neutral);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.status-badge.status-ok {
+  border-color: rgba(4, 120, 87, 0.22);
+  background: var(--status-ok-bg);
+  color: var(--good);
+}
+
+.status-badge.status-warn {
+  border-color: rgba(180, 83, 9, 0.24);
+  background: var(--status-warn-bg);
+  color: var(--warn);
+}
+
+.status-badge.status-bad {
+  border-color: rgba(185, 28, 28, 0.22);
+  background: var(--status-bad-bg);
   color: var(--bad);
 }
 

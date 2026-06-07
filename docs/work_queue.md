@@ -544,8 +544,18 @@ strategy-private.
     static documentation block.
 - Add a small design system for the dashboard:
   - color tokens for cash/equity/gain/loss/warning/neutral states
+    - partial; dashboard CSS now defines semantic cash/equity/gain/loss/
+      neutral/warning tokens plus reusable status background tokens for
+      consistent financial/status styling.
   - consistent badge styles for modes, health, fills, rejects, and stale data
+    - partial; `statusText()` and quality/storage-contract badges now render
+      through a shared `status-badge` style, giving ok/warn/bad/waiting states
+      a consistent pill treatment across dense tables and cards.
   - consistent chart sizing and empty chart states
+    - partial; core Performance/Data chart helpers now share a `chart-empty`
+      empty-state treatment for missing equity, drawdown, benchmark,
+      intraday, daily-return, calendar, status-rollup, price-preview, and
+      comparison charts instead of returning unframed muted text.
   - reusable table toolbar patterns for search, filters, and export/copy actions
     - partial; Saved Data now includes an explicit sort control for newest file,
       symbol, row count, file size, latest bar, and quality-first ordering.

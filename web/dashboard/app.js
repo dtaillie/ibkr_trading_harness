@@ -256,6 +256,12 @@ function statusClass(value) {
   return "";
 }
 
+function statusBadge(value, label = null) {
+  const raw = label === null ? text(value) : text(label);
+  const classes = ["status-badge", statusClass(value)].filter(Boolean).join(" ");
+  return `<span class="${escapeHtml(classes)}">${escapeHtml(raw)}</span>`;
+}
+
 function row(cells) {
   return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
 }
@@ -272,8 +278,7 @@ function kvRows(pairs, { mono = false } = {}) {
 }
 
 function statusText(value) {
-  const label = text(value);
-  return `<span class="${statusClass(value)}">${escapeHtml(label)}</span>`;
+  return statusBadge(value);
 }
 
 function objectSummary(value) {
@@ -302,7 +307,7 @@ function qualityBadge(status, warnings = []) {
   const warningList = Array.isArray(warnings) ? warnings : [];
   const suffix = warningList.length ? ` (${warningList.length})` : "";
   const title = warningList.length ? ` title="${escapeHtml(warningList.join("; "))}"` : "";
-  return `<span class="${statusClass(status)}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
+  return `<span class="status-badge ${escapeHtml(statusClass(status))}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
 function dataCatalogSettings() {
@@ -3893,7 +3898,7 @@ function renderOverviewPerformanceSnapshot() {
         <small>${escapeHtml(tile.detail)}</small>
       </div>
     `).join("");
-    $("overview-performance-chart").innerHTML = `<span class="muted">No status-history return chart available</span>`;
+    $("overview-performance-chart").innerHTML = emptyChart("No status-history return chart available");
     return;
   }
   const resultValue = latestDay ? pctText(latestDay.daily_return_pct) : pctText(seriesStats.total_return_pct);
@@ -5619,6 +5624,10 @@ function miniChart(points) {
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
 }
 
+function emptyChart(message) {
+  return `<div class="chart-empty">${escapeHtml(message)}</div>`;
+}
+
 function compactDataPreviewChart(dataset) {
   const points = (dataset && dataset.preview) || [];
   const rows = points.map((point) => ({
@@ -5717,14 +5726,14 @@ function gapMarkerLegend(gaps, minTime, maxTime, timezoneMode = "utc") {
 }
 
 function detailChart(points, timezoneMode = "utc", gaps = []) {
-  if (!points || points.length < 2) return `<span class="muted">No price preview available</span>`;
+  if (!points || points.length < 2) return emptyChart("No price preview available");
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
     millis: timestampMillis(point.timestamp),
     close: Number(point.close),
     volume: Number(point.volume),
   })).filter((point) => point.millis !== null && Number.isFinite(point.close));
-  if (rows.length < 2) return `<span class="muted">No price preview available</span>`;
+  if (rows.length < 2) return emptyChart("No price preview available");
   const closes = rows.map((point) => point.close);
   const min = Math.min(...closes);
   const max = Math.max(...closes);
@@ -5846,7 +5855,7 @@ function compareChart(series, timezoneMode = "utc") {
   })).filter((item) => item.points.length >= 2);
   const allPoints = rows.flatMap((item) => item.points);
   if (rows.length < 2 || allPoints.length < 4) {
-    return `<span class="muted">Select at least two datasets with comparable close paths.</span>`;
+    return emptyChart("Select at least two datasets with comparable close paths.");
   }
   const minTime = Math.min(...allPoints.map((point) => point.millis));
   const maxTime = Math.max(...allPoints.map((point) => point.millis));
@@ -5879,7 +5888,7 @@ function compareChart(series, timezoneMode = "utc") {
 }
 
 function equityChart(points, markers = []) {
-  if (!points || points.length < 2) return `<span class="muted">No equity curve available</span>`;
+  if (!points || points.length < 2) return emptyChart("No equity curve available");
   const rows = (points || []).map((point, index) => ({
     index,
     timestamp: point.timestamp,
@@ -5887,7 +5896,7 @@ function equityChart(points, markers = []) {
     equity: Number(point.equity),
   })).filter((point) => Number.isFinite(point.equity));
   const values = rows.map((point) => point.equity);
-  if (values.length < 2) return `<span class="muted">No equity curve available</span>`;
+  if (values.length < 2) return emptyChart("No equity curve available");
   const min = Math.min(...values);
   const max = Math.max(...values);
   const width = 720;
@@ -5958,13 +5967,13 @@ function benchmarkOverlayChart(accountRows, benchmarkDetail) {
   const accountPoints = normalizedReturnPoints(accountRows, "equity");
   const benchmarkPoints = normalizedReturnPoints((benchmarkDetail && benchmarkDetail.preview) || [], "close");
   if (accountPoints.length < 2) {
-    return `<span class="muted">Load account snapshots to compare against a benchmark.</span>`;
+    return emptyChart("Load account snapshots to compare against a benchmark.");
   }
   if (!benchmarkDetail || !benchmarkDetail.path) {
-    return `<span class="muted">Choose a saved dataset, then load the benchmark overlay.</span>`;
+    return emptyChart("Choose a saved dataset, then load the benchmark overlay.");
   }
   if (benchmarkPoints.length < 2) {
-    return `<span class="muted">Selected benchmark has no plottable close path.</span>`;
+    return emptyChart("Selected benchmark has no plottable close path.");
   }
   const series = [
     { label: "Strategy", points: accountPoints, className: "benchmark-strategy-line" },
@@ -6033,10 +6042,10 @@ function intradayPnlStats(points) {
 
 function intradayPnlChart(points) {
   const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
-  if (rows.length < 2) return `<span class="muted">No intraday PnL curve available</span>`;
+  if (rows.length < 2) return emptyChart("No intraday PnL curve available");
   const base = rows[0].equity;
   const values = rows.map((point) => point.equity - base).filter((value) => Number.isFinite(value));
-  if (values.length < 2) return `<span class="muted">No intraday PnL curve available</span>`;
+  if (values.length < 2) return emptyChart("No intraday PnL curve available");
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 0);
   const width = 720;
@@ -6057,7 +6066,7 @@ function intradayPnlChart(points) {
 
 function drawdownChart(points) {
   const rows = numericAccountRows(points);
-  if (rows.length < 2) return `<span class="muted">No drawdown curve available</span>`;
+  if (rows.length < 2) return emptyChart("No drawdown curve available");
   let peak = rows[0].equity;
   const values = rows.map((point) => {
     peak = Math.max(peak, point.equity);
@@ -6091,7 +6100,7 @@ function dailyReturns(points) {
 
 function dailyReturnChart(points) {
   const rows = dailyReturns(points);
-  if (!rows.length) return `<span class="muted">No daily return bars available</span>`;
+  if (!rows.length) return emptyChart("No daily return bars available");
   const width = 720;
   const height = 180;
   const padding = 12;
@@ -6112,7 +6121,7 @@ function dailyReturnChart(points) {
 
 function calendarReturnHeatmap(points) {
   const rows = dailyReturns(points).sort((a, b) => String(a.day).localeCompare(String(b.day)));
-  if (!rows.length) return `<span class="muted">No daily returns available for calendar view</span>`;
+  if (!rows.length) return emptyChart("No daily returns available for calendar view");
   const byDay = new Map(rows.map((item) => [item.day, item.value]));
   const maxAbs = Math.max(0.01, ...rows.map((item) => Math.abs(item.value)));
   const start = new Date(`${rows[0].day}T00:00:00Z`);
@@ -6136,9 +6145,9 @@ function calendarReturnHeatmap(points) {
 }
 
 function scalarLineChart(points, { label, empty, className, valueFormatter }) {
-  if (!points || points.length < 2) return `<span class="muted">${escapeHtml(empty)}</span>`;
+  if (!points || points.length < 2) return emptyChart(empty);
   const values = points.map((point) => Number(point.value)).filter((value) => Number.isFinite(value));
-  if (values.length < 2) return `<span class="muted">${escapeHtml(empty)}</span>`;
+  if (values.length < 2) return emptyChart(empty);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const width = 720;
@@ -6166,14 +6175,14 @@ function statusRollupChartRows(rollups, valueKey) {
 
 function statusRollupEquityChart(rollups) {
   const rows = statusRollupChartRows(rollups, "end_equity");
-  if (rows.length < 2) return `<span class="muted">No status-history equity curve available</span>`;
+  if (rows.length < 2) return emptyChart("No status-history equity curve available");
   const byNode = new Map();
   for (const item of rows) {
     if (!byNode.has(item.node_id)) byNode.set(item.node_id, []);
     byNode.get(item.node_id).push(item);
   }
   const drawable = Array.from(byNode.entries()).filter(([, items]) => items.length >= 2);
-  if (!drawable.length) return `<span class="muted">Need at least two status-history equity days for one node.</span>`;
+  if (!drawable.length) return emptyChart("Need at least two status-history equity days for one node.");
   const values = rows.map((item) => item.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
@@ -6202,7 +6211,7 @@ function statusRollupEquityChart(rollups) {
 
 function statusRollupReturnChart(rollups) {
   const rows = statusRollupChartRows(rollups, "daily_return_pct").slice(-60);
-  if (!rows.length) return `<span class="muted">No status-history daily returns available</span>`;
+  if (!rows.length) return emptyChart("No status-history daily returns available");
   const width = 720;
   const height = 180;
   const padding = 12;
