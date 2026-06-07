@@ -839,6 +839,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       users can see the historical-bar inventory before searching a ticker.
     - partial; Saved History Matrix can now export its current grouped
       inventory to CSV for offline universe review.
+    - partial; Saved History Matrix rows now provide direct Browse, Inspect,
+      Compare, and Workbench actions for the grouped asset/source/bar/session
+      slice, so users can move from inventory review to charting or simulation
+      without reselecting files manually.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend

@@ -379,7 +379,8 @@ server-owned symbol universe summary with file counts, row counts, sources,
 bar sizes, quality counts, ranges, and the best inspectable file for each
 symbol. Use Saved History Matrix to see the historical-bar inventory by asset,
 source, bar size, and session before searching a ticker; each row can filter
-Browse to that slice, and Export Matrix CSV downloads the grouped inventory.
+Browse to that slice, open the best file, compare the group, or send the group
+to Workbench. Export Matrix CSV downloads the grouped inventory.
 Symbol Browser's Selected Symbol strip summarizes the active symbol,
 selected saved file, coverage, and quality, with one-click Filter, Inspect,
 Workbench, Compare, and Diagnose actions. Use Copy data_roots YAML when Data Library finds

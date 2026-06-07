@@ -9976,9 +9976,28 @@ function renderDataHistoryMatrix(filteredRows = []) {
           <span>${escapeHtml(countSummary(group.replay_counts) || "n/a")}</span>
           <small>${escapeHtml(`Q ${countSummary(group.quality_counts) || "n/a"} / contract ${countSummary(group.contract_counts) || "n/a"} / updated ${group.latest_label}`)}</small>
         </div>`,
-        `<button type="button" class="secondary data-history-matrix-filter" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}">Browse</button>`,
+        `<span class="button-pair">
+          <button type="button" class="secondary data-history-matrix-action" data-matrix-action="filter" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}">Browse</button>
+          <button type="button" class="secondary data-history-matrix-action" data-matrix-action="inspect" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}">Inspect</button>
+          <button type="button" class="secondary data-history-matrix-action" data-matrix-action="compare" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}" ${group.file_count < 2 ? "disabled" : ""}>Compare</button>
+          <button type="button" class="secondary data-history-matrix-action" data-matrix-action="workbench" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}">Workbench</button>
+        </span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function dataHistoryMatrixGroupDatasets(target) {
+  const asset = text(target.dataset.asset);
+  const source = text(target.dataset.source);
+  const bar = text(target.dataset.bar);
+  const session = text(target.dataset.session);
+  return (state.dataCatalog.datasets || []).filter((dataset) => (
+    text(dataset.asset_class) === asset
+    && text(dataset.source) === source
+    && text(dataset.bar_size) === bar
+    && text(dataset.storage_session) === session
+    && dataset.path
+  ));
 }
 
 function applyDataHistoryMatrixFilter(target) {
@@ -9992,6 +10011,69 @@ function applyDataHistoryMatrixFilter(target) {
   navigateToDataLens("browse");
   $("last-refresh").textContent = `Browse filtered to ${text(target.dataset.asset)} / ${text(target.dataset.source)} / ${text(target.dataset.bar)} / ${text(target.dataset.session)}`;
   if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+async function handleDataHistoryMatrixAction(target) {
+  const action = String(target.dataset.matrixAction || "filter");
+  if (action === "filter") {
+    applyDataHistoryMatrixFilter(target);
+    return;
+  }
+  const groupRows = recommendedDataRows(dataHistoryMatrixGroupDatasets(target));
+  if (!groupRows.length) {
+    $("data-history-matrix-note").innerHTML = `<span class="status-bad">No inspectable files found for this history group.</span>`;
+    return;
+  }
+  if (action === "inspect") {
+    await loadDataDetail(groupRows[0].path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded ${text(groupRows[0].symbol)} from Saved History Matrix`;
+    return;
+  }
+  if (action === "compare") {
+    const selected = groupRows.slice(0, MAX_DATA_COMPARE_DATASETS);
+    if (selected.length < 2) {
+      $("data-history-matrix-note").innerHTML = `<span class="status-warn">Need at least two files in this history group to compare.</span>`;
+      return;
+    }
+    state.dataCompareSelectedPaths = selected.map((dataset) => dataset.path);
+    state.dataCompareSelectionCleared = false;
+    $("data-compare-filter").value = "";
+    $("data-compare-asset").value = target.dataset.asset || "";
+    $("data-compare-source").value = target.dataset.source || "";
+    $("data-compare-bar").value = target.dataset.bar || "";
+    $("data-compare-session").value = target.dataset.session || "";
+    renderDataCompareControls();
+    await loadDataCompare();
+    $("last-refresh").textContent = `Loaded comparison for ${numberText(selected.length, 0)} files from Saved History Matrix`;
+    return;
+  }
+  if (action === "workbench") {
+    const selected = groupRows.slice(0, MAX_DATA_COMPARE_DATASETS);
+    const datasetSelect = $("config-dataset");
+    if (!datasetSelect) return;
+    const selectedPaths = new Set(selected.map((dataset) => dataset.path));
+    for (const option of datasetSelect.options) {
+      option.selected = selectedPaths.has(option.value);
+    }
+    for (const dataset of selected) {
+      if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
+      const option = document.createElement("option");
+      option.value = dataset.path;
+      option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
+      option.selected = true;
+      datasetSelect.appendChild(option);
+    }
+    const range = timestampRangeFromDatasets(selected);
+    if ($("config-start-date")) $("config-start-date").value = range.start || "";
+    if ($("config-end-date")) $("config-end-date").value = range.end || "";
+    renderConfigLivePanels();
+    navigateToWorkbenchLens("builder");
+    window.setTimeout(() => {
+      const destination = $("workbench-stepper") || $("config-form");
+      if (destination) destination.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+    $("last-refresh").textContent = `Selected ${numberText(selected.length, 0)} matrix file${selected.length === 1 ? "" : "s"} for Workbench`;
+  }
 }
 
 function dataHomeWorkflowCards(filteredRows = []) {
@@ -21571,9 +21653,11 @@ function init() {
     handleDataExplorerAction(target);
   });
   $("data-history-matrix-body").addEventListener("click", (event) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest(".data-history-matrix-filter") : null;
+    const target = event.target instanceof HTMLElement ? event.target.closest(".data-history-matrix-action") : null;
     if (!(target instanceof HTMLElement)) return;
-    applyDataHistoryMatrixFilter(target);
+    handleDataHistoryMatrixAction(target).catch((err) => {
+      $("data-history-matrix-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
   });
   $("data-source-map").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;

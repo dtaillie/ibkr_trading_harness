@@ -74,8 +74,9 @@ the current Browse filters and jump to the matching table rows.
 Use Saved History Matrix when you want the concrete bar inventory first: it
 groups visible saved files by asset, source, bar size, and session, then shows
 symbol/file/row counts, coverage range, replay readiness, and a Browse action
-for that slice. Use Export Matrix CSV to review the same grouped inventory
-outside the dashboard.
+for that slice. Matrix rows can also open the best file, compare the top files
+in the group, or send the grouped selection to Workbench. Use Export Matrix CSV
+to review the same grouped inventory outside the dashboard.
 In the Saved Data table, use the Replay column as the first per-file screen.
 It combines data quality, storage-contract metadata, missing-interval pressure,
 source timezone, and adjustment metadata into one ok/warn/bad read before you
