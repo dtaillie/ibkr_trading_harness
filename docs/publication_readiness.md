@@ -57,7 +57,9 @@ Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
 repeatable public copy. If the destination is already a Git repo, `--force`
 preserves its `.git` directory while replacing the exported working-tree files.
 Use `scripts/export_public_repo.py --list` to inspect the destination-relative
-file manifest without writing or replacing a destination tree.
+file manifest without writing or replacing a destination tree. Use
+`scripts/export_public_repo.py --list --json` when CI or review tooling needs
+manifest counts, source paths, and file sizes.
 
 ## Recommended Public Repo Shape
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 from pathlib import Path
 
@@ -168,6 +169,28 @@ def export_manifest() -> list[tuple[Path, Path]]:
     return [deduped[key] for key in sorted(deduped)]
 
 
+def export_manifest_payload() -> dict[str, object]:
+    rows = export_manifest()
+    top_level_counts: dict[str, int] = {}
+    files = []
+    for src, dest_rel in rows:
+        dest_text = dest_rel.as_posix()
+        top_level = dest_rel.parts[0] if dest_rel.parts else dest_text
+        top_level_counts[top_level] = top_level_counts.get(top_level, 0) + 1
+        files.append({
+            "path": dest_text,
+            "source": src.relative_to(ROOT).as_posix() if src.is_relative_to(ROOT) else str(src),
+            "size_bytes": src.stat().st_size,
+        })
+    return {
+        "schema_version": 1,
+        "root": str(ROOT),
+        "file_count": len(files),
+        "top_level_counts": dict(sorted(top_level_counts.items())),
+        "files": files,
+    }
+
+
 def copy_file(src: Path, dest_root: Path, dest_rel: str | None = None) -> None:
     rel = Path(dest_rel) if dest_rel else src.relative_to(ROOT)
     dest = dest_root / rel
@@ -217,12 +240,22 @@ def main() -> None:
         action="store_true",
         help="Print destination-relative files included in the public export and exit.",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="With --list, print manifest metadata as JSON instead of plain paths.",
+    )
     args = parser.parse_args()
 
     if args.list:
-        for _src, dest_rel in export_manifest():
-            print(dest_rel.as_posix())
+        if args.json:
+            print(json.dumps(export_manifest_payload(), indent=2, sort_keys=True))
+        else:
+            for _src, dest_rel in export_manifest():
+                print(dest_rel.as_posix())
         return
+    if args.json:
+        raise SystemExit("--json is only supported with --list")
 
     dest_root = (ROOT / args.dest).resolve()
     if dest_root.exists():

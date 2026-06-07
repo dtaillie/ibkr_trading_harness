@@ -380,6 +380,7 @@ def run_smoke(
             "help-workflows",
             "help-public-checklist",
             "help-public-list-command",
+            "help-public-list-json-command",
             "help-public-audit-command",
             "help-setup-note",
             "help-setup-gaps",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -79,4 +80,48 @@ def test_export_public_repo_lists_public_manifest_without_writing_destination(tm
     assert "config/plugin_runner.example.yaml" in rows
     assert not any(row.startswith("paper_logs/") for row in rows)
     assert not any(row.startswith("private/") for row in rows)
+    assert not dest.exists()
+
+
+def test_export_public_repo_lists_json_manifest_metadata_without_writing_destination(tmp_path: Path):
+    dest = tmp_path / "public"
+
+    result = subprocess.run(
+        [sys.executable, str(EXPORT_SCRIPT), "--dest", str(dest), "--list", "--json"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    payload = json.loads(result.stdout)
+    paths = [row["path"] for row in payload["files"]]
+    assert payload["schema_version"] == 1
+    assert payload["file_count"] == len(paths)
+    assert payload["top_level_counts"]["web"] > 0
+    assert payload["top_level_counts"]["scripts"] > 0
+    assert "README.md" in paths
+    assert "README.public.md" not in paths
+    assert any(
+        row["source"] in {"README.public.md", "README.md"} and row["path"] == "README.md"
+        for row in payload["files"]
+    )
+    assert all(row["size_bytes"] > 0 for row in payload["files"])
+    assert not dest.exists()
+
+
+def test_export_public_repo_rejects_json_without_list(tmp_path: Path):
+    dest = tmp_path / "public"
+
+    result = subprocess.run(
+        [sys.executable, str(EXPORT_SCRIPT), "--dest", str(dest), "--json"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert result.returncode != 0
+    assert "--json is only supported with --list" in result.stderr or "--json is only supported with --list" in result.stdout
     assert not dest.exists()

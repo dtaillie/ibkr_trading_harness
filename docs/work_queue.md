@@ -1687,6 +1687,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - done; `scripts/export_public_repo.py --list` now prints the
     destination-relative public file manifest without writing a destination,
     making public subset review possible before an export refresh.
+  - done; `scripts/export_public_repo.py --list --json` now emits a
+    machine-readable public manifest with source paths, destination paths,
+    file sizes, file count, and top-level counts for CI or publication-review
+    tooling.
 - Add CI checks around `python3 scripts/public_readiness_audit.py --fail-on-review`.
   - done in `.github/workflows/ci.yml`; CI runs the public readiness audit,
     Python compile checks, dashboard JavaScript syntax check, pytest, and
