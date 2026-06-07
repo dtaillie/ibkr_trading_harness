@@ -20,9 +20,19 @@ def test_public_publish_check_lists_default_checks():
         stderr=subprocess.PIPE,
     )
 
-    assert "export_manifest:" in result.stdout
-    assert "public_readiness_audit:" in result.stdout
-    assert "dashboard_seeded_smoke:" in result.stdout
+    listed_ids = [line.split(":", 1)[0] for line in result.stdout.splitlines() if line.strip()]
+    assert listed_ids == [
+        "export_manifest",
+        "public_readiness_audit",
+        "cloud_examples_audit",
+        "python_compile",
+        "dashboard_javascript_syntax",
+        "pytest",
+        "dashboard_default_smoke",
+        "dashboard_seeded_smoke",
+        "dashboard_empty_smoke",
+        "dashboard_accessibility_smoke",
+    ]
     assert "dashboard_seeded_layout:" not in result.stdout
 
 
@@ -40,7 +50,11 @@ def test_public_publish_check_lists_json_with_optional_screenshots():
     ids = [row["id"] for row in payload["checks"]]
     assert payload["schema_version"] == 1
     assert payload["check_count"] == len(ids)
+    assert payload["check_count"] == 12
+    assert "python_compile" in ids
+    assert "dashboard_javascript_syntax" in ids
     assert "pytest" in ids
+    assert "dashboard_default_smoke" in ids
     assert "dashboard_seeded_layout" in ids
     assert "dashboard_empty_layout" in ids
     assert next(row for row in payload["checks"] if row["id"] == "dashboard_seeded_layout")["optional"] is True
