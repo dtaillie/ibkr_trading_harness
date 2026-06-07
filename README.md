@@ -301,7 +301,9 @@ pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors
 Fetch Progress Review gives a first-screen read on active, partial, and failed
 manifests, including symbol/chunk progress, ETA, rolling pace, retries, pacing
 waits, output visibility, recovery status, and the focus job before the dense
-table.
+table. Fetch Evidence separates root evidence, loaded-manifest evidence,
+recovery pressure, output visibility, and selected-detail evidence so missing
+or unusable outputs have a clear next verification step.
 When an output file is inside a configured data root, its row includes an Inspect
 Data action that opens the same offline Data Detail view used by the Data
 Library. Individual datasets can be

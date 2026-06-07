@@ -49,6 +49,7 @@ const state = {
   performanceBenchmarkPath: "",
   performanceBenchmarkDetail: null,
   workbenchEvidenceText: "",
+  fetchEvidenceText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -15961,6 +15962,7 @@ function renderFetchJobs() {
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
   renderFetchHealthPanel({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
+  renderFetchEvidence({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchProgressReview({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchWorkflowLauncher({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
@@ -16149,6 +16151,207 @@ function fetchManifestOutputIssueCount(item) {
 
 function fetchManifestLabel(item) {
   return text(item.job_id || item.path || "fetch job");
+}
+
+function fetchEvidenceModel(context = {}) {
+  const manifests = context.manifests || [];
+  const filteredManifests = context.filteredManifests || manifests;
+  const roots = context.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || [];
+  const rootManifestCount = roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0);
+  const activeJobs = manifests.filter((item) => !fetchJobTerminal(item.status));
+  const reviewJobs = manifests.filter((item) => fetchManifestIssueCount(item) > 0 || fetchManifestOutputIssueCount(item) > 0);
+  const visibleOutputs = manifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = manifests.reduce((sum, item) => sum + fetchManifestOutputIssueCount(item), 0);
+  const retryEvents = manifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const selectedDetail = state.fetchManifestDetail || {};
+  const selectedVisibleOutputs = fetchVisibleOutputPaths(selectedDetail);
+  const selectedResume = fetchResumeCommand(selectedDetail);
+  const selectedOutputIssues = (selectedDetail.outputs || []).filter((item) => !item.data_detail_available || !item.data_detail_path).length;
+  const focusJob = selectedDetail.job_id
+    ? manifests.find((item) => item.job_id === selectedDetail.job_id) || selectedDetail
+    : fetchProgressJob(filteredManifests.length ? filteredManifests : manifests);
+  const hiddenByFilters = Math.max(0, manifests.length - filteredManifests.length);
+  let headline = "No fetch evidence";
+  let headlineStatus = "bad";
+  let note = "Configure manifest roots or run a fetcher that writes dashboard-readable JSON manifests.";
+  if (!roots.length && rootConfigPaths.length) {
+    headline = "Configured roots need manifests";
+    headlineStatus = "warn";
+    note = `${numberText(rootConfigPaths.length, 0)} manifest root path${rootConfigPaths.length === 1 ? "" : "s"} are known, but no readable manifest rows are loaded.`;
+  } else if (activeJobs.length) {
+    headline = "Active fetch evidence";
+    headlineStatus = "warn";
+    note = `${numberText(activeJobs.length, 0)} non-terminal manifest${activeJobs.length === 1 ? "" : "s"} are loaded; inspect progress before launching more pulls.`;
+  } else if (reviewJobs.length || outputIssues) {
+    headline = "Recovery evidence";
+    headlineStatus = "warn";
+    note = `${numberText(reviewJobs.length, 0)} job${reviewJobs.length === 1 ? "" : "s"} need failure/output review; ${numberText(outputIssues, 0)} output visibility issue${outputIssues === 1 ? "" : "s"}.`;
+  } else if (visibleOutputs) {
+    headline = "Output-backed fetch evidence";
+    headlineStatus = "ok";
+    note = `${numberText(visibleOutputs, 0)} output file${visibleOutputs === 1 ? "" : "s"} are visible to Data Library.`;
+  } else if (manifests.length) {
+    headline = "Manifest-backed fetch evidence";
+    headlineStatus = "warn";
+    note = `${numberText(manifests.length, 0)} manifest${manifests.length === 1 ? "" : "s"} are loaded, but visible output evidence is weak or absent.`;
+  } else if (roots.length) {
+    headline = "Root-only fetch evidence";
+    headlineStatus = "warn";
+    note = `${numberText(roots.length, 0)} manifest root${roots.length === 1 ? "" : "s"} are configured, but no jobs are loaded.`;
+  }
+  const cards = [
+    {
+      label: "Evidence Chain",
+      status: headlineStatus,
+      title: headline,
+      note,
+    },
+    {
+      label: "Manifest Roots",
+      status: roots.length && rootManifestCount ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      title: roots.length ? `${numberText(roots.length, 0)} root${roots.length === 1 ? "" : "s"}` : "None",
+      note: `${numberText(rootManifestCount, 0)} manifest file${rootManifestCount === 1 ? "" : "s"} under configured roots; ${numberText(rootConfigPaths.length, 0)} config path${rootConfigPaths.length === 1 ? "" : "s"}.`,
+    },
+    {
+      label: "Loaded Manifests",
+      status: manifests.length ? filteredManifests.length ? "ok" : "warn" : "bad",
+      title: `${numberText(filteredManifests.length, 0)} / ${numberText(manifests.length, 0)}`,
+      note: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} hidden by Jobs filters.` : `${numberText(context.rowsTotal || 0, 0)} fetched rows summarized.`,
+    },
+    {
+      label: "Recovery",
+      status: reviewJobs.length || retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "bad",
+      title: `${numberText(reviewJobs.length, 0)} review`,
+      note: `${numberText(retryEvents, 0)} retries / ${numberText(pacingWaits, 0)} pacing waits across loaded manifests.`,
+    },
+    {
+      label: "Output Visibility",
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      title: `${numberText(visibleOutputs, 0)} visible`,
+      note: outputIssues ? `${numberText(outputIssues, 0)} missing/outside/no-path/unsupported output issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can be opened through Fetch Detail or Data Library.",
+    },
+    {
+      label: "Selected Detail",
+      status: selectedDetail.job_id ? selectedVisibleOutputs.length ? "ok" : selectedOutputIssues ? "warn" : "warn" : "bad",
+      title: selectedDetail.job_id ? text(selectedDetail.job_id) : "None",
+      note: selectedDetail.job_id
+        ? `${numberText(selectedVisibleOutputs.length, 0)} visible selected output${selectedVisibleOutputs.length === 1 ? "" : "s"}; resume ${selectedResume ? "available" : "unavailable"}.`
+        : focusJob ? `Focus job available: ${fetchManifestLabel(focusJob)}.` : "Inspect a job to see resume and output actions.",
+    },
+  ];
+  const lines = [
+    {
+      status: roots.length && rootManifestCount ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      title: "Root Evidence",
+      detail: roots.length
+        ? `${numberText(roots.length, 0)} configured manifest root${roots.length === 1 ? "" : "s"} scanned; ${numberText(rootManifestCount, 0)} manifest file${rootManifestCount === 1 ? "" : "s"} found.`
+        : rootConfigPaths.length ? "Manifest root paths are available to copy into local config, but the current scan has no readable roots." : "No fetch manifest roots are loaded.",
+    },
+    {
+      status: manifests.length ? "ok" : "bad",
+      title: "Manifest Evidence",
+      detail: manifests.length
+        ? `${numberText(manifests.length, 0)} loaded manifest${manifests.length === 1 ? "" : "s"} across statuses ${countSummary(countBy(manifests, "status"))}; kinds ${countSummary(countBy(manifests, "kind"))}.`
+        : "No dashboard-readable fetch manifest rows are loaded.",
+    },
+    {
+      status: activeJobs.length || reviewJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      title: "Progress And Recovery",
+      detail: `${numberText(activeJobs.length, 0)} active/non-terminal; ${numberText(reviewJobs.length, 0)} needing review; ${numberText(retryEvents, 0)} retry events; ${numberText(pacingWaits, 0)} pacing waits.`,
+    },
+    {
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      title: "Output Evidence",
+      detail: `${numberText(visibleOutputs, 0)} Data Library-visible outputs; ${numberText(outputIssues, 0)} output path issues across loaded manifests.`,
+    },
+    {
+      status: selectedDetail.job_id ? selectedVisibleOutputs.length ? "ok" : "warn" : "bad",
+      title: "Selected Detail",
+      detail: selectedDetail.job_id
+        ? `${text(selectedDetail.job_id)} selected; ${numberText(selectedVisibleOutputs.length, 0)} visible output paths; resume command ${selectedResume ? "available" : "not available"}.`
+        : "No selected fetch detail. Inspect a focus job before comparing outputs or sending files to Workbench.",
+    },
+  ];
+  const next = !roots.length && rootConfigPaths.length
+    ? { label: "Copy Roots YAML", action: "roots", status: "warn" }
+    : !manifests.length
+      ? { label: "Open Jobs", action: "jobs", status: "bad" }
+      : focusJob && !selectedDetail.job_id
+        ? { label: "Inspect Focus Job", action: "inspect", status: reviewJobs.length || activeJobs.length ? "warn" : "ok", jobId: text(focusJob.job_id) }
+        : selectedVisibleOutputs.length
+          ? { label: "Show Outputs", action: "data", status: "ok" }
+          : outputIssues || reviewJobs.length
+            ? { label: "Open Detail", action: "detail", status: "warn" }
+            : { label: "Open Jobs", action: "jobs", status: "ok" };
+  lines.push({
+    status: next.status,
+    title: "Next Verification",
+    detail: `${next.label}${next.jobId ? `: ${next.jobId}` : ""}.`,
+  });
+  return { headline, note: `${headline} / next: ${next.label}`, cards, lines, next };
+}
+
+function fetchEvidenceText(model) {
+  return [
+    `Fetch Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderFetchEvidence(context = {}) {
+  if (!$("fetch-evidence-note") || !$("fetch-evidence-cards") || !$("fetch-evidence-body") || !$("fetch-evidence-actions")) return;
+  const model = fetchEvidenceModel(context);
+  state.fetchEvidenceText = fetchEvidenceText(model);
+  $("fetch-evidence-note").textContent = model.note;
+  $("fetch-evidence-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("fetch-evidence-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("fetch-evidence-actions").innerHTML = [
+    `<button type="button" data-fetch-evidence-action="copy">Copy Evidence</button>`,
+    `<button type="button" class="secondary" data-fetch-evidence-action="${escapeHtml(model.next.action)}" data-job-id="${escapeHtml(model.next.jobId || "")}">${escapeHtml(model.next.label)}</button>`,
+    `<button type="button" class="secondary" data-fetch-evidence-action="jobs">Jobs</button>`,
+    `<button type="button" class="secondary" data-fetch-evidence-action="detail">Detail</button>`,
+    `<button type="button" class="secondary" data-fetch-evidence-action="data">Data Library</button>`,
+  ].join("");
+}
+
+function handleFetchEvidenceAction(action, target = null) {
+  if (action === "copy") {
+    copyText(state.fetchEvidenceText || "No fetch evidence loaded").then(() => {
+      $("last-refresh").textContent = "Fetch evidence copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Fetch evidence copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "roots") return copyFetchManifestRootsYaml();
+  if (action === "inspect") {
+    const jobId = target ? target.dataset.jobId || "" : "";
+    if (!jobId) {
+      $("last-refresh").textContent = "No fetch job available to inspect";
+      return;
+    }
+    loadFetchManifestDetail(jobId).catch((err) => {
+      $("last-refresh").textContent = `Fetch manifest detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "jobs") return navigateToFetchLens("jobs");
+  if (action === "detail") return navigateToFetchLens("detail");
+  if (action === "data") return navigateToDataLens("browse");
 }
 
 function fetchProgressJob(manifests = []) {
@@ -26182,6 +26385,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-fetch-progress-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleFetchProgressAction(target.dataset.fetchProgressAction || "");
+  });
+  $("fetch-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-fetch-evidence-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleFetchEvidenceAction(target.dataset.fetchEvidenceAction || "", target);
   });
   $("copy-fetch-roots-yaml").addEventListener("click", copyFetchManifestRootsYaml);
   $("export-fetch-manifests-csv").addEventListener("click", () => {

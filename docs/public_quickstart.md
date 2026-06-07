@@ -449,6 +449,9 @@ Start with Fetch Progress Review when a pull is running, partial, or failed:
 it summarizes active jobs, partial/failed manifests, symbol/chunk progress,
 ETA, rolling pace, retry/pacing pressure, output visibility, recovery state,
 and the focus job before the dense table.
+Read Fetch Evidence beside it when an output looks missing or unusable: it
+separates root evidence, loaded manifests, recovery pressure, output visibility,
+selected-detail evidence, and the next verification action.
 Use Compare from Symbol Browser to preselect matching saved files for a ticker
 and immediately load the normalized saved-data comparison chart.
 The Fetch Workflow checklist turns that manifest state into next actions:

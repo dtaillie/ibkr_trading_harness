@@ -517,6 +517,10 @@ Start with Fetch Progress Review when a pull is active, partial, failed, or
 otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
 ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,
 and next action before the dense Jobs table.
+Read Fetch Evidence when the question is whether the dashboard can prove what
+happened: it separates configured root evidence, loaded manifest rows, recovery
+pressure, Data Library-visible outputs, selected-detail state, and the next
+verification action.
 The Fetch Workflow checklist summarizes whether manifest roots are readable,
 whether jobs were found, whether filters are hiding them, whether selected
 outputs are visible in Data Library, and whether the selected job can be

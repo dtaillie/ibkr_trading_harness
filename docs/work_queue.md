@@ -1426,6 +1426,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       active, partial, and failed manifests, symbol/chunk progress, ETA and
       rolling pace, retries, pacing waits, output visibility, recovery state,
       and a focus job before users open the dense Jobs table.
+    - partial; Fetch Home now includes a Fetch Evidence panel that separates
+      manifest-root evidence, loaded-manifest evidence, recovery pressure,
+      output visibility, selected detail/resume evidence, and the next
+      verification action.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time
