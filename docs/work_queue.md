@@ -634,6 +634,10 @@ strategy-private.
       clearer active navigation, sticky desktop topbar, softened cards/tables,
       and mobile-safe nav/topbar behavior to make the dashboard feel less like
       a raw status dump while preserving the existing public-safe layout.
+    - partial; the visual pass now gives active navigation stronger hierarchy,
+      makes proof/evidence panels read as first-class review surfaces, adds
+      clearer card/button hover and disabled states, and improves large-table
+      readability with sticky headers and subtle row striping.
   - partial; desktop navigation now gives every top-level view a short
     plain-language purpose line while mobile keeps compact one-line tabs, so
     the app shell is easier to scan without crowding small screens.

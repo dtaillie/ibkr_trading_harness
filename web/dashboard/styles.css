@@ -10,6 +10,8 @@
   --accent: #00a86b;
   --accent-dark: #087a52;
   --accent-soft: #e6f7ef;
+  --info: #2563eb;
+  --info-soft: #eff6ff;
   --ink: #111827;
   --warn: #b45309;
   --bad: #b91c1c;
@@ -29,6 +31,7 @@
   --radius-pill: 999px;
   --surface-shadow: 0 8px 24px rgba(16, 24, 19, 0.045);
   --shadow: 0 18px 44px rgba(16, 24, 19, 0.09);
+  --shadow-hover: 0 18px 36px rgba(16, 24, 19, 0.12);
 }
 
 * {
@@ -58,6 +61,7 @@ body {
   padding: 20px 16px;
   border-right: 1px solid var(--line);
   background: var(--panel-raised);
+  box-shadow: 10px 0 30px rgba(16, 24, 19, 0.035);
 }
 
 .brand-block {
@@ -74,7 +78,7 @@ body {
   height: 36px;
   border-radius: var(--radius-pill);
   color: #ffffff;
-  background: var(--text);
+  background: var(--ink);
   font-weight: 800;
   font-size: 12px;
   box-shadow: 0 8px 18px rgba(16, 24, 19, 0.16);
@@ -115,7 +119,7 @@ body {
   background: transparent;
   text-align: left;
   font-weight: 700;
-  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .nav-link strong,
@@ -144,6 +148,10 @@ body {
   color: var(--accent-dark);
   background: var(--accent-soft);
   filter: none;
+}
+
+.nav-link:hover {
+  transform: translateX(1px);
 }
 
 .nav-link:hover small,
@@ -184,6 +192,7 @@ body {
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
+  box-shadow: 0 10px 28px rgba(16, 24, 19, 0.04);
 }
 
 .topbar-title {
@@ -466,7 +475,8 @@ body {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--soft-panel);
+  background: var(--panel-raised);
+  box-shadow: var(--surface-shadow);
 }
 
 .page-guide-card span,
@@ -476,7 +486,7 @@ body {
 }
 
 .page-guide-card span {
-  color: var(--muted);
+  color: var(--info);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -649,13 +659,14 @@ button {
   color: #ffffff;
   background: var(--accent);
   border-color: var(--accent);
-  font-weight: 600;
+  font-weight: 800;
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 button:hover {
   filter: brightness(0.95);
   box-shadow: 0 7px 16px rgba(8, 122, 82, 0.16);
+  transform: translateY(-1px);
 }
 
 button.secondary {
@@ -667,6 +678,15 @@ button.secondary {
 button.secondary:hover {
   border-color: var(--line-strong);
   box-shadow: 0 6px 14px rgba(16, 24, 19, 0.06);
+}
+
+button:disabled,
+button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+  box-shadow: none;
+  filter: none;
 }
 
 .button-pair {
@@ -2040,6 +2060,32 @@ section {
   border-radius: 8px;
   background: var(--panel-raised);
   box-shadow: var(--surface-shadow);
+}
+
+.status-tile,
+.runtime-status-card,
+.data-library-card,
+.root-card,
+.help-card,
+.health-card,
+.position-card,
+.change-card,
+.action-card,
+.workflow-card,
+.empty-card,
+.broker-capability-card,
+.page-guide-card,
+.page-step,
+.guide-item {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.action-card:hover,
+.page-guide-card:hover,
+.page-step:hover,
+.guide-item:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
 }
 
 .status-tile span,
@@ -3523,6 +3569,27 @@ section {
   background: #f7fbf8;
 }
 
+.performance-evidence-panel,
+.workbench-evidence-panel,
+.fetch-evidence-panel,
+.operations-evidence-panel,
+.runs-evidence-panel {
+  padding: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius-md);
+  background: var(--info-soft);
+  box-shadow: var(--surface-shadow);
+}
+
+.performance-evidence-panel .section-note,
+.workbench-evidence-panel .section-note,
+.fetch-evidence-panel .section-note,
+.operations-evidence-panel .section-note,
+.runs-evidence-panel .section-note {
+  color: #334155;
+}
+
 .workflow-card {
   display: grid;
   grid-template-rows: auto auto minmax(48px, 1fr) auto;
@@ -4327,14 +4394,21 @@ td {
 }
 
 th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
-  background: #f3f6f3;
+  font-weight: 800;
+  background: #f7faf7;
+}
+
+tbody tr:nth-child(even) td {
+  background: #fcfdfc;
 }
 
 tbody tr:hover td {
-  background: #fbfdfb;
+  background: #f4faf6;
 }
 
 tr:last-child td {
