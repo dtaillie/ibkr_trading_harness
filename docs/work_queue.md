@@ -513,6 +513,9 @@ strategy-private.
   - partial; Help and the Web UI runbook now include a Data To Simulation Fast
     Path that names the current first-screen panels: Data Source Map, Data
     Home, Fetch Recovery Plan, and Workbench Home.
+  - partial; the Web UI runbook and public quickstart now document Catalog
+    Scope as the first stop for capped scans, hidden filters, missing symbols,
+    suggested roots, and root-YAML fixes before users browse dense data tables.
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography

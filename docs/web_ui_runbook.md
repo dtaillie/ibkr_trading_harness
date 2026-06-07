@@ -41,20 +41,27 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Check Data Source Map for configured, suggested, hidden/capped,
+2. Read Catalog Scope. If it says the scan is capped, use Scan Max Rows before
+   deciding a symbol is missing. If filters hide everything, use Clear Filters.
+3. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
-3. Use Find Missing Symbol for a ticker you expected to see.
-4. Use Copy data_roots YAML to copy configured plus suggested roots.
-5. Paste the `dashboard.data_roots` block into your ignored local dashboard
+4. Use Find Missing Symbol for a ticker you expected to see.
+5. Use Copy data_roots YAML to copy configured plus suggested roots.
+6. Paste the `dashboard.data_roots` block into your ignored local dashboard
    config, removing any roots you do not want scanned.
-6. Use Export Audit CSV if you want the root-by-root storage comparison,
+7. Use Export Audit CSV if you want the root-by-root storage comparison,
    hidden-file counts, and scan-duration timings for offline review.
-7. Refresh the dashboard.
+8. Refresh the dashboard.
 
 The Data Library Home page also has workflow cards for Find A Symbol, Inspect
 History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
 Use those cards when you know the job you want but do not yet know which table
 or diagnostic panel holds the answer.
+Use Catalog Scope before browsing a large local universe. It summarizes loaded
+files, scanned symbols, active filters, configured/suggested roots, data
+readiness, and whether the current Rows to scan limit may be hiding history.
+Its actions can raise the scan to the configured maximum, clear filters, open
+Browse or Diagnostics, copy root YAML, or refresh the catalog.
 Large local caches can take tens of seconds to scan. The dashboard now renders
 core status first, then loads the saved-data catalog in the background; the
 heavier Coverage, Gap Summary, Minute Coverage, and Storage Audit scans start
@@ -191,6 +198,10 @@ works offline from saved CSV/parquet files and shows:
 Start with the Data Home shortlist when the catalog is large. It ranks the
 currently visible saved files by quality, rows, and recency, then gives direct
 Inspect, Filter, and Compare actions before you need to use the dense table.
+If expected symbols are missing, check Catalog Scope before searching. A capped
+catalog means the dashboard loaded only the first bounded set of files; a
+hidden-filter state means the files may be loaded but excluded by current
+facets or text search.
 Use Data Source Map before searching if the catalog looks sparse: it summarizes
 which roots are scanned, which suggested roots are outside the config, whether
 files are hidden by caps, and whether parser/root errors explain missing data.

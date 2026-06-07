@@ -328,10 +328,15 @@ rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, historical
 previews, and a Data Home shortlist with direct Inspect, Filter, and Compare
-actions for the best currently visible files. Core dashboard status renders
-before expensive saved-data scans finish; the catalog loads in the background
-and heavier coverage/gap/storage diagnostics are lazy until the Data
-Diagnostics lens is opened. Use Storage Audit to compare CSV/parquet files on disk
+actions for the best currently visible files. Start with Catalog Scope when a
+symbol is missing or the catalog looks too small: it calls out empty scans,
+scan-limit caps, filters hiding loaded rows, suggested roots outside
+`dashboard.data_roots`, and quality/metadata review pressure, then offers Scan
+Max Rows, Clear Filters, Browse Symbols, Diagnostics, Copy Root YAML, and
+Refresh Catalog actions. Core dashboard status renders before expensive
+saved-data scans finish; the catalog loads in the background and heavier
+coverage/gap/storage diagnostics are lazy until the Data Diagnostics lens is
+opened. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
@@ -441,9 +446,11 @@ which CSV/parquet roots are scanned. The public example points only at
 file and add roots such as `cache`, `cache/ibkr`, or your historical-data
 directory. You can also repeat `--data-root` on the command line to override the
 config for one run. If Data Library only shows the public SPY/QQQ examples,
-check the root cards: the dashboard will call out likely local roots that exist
-but are not currently configured. Data roots are scanned locally; the dashboard
-receives coverage summaries and small downsampled previews, not full bar files.
+read Catalog Scope first to see whether the current Rows to scan limit or
+active filters are hiding data, then check the root cards: the dashboard will
+call out likely local roots that exist but are not currently configured. Data
+roots are scanned locally; the dashboard receives coverage summaries and small
+downsampled previews, not full bar files.
 For the same diagnosis from a terminal, run:
 
 ```bash
