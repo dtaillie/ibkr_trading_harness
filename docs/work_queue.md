@@ -1431,6 +1431,11 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Standardize historical storage:
   - consistent symbol naming
   - consistent bar-size naming
+    - partial; Data Catalog now normalizes common column/path bar-size aliases
+      such as `5m`, `5 min`, `5-minute`, `1 hour`, and `daily` into canonical
+      labels like `5min`, `1h`, and `1d` for grouping, filtering, CSV export,
+      and Workbench handoff. Storage Audit applies the same normalization to
+      path-derived guesses while keeping its bounded no-file-read scan fast.
   - UTC-normalized timestamp storage with source timezone metadata
   - adjustment metadata for stocks
   - clear distinction between RTH, extended hours, and 24/7 crypto

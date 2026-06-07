@@ -2488,6 +2488,64 @@ def test_cloud_status_server_symbol_diagnostic_flags_visible_bad_timestamp_file(
         server.server_close()
 
 
+def test_cloud_status_server_normalizes_bar_size_aliases(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "BARCOL_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume,bar_size",
+                "2026-01-02T14:30:00Z,100,10,5 minute",
+                "2026-01-02T14:35:00Z,101,11,5 minute",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (data_root / "PATH_5_m_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume",
+                "2026-01-02T14:30:00Z,100,10",
+                "2026-01-02T14:35:00Z,101,11",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (data_root / "HOUR_1-hour_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume",
+                "2026-01-02T14:00:00Z,100,10",
+                "2026-01-02T15:00:00Z,101,11",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=10&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+
+        assert catalog["bar_size_counts"] == {"1h": 1, "5min": 2}
+        by_symbol = {row["symbol"]: row for row in catalog["datasets"]}
+        assert by_symbol["BARCOL"]["bar_size"] == "5min"
+        assert by_symbol["PATH"]["bar_size"] == "5min"
+        assert by_symbol["HOUR"]["bar_size"] == "1h"
+
+        with request.urlopen(f"{base}/data_storage_audit?catalog_limit=10&scan_limit=10", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert audit["configured_bar_size_guess_counts"] == {"1h": 1, "5min": 1, "unknown": 1}
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_serves_data_gap_summary(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()

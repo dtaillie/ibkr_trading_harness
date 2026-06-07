@@ -115,6 +115,14 @@ SUGGESTED_DATA_ROOTS = (
     ROOT / "paper_logs" / "crypto_history",
 )
 BAR_SIZE_TOKENS = ("1min", "5min", "15min", "30min", "1h", "1d")
+BAR_SIZE_PATTERNS = (
+    ("1min", re.compile(r"(?<![a-z0-9])1\s*(?:m|min|mins|minute|minutes)(?![a-z0-9])")),
+    ("5min", re.compile(r"(?<![a-z0-9])5\s*(?:m|min|mins|minute|minutes)(?![a-z0-9])")),
+    ("15min", re.compile(r"(?<![a-z0-9])15\s*(?:m|min|mins|minute|minutes)(?![a-z0-9])")),
+    ("30min", re.compile(r"(?<![a-z0-9])30\s*(?:m|min|mins|minute|minutes)(?![a-z0-9])")),
+    ("1h", re.compile(r"(?<![a-z0-9])1\s*(?:h|hr|hrs|hour|hours)(?![a-z0-9])")),
+    ("1d", re.compile(r"(?<![a-z0-9])1\s*(?:d|day|days|daily)(?![a-z0-9])")),
+)
 DATA_FILE_SUFFIXES = {".csv", ".parquet"}
 ETF_SYMBOLS = {
     "DIA",
@@ -2082,16 +2090,61 @@ def infer_symbol(path: Path, df: pd.DataFrame) -> str | None:
     return match.group(1).upper() if match else None
 
 
+def normalize_bar_size(value: Any) -> str | None:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return None
+    canonical_text = re.sub(r"[_-]+", " ", raw)
+    canonical_text = re.sub(r"\s+", " ", canonical_text).strip()
+    for label, pattern in BAR_SIZE_PATTERNS:
+        if pattern.fullmatch(canonical_text):
+            return label
+    compact = re.sub(r"[^a-z0-9]+", "", raw)
+    aliases = {
+        "1min": "1min",
+        "1m": "1min",
+        "1minute": "1min",
+        "1minutes": "1min",
+        "5min": "5min",
+        "5m": "5min",
+        "5minute": "5min",
+        "5minutes": "5min",
+        "15min": "15min",
+        "15m": "15min",
+        "15minute": "15min",
+        "15minutes": "15min",
+        "30min": "30min",
+        "30m": "30min",
+        "30minute": "30min",
+        "30minutes": "30min",
+        "1h": "1h",
+        "1hr": "1h",
+        "1hrs": "1h",
+        "1hour": "1h",
+        "1hours": "1h",
+        "1d": "1d",
+        "1day": "1d",
+        "1days": "1d",
+        "daily": "1d",
+    }
+    return aliases.get(compact)
+
+
+def infer_bar_size_from_text(value: str) -> str | None:
+    text = re.sub(r"[_-]+", " ", value.lower())
+    text = re.sub(r"\s+", " ", text)
+    for label, pattern in BAR_SIZE_PATTERNS:
+        if pattern.search(text):
+            return label
+    return None
+
+
 def infer_bar_size(path: Path, df: pd.DataFrame) -> str | None:
     if "bar_size" in df.columns:
         values = [str(value) for value in df["bar_size"].dropna().unique()[:2]]
         if len(values) == 1:
-            return values[0]
-    lowered = "/".join(part.lower() for part in path.parts)
-    for token in BAR_SIZE_TOKENS:
-        if token in lowered:
-            return token
-    return None
+            return normalize_bar_size(values[0]) or values[0]
+    return infer_bar_size_from_text("/".join(path.parts))
 
 
 def infer_asset_class(path: Path, symbol: str | None) -> str:
