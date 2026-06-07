@@ -162,6 +162,9 @@ Open Performance Home for the fuller Current Strategy Report. It turns the
 selected source into copyable rows for source freshness, equity and return,
 risk, trades, execution issues, evidence depth, and the next action before you
 open charts, trades, or rollup tables.
+Read Performance Evidence next when a number looks surprising: it states
+whether the selected result is account-backed, event-backed, summary-only,
+rollup-only, or benchmarked, and links to the next verification page.
 Generic plugin-runner executions also write `performance_rollups.json` and
 `plugin_contract.json` beside `summary.json`, giving each run its own durable
 period summaries plus public-safe plugin/run contract metadata even when the

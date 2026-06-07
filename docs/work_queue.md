@@ -417,6 +417,10 @@ strategy-private.
     compresses source, latest equity, today/recent/month/all return, drawdown,
     exposure, trades, open positions, execution issues, evidence depth, and the
     next action into copyable plain-language rows.
+  - partial; Performance Home now includes a Performance Evidence panel that
+    separates account-backed, event-backed, summary-only, rollup-only, and
+    benchmarked results, with copyable evidence rows and drilldowns to rollups,
+    events, orders, or benchmark data.
   - partial; Overview now surfaces a smaller current Performance Snapshot from
     status-history rollups so the common "how is it doing today/recently?"
     question is visible before entering the full Performance page.

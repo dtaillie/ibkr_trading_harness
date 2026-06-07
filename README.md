@@ -265,6 +265,9 @@ available. It also shows the active source, mode, latest account timestamp,
 open position count, and decision/order/fill/reject activity before the charts.
 Its Current Strategy Report gives a copyable plain-language summary of source,
 equity/returns, risk, trades, execution issues, evidence depth, and next action.
+Its Performance Evidence panel separates account-backed, event-backed,
+summary-only, rollup-only, and benchmarked results so users can verify what
+supports a return before trusting it.
 It also supports account-artifact period presets and a fill-derived
 trade table with open/closed rows, win/loss, average win/loss, and profit
 factor. Daily run rollups summarize archived account artifacts by UTC day so

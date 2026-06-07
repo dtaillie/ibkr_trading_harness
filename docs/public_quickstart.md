@@ -364,6 +364,9 @@ Workbench readiness, and the next inspection action in copyable rows.
 Performance Home also includes a Current Strategy Report that summarizes source
 freshness, equity and return, risk, trades, execution issues, evidence depth,
 and the next action in copyable plain-language rows.
+Use Performance Evidence beside it to see whether the selected result is backed
+by account snapshots, fills, status-history rollups, an artifact, a summary, or
+a benchmark overlay.
 When sanitized fills are present, Performance also shows an open/closed trade
 table, win/loss, average win/loss, and profit factor. Daily Run Rollups summarize
 archived account artifacts by UTC day with return, equity, orders, fills,

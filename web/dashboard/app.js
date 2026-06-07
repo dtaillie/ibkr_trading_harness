@@ -6673,6 +6673,22 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceEvidence({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   renderPerformanceReport({
     source,
     window,
@@ -7518,6 +7534,214 @@ function handlePerformanceReportAction(action) {
     return;
   }
   navigateToOperationsLens("paper");
+}
+
+function performanceEvidenceModel(context) {
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const rollups = sortedStatusRollups();
+  const periodRollups = (state.statusEquityRollups && state.statusEquityRollups.period_rollups) || {};
+  const latestRollup = rollups.length ? rollups[rollups.length - 1] : null;
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const timestamp = sourceTimestamp(source, latestAccount);
+  const issueCount = Number(rejections || 0) + Number(approvalRequired || 0);
+  const accountCount = Number((allAccountRows || []).length || 0);
+  const windowAccountCount = Number((accountRows || []).length || 0);
+  const closedTradeCount = Number((ledger.stats || {}).closed_count || 0);
+  const statusPeriodCount = Number((periodRollups.month || []).length || 0) + Number((periodRollups.year || []).length || 0);
+  let headlineStatus = "bad";
+  let headline = "No evidence chain";
+  let note = "Publish telemetry, load a saved run, or open Workbench artifacts before trusting performance metrics.";
+  if (source.has_data && windowAccountCount) {
+    headlineStatus = issueCount ? "warn" : "ok";
+    headline = "Account-backed result";
+    note = `${numberText(windowAccountCount, 0)} account snapshots support ${window.label}; charts and drawdown are evidence-backed.`;
+  } else if (source.has_data && accountCount) {
+    headlineStatus = "warn";
+    headline = "Account-backed source, empty window";
+    note = "The selected source has account snapshots, but the current period filter excludes them.";
+  } else if (source.has_data && (fillCount || orders || decisions)) {
+    headlineStatus = "warn";
+    headline = "Event-backed summary";
+    note = "Events exist, but account snapshots are missing or unavailable for this selected source.";
+  } else if (source.has_data) {
+    headlineStatus = "warn";
+    headline = "Summary-only result";
+    note = "A summary is loaded without enough account, fill, or decision evidence for full verification.";
+  } else if (rollups.length) {
+    headlineStatus = "warn";
+    headline = "Rollups only";
+    note = "Live/paper status-history rollups exist, but no selected source is loaded.";
+  }
+  const cards = [
+    {
+      label: "Evidence Chain",
+      status: headlineStatus,
+      title: headline,
+      note,
+      className: statusClass(headlineStatus),
+    },
+    {
+      label: "Selected Source",
+      status: source.has_data ? "ok" : "bad",
+      title: text(source.source_type || "none"),
+      note: `${text(source.label)}; mode ${text(mode || "n/a")}; updated ${timestamp ? shortTimestampAgeLabel(timestamp) : "n/a"}.`,
+      className: statusClass(source.has_data ? "ok" : "bad"),
+    },
+    {
+      label: "Account Path",
+      status: windowAccountCount ? "ok" : accountCount ? "warn" : "bad",
+      title: windowAccountCount ? `${numberText(windowAccountCount, 0)} in window` : `${numberText(accountCount, 0)} total`,
+      note: latestAccount.timestamp ? `Latest account ${timestampAgeLabel(latestAccount.timestamp)}.` : "No account snapshot timestamp.",
+      className: statusClass(windowAccountCount ? "ok" : accountCount ? "warn" : "bad"),
+    },
+    {
+      label: "Execution Rows",
+      status: issueCount ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad",
+      title: `${numberText(fillCount, 0)} fills`,
+      note: `${numberText(decisions, 0)} decisions / ${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approvals.`,
+      className: statusClass(issueCount ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad"),
+    },
+    {
+      label: "Status Rollups",
+      status: rollups.length ? "ok" : source.has_data ? "warn" : "bad",
+      title: `${numberText(rollups.length, 0)} day rows`,
+      note: latestRollup
+        ? `Latest ${text(latestRollup.day)} ${text(latestRollup.node_id)} return ${pctText(latestRollup.daily_return_pct)}; ${numberText(statusPeriodCount, 0)} period rows.`
+        : "No persisted live/paper status-history rollups loaded.",
+      className: latestRollup ? rollupReturnClass(latestRollup.daily_return_pct) : statusClass(source.has_data ? "warn" : "bad"),
+    },
+    {
+      label: "Benchmark",
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      title: benchmark.path ? text(benchmark.symbol) : "Not loaded",
+      note: benchmark.path
+        ? `${text(benchmark.bar_size)} ${text(benchmark.source)} overlay is available.`
+        : "No market-context saved dataset is loaded for this result.",
+      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "bad"),
+    },
+  ];
+  const lines = [
+    {
+      status: source.has_data ? "ok" : "bad",
+      title: "Source Authority",
+      detail: `${sourceMeaning(source)} Selected mode is ${text(mode || "n/a")}; source label is ${text(source.label)}.`,
+    },
+    {
+      status: windowAccountCount ? "ok" : accountCount ? "warn" : "bad",
+      title: "Account Evidence",
+      detail: `${numberText(windowAccountCount, 0)} account snapshots in ${window.label}; ${numberText(accountCount, 0)} total account snapshots available. Latest ${latestAccount.timestamp ? text(latestAccount.timestamp) : "n/a"}.`,
+    },
+    {
+      status: finiteNumber(periodPerf.total_return_pct) === null ? "warn" : finiteNumber(periodPerf.total_return_pct) >= 0 ? "ok" : "bad",
+      title: "Return Evidence",
+      detail: `Selected-window return ${pctText(periodPerf.total_return_pct)}, drawdown ${pctText(periodPerf.max_drawdown_pct)}, elapsed ${periodPerf.elapsed_days === undefined || periodPerf.elapsed_days === null ? "n/a" : `${numberText(periodPerf.elapsed_days, 4)} days`}.`,
+    },
+    {
+      status: closedTradeCount ? "ok" : fills.length ? "warn" : source.has_data ? "warn" : "bad",
+      title: "Trade Evidence",
+      detail: `${numberText(fills.length, 0)} fills in selected window; ${numberText(closedTradeCount, 0)} closed trades and ${numberText((ledger.stats || {}).open_count || 0, 0)} open trade rows after pairing.`,
+    },
+    {
+      status: issueCount ? "warn" : source.has_data ? "ok" : "bad",
+      title: "Execution Issues",
+      detail: issueCount
+        ? `${numberText(rejections, 0)} rejections and ${numberText(approvalRequired, 0)} approval holds need order-level review.`
+        : "No rejected orders or approval holds are visible in the selected performance source.",
+    },
+    {
+      status: rollups.length ? "ok" : "warn",
+      title: "Persistence",
+      detail: rollups.length
+        ? `${numberText(rollups.length, 0)} persisted status-history day rows are available independent of a currently open run.`
+        : "No persisted status-history day rows are available; current performance may depend on loaded artifacts only.",
+    },
+    {
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      title: "Benchmark Context",
+      detail: benchmark.path
+        ? `Benchmark ${text(benchmark.symbol)} from ${text(benchmark.path)} is loaded for normalized-return overlay.`
+        : "No benchmark is loaded; absolute strategy return has no market-context overlay.",
+    },
+  ];
+  const next = issueCount
+    ? { label: "Review Orders", href: "#runs/state", status: "warn" }
+    : !windowAccountCount && accountCount
+      ? { label: "Change Period", href: "#performance", status: "warn" }
+      : !source.has_data
+        ? { label: "Open Runs", href: "#runs", status: "bad" }
+        : !benchmark.path
+          ? { label: "Load Benchmark", href: "#data/browse", status: "warn" }
+          : { label: "Inspect Trades", href: "#performance/trades", status: "ok" };
+  lines.push({
+    status: next.status,
+    title: "Next Verification",
+    detail: `${next.label}: ${next.href.replace("#", "")}.`,
+  });
+  return {
+    headline,
+    note: `${text(source.label)} / ${window.label}`,
+    cards,
+    lines,
+    next,
+  };
+}
+
+function performanceEvidenceText(model) {
+  return [
+    `Performance Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderPerformanceEvidence(context) {
+  if (!$("performance-evidence-note") || !$("performance-evidence-cards") || !$("performance-evidence-body") || !$("performance-evidence-actions")) return;
+  const model = performanceEvidenceModel(context);
+  state.performanceEvidenceText = performanceEvidenceText(model);
+  $("performance-evidence-note").textContent = model.note;
+  $("performance-evidence-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-evidence-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("performance-evidence-actions").innerHTML = [
+    `<button type="button" data-performance-evidence-action="copy">Copy Evidence</button>`,
+    `<a class="secondary" href="${escapeHtml(model.next.href)}">${escapeHtml(model.next.label)}</a>`,
+    `<a class="secondary" href="#performance/rollups">Rollups</a>`,
+    `<a class="secondary" href="#runs/events">Events</a>`,
+  ].join("");
+}
+
+function handlePerformanceEvidenceAction(action) {
+  if (action !== "copy") return;
+  copyText(state.performanceEvidenceText || "No performance evidence loaded").then(() => {
+    $("last-refresh").textContent = "Performance evidence copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Performance evidence copy failed: ${err.message}`;
+  });
 }
 
 function performanceSnapshotReturnCard({ label, value, detail, source }) {
@@ -25992,6 +26216,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-snapshot-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceSnapshotAction(target.dataset.performanceSnapshotAction || "");
+  });
+  $("performance-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-evidence-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceEvidenceAction(target.dataset.performanceEvidenceAction || "");
   });
   $("performance-report-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-report-action]") : null;
