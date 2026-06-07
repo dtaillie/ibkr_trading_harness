@@ -1644,6 +1644,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     selected plugin visibility/spec/schema/registry paths, explains exposed
     public-safe fields, and provides direct actions to choose a plugin, inspect
     boundary detail, review field help, or open the boundary guide.
+  - partial; `scripts/public_readiness_audit.py --fail-on-review` now reviews
+    strategy-facing public example configs/plugins that reference strategy
+    plugin hooks but lack `example_only`, example-only, or non-viable boundary
+    language, so future public examples cannot silently look like viable
+    strategies.
 - Add schema-driven form rendering after config schemas are reliable.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those

@@ -48,6 +48,34 @@ SENSITIVE_PATTERNS = {
     "local_home_path": re.compile(r"/home/[A-Za-z0-9_.-]+/"),
 }
 
+STRATEGY_EXAMPLE_FILE_PATTERNS = (
+    "config/*paper.example.yaml",
+    "config/*runner.example.yaml",
+    "config/plugin_registry.example.yaml",
+    "config/strategy_registry.example.yaml",
+    "examples/strategies/*.py",
+)
+
+STRATEGY_EXAMPLE_MARKERS = (
+    "strategy_plugin",
+    "signal_plugin",
+    "plugins:",
+    "strategies:",
+    "create_strategy",
+    "create_plugin",
+)
+
+STRATEGY_EXAMPLE_BOUNDARY_MARKERS = (
+    "example_only",
+    "example only",
+    "example-only",
+    "not viable",
+    "non-viable",
+    "no tradable edge",
+    "demonstrates wiring only",
+    "demonstration only",
+)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -159,6 +187,27 @@ def public_candidate_gap_findings(tracked: list[str]) -> list[Finding]:
     return findings
 
 
+def public_example_boundary_findings(paths: list[str]) -> list[Finding]:
+    findings = []
+    for path in paths:
+        if not matches_any(path, STRATEGY_EXAMPLE_FILE_PATTERNS):
+            continue
+        p = Path(path)
+        if not p.exists() or p.is_dir():
+            continue
+        try:
+            text = p.read_text(errors="replace")
+        except OSError:
+            continue
+        lowered = text.lower()
+        if not any(marker in lowered for marker in STRATEGY_EXAMPLE_MARKERS):
+            continue
+        if any(marker in lowered for marker in STRATEGY_EXAMPLE_BOUNDARY_MARKERS):
+            continue
+        findings.append(Finding("REVIEW", path, "strategy-facing public example lacks example-only/non-viable disclaimer"))
+    return findings
+
+
 def print_section(title: str, findings: list[Finding]) -> None:
     print(f"\n== {title} ==")
     if not findings:
@@ -181,6 +230,7 @@ def main() -> None:
     tracked_private = tracked_private_findings(publishable)
     sensitive = scan_sensitive_tokens(publishable)
     candidate_gaps = public_candidate_gap_findings(publishable)
+    example_boundaries = public_example_boundary_findings(publishable)
     ignored_inventory = ignored_private_inventory()
 
     print("Public readiness audit")
@@ -191,13 +241,14 @@ def main() -> None:
 
     print_section("Tracked Private/Research Paths", tracked_private)
     print_section("Tracked Sensitive Token Classes", sensitive)
+    print_section("Public Example Strategy Boundaries", example_boundaries)
     print_section("Public Example Files Not Tracked", candidate_gaps)
     print_section("Ignored Local Private/Runtime Inventory", ignored_inventory[:80])
     if len(ignored_inventory) > 80:
         print(f"... {len(ignored_inventory) - 80} more ignored private/runtime paths omitted")
 
     blockers = len(tracked_private)
-    reviews = len(sensitive) + len(candidate_gaps)
+    reviews = len(sensitive) + len(candidate_gaps) + len(example_boundaries)
     print("\n== Summary ==")
     print(f"tracked_private_blockers: {blockers}")
     print(f"review_items: {reviews}")

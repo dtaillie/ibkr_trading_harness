@@ -65,3 +65,69 @@ def test_audit_strict_mode_fails_on_review_findings(tmp_path: Path):
     )
     assert strict.returncode == 3
     assert "review_items: 1" in strict.stdout
+
+
+def test_audit_reviews_strategy_examples_without_boundary_disclaimer(tmp_path: Path):
+    repo = tmp_path / "candidate"
+    repo.mkdir()
+    run_git(repo, "init")
+
+    config_dir = repo / "config"
+    config_dir.mkdir()
+    example = config_dir / "plugin_runner.example.yaml"
+    example.write_text(
+        "\n".join(
+            [
+                "metadata:",
+                "  strategy_plugin: examples.strategies.demo:create_strategy",
+                "runner:",
+                "  mode: replay",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    normal = subprocess.run(
+        [sys.executable, str(AUDIT_SCRIPT)],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert normal.returncode == 0
+    assert "Public Example Strategy Boundaries" in normal.stdout
+    assert "strategy-facing public example lacks example-only/non-viable disclaimer" in normal.stdout
+    assert "review_items: 1" in normal.stdout
+
+    strict = subprocess.run(
+        [sys.executable, str(AUDIT_SCRIPT), "--fail-on-review"],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert strict.returncode == 3
+
+    example.write_text(
+        "\n".join(
+            [
+                "metadata:",
+                "  strategy_plugin: examples.strategies.demo:create_strategy",
+                "  status: example_only",
+                "notes:",
+                "  - Not a viable strategy.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    clean = subprocess.run(
+        [sys.executable, str(AUDIT_SCRIPT), "--fail-on-review"],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert clean.returncode == 0
+    assert "review_items: 0" in clean.stdout
