@@ -56,6 +56,8 @@ python3 scripts/public_readiness_audit.py --fail-on-review
 Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
 repeatable public copy. If the destination is already a Git repo, `--force`
 preserves its `.git` directory while replacing the exported working-tree files.
+Use `scripts/export_public_repo.py --list` to inspect the destination-relative
+file manifest without writing or replacing a destination tree.
 
 ## Recommended Public Repo Shape
 

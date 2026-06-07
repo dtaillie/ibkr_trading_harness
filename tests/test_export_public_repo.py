@@ -57,3 +57,26 @@ def test_export_public_repo_requires_force_for_existing_destination(tmp_path: Pa
 
     assert result.returncode != 0
     assert "pass --force" in result.stderr or "pass --force" in result.stdout
+
+
+def test_export_public_repo_lists_public_manifest_without_writing_destination(tmp_path: Path):
+    dest = tmp_path / "public"
+
+    result = subprocess.run(
+        [sys.executable, str(EXPORT_SCRIPT), "--dest", str(dest), "--list"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    rows = result.stdout.splitlines()
+    assert "README.md" in rows
+    assert "README.public.md" not in rows
+    assert "web/dashboard/app.js" in rows
+    assert "scripts/export_public_repo.py" in rows
+    assert "config/plugin_runner.example.yaml" in rows
+    assert not any(row.startswith("paper_logs/") for row in rows)
+    assert not any(row.startswith("private/") for row in rows)
+    assert not dest.exists()

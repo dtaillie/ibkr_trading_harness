@@ -125,6 +125,49 @@ EXCLUDE_DIR_NAMES = {
 }
 
 
+def excluded_tree_file(path: Path) -> bool:
+    if any(part in EXCLUDE_DIR_NAMES for part in path.parts):
+        return True
+    return path.suffix in {".pyc", ".pyo"}
+
+
+def iter_tree_files(src: Path) -> list[tuple[Path, Path]]:
+    rows: list[tuple[Path, Path]] = []
+    for path in sorted(src.rglob("*")):
+        if path.is_dir() or excluded_tree_file(path):
+            continue
+        rows.append((path, path.relative_to(ROOT)))
+    return rows
+
+
+def export_manifest() -> list[tuple[Path, Path]]:
+    rows: list[tuple[Path, Path]] = []
+    for rel in COPY_DIRS:
+        src = ROOT / rel
+        assert_exists(src)
+        rows.extend(iter_tree_files(src))
+    for rel in COPY_FILES:
+        if rel == "README.public.md":
+            src = public_readme_source()
+            dest_rel = Path("README.md")
+        else:
+            src = ROOT / rel
+            dest_rel = Path(rel)
+        assert_exists(src)
+        rows.append((src, dest_rel))
+    for rel in CONFIG_FILES:
+        src = ROOT / rel
+        assert_exists(src)
+        rows.append((src, Path(rel)))
+    for pattern in CONFIG_GLOBS:
+        for src in sorted(ROOT.glob(pattern)):
+            rows.append((src, src.relative_to(ROOT)))
+    deduped: dict[str, tuple[Path, Path]] = {}
+    for src, dest_rel in rows:
+        deduped[dest_rel.as_posix()] = (src, dest_rel)
+    return [deduped[key] for key in sorted(deduped)]
+
+
 def copy_file(src: Path, dest_root: Path, dest_rel: str | None = None) -> None:
     rel = Path(dest_rel) if dest_rel else src.relative_to(ROOT)
     dest = dest_root / rel
@@ -169,7 +212,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export conservative public repo copy")
     parser.add_argument("--dest", default="../algo_trade_public")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Print destination-relative files included in the public export and exit.",
+    )
     args = parser.parse_args()
+
+    if args.list:
+        for _src, dest_rel in export_manifest():
+            print(dest_rel.as_posix())
+        return
 
     dest_root = (ROOT / args.dest).resolve()
     if dest_root.exists():

@@ -379,6 +379,7 @@ def run_smoke(
             "help-next-actions",
             "help-workflows",
             "help-public-checklist",
+            "help-public-list-command",
             "help-public-audit-command",
             "help-setup-note",
             "help-setup-gaps",

@@ -3484,12 +3484,14 @@
           <strong>Public Repo Preflight</strong>
           <p>Use this before pushing a public copy or publishing a walkthrough.</p>
           <ol>
+            <li>List the export manifest and review the public subset shape.</li>
             <li>Export the sanitized public subset, not the private source tree.</li>
             <li>Run strict public-readiness and cloud-example audits in the exported repo.</li>
             <li>Run tests and dashboard smokes against the exported repo.</li>
             <li>Manually inspect examples, docs, dashboard labels, and the blog draft for tuned strategy details.</li>
           </ol>
           <div class="command-list">
+            <code id="help-public-list-command">python3 scripts/export_public_repo.py --list</code>
             <code id="help-public-export-command">python3 scripts/export_public_repo.py --dest ../algo_trade_public --force</code>
             <code id="help-public-audit-command">cd ../algo_trade_public &amp;&amp; python3 scripts/public_readiness_audit.py --fail-on-review &amp;&amp; python3 scripts/audit_cloud_examples.py</code>
             <code id="help-public-test-command">PYTHONPATH=. pytest -q &amp;&amp; python3 scripts/smoke_dashboard.py --scenario seeded &amp;&amp; python3 scripts/smoke_dashboard.py --scenario empty</code>

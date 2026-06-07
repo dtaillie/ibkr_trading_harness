@@ -1664,8 +1664,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 - Add stronger paper/live gates to prevent accidental live orders.
   - partial; generic paper mode now requires `--confirm-paper-orders`, rejects
     `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,
-    `7496`) unless both config and CLI explicitly opt in. More broker-native
-    account verification and live-mode enablement gates remain open.
+    `7496`) unless both config and CLI explicitly opt in. Broker-native
+    account verification now exists where adapters expose account ids; real
+    live execution remains future work.
   - partial; generic paper mode now supports optional
     `broker.expected_account_id`, verified after broker connection and before
     order submission for adapters that expose account ids. IBKR uses managed
@@ -1683,6 +1684,9 @@ QQQ show up, treat that as a bug until proven otherwise.
 ## P2: Publication readiness
 
 - Keep the exported public repo as the clean public candidate.
+  - done; `scripts/export_public_repo.py --list` now prints the
+    destination-relative public file manifest without writing a destination,
+    making public subset review possible before an export refresh.
 - Add CI checks around `python3 scripts/public_readiness_audit.py --fail-on-review`.
   - done in `.github/workflows/ci.yml`; CI runs the public readiness audit,
     Python compile checks, dashboard JavaScript syntax check, pytest, and
