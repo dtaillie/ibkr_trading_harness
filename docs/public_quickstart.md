@@ -422,7 +422,10 @@ Runs shows searchable saved-run comparisons, recent run-event telemetry,
 current managed positions, and recent non-terminal order events when runners
 publish them. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
-results. It also shows read-only workbench state for saved draft count, run
+results. The Remote Monitor Report summarizes remote node coverage, heartbeat,
+Gateway/API state, alerts, open orders, stale data/account timestamps, and next
+actions in copyable rows before the remote-node table. It also shows read-only
+workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
 Generic plugin-runner runs write `runner_status.json`,
 `performance_rollups.json`, and `plugin_contract.json` beside `summary.json`.

@@ -1835,6 +1835,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     boundary policy in the API, CSV export, and UI, documenting snapshot/run/
     event/artifact bounds plus excluded raw logs, credentials, local paths, and
     private strategy diagnostics before any richer cloud archive browsing.
+  - partial; Operations Remote now includes a Remote Monitor Report that
+    summarizes node coverage, heartbeat freshness, Gateway/API state, alerts,
+    open orders, stale data/account timestamps, and next actions in copyable
+    plain-language rows before the dense remote-node table.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

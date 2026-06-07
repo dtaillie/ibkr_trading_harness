@@ -417,6 +417,9 @@ Then open Remote Nodes to inspect sanitized latest status snapshots from local
 or hosted status publishers. Use Export Nodes CSV for an offline table of
 heartbeat, Gateway, mode, equity, positions, open orders, activity counts,
 account/data freshness, and alert summaries by node.
+Read Remote Monitor Report before the dense node table. It gives copyable rows
+for node coverage, heartbeat freshness, Gateway/API state, alerts, open orders,
+stale data/account timestamps, and the next operational action.
 
 Click Detail on a node when you need bounded per-node history, recent
 decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote

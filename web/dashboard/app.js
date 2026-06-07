@@ -20185,6 +20185,168 @@ function handleRemoteNodesAssistantAction(action) {
   }
 }
 
+function remoteNodesReportModel(nodes = [], filteredNodes = []) {
+  const staleNodes = staleRemoteNodes(nodes);
+  const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
+  const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
+  const gatewayDown = (nodes || []).filter((node) => node.gateway_reachable === false);
+  const staleData = (nodes || []).filter((node) => {
+    const millis = timestampMillis(node.latest_data_time);
+    return millis !== null && ((Date.now() - millis) / 1000) > 900;
+  });
+  const staleAccounts = (nodes || []).filter((node) => {
+    const millis = timestampMillis(node.latest_account_time);
+    return millis !== null && ((Date.now() - millis) / 1000) > 900;
+  });
+  const newest = newestRemoteNode(nodes);
+  const alertTotal = (nodes || []).reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const orderTotal = (nodes || []).reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
+  const statusCounts = countBy(nodes || [], "status");
+  const issueCount = staleNodes.length + alertNodes.length + orderNodes.length + gatewayDown.length + staleData.length + staleAccounts.length;
+  const status = !nodes.length ? "bad" : gatewayDown.length || staleNodes.length ? "bad" : alertNodes.length || orderNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
+  const headline = !nodes.length
+    ? "No remote monitoring snapshots"
+    : status === "ok"
+      ? "Remote monitoring looks healthy"
+      : status === "bad"
+        ? "Remote monitoring needs attention"
+        : "Remote monitoring has warnings";
+  const note = nodes.length
+    ? `${numberText(nodes.length, 0)} node${nodes.length === 1 ? "" : "s"} / ${numberText(filteredNodes.length, 0)} shown / ${countSummary(statusCounts)}`
+    : "Publish sanitized status snapshots to populate remote monitoring.";
+  const cards = [
+    {
+      status,
+      label: "Report",
+      title: headline,
+      note,
+    },
+    {
+      status: !nodes.length ? "bad" : staleNodes.length ? "bad" : "ok",
+      label: "Heartbeat",
+      title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
+      note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No heartbeat loaded.",
+    },
+    {
+      status: alertTotal ? "warn" : nodes.length ? "ok" : "bad",
+      label: "Alerts",
+      title: numberText(alertTotal, 0),
+      note: alertNodes.length ? `${numberText(alertNodes.length, 0)} node${alertNodes.length === 1 ? "" : "s"} have alerts.` : "No remote alerts visible.",
+    },
+    {
+      status: orderTotal ? "warn" : nodes.length ? "ok" : "bad",
+      label: "Open Orders",
+      title: numberText(orderTotal, 0),
+      note: orderNodes.length ? "Verify broker state on the trading machine." : "No non-terminal remote order telemetry.",
+    },
+  ];
+  const lines = [
+    {
+      status: nodes.length ? "ok" : "bad",
+      title: "Coverage",
+      detail: `${numberText(nodes.length, 0)} monitored node${nodes.length === 1 ? "" : "s"}; ${numberText(filteredNodes.length, 0)} visible after filters; statuses ${countSummary(statusCounts) || "none"}.`,
+    },
+    {
+      status: !nodes.length ? "bad" : staleNodes.length ? "bad" : "ok",
+      title: "Heartbeat",
+      detail: newest ? `Newest node ${text(newest.node_id)} arrived ${timestampAgeLabel(newest.received_at || newest.generated_at)}; ${numberText(staleNodes.length, 0)} stale node${staleNodes.length === 1 ? "" : "s"}.` : "No heartbeat evidence loaded.",
+    },
+    {
+      status: gatewayDown.length ? "bad" : nodes.length ? "ok" : "bad",
+      title: "Gateway/API",
+      detail: gatewayDown.length ? `${numberText(gatewayDown.length, 0)} node${gatewayDown.length === 1 ? "" : "s"} report Gateway/API unreachable: ${gatewayDown.slice(0, 4).map((node) => text(node.node_id)).join(", ")}.` : nodes.length ? "No remote Gateway/API blockers in latest snapshots." : "Gateway/API state unavailable.",
+    },
+    {
+      status: alertTotal ? "warn" : nodes.length ? "ok" : "bad",
+      title: "Alerts",
+      detail: `${numberText(alertTotal, 0)} alert${alertTotal === 1 ? "" : "s"} across ${numberText(alertNodes.length, 0)} node${alertNodes.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: orderTotal ? "warn" : nodes.length ? "ok" : "bad",
+      title: "Orders",
+      detail: `${numberText(orderTotal, 0)} non-terminal order event${orderTotal === 1 ? "" : "s"} across ${numberText(orderNodes.length, 0)} node${orderNodes.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "bad",
+      title: "Data And Account",
+      detail: `${numberText(staleData.length, 0)} stale data timestamp${staleData.length === 1 ? "" : "s"}; ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
+    },
+  ];
+  const nextAction = !nodes.length
+    ? "Start the status publisher or point the dashboard at the remote receiver."
+    : gatewayDown.length || staleNodes.length
+      ? "Open newest/stale node detail and verify the trading machine service state."
+      : alertNodes.length || orderNodes.length
+        ? "Inspect node detail before issuing any remote controls."
+        : "Remote monitoring is readable; export CSV or inspect detail when needed.";
+  lines.push({
+    status: !nodes.length ? "bad" : issueCount ? "warn" : "ok",
+    title: "Next Action",
+    detail: nextAction,
+  });
+  return { status, headline, note, cards, lines, newest };
+}
+
+function remoteNodesReportText(model) {
+  return [
+    `Remote Monitor Report: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderRemoteNodesReport(nodes = [], filteredNodes = []) {
+  if (!$("remote-report-note") || !$("remote-report-cards") || !$("remote-report-body") || !$("remote-report-actions")) return;
+  const model = remoteNodesReportModel(nodes, filteredNodes);
+  state.remoteNodesReportText = remoteNodesReportText(model);
+  $("remote-report-note").textContent = model.note;
+  $("remote-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("remote-report-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("remote-report-actions").innerHTML = [
+    `<button type="button" data-remote-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-remote-report-action="detail"${model.newest ? "" : " disabled"}>Open Newest Detail</button>`,
+    `<button type="button" class="secondary" data-remote-report-action="status"${model.newest ? "" : " disabled"}>Prepare Status Check</button>`,
+    `<button type="button" class="secondary" data-remote-report-action="export"${nodes.length ? "" : " disabled"}>Export Nodes CSV</button>`,
+  ].join("");
+}
+
+function handleRemoteReportAction(action) {
+  const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const newest = newestRemoteNode(nodes);
+  if (action === "copy") {
+    copyText(state.remoteNodesReportText || "No remote monitor report loaded").then(() => {
+      $("last-refresh").textContent = "Remote monitor report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Remote report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "detail") {
+    loadRemoteNodeDetail(text((newest || {}).node_id)).catch((err) => {
+      $("last-refresh").textContent = `Remote node detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "status") {
+    prepareRequestStatusCommand(text((newest || {}).node_id));
+    return;
+  }
+  downloadRemoteNodesCsv().catch((err) => {
+    $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
+  });
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
@@ -20206,6 +20368,7 @@ function renderRemoteNodes() {
   $("remote-open-order-note").textContent = nodes.length ? `${numberText(openOrderTotal, 0)} non-terminal order event${openOrderTotal === 1 ? "" : "s"}` : "Sanitized order telemetry only";
   renderRemoteNodesHealth(nodes, filteredNodes);
   renderRemoteNodesAssistant(nodes, filteredNodes);
+  renderRemoteNodesReport(nodes, filteredNodes);
   $("remote-nodes-body").innerHTML = filteredNodes.length
     ? filteredNodes.map((node) => row([
         escapeHtml(node.node_id),
@@ -22284,6 +22447,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-nodes-action]") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleRemoteNodesAssistantAction(target.dataset.remoteNodesAction || "");
+  });
+  $("remote-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-report-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleRemoteReportAction(target.dataset.remoteReportAction || "");
   });
   $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
   $("remote-detail-assistant-actions").addEventListener("click", (event) => {

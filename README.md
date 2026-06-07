@@ -253,7 +253,10 @@ the dashboard can answer how saved runs performed without a live process; period
 rollups summarize those same archived rows by month and year. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, searchable run history, recent open-order telemetry, managed
-positions, and local disk usage. It can also inspect configured local
+positions, and local disk usage. Operations Remote includes a copyable Remote
+Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
+alerts, open orders, stale data/account timestamps, and next actions. It can
+also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small
 downsampled price previews. It also includes a recent date-bin coverage view
