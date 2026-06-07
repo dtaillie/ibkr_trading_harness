@@ -817,9 +817,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       Filter/Inspect/Workbench/Compare/Diagnose actions, reducing ambiguity
       after typeahead or dataset-selector changes.
     - done; Symbol Browser typeahead and quick-pick suggestions now support
-      source, bar-size, storage-session, and quality facets, with clear hidden
-      by facets states and a Clear Facets action while leaving global catalog
-      symbol completion unfiltered.
+      source, bar-size, storage-session, quality, and storage-contract facets,
+      with clear hidden by facets states and a Clear Facets action while
+      leaving global catalog symbol completion unfiltered.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe

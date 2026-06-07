@@ -6331,6 +6331,9 @@ function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
       const aQuality = qualityRank[text(a.quality_status)] ?? 3;
       const bQuality = qualityRank[text(b.quality_status)] ?? 3;
       if (aQuality !== bQuality) return aQuality - bQuality;
+      const aContract = qualityRank[text(a.storage_contract_status)] ?? 3;
+      const bContract = qualityRank[text(b.storage_contract_status)] ?? 3;
+      if (aContract !== bContract) return aContract - bContract;
       const aRows = Number(a.rows || 0);
       const bRows = Number(b.rows || 0);
       if (aRows !== bRows) return bRows - aRows;
@@ -6346,6 +6349,7 @@ function symbolBrowserFacetControls() {
     bar: (($("data-symbol-browser-bar") || {}).value || ""),
     session: (($("data-symbol-browser-session") || {}).value || ""),
     quality: (($("data-symbol-browser-quality") || {}).value || ""),
+    contract: (($("data-symbol-browser-contract") || {}).value || ""),
   };
 }
 
@@ -6353,7 +6357,8 @@ function datasetMatchesSymbolBrowserFacets(dataset, facets = symbolBrowserFacetC
   return (!facets.source || text(dataset.source) === facets.source)
     && (!facets.bar || text(dataset.bar_size) === facets.bar)
     && (!facets.session || text(dataset.storage_session) === facets.session)
-    && (!facets.quality || text(dataset.quality_status) === facets.quality);
+    && (!facets.quality || text(dataset.quality_status) === facets.quality)
+    && (!facets.contract || text(dataset.storage_contract_status) === facets.contract);
 }
 
 function symbolBrowserFilteredDatasets() {
@@ -6371,6 +6376,7 @@ function symbolBrowserFacetSummary(facets = symbolBrowserFacetControls()) {
     facets.bar ? `bar ${facets.bar}` : "",
     facets.session ? `session ${facets.session}` : "",
     facets.quality ? `quality ${facets.quality}` : "",
+    facets.contract ? `contract ${facets.contract}` : "",
   ].filter(Boolean);
 }
 
@@ -6392,6 +6398,7 @@ function renderSymbolBrowserFacetOptions(datasets = state.dataCatalog.datasets |
   makeOptions("data-symbol-browser-bar", datasets.map((item) => item.bar_size));
   makeOptions("data-symbol-browser-session", datasets.map((item) => item.storage_session));
   makeOptions("data-symbol-browser-quality", datasets.map((item) => item.quality_status));
+  makeOptions("data-symbol-browser-contract", datasets.map((item) => item.storage_contract_status));
 }
 
 function renderCatalogSymbolDatalists(browserSymbols, catalogSymbols = browserSymbols) {
@@ -6431,6 +6438,7 @@ function symbolGroupSummary(symbol, rows) {
     bars,
     assets,
     quality_status: text(best.quality_status),
+    storage_contract_status: text(best.storage_contract_status),
     latest_millis: latest,
     range: rangeLabel(best.first_timestamp, best.last_timestamp),
   };
@@ -6459,6 +6467,8 @@ function symbolQuickPickSuggestions(query, groups, limit = 8) {
       if (left.score !== right.score) return left.score - right.score;
       const qualityDelta = datasetQualityRank(left.quality_status) - datasetQualityRank(right.quality_status);
       if (qualityDelta) return qualityDelta;
+      const contractDelta = datasetQualityRank(left.storage_contract_status) - datasetQualityRank(right.storage_contract_status);
+      if (contractDelta) return contractDelta;
       if (left.file_count !== right.file_count) return right.file_count - left.file_count;
       if (left.rows_total !== right.rows_total) return right.rows_total - left.rows_total;
       if (left.latest_millis !== right.latest_millis) return right.latest_millis - left.latest_millis;
@@ -6486,7 +6496,7 @@ function renderSymbolQuickPicks(groups, query) {
           <strong>${escapeHtml(summary.symbol)}</strong>
           <small>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows</small>
           <small>${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")}</small>
-          <small>${qualityBadge(summary.quality_status)} ${escapeHtml(summary.range)}</small>
+          <small>${qualityBadge(summary.quality_status)} ${qualityBadge(summary.storage_contract_status)} ${escapeHtml(summary.range)}</small>
         </button>
       `).join("")}
     </div>
@@ -18695,7 +18705,7 @@ function init() {
     renderSymbolSelectionPanel(selectedSymbolBrowserSymbol());
     renderSymbolProfile(selectedSymbolBrowserSymbol());
   });
-  for (const id of ["data-symbol-browser-source", "data-symbol-browser-bar", "data-symbol-browser-session", "data-symbol-browser-quality"]) {
+  for (const id of ["data-symbol-browser-source", "data-symbol-browser-bar", "data-symbol-browser-session", "data-symbol-browser-quality", "data-symbol-browser-contract"]) {
     $(id).addEventListener("change", () => {
       state.symbolTypeaheadActiveIndex = 0;
       renderSymbolBrowser();
@@ -18706,6 +18716,7 @@ function init() {
     $("data-symbol-browser-bar").value = "";
     $("data-symbol-browser-session").value = "";
     $("data-symbol-browser-quality").value = "";
+    $("data-symbol-browser-contract").value = "";
     state.symbolTypeaheadActiveIndex = 0;
     renderSymbolBrowser();
     $("last-refresh").textContent = "Symbol Browser facets cleared";
