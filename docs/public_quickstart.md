@@ -328,7 +328,10 @@ rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, historical
 previews, and a Data Home shortlist with direct Inspect, Filter, and Compare
-actions for the best currently visible files. Start with Catalog Scope when a
+actions for the best currently visible files. Use Saved Data Explorer in Browse
+when you want the broad saved-data map first: it groups the bounded catalog by
+asset, source, bar size, storage session, quality, and storage-contract state,
+then filters the saved-data table with one click. Start with Catalog Scope when a
 symbol is missing or the catalog looks too small: it calls out empty scans,
 scan-limit caps, filters hiding loaded rows, suggested roots outside
 `dashboard.data_roots`, and quality/metadata review pressure, then offers Scan
@@ -469,6 +472,10 @@ Use Inspect on a saved dataset row to load a local-only detail view with a
 range-filtered sampled or full-in-range price path, volume bars, timestamp
 coverage, gap rows, null counts, price/return stats, volume stats, and a
 compact ok/warn/bad quality summary.
+Use Saved Data Explorer before choosing a row when you do not yet know which
+symbol or source matters; it shows whether the local catalog is mostly stocks,
+crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or warning-heavy
+metadata.
 Use Compare Saved Data to select several catalog-visible datasets and overlay
 their normalized close-return paths over one requested date range. Use Find
 Dataset to filter a large catalog by symbol, source, bar size, quality, or path;

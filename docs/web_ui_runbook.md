@@ -57,6 +57,10 @@ The Data Library Home page also has workflow cards for Find A Symbol, Inspect
 History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
 Use those cards when you know the job you want but do not yet know which table
 or diagnostic panel holds the answer.
+Use Saved Data Explorer in the Browse lens when you want the broad map first:
+it groups the bounded catalog by asset, source, bar size, storage session,
+quality, and storage-contract state, then lets you click a group to replace
+the current Browse filters and jump to the matching table rows.
 Use Catalog Scope before browsing a large local universe. It summarizes loaded
 files, scanned symbols, active filters, configured/suggested roots, data
 readiness, and whether the current Rows to scan limit may be hiding history.
@@ -198,6 +202,9 @@ works offline from saved CSV/parquet files and shows:
 Start with the Data Home shortlist when the catalog is large. It ranks the
 currently visible saved files by quality, rows, and recency, then gives direct
 Inspect, Filter, and Compare actions before you need to use the dense table.
+Use Saved Data Explorer when you do not know the symbol yet. It answers which
+asset classes, sources, bar sizes, sessions, quality states, and storage
+contracts are present, with one-click filters for each group.
 If expected symbols are missing, check Catalog Scope before searching. A capped
 catalog means the dashboard loaded only the first bounded set of files; a
 hidden-filter state means the files may be loaded but excluded by current

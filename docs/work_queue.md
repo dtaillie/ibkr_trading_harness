@@ -533,6 +533,10 @@ strategy-private.
   - done in `docs/web_ui_runbook.md` and linked from Help
   - done; the runbook now includes completed-fetch review and replay-from-saved
     data workflows that match the Help page
+  - partial; Help, the Web UI runbook, and the public quickstart now document
+    Saved Data Explorer as the broad first-pass map for asset/source/bar/
+    session/quality/storage-contract groups before Symbol Browser, Data Detail,
+    Compare, or Workbench.
   - partial; Help and the Web UI runbook now include a Data To Simulation Fast
     Path that names the current first-screen panels: Data Source Map, Data
     Home, Fetch Recovery Plan, and Workbench Home.
