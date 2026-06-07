@@ -3958,7 +3958,7 @@
             </div>
             <div class="guide-item">
               <strong>Find missing symbols</strong>
-              <span>Use Data Library root cards, Storage Audit, and Find Missing Symbol to distinguish missing files from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
+              <span>Use Data Home Root Index, Data Library root cards, Storage Audit, and Find Missing Symbol to distinguish missing files from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
             </div>
             <div class="guide-item">
               <strong>Restart services safely</strong>
@@ -3979,11 +3979,11 @@
           <div class="guide-grid">
             <div class="guide-item">
               <strong>1. Confirm roots</strong>
-              <span>Open Data Library and use Data Source Map to see configured, suggested, hidden, capped, parser-error, and unavailable roots before searching symbols.</span>
+              <span>Open Data Library and compare Root Index, Catalog Scope, and Data Source Map to see candidate files, parsed files, suggested roots, caps, parser errors, and unavailable roots before searching symbols.</span>
             </div>
             <div class="guide-item">
               <strong>2. Pick files</strong>
-              <span>Use Saved Data Explorer for the broad asset/source/bar/session map, then use Data Home shortlist, Symbol Browser, or Symbol Directory to inspect and compare saved files before sending them to Workbench.</span>
+              <span>Use Saved Data Explorer for the parsed asset/source/bar/session map, then use Data Home shortlist, Symbol Browser, or Symbol Directory to inspect and compare saved files before sending them to Workbench.</span>
             </div>
             <div class="guide-item">
               <strong>3. Recover fetches</strong>
@@ -4020,6 +4020,7 @@
           <strong>Inspect Saved Historical Data</strong>
           <ol>
             <li>Open Data Library and set the catalog limit high enough for your root.</li>
+            <li>Compare Root Index against parsed catalog counts; if Root Index is much larger, the catalog is a bounded sample.</li>
             <li>Open Browse and use Saved Data Explorer to see asset, source, bar-size, session, quality, and contract groups.</li>
             <li>Click an Explorer group or use search, asset, source, bar-size, and quality filters to narrow the table.</li>
             <li>Click Inspect on a dataset row.</li>
@@ -4030,6 +4031,7 @@
         <div class="help-card" data-help-lens="data">
           <strong>Why Only A Few Symbols?</strong>
           <ol>
+            <li>Compare Data Home Root Index with parsed catalog counts to see whether configured roots contain more candidate files than the quality catalog loaded.</li>
             <li>Check Configured Roots and suggested roots in Data Library.</li>
             <li>Increase the catalog limit if the root has more files than the current scan limit.</li>
             <li>Use Find Missing Symbol to see whether the file is visible, malformed, scan-limited, or outside configured roots.</li>

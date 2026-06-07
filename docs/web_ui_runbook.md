@@ -60,9 +60,12 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Read Data Visibility Report and Catalog Scope. If they say the scan is
-   capped, use Scan Max Rows before deciding a symbol is missing. If filters
-   hide everything, use Clear Filters.
+2. Read Data Inventory, Universe Coverage, Data Visibility Report, and Catalog
+   Scope. Compare Root Index counts with parsed catalog counts: if Root Index
+   sees many more candidate files/symbols, the dashboard has found local files
+   but the quality catalog is still a bounded parsed sample. If Catalog Scope
+   says the scan is capped, use Scan Max Rows before deciding a symbol is
+   missing. If filters hide everything, use Clear Filters.
 3. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
 4. Use Find Missing Symbol for a ticker you expected to see.
@@ -78,9 +81,12 @@ History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
 Use those cards when you know the job you want but do not yet know which table
 or diagnostic panel holds the answer.
 Use Saved Data Explorer in the Browse lens when you want the broad map first:
-it groups the bounded catalog by asset, source, bar size, storage session,
-quality, and storage-contract state, then lets you click a group to replace
-the current Browse filters and jump to the matching table rows.
+it groups the bounded parsed catalog by asset, source, bar size, storage
+session, quality, and storage-contract state, then lets you click a group to
+replace the current Browse filters and jump to the matching table rows. On Data
+Home, use Root Index first when the catalog looks too small; it counts
+candidate files and symbols inferred from configured-root filenames/paths
+without parsing every dataset.
 Use Saved History Matrix when you want the concrete bar inventory first: it
 groups visible saved files by asset, source, bar size, and session, then shows
 symbol/file/row counts, coverage range, replay readiness, and a Browse action
@@ -102,7 +108,9 @@ Workbench.
 Use Catalog Scope before browsing a large local universe. It summarizes loaded
 files, scanned symbols, active filters, configured/suggested roots, data
 readiness, top-level catalog scope status, capped/not-scanned root counts, and
-whether the current Rows to scan limit may be hiding history.
+whether the current Rows to scan limit may be hiding history. Use the Data Home
+Root Index card beside it to tell whether there are more candidate files under
+configured roots than the parsed catalog loaded.
 Its actions can raise the scan to the configured maximum, clear filters, open
 Browse or Diagnostics, copy root YAML, or refresh the catalog.
 Large local caches can take tens of seconds to scan. The dashboard now renders

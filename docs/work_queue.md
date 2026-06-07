@@ -232,6 +232,9 @@ strategy-private.
       catalog from the wider saved-file universe under their roots.
       Data Inventory and Universe Coverage now surface that root-index count
       on Data Home before users drill into Browse.
+      The README, public quickstart, Web UI runbook, and in-app Help now explain
+      Root Index versus parsed catalog counts for capped scans and missing
+      symbol diagnosis.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

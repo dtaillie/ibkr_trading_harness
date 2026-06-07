@@ -374,9 +374,12 @@ previews, a Data Home Saved Data Preview Wall with sparklines and direct
 Inspect/Compare/Workbench actions, and a shortlist with direct Inspect, Filter,
 and Compare actions for the best currently visible files. Use Saved Data
 Explorer in Browse
-when you want the broad saved-data map first: it groups the bounded catalog by
-asset, source, bar size, storage session, quality, and storage-contract state,
-then filters the saved-data table with one click. Start with Catalog Scope when a
+when you want the broad saved-data map first: it groups the bounded parsed
+catalog by asset, source, bar size, storage session, quality, and
+storage-contract state, then filters the saved-data table with one click. Data
+Home also shows a Root Index count that infers candidate files and symbols from
+configured-root filenames/paths without parsing every dataset, which is useful
+when the parsed catalog looks too small. Start with Catalog Scope when a
 symbol is missing or the catalog looks too small: it calls out empty scans,
 scan-limit caps, filters hiding loaded rows, suggested roots outside
 `dashboard.data_roots`, and quality/metadata review pressure, then offers Scan
@@ -517,10 +520,13 @@ which CSV/parquet roots are scanned. The public example points only at
 file and add roots such as `cache`, `cache/ibkr`, or your historical-data
 directory. You can also repeat `--data-root` on the command line to override the
 config for one run. If Data Library only shows the public SPY/QQQ examples,
-read Data Visibility Report and Catalog Scope first to see whether the current
-Rows to scan limit, active filters, parser skips, missing fetch outputs, or
-unconfigured roots are hiding data, then check the root cards: the dashboard
-will call out likely local roots that exist but are not currently configured.
+read Data Inventory, Universe Coverage, Data Visibility Report, and Catalog
+Scope first. Compare Root Index counts with parsed catalog counts to see
+whether configured roots contain more candidate files than the quality catalog
+loaded. Then check whether the current Rows to scan limit, active filters,
+parser skips, missing fetch outputs, or unconfigured roots are hiding data, and
+review the root cards: the dashboard will call out likely local roots that
+exist but are not currently configured.
 Data roots are scanned locally; the dashboard receives coverage summaries and
 small downsampled previews, not full bar files.
 For the same diagnosis from a terminal, run:
@@ -549,9 +555,10 @@ Fetch Detail output rows show the same Replay readiness when a produced file is
 Data Library-visible, making completed fetch output review possible before
 Workbench handoff.
 Use Saved Data Explorer before choosing a row when you do not yet know which
-symbol or source matters; it shows whether the local catalog is mostly stocks,
-crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or warning-heavy
-metadata.
+symbol or source matters; it shows whether the parsed local catalog is mostly
+stocks, crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or
+warning-heavy metadata. If the parsed catalog is capped, use Data Home's Root
+Index count before concluding that other symbols do not exist on disk.
 Use Compare Saved Data to select several catalog-visible datasets and overlay
 their normalized close-return paths over one requested date range. Use Find
 Dataset to filter a large catalog by symbol, source, bar size, quality, or path;
