@@ -802,6 +802,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     explains visible universe size, filter pressure, coverage window,
     source/bar/session mix, quality/storage-contract readiness, root scope,
     best next file, and direct Browse/Inspect/Compare/Workbench/Fetch routes.
+  - partial; Data Home now includes a Data Visibility Report that ties together
+    current filters, catalog caps, configured/suggested roots, parser/skipped
+    files, quality/storage-contract blockers, replay readiness, and fetch
+    manifest output visibility so users can see why saved data is hidden,
+    missing, outside roots, or ready to use.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

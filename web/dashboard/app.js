@@ -9939,6 +9939,214 @@ function handleDataScopeAssistantAction(action) {
   }
 }
 
+function fetchManifestVisibilityTotals(manifests = []) {
+  return (manifests || []).reduce((totals, manifest) => {
+    totals.visible += Number(manifest.output_visible_count || manifest.visible_output_count || 0);
+    totals.missing += Number(manifest.output_missing_file_count || 0);
+    totals.outside += Number(manifest.output_outside_data_roots_count || 0);
+    totals.unsupported += Number(manifest.output_unsupported_file_count || 0);
+    totals.noPath += Number(manifest.output_no_path_count || 0);
+    totals.issues += fetchManifestOutputIssueCount(manifest);
+    totals.rows += Number(manifest.rows || 0);
+    totals.errors += Number(manifest.errors || 0) + Number(manifest.failed_symbols || 0) + Number(manifest.failed_chunks || 0);
+    return totals;
+  }, { visible: 0, missing: 0, outside: 0, unsupported: 0, noPath: 0, issues: 0, rows: 0, errors: 0 });
+}
+
+function dataVisibilityReportModel(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const diagnostics = state.diagnostics || {};
+  const audit = state.dataStorageAudit || {};
+  const auditSummary = audit.visibility_summary || {};
+  const datasets = catalog.datasets || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const rootSummaries = catalog.root_summaries || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const fetchTotals = fetchManifestVisibilityTotals(manifests);
+  const catalogRows = Number(catalog.count || datasets.length || 0);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const filterLabels = dataFilterSummary();
+  const hiddenByFilters = Math.max(0, catalogRows - filteredRows.length);
+  const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const unsupportedScanFiles = rootSummaries.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0);
+  const unsupportedAuditFiles = Number(audit.unsupported_file_count || auditSummary.unsupported_file_count || 0);
+  const unsupportedFiles = Math.max(unsupportedScanFiles, unsupportedAuditFiles);
+  const capped = catalogScopeIsCapped(catalog);
+  const configuredFiles = Number(audit.configured_file_count || 0);
+  const configuredVisible = Number(auditSummary.catalog_visible_configured_file_count ?? audit.configured_visible_count ?? audit.catalog_visible_count ?? catalogRows);
+  const hiddenConfigured = Number(auditSummary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
+  const suggestedFiles = Number(auditSummary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
+  const hiddenTotal = Number(auditSummary.hidden_total_file_count ?? (hiddenConfigured + suggestedFiles));
+  const qualityCounts = catalog.quality_counts || countBy(datasets, "quality_status");
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const issueCount = parserErrors + unsupportedFiles + (capped ? 1 : 0) + hiddenTotal + hiddenByFilters + fetchTotals.issues + fetchTotals.errors;
+  let status = "bad";
+  let headline = "No saved data visible";
+  let note = "Configure dashboard.data_roots or run fetch jobs before using Data Library.";
+  if (catalogRows && !issueCount) {
+    status = "ok";
+    headline = "Saved data is visible";
+    note = `${numberText(symbols.size, 0)} symbols and ${numberText(catalogRows, 0)} files are visible under configured roots.`;
+  } else if (catalogRows) {
+    status = parserErrors || fetchTotals.errors ? "bad" : "warn";
+    headline = "Saved data needs visibility review";
+    note = `${numberText(catalogRows, 0)} files are visible, but ${numberText(issueCount, 0)} visibility or readiness clues need review.`;
+  } else if (suggestedRoots.length || suggestedFiles || manifests.length) {
+    status = "warn";
+    headline = "Data may exist outside the catalog";
+    note = `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} and ${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"} are visible.`;
+  }
+  const cards = [
+    {
+      status,
+      label: "Report",
+      title: headline,
+      note,
+    },
+    {
+      status: catalogRows ? hiddenByFilters ? "warn" : "ok" : "bad",
+      label: "Catalog",
+      title: `${numberText(filteredRows.length, 0)} / ${numberText(catalogRows, 0)}`,
+      note: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} loaded rows are hidden by filters.` : `${numberText(symbols.size, 0)} symbols visible.`,
+    },
+    {
+      status: suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad",
+      label: "Roots",
+      title: `${numberText(roots.length, 0)} configured`,
+      note: `${numberText(hiddenConfigured, 0)} hidden configured / ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested.`,
+    },
+    {
+      status: fetchTotals.issues || fetchTotals.errors ? "warn" : fetchTotals.visible ? "ok" : manifests.length ? "warn" : "bad",
+      label: "Fetch Outputs",
+      title: `${numberText(fetchTotals.visible, 0)} visible`,
+      note: `${numberText(fetchTotals.missing, 0)} missing / ${numberText(fetchTotals.outside, 0)} outside roots / ${numberText(fetchTotals.unsupported, 0)} unsupported.`,
+    },
+  ];
+  const lines = [
+    {
+      status: catalogRows ? "ok" : "bad",
+      title: "Catalog Rows",
+      detail: `${numberText(catalogRows, 0)} file row${catalogRows === 1 ? "" : "s"} and ${numberText(symbols.size, 0)} symbol${symbols.size === 1 ? "" : "s"} are loaded under configured roots.`,
+    },
+    {
+      status: hiddenByFilters ? hiddenByFilters === catalogRows ? "bad" : "warn" : catalogRows ? "ok" : "bad",
+      title: "Active Filters",
+      detail: filterLabels.length ? `${filterLabels.join(" / ")}; ${numberText(hiddenByFilters, 0)} row${hiddenByFilters === 1 ? "" : "s"} hidden.` : "No Data Library filters are active.",
+    },
+    {
+      status: capped ? "warn" : catalogRows ? "ok" : "bad",
+      title: "Scan Limit",
+      detail: capped ? `Catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows. Raise the scan limit before concluding symbols are missing.` : "No catalog scan cap is visible in root summaries.",
+    },
+    {
+      status: suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad",
+      title: "Root Visibility",
+      detail: `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; ${numberText(configuredVisible, 0)} catalog-visible configured files; ${numberText(hiddenConfigured, 0)} hidden configured; ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested outside configured roots.`,
+    },
+    {
+      status: parserErrors ? "bad" : unsupportedFiles ? "warn" : catalogRows ? "ok" : "bad",
+      title: "Parser And Skips",
+      detail: `${numberText(parserErrors, 0)} parser error${parserErrors === 1 ? "" : "s"}; ${numberText(unsupportedFiles, 0)} unsupported file${unsupportedFiles === 1 ? "" : "s"}.`,
+    },
+    {
+      status: qualityIssues || contractIssues ? "warn" : catalogRows ? "ok" : "bad",
+      title: "Replay Readiness",
+      detail: `${numberText(qualityIssues, 0)} quality review file${qualityIssues === 1 ? "" : "s"}; ${numberText(contractIssues, 0)} storage-contract review file${contractIssues === 1 ? "" : "s"}.`,
+    },
+    {
+      status: fetchTotals.issues || fetchTotals.errors ? "warn" : fetchTotals.visible ? "ok" : manifests.length ? "warn" : "bad",
+      title: "Fetch Output Visibility",
+      detail: `${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"}; ${numberText(fetchTotals.visible, 0)} visible outputs; ${numberText(fetchTotals.missing, 0)} missing; ${numberText(fetchTotals.outside, 0)} outside data roots; ${numberText(fetchTotals.unsupported, 0)} unsupported; ${numberText(fetchTotals.errors, 0)} fetch errors/failures.`,
+    },
+  ];
+  const nextAction = parserErrors
+    ? "Open Diagnostics and review parser/root scan errors."
+    : suggestedRoots.length || suggestedFiles
+      ? "Copy data_roots YAML and add suggested roots to ignored local config."
+      : capped
+        ? "Raise the catalog scan limit and refresh Data Library."
+        : hiddenByFilters
+          ? "Clear filters or open Browse to inspect the loaded rows."
+          : fetchTotals.issues || fetchTotals.errors
+            ? "Open Fetch Jobs and inspect manifests with output visibility issues."
+            : catalogRows
+              ? "Browse, inspect, compare, or send visible files to Workbench."
+              : "Run a fetch job or configure saved-data roots.";
+  lines.push({
+    status: status === "ok" ? "ok" : parserErrors || fetchTotals.errors ? "bad" : "warn",
+    title: "Next Action",
+    detail: nextAction,
+  });
+  return { status, headline, note, cards, lines };
+}
+
+function dataVisibilityReportText(model) {
+  return [
+    `Data Visibility Report: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderDataVisibilityReport(filteredRows = []) {
+  if (!$("data-visibility-report-note") || !$("data-visibility-report-cards") || !$("data-visibility-report-body") || !$("data-visibility-report-actions")) return;
+  const model = dataVisibilityReportModel(filteredRows);
+  state.dataVisibilityReportText = dataVisibilityReportText(model);
+  $("data-visibility-report-note").textContent = model.note;
+  $("data-visibility-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-visibility-report-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("data-visibility-report-actions").innerHTML = [
+    `<button type="button" data-data-visibility-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-data-visibility-report-action="diagnostics">Open Diagnostics</button>`,
+    `<button type="button" class="secondary" data-data-visibility-report-action="fetch">Open Fetch Jobs</button>`,
+    `<button type="button" class="secondary" data-data-visibility-report-action="clear">Clear Filters</button>`,
+    `<button type="button" class="secondary" data-data-visibility-report-action="roots">Copy Root YAML</button>`,
+  ].join("");
+}
+
+function handleDataVisibilityReportAction(action) {
+  if (action === "copy") {
+    copyText(state.dataVisibilityReportText || "No data visibility report loaded").then(() => {
+      $("last-refresh").textContent = "Data visibility report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Data visibility report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "diagnostics") {
+    navigateToDataLens("diagnostics");
+    refreshDataDiagnostics({ force: false }).catch((err) => {
+      $("last-refresh").textContent = `Data diagnostics refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "fetch") {
+    navigateToView("fetch");
+    return;
+  }
+  if (action === "clear") {
+    clearDataCatalogFilters();
+    renderDataCatalog();
+    $("last-refresh").textContent = "Data Library filters cleared";
+    return;
+  }
+  copyDataRootsYaml();
+}
+
 function renderDataHome(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -10022,6 +10230,7 @@ function renderDataHome(filteredRows = []) {
   renderDataScopeAssistant(filteredRows);
   renderDataInventoryPanel(filteredRows);
   renderDataHistoryReview(filteredRows);
+  renderDataVisibilityReport(filteredRows);
   renderDataHistoryMatrix(filteredRows);
   renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
@@ -22546,6 +22755,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-scope-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleDataScopeAssistantAction(target.dataset.dataScopeAction || "");
+  });
+  $("data-visibility-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-visibility-report-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleDataVisibilityReportAction(target.dataset.dataVisibilityReportAction || "");
   });
   $("data-storage-assistant-actions").addEventListener("click", (event) => {
     const target = event.target;

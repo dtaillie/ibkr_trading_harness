@@ -51,8 +51,9 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Read Catalog Scope. If it says the scan is capped, use Scan Max Rows before
-   deciding a symbol is missing. If filters hide everything, use Clear Filters.
+2. Read Data Visibility Report and Catalog Scope. If they say the scan is
+   capped, use Scan Max Rows before deciding a symbol is missing. If filters
+   hide everything, use Clear Filters.
 3. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
 4. Use Find Missing Symbol for a ticker you expected to see.

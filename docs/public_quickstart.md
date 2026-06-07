@@ -481,11 +481,12 @@ which CSV/parquet roots are scanned. The public example points only at
 file and add roots such as `cache`, `cache/ibkr`, or your historical-data
 directory. You can also repeat `--data-root` on the command line to override the
 config for one run. If Data Library only shows the public SPY/QQQ examples,
-read Catalog Scope first to see whether the current Rows to scan limit or
-active filters are hiding data, then check the root cards: the dashboard will
-call out likely local roots that exist but are not currently configured. Data
-roots are scanned locally; the dashboard receives coverage summaries and small
-downsampled previews, not full bar files.
+read Data Visibility Report and Catalog Scope first to see whether the current
+Rows to scan limit, active filters, parser skips, missing fetch outputs, or
+unconfigured roots are hiding data, then check the root cards: the dashboard
+will call out likely local roots that exist but are not currently configured.
+Data roots are scanned locally; the dashboard receives coverage summaries and
+small downsampled previews, not full bar files.
 For the same diagnosis from a terminal, run:
 
 ```bash

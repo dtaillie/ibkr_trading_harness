@@ -2068,6 +2068,10 @@ section {
   margin: 12px 0;
 }
 
+.data-visibility-report-panel {
+  margin: 12px 0;
+}
+
 .performance-report-body {
   display: grid;
   gap: 8px;
