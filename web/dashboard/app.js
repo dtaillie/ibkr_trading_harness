@@ -10152,6 +10152,7 @@ function renderDataCoverage() {
         `;
       }).join("")
     : `<div class="empty-card"><strong>No coverage yet</strong><span>No parseable saved datasets are visible under configured roots.</span></div>`;
+  renderDataCoverageAssistant();
 }
 
 function renderDataGapSummary() {
@@ -10193,6 +10194,7 @@ function renderDataGapSummary() {
         `<span class="mono">${escapeHtml(item.path)}</span>`,
       ])).join("")
     : row([`<span class="muted">No missing calendar-day gaps in the current catalog scan.</span>`, "", "", "", "", ""]);
+  renderDataCoverageAssistant();
 }
 
 function heatmapCellClass(hour) {
@@ -10287,6 +10289,175 @@ function renderDataMinuteHeatmap() {
         `<span class="mono">${escapeHtml(item.path)}</span>`,
       ])).join("")
     : row([`<span class="muted">No date/hour missing interval drilldowns in the current catalog scan.</span>`, "", "", "", "", "", ""]);
+  renderDataCoverageAssistant();
+}
+
+function dataCoverageStats() {
+  const coverage = state.dataCoverage || {};
+  const gapSummary = state.dataGapSummary || {};
+  const minuteSummary = state.dataMinuteHeatmap || {};
+  const symbols = coverage.symbols || [];
+  const dateBins = coverage.date_bins || [];
+  const totalSymbolCount = Number(coverage.total_symbol_count || symbols.length || 0);
+  let coveredBins = 0;
+  let expectedBins = 0;
+  for (const item of symbols) {
+    const bins = item.coverage || [];
+    expectedBins += dateBins.length || bins.length;
+    coveredBins += bins.filter(Boolean).length;
+  }
+  const coveragePct = expectedBins ? (coveredBins / expectedBins) * 100 : null;
+  const hiddenSymbols = Math.max(0, totalSymbolCount - symbols.length);
+  const gapRows = gapSummary.gap_rows || [];
+  const calendarRows = gapSummary.calendar_rows || [];
+  const filesWithGaps = Number(gapSummary.files_with_gap_warnings || gapRows.length || 0);
+  const filesWithMissingDays = Number(gapSummary.files_with_missing_calendar_days || calendarRows.length || 0);
+  const estimatedMissing = Number(gapSummary.total_estimated_missing_intervals || 0);
+  const minuteRows = minuteSummary.rows || [];
+  const incompleteMinuteRows = minuteRows.filter((item) => {
+    const pct = Number(item.completeness_pct);
+    return Number.isFinite(pct) && pct < 99.5;
+  }).length;
+  const minuteMissing = Number(minuteSummary.total_estimated_missing_intervals || 0);
+  const minuteCompleteness = minuteSummary.overall_completeness_pct;
+  return {
+    hasCoverage: Boolean(coverage.generated_at || gapSummary.generated_at || minuteSummary.generated_at),
+    symbolsShown: symbols.length,
+    totalSymbolCount,
+    hiddenSymbols,
+    dateBinCount: dateBins.length,
+    coveragePct,
+    coveredBins,
+    expectedBins,
+    filesWithGaps,
+    filesWithMissingDays,
+    estimatedMissing,
+    largestGapSeconds: gapSummary.largest_gap_seconds,
+    catalogErrorCount: Number(gapSummary.catalog_error_count || 0),
+    minuteRows: minuteRows.length,
+    incompleteMinuteRows,
+    minuteMissing,
+    minuteCompleteness,
+    minuteErrorCount: Number(minuteSummary.error_count || 0),
+  };
+}
+
+function dataCoverageCardStatus(value, warnAt, badAt) {
+  if (value === null || value === undefined || value === "") return "neutral";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "neutral";
+  if (number >= badAt) return "bad";
+  if (number >= warnAt) return "warn";
+  return "ok";
+}
+
+function renderDataCoverageAssistant() {
+  if (!$("data-coverage-assistant-title") || !$("data-coverage-assistant-cards") || !$("data-coverage-assistant-actions")) return;
+  const stats = dataCoverageStats();
+  if (!stats.hasCoverage) {
+    $("data-coverage-assistant-title").textContent = "No coverage scan loaded";
+    $("data-coverage-assistant-title").className = "status-neutral";
+    $("data-coverage-assistant-note").textContent = "Load diagnostics to summarize symbol/date coverage, gap pressure, minute completeness, and exportable evidence.";
+    $("data-coverage-assistant-cards").innerHTML = [
+      { status: "neutral", title: "Coverage", value: "Waiting", note: "No symbol/date bins have been scanned yet." },
+      { status: "neutral", title: "Gaps", value: "Waiting", note: "No timestamp or calendar-gap summary is loaded." },
+      { status: "neutral", title: "Minutes", value: "Waiting", note: "No minute completeness heatmap is loaded." },
+    ].map(dataCoverageAssistantCardHtml).join("");
+    $("data-coverage-assistant-actions").innerHTML = dataCoverageAssistantActionsHtml([
+      { action: "coverage", status: "neutral", title: "Review Coverage", note: "Jump to symbol/date bins.", disabled: true },
+      { action: "gaps", status: "neutral", title: "Review Gaps", note: "Jump to timestamp and calendar gaps.", disabled: true },
+    ]);
+    return;
+  }
+  const coverageMissing = stats.expectedBins ? stats.expectedBins - stats.coveredBins : 0;
+  const gapPressure = stats.estimatedMissing + stats.filesWithMissingDays + stats.catalogErrorCount;
+  const minutePressure = stats.minuteMissing + stats.incompleteMinuteRows + stats.minuteErrorCount;
+  const titleStatus = gapPressure || minutePressure || coverageMissing ? "warn" : "ok";
+  $("data-coverage-assistant-title").textContent = titleStatus === "ok" ? "Coverage looks complete" : "Coverage needs review";
+  $("data-coverage-assistant-title").className = statusClass(titleStatus);
+  $("data-coverage-assistant-note").textContent = `${numberText(stats.symbolsShown, 0)} of ${numberText(stats.totalSymbolCount, 0)} symbols shown across ${numberText(stats.dateBinCount, 0)} recent date bins. Use the actions to inspect the underlying scan or export it.`;
+  const cards = [
+    {
+      status: stats.hiddenSymbols ? "warn" : "ok",
+      title: "Catalog Scope",
+      value: `${numberText(stats.symbolsShown, 0)} / ${numberText(stats.totalSymbolCount, 0)}`,
+      note: stats.hiddenSymbols
+        ? `${numberText(stats.hiddenSymbols, 0)} symbols are outside the bounded scan view.`
+        : "All scanned symbols are visible in the coverage view.",
+    },
+    {
+      status: stats.coveragePct === null ? "neutral" : stats.coveragePct >= 98 ? "ok" : stats.coveragePct >= 90 ? "warn" : "bad",
+      title: "Date Coverage",
+      value: pctText(stats.coveragePct),
+      note: `${numberText(stats.coveredBins, 0)} of ${numberText(stats.expectedBins, 0)} symbol/date bins have data.`,
+    },
+    {
+      status: dataCoverageCardStatus(gapPressure, 1, 1000),
+      title: "Gap Pressure",
+      value: numberText(stats.estimatedMissing, 0),
+      note: `${numberText(stats.filesWithGaps, 0)} files with interval gaps, ${numberText(stats.filesWithMissingDays, 0)} with missing days.`,
+    },
+    {
+      status: stats.minuteCompleteness === undefined || stats.minuteCompleteness === null ? "neutral" : Number(stats.minuteCompleteness) >= 99.5 ? "ok" : Number(stats.minuteCompleteness) >= 95 ? "warn" : "bad",
+      title: "Minute Completeness",
+      value: pctText(stats.minuteCompleteness),
+      note: `${numberText(stats.incompleteMinuteRows, 0)} incomplete files; ${numberText(stats.minuteMissing, 0)} estimated missing intervals.`,
+    },
+  ];
+  $("data-coverage-assistant-cards").innerHTML = cards.map(dataCoverageAssistantCardHtml).join("");
+  $("data-coverage-assistant-actions").innerHTML = dataCoverageAssistantActionsHtml([
+    { action: "coverage", status: coverageMissing ? "warn" : "ok", title: "Review Coverage", note: "Jump to the symbol/date coverage heatmap." },
+    { action: "gaps", status: gapPressure ? "warn" : "ok", title: "Review Gaps", note: "Jump to timestamp and calendar-gap rows." },
+    { action: "minutes", status: minutePressure ? "warn" : "ok", title: "Review Minutes", note: "Jump to UTC-hour minute completeness rows." },
+    { action: "export", status: "neutral", title: "Export Evidence", note: "Download coverage, gap, and minute CSVs." },
+  ]);
+}
+
+function dataCoverageAssistantCardHtml(card) {
+  return `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.title)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `;
+}
+
+function dataCoverageAssistantActionsHtml(actions) {
+  return actions.map((item) => `
+    <button class="data-coverage-assistant-action status-${escapeHtml(item.status)}" data-data-coverage-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <b>${item.disabled ? "Waiting" : "Open"}</b>
+    </button>
+  `).join("");
+}
+
+function handleDataCoverageAssistantAction(action) {
+  const scrollTo = (id) => {
+    const target = $(id);
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  if (action === "coverage") {
+    scrollTo("data-coverage-grid");
+    return;
+  }
+  if (action === "gaps") {
+    scrollTo("data-gap-summary-body");
+    return;
+  }
+  if (action === "minutes") {
+    scrollTo("data-minute-heatmap-grid");
+    return;
+  }
+  if (action === "export") {
+    for (const id of ["export-data-coverage-csv", "export-data-gap-summary-csv", "export-data-minute-heatmap-csv"]) {
+      const button = $(id);
+      if (button) button.click();
+    }
+  }
 }
 
 function renderSymbolDiagnostic() {
@@ -19743,6 +19914,14 @@ function init() {
       : null;
     if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
     handleDataStorageAssistantAction(button.dataset.dataStorageAction || "");
+  });
+  $("data-coverage-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target;
+    const button = target instanceof HTMLElement
+      ? target.closest("[data-data-coverage-action]")
+      : null;
+    if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
+    handleDataCoverageAssistantAction(button.dataset.dataCoverageAction || "");
   });
   for (const button of document.querySelectorAll("[data-workbench-home-action]")) {
     button.addEventListener("click", () => {

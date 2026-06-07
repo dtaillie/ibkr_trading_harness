@@ -1059,6 +1059,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; dataset details show gap rows/missing intervals, coverage view
       shows missing recent date bins, and Minute Coverage Heatmap now covers
       aggregate UTC-hour and bounded worst date/hour missing-interval patterns.
+    - partial; Data Library Diagnostics now starts with a Data Coverage
+      Assistant that summarizes shown/total symbols, recent date-bin coverage,
+      timestamp/calendar gap pressure, minute completeness, and direct
+      review/export actions before the dense heatmaps and tables.
     - partial; Data Library now has a Gap Summary panel backed by
       `/data_gap_summary`, showing worst timestamp-gap files, estimated missing
       intervals, largest gaps, and missing calendar-day rows across the current
