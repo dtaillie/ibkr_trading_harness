@@ -919,6 +919,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-live-period-cards" in html
         assert "data-catalog-body" in html
         assert "<th>Contract</th>" in html
+        assert "data-filter-contract" in html
         assert "data-root-cards" in html
         assert "copy-data-roots-yaml" in html
         assert "data-lens-title" in html

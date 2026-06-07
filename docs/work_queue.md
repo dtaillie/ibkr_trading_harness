@@ -1167,6 +1167,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       exports, and the storage-audit CLI now expose a storage-contract status
       that flags missing/ambiguous symbol, bar-size, session, stock adjustment,
       timestamp timezone, and UTC-normalization metadata before replay.
+    - partial; Data Library Browse now includes a storage-contract filter,
+      contract-first sort, and contract-aware text search so review-status
+      files can be isolated without reading the full catalog table.
 - Add resumability:
   - skip chunks already present
   - retry failed chunks

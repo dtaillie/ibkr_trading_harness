@@ -6189,6 +6189,7 @@ function dataCatalogFilters() {
     asset: $("data-filter-asset").value || "",
     source: $("data-filter-source").value || "",
     session: $("data-filter-session").value || "",
+    contract: $("data-filter-contract").value || "",
     sort: $("data-filter-sort").value || "modified_desc",
   };
 }
@@ -6201,6 +6202,10 @@ function dataCatalogSortValue(dataset, key) {
   if (key === "quality") {
     const rank = { ok: 0, warn: 1, bad: 2 };
     return rank[String(dataset.quality_status || "").toLowerCase()] ?? 3;
+  }
+  if (key === "contract") {
+    const rank = { ok: 0, warn: 1, bad: 2 };
+    return rank[String(dataset.storage_contract_status || "").toLowerCase()] ?? 3;
   }
   return String(dataset.symbol || dataset.path || "").toLowerCase();
 }
@@ -6230,6 +6235,7 @@ function filteredDataCatalog(datasets) {
     if (filters.asset && text(dataset.asset_class) !== filters.asset) return false;
     if (filters.source && text(dataset.source) !== filters.source) return false;
     if (filters.session && text(dataset.storage_session) !== filters.session) return false;
+    if (filters.contract && text(dataset.storage_contract_status) !== filters.contract) return false;
     if (filters.text) {
       const haystack = [
         dataset.symbol,
@@ -6237,6 +6243,8 @@ function filteredDataCatalog(datasets) {
         dataset.source,
         dataset.bar_size,
         dataset.storage_session,
+        dataset.storage_contract_status,
+        dataset.storage_contract_label,
         dataset.path,
         dataset.root,
         dataset.source_timezone,
@@ -6265,6 +6273,7 @@ function renderDataFilterOptions(datasets) {
   makeOptions("data-filter-asset", (datasets || []).map((item) => item.asset_class));
   makeOptions("data-filter-source", (datasets || []).map((item) => item.source));
   makeOptions("data-filter-session", (datasets || []).map((item) => item.storage_session));
+  makeOptions("data-filter-contract", (datasets || []).map((item) => item.storage_contract_status));
 }
 
 function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
@@ -11170,6 +11179,7 @@ function applyFetchOutputDataFilter() {
   $("data-filter-asset").value = "";
   $("data-filter-source").value = "";
   $("data-filter-session").value = "";
+  $("data-filter-contract").value = "";
   $("data-filter-sort").value = "modified_desc";
   navigateToDataLens("browse");
   renderDataCatalog();
@@ -18215,15 +18225,17 @@ function init() {
   $("data-filter-asset").addEventListener("change", renderDataCatalog);
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("data-filter-session").addEventListener("change", renderDataCatalog);
+  $("data-filter-contract").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-home-clear-filters").addEventListener("click", () => {
     $("data-filter-text").value = "";
     $("data-filter-quality").value = "";
     $("data-filter-bar").value = "";
-    $("data-filter-asset").value = "";
-    $("data-filter-source").value = "";
-    $("data-filter-session").value = "";
-    $("data-filter-sort").value = "modified_desc";
+  $("data-filter-asset").value = "";
+  $("data-filter-source").value = "";
+  $("data-filter-session").value = "";
+  $("data-filter-contract").value = "";
+  $("data-filter-sort").value = "modified_desc";
     state.manifestPathFilter = null;
     renderDataCatalog();
     $("last-refresh").textContent = "Data Library filters cleared";
