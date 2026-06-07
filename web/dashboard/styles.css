@@ -1788,6 +1788,7 @@ section {
 }
 
 #data-inventory-actions a,
+#data-history-actions a,
 #workbench-simulation-actions a,
 #performance-review-actions a,
 #fetch-health-actions a,
@@ -1807,6 +1808,7 @@ section {
 }
 
 #data-inventory-actions a.secondary,
+#data-history-actions a.secondary,
 #workbench-simulation-actions a.secondary,
 #performance-review-actions a.secondary,
 #fetch-health-actions a.secondary,

@@ -942,6 +942,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-inventory-note" in html
         assert "data-inventory-cards" in html
         assert "data-inventory-actions" in html
+        assert "data-history-note" in html
+        assert "data-history-cards" in html
+        assert "data-history-actions" in html
         assert "data-source-map-note" in html
         assert "data-source-map" in html
         assert "help-start-panel" in html
