@@ -2818,6 +2818,21 @@ section {
   gap: 8px;
 }
 
+.workbench-selected-coverage {
+  display: grid;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.workbench-selected-coverage .hero-actions {
+  margin-top: 0;
+}
+
+.workbench-selected-coverage h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
 .workbench-selected-data-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2883,6 +2898,13 @@ section {
   align-self: center;
   min-width: 26px;
   text-align: right;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 180px;
 }
 
 .fetch-search-assistant {

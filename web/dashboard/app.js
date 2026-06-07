@@ -2338,6 +2338,7 @@ function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIs
 
 function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) {
   if (!$("workbench-selected-data-note") || !$("workbench-selected-data-cards") || !$("workbench-selected-data-list")) return;
+  renderWorkbenchSelectedDataCoverage(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const range = configDateRangePayload();
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
@@ -2429,6 +2430,116 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
         <button type="button" class="secondary" data-workbench-selected-data-action="library">Open Data Library</button>
       </div>
     `;
+}
+
+function selectedDataCoverageRows(selected = selectedConfigDatasets()) {
+  return (selected || []).map((dataset, index) => {
+    const replay = dataReplayReadinessModel(dataset);
+    const quality = text(dataset.quality_status).toLowerCase();
+    const contract = text(dataset.storage_contract_status).toLowerCase();
+    const status = replay.status || (quality === "bad" || contract === "bad" ? "bad" : quality === "warn" || contract === "warn" ? "warn" : "ok");
+    return {
+      index: index + 1,
+      path: dataset.path || "",
+      symbol: text(dataset.symbol),
+      source: text(dataset.source),
+      asset: text(dataset.asset_class),
+      bar_size: text(dataset.bar_size),
+      storage_session: text(dataset.storage_session),
+      source_timezone: text(dataset.source_timezone),
+      adjustment_status: text(dataset.adjustment_status),
+      first_timestamp: dataset.first_timestamp || "",
+      last_timestamp: dataset.last_timestamp || "",
+      range: rangeLabel(dataset.first_timestamp, dataset.last_timestamp),
+      rows: Number(dataset.rows || 0),
+      quality_status: text(dataset.quality_status),
+      storage_contract_status: text(dataset.storage_contract_status),
+      replay_status: status,
+      replay_title: replay.title,
+      replay_detail: replay.detail,
+    };
+  });
+}
+
+function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDatasets()) {
+  if (
+    !$("workbench-selected-coverage-note")
+    || !$("workbench-selected-coverage-cards")
+    || !$("workbench-selected-coverage-body")
+    || !$("export-workbench-selected-data-csv")
+  ) return;
+  const rows = selectedDataCoverageRows(selected);
+  const symbols = new Set(rows.map((item) => item.symbol).filter((value) => value !== "n/a"));
+  const sources = new Set(rows.map((item) => item.source).filter((value) => value !== "n/a"));
+  const bars = new Set(rows.map((item) => item.bar_size).filter((value) => value !== "n/a"));
+  const sessions = new Set(rows.map((item) => item.storage_session).filter((value) => value !== "n/a"));
+  const replayCounts = rows.reduce((counts, item) => {
+    counts[item.replay_status] = (counts[item.replay_status] || 0) + 1;
+    return counts;
+  }, {});
+  const reviewCount = Number(replayCounts.warn || 0) + Number(replayCounts.bad || 0);
+  $("export-workbench-selected-data-csv").disabled = !rows.length;
+  $("workbench-selected-coverage-note").textContent = rows.length
+    ? `${numberText(rows.length, 0)} files / ${numberText(symbols.size, 0)} symbols / ${reviewCount ? `${numberText(reviewCount, 0)} review` : "replay ready"}`
+    : "No selected coverage to export";
+  const cards = [
+    {
+      status: rows.length ? "ok" : "bad",
+      label: "Files",
+      title: numberText(rows.length, 0),
+      note: symbols.size ? `${numberText(symbols.size, 0)} selected symbol${symbols.size === 1 ? "" : "s"}.` : "Choose saved files before simulating.",
+    },
+    {
+      status: rows.length && !reviewCount ? "ok" : reviewCount ? "warn" : "bad",
+      label: "Replay",
+      title: rows.length ? reviewCount ? `${numberText(reviewCount, 0)} review` : "Ready" : "n/a",
+      note: countSummary(replayCounts) || "No selected replay evidence.",
+    },
+    {
+      status: sources.size && bars.size ? "ok" : rows.length ? "warn" : "bad",
+      label: "Mix",
+      title: bars.size ? Array.from(bars).slice(0, 3).join(", ") : "n/a",
+      note: sources.size ? `Sources ${Array.from(sources).slice(0, 3).join(", ")}.` : "No source metadata loaded.",
+    },
+    {
+      status: sessions.size === 1 ? "ok" : sessions.size > 1 ? "warn" : rows.length ? "warn" : "bad",
+      label: "Session",
+      title: sessions.size ? Array.from(sessions).slice(0, 3).join(", ") : "n/a",
+      note: sessions.size > 1 ? "Mixed storage sessions need strategy-aware replay review." : "Storage-session metadata is consistent.",
+    },
+  ];
+  $("workbench-selected-coverage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-selected-coverage-body").innerHTML = rows.length
+    ? rows.map((item) => row([
+        escapeHtml(item.symbol),
+        escapeHtml(`${item.asset} / ${item.source}`),
+        escapeHtml(item.bar_size),
+        escapeHtml(item.storage_session),
+        escapeHtml(item.range),
+        escapeHtml(numberText(item.rows, 0)),
+        `<div class="data-readiness-cell ${escapeHtml(statusClass(item.replay_status))}"><strong>${escapeHtml(item.replay_title)}</strong><span>${escapeHtml(item.replay_detail)}</span><small>${escapeHtml(`tz ${item.source_timezone} / adjust ${item.adjustment_status}`)}</small></div>`,
+        `<div class="table-actions">
+          <button type="button" class="secondary" data-workbench-selected-data-action="inspect" data-path="${escapeHtml(item.path)}">Inspect</button>
+          <button type="button" class="secondary" data-workbench-selected-data-action="compare" data-path="${escapeHtml(item.path)}">Compare</button>
+          <button type="button" class="secondary" data-workbench-selected-data-action="remove" data-path="${escapeHtml(item.path)}">Remove</button>
+        </div>`,
+      ])).join("")
+    : row([
+        `<span class="muted">select data</span>`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
 }
 
 function renderConfigDataActions(selected = selectedConfigDatasets()) {
@@ -21397,6 +21508,64 @@ function downloadDataHistoryMatrixCsv() {
   $("last-refresh").textContent = `Saved history matrix CSV exported: ${new Date().toLocaleString()}`;
 }
 
+function downloadWorkbenchSelectedDataCsv() {
+  const rows = selectedDataCoverageRows();
+  const range = configDateRangePayload();
+  const header = [
+    "index",
+    "symbol",
+    "asset_class",
+    "source",
+    "bar_size",
+    "storage_session",
+    "source_timezone",
+    "adjustment_status",
+    "first_timestamp",
+    "last_timestamp",
+    "rows",
+    "quality_status",
+    "storage_contract_status",
+    "replay_status",
+    "replay_detail",
+    "workbench_start_date",
+    "workbench_end_date",
+    "path",
+  ];
+  const lines = [
+    csvLine(header),
+    ...rows.map((item) => csvLine([
+      item.index,
+      item.symbol,
+      item.asset,
+      item.source,
+      item.bar_size,
+      item.storage_session,
+      item.source_timezone,
+      item.adjustment_status,
+      item.first_timestamp,
+      item.last_timestamp,
+      item.rows,
+      item.quality_status,
+      item.storage_contract_status,
+      item.replay_status,
+      item.replay_detail,
+      range.start,
+      range.end,
+      item.path,
+    ])),
+  ];
+  const blob = new Blob([`${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "workbench_selected_data.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Workbench selected data CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadFetchManifestsCsv() {
   const body = await fetchText("/fetch_manifests_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -21960,6 +22129,13 @@ function init() {
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleWorkbenchSelectedDataAction(target);
   });
+  $("workbench-selected-coverage-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest("[data-workbench-selected-data-action]")
+      : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchSelectedDataAction(target);
+  });
   $("config-run-draft").addEventListener("change", () => {
     renderWorkbenchGuide();
     renderWorkbenchTriage();
@@ -22244,6 +22420,7 @@ function init() {
   });
   $("export-symbol-coverage-ledger-csv").addEventListener("click", downloadSymbolCoverageLedgerCsv);
   $("export-data-history-matrix-csv").addEventListener("click", downloadDataHistoryMatrixCsv);
+  $("export-workbench-selected-data-csv").addEventListener("click", downloadWorkbenchSelectedDataCsv);
   $("export-data-catalog-scan-csv").addEventListener("click", () => {
     downloadDataCatalogScanCsv().catch((err) => {
       $("last-refresh").textContent = `Catalog scan CSV export failed: ${err.message}`;

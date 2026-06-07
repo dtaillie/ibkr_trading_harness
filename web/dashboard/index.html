@@ -2377,6 +2377,33 @@
         </div>
         <div id="workbench-selected-data-cards" class="action-card-grid"></div>
         <div id="workbench-selected-data-list" class="workbench-selected-data-list"></div>
+        <section class="workbench-selected-coverage">
+          <div class="section-head inline-section-head">
+            <h3>Selected Data Coverage</h3>
+            <span id="workbench-selected-coverage-note" class="section-note">No selected coverage to export</span>
+          </div>
+          <div class="hero-actions">
+            <button id="export-workbench-selected-data-csv" class="secondary" type="button" disabled>Export Selected Data CSV</button>
+          </div>
+          <div id="workbench-selected-coverage-cards" class="action-card-grid"></div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Source</th>
+                  <th>Bars</th>
+                  <th>Session</th>
+                  <th>Range</th>
+                  <th>Rows</th>
+                  <th>Replay</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="workbench-selected-coverage-body"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
       <div class="section-head artifact-head">
         <h2>Compatibility Review</h2>

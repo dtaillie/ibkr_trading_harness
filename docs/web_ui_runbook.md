@@ -319,7 +319,9 @@ matrix rows offline.
    settings. It shows the selected files, symbols, bar sizes, sources, chosen
    date window, alignment overlap state, and quality pressure. Use Inspect,
    Compare, or Remove on a file row when the packet does not look like the
-   replay input you intended.
+   replay input you intended. The Selected Data Coverage ledger below it
+   summarizes replay readiness, source/bar/session mix, ranges, and can export
+   the current saved-data handoff as CSV.
 4. Choose a public example plugin or a private local plugin from an ignored
    registry.
 5. Preview alignment before generating a draft. The Selected Data Packet
@@ -374,7 +376,9 @@ alignment preview, builder review, the run form, or loaded results.
 In Workbench Builder, start with Builder Assistant and Selected Data Packet
 before the lower form fields. Builder Assistant says which step is next, while
 Selected Data Packet answers whether the current saved-file input is the one
-you meant to simulate.
+you meant to simulate. Use Export Selected Data CSV when you want a portable
+record of exactly which saved files, date range, replay readiness, and metadata
+were used for the next draft.
 The Workbench workflow cards are the quickest route when you know the job:
 Select Data, Preview Alignment, Build Draft, Run Draft, Open Results, or Review
 Boundary. They use the same selected-data, alignment, draft, run, and artifact

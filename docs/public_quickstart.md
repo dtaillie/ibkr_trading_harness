@@ -545,6 +545,9 @@ advanced labels, ordering, and select-option descriptions. Keep real edge,
 tuned defaults, and private-only parameters in ignored local registries. The
 Workbench uses replay/shadow/simulated-paper modes; it does not submit broker
 orders.
+Selected Data Packet includes a coverage ledger for the chosen saved files:
+review source, bar size, storage session, ranges, rows, replay readiness, and
+Export Selected Data CSV before generating a draft.
 Duplicate symbols and duplicate paths are rejected before YAML is saved.
 Risk presets fill example guardrail and simulated-cost fields, but the fields
 remain editable and the presets are not trading recommendations.

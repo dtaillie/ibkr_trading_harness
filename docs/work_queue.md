@@ -1507,6 +1507,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     shows the current saved-file selection, quality pressure, bar/source mix,
     date-window choice, alignment overlap state, per-file ranges, and direct
     Inspect/Compare/Remove actions before draft generation.
+  - partial; Workbench Selected Data Packet now includes a Selected Data
+    Coverage ledger with replay-readiness cards, per-file source/bar/session/
+    range rows, direct Inspect/Compare/Remove actions, and Export Selected Data
+    CSV so the saved-data handoff can be audited before draft generation.
   - partial; generated Workbench dataset multi-selects no longer auto-select
     the first catalog file before the user chooses data, while the separate
     Compare Saved Data view keeps its deliberate two-file starter selection.

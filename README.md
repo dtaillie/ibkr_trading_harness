@@ -287,7 +287,9 @@ can expose private plugin metadata to the Workbench without publishing strategy
 logic. The workbench path remains limited to file-based data under configured
 data roots and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths
-rejected before YAML is written. Generated drafts include a data-alignment
+rejected before YAML is written. The Selected Data Packet includes an exportable
+coverage ledger for selected files, source/bar/session mix, ranges, rows, replay
+readiness, and metadata before YAML is written. Generated drafts include a data-alignment
 summary for common timestamps, overlap coverage, cadence mismatches, and
 per-symbol timestamp counts; the same alignment summary can be previewed before
 saving a draft. Saved drafts can be reopened for YAML, validation status, data
