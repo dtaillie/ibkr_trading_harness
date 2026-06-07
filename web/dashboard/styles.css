@@ -513,6 +513,14 @@ footer {
   flex-wrap: wrap;
 }
 
+.jump-field {
+  min-width: 220px;
+}
+
+.jump-field select {
+  min-width: 220px;
+}
+
 .command-boundary {
   flex: 1 1 100%;
   min-width: 240px;
@@ -4506,6 +4514,11 @@ footer {
 
   .toolbar {
     margin-top: 14px;
+  }
+
+  .jump-field,
+  .jump-field select {
+    min-width: min(100%, 320px);
   }
 
   .page-intro {

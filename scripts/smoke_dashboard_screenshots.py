@@ -133,6 +133,8 @@ LAYOUT_CHECK_SCRIPT = r"""
   const selectors = [
     ".topbar h1",
     ".topbar p",
+    ".jump-field span",
+    ".jump-field select",
     ".nav-link",
     ".status-tile span",
     ".status-tile strong",
@@ -246,6 +248,7 @@ LAYOUT_CHECK_SCRIPT = r"""
   }
   const hitTestSelectors = [
     ".topbar h1",
+    ".jump-field select",
     ".nav-link",
     ".status-tile strong",
     ".metric strong",

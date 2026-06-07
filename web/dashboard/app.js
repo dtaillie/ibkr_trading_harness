@@ -1163,9 +1163,31 @@ function routeHash(view = activeView(), lens = currentRouteLens(view)) {
   return selectedLens === "home" ? `#${targetView}` : `#${targetView}/${selectedLens}`;
 }
 
+function routeTargetValue(view = activeView(), lens = currentRouteLens(view)) {
+  return routeHash(view, lens).replace(/^#/, "");
+}
+
 function routeUrl(view = activeView(), lens = currentRouteLens(view)) {
   const base = `${window.location.origin}${window.location.pathname}`;
   return `${base}${routeHash(view, lens)}`;
+}
+
+function syncDashboardJump(view = activeView()) {
+  const select = $("dashboard-jump");
+  if (!select) return;
+  const value = routeTargetValue(view, currentRouteLens(view));
+  if ([...select.options].some((option) => option.value === value)) {
+    select.value = value;
+  } else {
+    select.value = normalizeView(view);
+  }
+}
+
+function jumpToDashboardTarget(value) {
+  const parts = dashboardHashParts(value);
+  const targetView = normalizeView(parts.view);
+  const lens = parts.hasExplicitLens ? parts.lens : "";
+  navigateToViewTarget(targetView, lens);
 }
 
 function renderRouteBreadcrumb(view = activeView()) {
@@ -1192,6 +1214,7 @@ function renderRouteBreadcrumb(view = activeView()) {
   if (copyButton) {
     copyButton.dataset.routeLink = routeUrl(targetView, lens);
   }
+  syncDashboardJump(targetView);
 }
 
 function handleRouteAction(action) {
@@ -20082,6 +20105,8 @@ function init() {
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToViewTarget(button.dataset.viewTarget, button.dataset.viewLens || ""));
   }
+  $("dashboard-jump-go").addEventListener("click", () => jumpToDashboardTarget($("dashboard-jump").value));
+  $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("page-route-crumbs").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("[data-route-action]") : null;
     if (!(target instanceof HTMLElement)) return;

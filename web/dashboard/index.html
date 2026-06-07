@@ -63,6 +63,62 @@
           <p id="subtitle">Waiting for telemetry</p>
         </div>
         <div class="toolbar">
+          <label class="jump-field">
+            <span>Quick Jump</span>
+            <select id="dashboard-jump">
+              <optgroup label="Overview">
+                <option value="overview">Overview Home</option>
+                <option value="overview/activity">Overview Activity</option>
+                <option value="overview/diagnostics">Overview Diagnostics</option>
+              </optgroup>
+              <optgroup label="Performance">
+                <option value="performance">Performance Home</option>
+                <option value="performance/trades">Performance Trades</option>
+                <option value="performance/rollups">Performance Rollups</option>
+                <option value="performance/diagnostics">Performance Diagnostics</option>
+              </optgroup>
+              <optgroup label="Data Library">
+                <option value="data">Data Home</option>
+                <option value="data/browse">Data Browse</option>
+                <option value="data/inspect">Data Inspect</option>
+                <option value="data/compare">Data Compare</option>
+                <option value="data/diagnostics">Data Diagnostics</option>
+              </optgroup>
+              <optgroup label="Fetch Jobs">
+                <option value="fetch">Fetch Home</option>
+                <option value="fetch/jobs">Fetch Jobs</option>
+                <option value="fetch/detail">Fetch Detail</option>
+              </optgroup>
+              <optgroup label="Workbench">
+                <option value="workbench">Workbench Home</option>
+                <option value="workbench/builder">Workbench Builder</option>
+                <option value="workbench/run">Workbench Run</option>
+                <option value="workbench/artifacts">Workbench Artifacts</option>
+              </optgroup>
+              <optgroup label="Runs">
+                <option value="runs">Runs Home</option>
+                <option value="runs/state">Runs State</option>
+                <option value="runs/runs">Runs Search</option>
+                <option value="runs/events">Runs Events</option>
+              </optgroup>
+              <optgroup label="Operations">
+                <option value="operations">Operations Home</option>
+                <option value="operations/paper">Operations Paper</option>
+                <option value="operations/remote">Operations Remote</option>
+                <option value="operations/control">Operations Control</option>
+                <option value="operations/diagnostics">Operations Diagnostics</option>
+              </optgroup>
+              <optgroup label="Help">
+                <option value="help">Help Home</option>
+                <option value="help/pages">Help Pages</option>
+                <option value="help/workflows">Help Workflows</option>
+                <option value="help/data">Help Data</option>
+                <option value="help/boundary">Help Boundary</option>
+                <option value="help/docs">Help Docs</option>
+              </optgroup>
+            </select>
+          </label>
+          <button id="dashboard-jump-go" type="button">Go</button>
           <label class="token-field">
             <span>Token</span>
             <input id="auth-token" type="password" autocomplete="off">
