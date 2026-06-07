@@ -9652,6 +9652,7 @@ function renderDataHome(filteredRows = []) {
   renderDataScopeAssistant(filteredRows);
   renderDataInventoryPanel(filteredRows);
   renderDataHistoryReview(filteredRows);
+  renderDataHistoryMatrix(filteredRows);
   renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
@@ -9885,6 +9886,112 @@ function renderDataHistoryReview(filteredRows = []) {
     `<a class="secondary" href="#workbench/builder">Use In Workbench</a>`,
     `<a class="secondary" href="#fetch">Fetch Jobs</a>`,
   ].join("");
+}
+
+function dataHistoryMatrixRows(rows = []) {
+  const groups = new Map();
+  for (const dataset of rows || []) {
+    const asset = text(dataset.asset_class);
+    const source = text(dataset.source);
+    const bar = text(dataset.bar_size);
+    const session = text(dataset.storage_session);
+    const key = [asset, source, bar, session].join("\u0001");
+    if (!groups.has(key)) {
+      groups.set(key, {
+        asset,
+        source,
+        bar,
+        session,
+        symbols: new Set(),
+        file_count: 0,
+        row_count: 0,
+        first: null,
+        last: null,
+        latest_modified: null,
+        replay_counts: {},
+        quality_counts: {},
+        contract_counts: {},
+      });
+    }
+    const group = groups.get(key);
+    const symbol = text(dataset.symbol);
+    if (symbol !== "n/a") group.symbols.add(symbol);
+    group.file_count += 1;
+    group.row_count += Number(dataset.rows || 0);
+    const first = timestampMillis(dataset.first_timestamp);
+    const last = timestampMillis(dataset.last_timestamp);
+    const modified = timestampMillis(dataset.modified_at);
+    if (first !== null) group.first = group.first === null ? first : Math.min(group.first, first);
+    if (last !== null) group.last = group.last === null ? last : Math.max(group.last, last);
+    if (modified !== null) group.latest_modified = group.latest_modified === null ? modified : Math.max(group.latest_modified, modified);
+    const replayStatus = dataReplayReadinessModel(dataset).status;
+    group.replay_counts[replayStatus] = (group.replay_counts[replayStatus] || 0) + 1;
+    const quality = text(dataset.quality_status);
+    if (quality !== "n/a") group.quality_counts[quality] = (group.quality_counts[quality] || 0) + 1;
+    const contract = text(dataset.storage_contract_status);
+    if (contract !== "n/a") group.contract_counts[contract] = (group.contract_counts[contract] || 0) + 1;
+  }
+  return Array.from(groups.values()).map((group) => {
+    const replayBad = Number(group.replay_counts.bad || 0);
+    const replayWarn = Number(group.replay_counts.warn || 0);
+    const status = replayBad ? "bad" : replayWarn ? "warn" : "ok";
+    return {
+      ...group,
+      symbol_count: group.symbols.size,
+      status,
+      first_label: group.first === null ? "n/a" : new Date(group.first).toISOString().slice(0, 10),
+      last_label: group.last === null ? "n/a" : new Date(group.last).toISOString().slice(0, 10),
+      latest_label: group.latest_modified === null ? "n/a" : shortTimestampAgeLabel(new Date(group.latest_modified).toISOString()),
+    };
+  }).sort((left, right) => (
+    Number(right.symbol_count || 0) - Number(left.symbol_count || 0)
+    || Number(right.row_count || 0) - Number(left.row_count || 0)
+    || `${left.asset} ${left.source} ${left.bar} ${left.session}`.localeCompare(`${right.asset} ${right.source} ${right.bar} ${right.session}`)
+  ));
+}
+
+function renderDataHistoryMatrix(filteredRows = []) {
+  if (!$("data-history-matrix-note") || !$("data-history-matrix-body")) return;
+  const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const activeFilters = dataFilterSummary();
+  const rows = activeFilters.length ? filteredRows : catalogRows;
+  const matrix = dataHistoryMatrixRows(rows);
+  const totalSymbols = new Set((rows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const shown = matrix.slice(0, 18);
+  $("data-history-matrix-note").textContent = rows.length
+    ? `${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
+    : "No saved history rows are visible; configure data roots, raise the scan limit, or clear filters.";
+  $("data-history-matrix-body").innerHTML = shown.length
+    ? shown.map((group) => row([
+        escapeHtml(group.asset),
+        escapeHtml(group.source),
+        escapeHtml(group.bar),
+        escapeHtml(group.session),
+        escapeHtml(numberText(group.symbol_count, 0)),
+        escapeHtml(numberText(group.file_count, 0)),
+        escapeHtml(numberText(group.row_count, 0)),
+        escapeHtml(`${group.first_label} to ${group.last_label}`),
+        `<div class="data-readiness-cell ${escapeHtml(statusClass(group.status))}">
+          <strong>${escapeHtml(group.status === "bad" ? "Blocked" : group.status === "warn" ? "Review" : "Ready")}</strong>
+          <span>${escapeHtml(countSummary(group.replay_counts) || "n/a")}</span>
+          <small>${escapeHtml(`Q ${countSummary(group.quality_counts) || "n/a"} / contract ${countSummary(group.contract_counts) || "n/a"} / updated ${group.latest_label}`)}</small>
+        </div>`,
+        `<button type="button" class="secondary data-history-matrix-filter" data-asset="${escapeHtml(group.asset)}" data-source="${escapeHtml(group.source)}" data-bar="${escapeHtml(group.bar)}" data-session="${escapeHtml(group.session)}">Browse</button>`,
+      ])).join("")
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function applyDataHistoryMatrixFilter(target) {
+  clearDataCatalogFilters();
+  $("data-filter-asset").value = target.dataset.asset || "";
+  $("data-filter-source").value = target.dataset.source || "";
+  $("data-filter-bar").value = target.dataset.bar || "";
+  $("data-filter-session").value = target.dataset.session || "";
+  state.manifestPathFilter = null;
+  renderDataCatalog();
+  navigateToDataLens("browse");
+  $("last-refresh").textContent = `Browse filtered to ${text(target.dataset.asset)} / ${text(target.dataset.source)} / ${text(target.dataset.bar)} / ${text(target.dataset.session)}`;
+  if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function dataHomeWorkflowCards(filteredRows = []) {
@@ -21410,6 +21517,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-explorer-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataExplorerAction(target);
+  });
+  $("data-history-matrix-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".data-history-matrix-filter") : null;
+    if (!(target instanceof HTMLElement)) return;
+    applyDataHistoryMatrixFilter(target);
   });
   $("data-source-map").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;

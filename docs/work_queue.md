@@ -833,6 +833,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       groups the bounded catalog by asset, source, bar size, storage session,
       quality, and storage-contract state, with one-click filters and summary
       counts before users reach the dense saved-file table.
+    - partial; Data Library Home/Browse now includes a Saved History Matrix
+      grouped by asset, source, bar size, and storage session, with symbol/file/
+      row counts, range, replay readiness, and one-click Browse filters so
+      users can see the historical-bar inventory before searching a ticker.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend

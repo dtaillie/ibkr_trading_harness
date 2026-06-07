@@ -271,7 +271,8 @@ quality, storage-contract metadata, missing intervals, timezone, and adjustment
 metadata into one per-file readiness read, with a matching Replay filter and
 Replay-first sort for large local catalogs. Fetch Detail output rows show the
 same readiness when produced files are Data Library-visible. The Data Library
-can also compare several saved datasets
+also has a Saved History Matrix that groups saved files by asset, source, bar
+size, and session with one-click Browse filters, and can compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
 configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size

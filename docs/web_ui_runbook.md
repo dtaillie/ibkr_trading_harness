@@ -71,6 +71,10 @@ Use Saved Data Explorer in the Browse lens when you want the broad map first:
 it groups the bounded catalog by asset, source, bar size, storage session,
 quality, and storage-contract state, then lets you click a group to replace
 the current Browse filters and jump to the matching table rows.
+Use Saved History Matrix when you want the concrete bar inventory first: it
+groups visible saved files by asset, source, bar size, and session, then shows
+symbol/file/row counts, coverage range, replay readiness, and a Browse action
+for that slice.
 In the Saved Data table, use the Replay column as the first per-file screen.
 It combines data quality, storage-contract metadata, missing-interval pressure,
 source timezone, and adjustment metadata into one ok/warn/bad read before you
