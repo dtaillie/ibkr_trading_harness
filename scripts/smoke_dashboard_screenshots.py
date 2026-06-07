@@ -176,6 +176,10 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".overview-main-card strong",
     ".overview-main-card span",
     ".overview-main-card .metric-source",
+    ".overview-command-main strong",
+    ".overview-command-main span",
+    ".overview-command-cards strong",
+    ".overview-command-cards small",
     ".overview-glance-main strong",
     ".overview-glance-main span",
     ".overview-glance-cards strong",
@@ -267,6 +271,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".page-route-crumbs button",
     ".page-route-crumbs span",
     ".overview-main-card strong",
+    ".overview-command-main strong",
+    ".overview-command-cards strong",
     ".overview-glance-main strong",
     ".overview-glance-cards strong",
     ".overview-workflow-grid strong",
@@ -336,6 +342,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".action-card-grid",
     ".page-route",
     ".overview-workflow-grid",
+    ".overview-command-cards",
     ".performance-workflow-grid",
     ".data-workflow-grid",
     ".fetch-workflow-grid",
@@ -419,6 +426,7 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
   const activePath = location.hash.replace(/^#/, "") || "overview";
   const requirements = {
     "overview": [
+      { selector: "#overview-command-title" },
       { selector: "#overview-workflow-note" },
       { selector: "#overview-glance-title" }
     ],

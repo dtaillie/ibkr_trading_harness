@@ -1095,6 +1095,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-week-return" in html
         assert "overview-exposure" in html
         assert "overview-next-check" in html
+        assert "overview-command-note" in html
+        assert "overview-command-title" in html
+        assert "overview-command-summary" in html
+        assert "overview-command-primary" in html
+        assert "overview-command-secondary" in html
+        assert "overview-command-cards" in html
         assert "overview-glance-note" in html
         assert "overview-glance-title" in html
         assert "overview-glance-summary" in html

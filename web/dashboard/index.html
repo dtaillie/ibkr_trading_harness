@@ -250,6 +250,25 @@
 
     <section class="dashboard-section" data-view="overview" data-overview-lens="home">
       <div class="section-head">
+        <h2>Today's Command Center</h2>
+        <span id="overview-command-note" class="section-note">Waiting for current strategy evidence</span>
+      </div>
+      <section class="overview-command-panel" aria-label="Today's command center">
+        <div class="overview-command-main">
+          <span class="eyebrow">Current Read</span>
+          <strong id="overview-command-title">n/a</strong>
+          <span id="overview-command-summary">Publish status telemetry to see what is running, whether it traded, and where to look next.</span>
+          <div class="hero-actions">
+            <button id="overview-command-primary" class="secondary" type="button" data-view-target="performance">Performance</button>
+            <button id="overview-command-secondary" class="secondary" type="button" data-view-target="runs">Runs</button>
+          </div>
+        </div>
+        <div id="overview-command-cards" class="overview-command-cards"></div>
+      </section>
+    </section>
+
+    <section class="dashboard-section" data-view="overview" data-overview-lens="home">
+      <div class="section-head">
         <h2>Today at a Glance</h2>
         <span id="overview-glance-note" class="section-note">Waiting for telemetry</span>
       </div>

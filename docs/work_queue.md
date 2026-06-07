@@ -38,6 +38,10 @@ strategy-private.
   - partial; Overview now includes a Today at a Glance panel that synthesizes
     telemetry, current-day return, trade state, saved-data visibility, and the
     next best dashboard action before the denser health/order/timeline tables.
+  - partial; Overview now includes a Today's Command Center panel that puts
+    current operating state, next action, today's return, decision loop,
+    orders/fills, evidence source, and latest market-data age into one
+    first-screen summary before the broader workflow launcher.
   - partial; Overview now includes a Start Here workflow launcher with
     public-safe action cards for monitoring today, reviewing performance,
     browsing saved data, building simulations, inspecting runs/orders, and

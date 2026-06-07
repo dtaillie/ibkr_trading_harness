@@ -2060,6 +2060,12 @@ section {
   gap: 12px;
 }
 
+.overview-command-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.76fr) minmax(360px, 1.24fr);
+  gap: 12px;
+}
+
 .overview-glance-panel {
   display: grid;
   grid-template-columns: minmax(280px, 0.78fr) minmax(340px, 1.22fr);
@@ -2074,6 +2080,8 @@ section {
 .workbench-home-tiles,
 .workbench-result-tiles,
 .operations-home-tiles,
+.overview-command-main,
+.overview-command-cards,
 .overview-glance-main,
 .overview-glance-cards,
 .overview-performance-main,
@@ -2090,6 +2098,7 @@ section {
 .workbench-home-main strong,
 .workbench-result-main strong,
 .operations-home-main strong,
+.overview-command-main strong,
 .overview-glance-main strong,
 .overview-performance-main strong {
   display: block;
@@ -2102,6 +2111,7 @@ section {
 .workbench-home-main > span:last-of-type,
 .workbench-result-main > span:last-of-type,
 .operations-home-main > span:last-of-type,
+.overview-command-main > span:last-of-type,
 .overview-glance-main > span:last-of-type,
 .overview-performance-main > span:last-of-type {
   display: block;
@@ -2116,6 +2126,7 @@ section {
 .workbench-home-tiles,
 .workbench-result-tiles,
 .operations-home-tiles,
+.overview-command-cards,
 .overview-glance-cards,
 .overview-performance-tiles {
   display: grid;
@@ -4376,6 +4387,7 @@ footer {
   .workbench-run-command-panel,
   .operations-home-panel,
   .overview-lens-bar,
+  .overview-command-panel,
   .overview-glance-panel,
   .overview-performance-panel,
   .symbol-selection-panel,

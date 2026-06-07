@@ -4728,6 +4728,7 @@ function renderOverview() {
     className: statusClass(nextCheck ? "ok" : "warn"),
     meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
   });
+  renderOverviewCommandCenter();
   renderOverviewPerformanceSnapshot();
   renderOverviewGlance();
   renderOverviewWorkflowLauncher();
@@ -4738,6 +4739,108 @@ function renderOverview() {
   renderOverviewOrders();
   renderOverviewPositions();
   renderOverviewTimeline();
+}
+
+function renderOverviewCommandCenter() {
+  if (!$("overview-command-title") || !$("overview-command-cards")) return;
+  const payload = state.status || {};
+  const runs = payload.runs || [];
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestRejectedOrder = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const openOrders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const latestAccount = latestAccountRow(accountRows);
+  const positions = nonzeroPositionsFromSource(source);
+  const rollups = sortedStatusRollups();
+  const latestDay = rollups.length ? rollups[rollups.length - 1] : null;
+  const todayWindow = performancePeriodWindow(accountRows, "today");
+  const todayRows = rowsInWindow(accountRows, todayWindow);
+  const todayPerf = performanceFromAccountRows(todayRows);
+  const todayReturn = latestDay && finiteNumber(latestDay.daily_return_pct) !== null
+    ? latestDay.daily_return_pct
+    : todayPerf.total_return_pct;
+  const latestRun = latestTelemetryRun();
+  const runMetrics = (latestRun && latestRun.metrics) || {};
+  const latestBarTime = metricTimestamp(runMetrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const glance = overviewGlanceModel();
+  const primary = $("overview-command-primary");
+  const secondary = $("overview-command-secondary");
+  $("overview-command-note").textContent = payload.generated_at
+    ? `Status ${shortTimestampAgeLabel(payload.generated_at)} / ${numberText(events.length, 0)} recent event${events.length === 1 ? "" : "s"}`
+    : "No current telemetry published";
+  $("overview-command-title").textContent = glance.title;
+  $("overview-command-title").className = statusClass(glance.status);
+  $("overview-command-summary").textContent = glance.summary;
+  if (primary) {
+    primary.textContent = glance.primary.label;
+    primary.dataset.viewTarget = glance.primary.target;
+    primary.dataset.viewLens = glance.primary.lens || "";
+  }
+  if (secondary) {
+    secondary.textContent = glance.secondary.label;
+    secondary.dataset.viewTarget = glance.secondary.target;
+    secondary.dataset.viewLens = glance.secondary.lens || "";
+  }
+  const accountDetail = latestAccount.timestamp
+    ? `Latest account ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
+    : accountRows.length ? "Account rows loaded without timestamp." : "No account snapshot loaded.";
+  const cards = [
+    {
+      label: "Today Return",
+      title: pctText(todayReturn),
+      status: todayReturn === null || todayReturn === undefined ? "warn" : todayReturn >= 0 ? "ok" : "bad",
+      className: signedValueClass(todayReturn),
+      detail: latestDay && finiteNumber(latestDay.daily_return_pct) !== null
+        ? `${text(latestDay.day)} status rollup with ${numberText(latestDay.snapshot_count, 0)} snapshots.`
+        : todayRows.length ? `${numberText(todayRows.length, 0)} account snapshots in today's window.` : "No current-day equity evidence.",
+    },
+    {
+      label: "Decision Loop",
+      title: latestDecision ? text(latestDecision.symbol || "checked") : runs.length ? "awaiting" : "offline",
+      status: latestRejectedOrder ? "bad" : latestDecision ? "ok" : runs.length ? "warn" : "bad",
+      detail: latestRejectedOrder
+        ? `${text(latestRejectedOrder.symbol)} ${text(latestRejectedOrder.status)} ${shortTimestampAgeLabel(latestRejectedOrder.timestamp)}.`
+        : latestDecision
+          ? `${text(latestDecision.status || latestDecision.detail)} ${shortTimestampAgeLabel(latestDecision.timestamp)}.`
+          : runs.length ? "A run is visible, but no latest decision event is published." : "No run is publishing decisions.",
+    },
+    {
+      label: "Orders And Fills",
+      title: openOrders.length ? `${numberText(openOrders.length, 0)} open` : latestFill ? "filled" : positions.length ? `${numberText(positions.length, 0)} pos` : "flat",
+      status: latestRejectedOrder ? "bad" : openOrders.length || positions.length ? "warn" : latestFill ? "ok" : runs.length ? "ok" : "bad",
+      detail: latestFill
+        ? `${text(latestFill.symbol)} fill ${shortTimestampAgeLabel(latestFill.timestamp)}.`
+        : openOrders.length ? "Open order telemetry needs broker/account review." : positions.length ? "Open positions are visible in the current account source." : "No open order or fill telemetry.",
+    },
+    {
+      label: "Evidence",
+      title: source.has_data ? text(source.label) : "missing",
+      status: source.has_data && (accountRows.length || rollups.length) ? "ok" : source.has_data || rollups.length ? "warn" : "bad",
+      detail: `${numberText(accountRows.length, 0)} account snapshots / ${numberText(rollups.length, 0)} status day rows. ${accountDetail}`,
+    },
+    {
+      label: "Market Data",
+      title: latestBarTime ? timestampAgeLabel(latestBarTime) : "n/a",
+      status: latestBarTime ? "ok" : runs.length ? "warn" : "bad",
+      detail: latestBarTime ? text(latestBarTime) : "Runner has not published a latest bar timestamp.",
+    },
+  ];
+  $("overview-command-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
 }
 
 function overviewGlanceModel() {
