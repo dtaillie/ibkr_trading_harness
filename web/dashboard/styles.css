@@ -1158,6 +1158,48 @@ button.secondary {
   white-space: nowrap;
 }
 
+.plugin-widget-sparklines {
+  display: grid;
+  gap: 10px;
+}
+
+.plugin-widget-sparklines > div {
+  display: grid;
+  gap: 5px;
+}
+
+.plugin-widget-sparklines span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.plugin-widget-sparklines em {
+  color: var(--muted);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.plugin-widget-sparkline-chart {
+  display: block;
+  width: 100%;
+  height: 54px;
+  overflow: visible;
+}
+
+.plugin-widget-sparkline-chart polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .wide-field {
   flex: 1 1 320px;
   grid-column: 1 / -1;

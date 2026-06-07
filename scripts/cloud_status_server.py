@@ -209,6 +209,14 @@ CONFIG_BUILDER_PLUGINS = (
                 "fields": ["signal_value", "threshold_distance"],
                 "order": 20,
             },
+            {
+                "id": "example_trend",
+                "label": "Example Trend",
+                "kind": "sparkline",
+                "description": "Example-only trend lines from public-safe numeric diagnostics.",
+                "fields": ["signal_value", "threshold_distance"],
+                "order": 30,
+            },
         ],
     },
 )
@@ -222,7 +230,7 @@ PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "pre
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
-PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary"}
+PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary", "sparkline"}
 PLUGIN_RESULT_WIDGET_DISPLAY_KEYS = {"description", "help"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
@@ -7274,6 +7282,7 @@ def summarize_plugin_result_field_coverage(
         "widget_coverage": summarize_plugin_result_widget_coverage(
             plugin.get("result_widgets") if isinstance(plugin.get("result_widgets"), list) else [],
             coverage_by_name,
+            decisions,
             decision_count=decision_count,
         ),
     }
@@ -7311,6 +7320,7 @@ def summarize_plugin_result_section_coverage(
 def summarize_plugin_result_widget_coverage(
     widgets: list[dict[str, Any]],
     coverage_by_name: dict[str, dict[str, Any]],
+    decisions: list[dict[str, Any]],
     *,
     decision_count: int,
 ) -> list[dict[str, Any]]:
@@ -7322,6 +7332,18 @@ def summarize_plugin_result_widget_coverage(
         emitted_values = sum(int(row.get("emitted_count") or 0) for row in field_rows)
         field_summaries = []
         for row in field_rows[:12]:
+            points: list[dict[str, Any]] = []
+            if widget.get("kind") == "sparkline":
+                field_name = str(row.get("name") or "")
+                for decision in decisions[-80:]:
+                    drilldown = decision.get("drilldown") if isinstance(decision.get("drilldown"), dict) else {}
+                    value = finite_float(drilldown.get(field_name)) if field_name in drilldown else None
+                    if value is None:
+                        continue
+                    points.append({
+                        "timestamp": decision.get("timestamp"),
+                        "value": value,
+                    })
             field_summaries.append({
                 "name": row.get("name"),
                 "label": row.get("label"),
@@ -7335,6 +7357,7 @@ def summarize_plugin_result_widget_coverage(
                 "latest_value": row.get("latest_value"),
                 "latest_timestamp": row.get("latest_timestamp"),
                 "status": row.get("status"),
+                "points": points,
             })
         rows.append({
             "id": widget.get("id"),

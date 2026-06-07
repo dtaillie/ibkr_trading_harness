@@ -13453,6 +13453,26 @@ function renderArtifactPluginResultSections(artifacts, coverageRows = [], decisi
   }).join("");
 }
 
+function pluginResultSparkline(points = [], label = "plugin result trend") {
+  const values = (points || [])
+    .map((point) => finiteNumber(point.value))
+    .filter((value) => value !== null);
+  if (values.length < 2) return `<span class="muted">No trend yet</span>`;
+  const width = 220;
+  const height = 52;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const coords = values.map((value, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
+  const caption = `${text(label)} ${numberText(values[0])} to ${numberText(values[values.length - 1])}`;
+  return `<svg class="plugin-widget-sparkline-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(text(label))}"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline></svg>`;
+}
+
 function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-result-widgets")) return;
   const summary = artifacts.plugin_result_summary || {};
@@ -13481,6 +13501,13 @@ function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisio
           <span><b>${escapeHtml(text(field.label || field.name))}</b><i style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></i><em>${escapeHtml(pctText(field.coverage_pct))}</em></span>
         `;
       }).join("")}</div>`;
+    } else if (kind === "sparkline") {
+      body = `<div class="plugin-widget-sparklines">${fieldRows.map((field) => `
+        <div>
+          <span><b>${escapeHtml(text(field.label || field.name))}</b><em>${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</em></span>
+          ${pluginResultSparkline(field.points || [], field.label || field.name)}
+        </div>
+      `).join("")}</div>`;
     } else {
       body = `<div class="plugin-widget-card-list">${fieldRows.map((field) => `
         <span><b>${escapeHtml(text(field.label || field.name))}</b> ${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</span>

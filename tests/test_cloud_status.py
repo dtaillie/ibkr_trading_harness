@@ -3360,9 +3360,14 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         ]
         assert plugin["result_sections"][0]["id"] == "example_status"
         assert plugin["result_sections"][0]["fields"] == ["reason", "signal_value", "threshold_distance"]
-        assert [widget["id"] for widget in plugin["result_widgets"]] == ["example_cards", "example_summary"]
+        assert [widget["id"] for widget in plugin["result_widgets"]] == [
+            "example_cards",
+            "example_summary",
+            "example_trend",
+        ]
         assert plugin["result_widgets"][1]["kind"] == "bar_summary"
         assert plugin["result_widgets"][1]["fields"] == ["signal_value", "threshold_distance"]
+        assert plugin["result_widgets"][2]["kind"] == "sparkline"
         assert plugin["result_fields"][1]["label"] == "Example Score"
         assert plugin["result_fields"][1]["decimals"] == 2
         assert plugin["result_fields"][2]["suffix"] == "score units"
@@ -3760,7 +3765,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["plugin_result_summary"]["status"] == "ok"
         assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["declared_section_count"] == 1
-        assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 2
+        assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 3
         assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
         assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "example_status"
@@ -3769,6 +3774,8 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["kind"] == "bar_summary"
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["field_summaries"][0]["name"] == "signal_value"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][2]["kind"] == "sparkline"
+        assert len(run_artifacts["plugin_result_summary"]["widget_coverage"][2]["field_summaries"][0]["points"]) == 2
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
         assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
@@ -3835,6 +3842,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["section_coverage"][0]["field_coverage_pct"] == 100.0
         assert artifacts["plugin_result_summary"]["widget_coverage"][1]["field_coverage_pct"] == 100.0
+        assert artifacts["plugin_result_summary"]["widget_coverage"][2]["field_summaries"][0]["points"][0]["value"] == 0.0
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["coverage_pct"] == 100.0
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {
