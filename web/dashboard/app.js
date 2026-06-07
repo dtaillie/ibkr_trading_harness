@@ -13532,9 +13532,11 @@ function handleDataCoverageAssistantAction(action) {
 function renderSymbolDiagnostic() {
   const diagnostic = state.symbolDiagnostic || {};
   const summary = diagnostic.diagnostic_summary || {};
+  state.symbolDiagnosticReportText = symbolDiagnosticReportText(diagnostic);
   $("data-symbol-diagnostic-status").innerHTML = diagnostic.status
     ? statusText(summary.status || (diagnostic.status === "visible" ? "ok" : diagnostic.status === "not_found" ? "bad" : "warn"))
     : "No symbol checked";
+  $("copy-symbol-diagnostic-report").disabled = !diagnostic.symbol;
   const pairs = diagnostic.symbol
     ? [
         ["Symbol", diagnostic.symbol],
@@ -13587,6 +13589,59 @@ function renderSymbolDiagnostic() {
         escapeHtml(item.path || item.message || `rows=${text(item.rows)}`),
       ])).join("")
     : row([`<span class="muted">No fetch manifest clues for this symbol</span>`, "", "", "", ""]);
+}
+
+function symbolDiagnosticReportText(diagnostic = {}) {
+  if (!diagnostic || !diagnostic.symbol) return "No symbol diagnostic loaded.";
+  const summary = diagnostic.diagnostic_summary || {};
+  const rootInventory = diagnostic.root_inventory || {};
+  const candidates = [
+    ...(diagnostic.configured_candidates || []),
+    ...(diagnostic.unconfigured_matches || []).map((item) => ({ ...item, unconfigured: true })),
+  ];
+  const candidateLines = candidates.length
+    ? candidates.slice(0, 10).map((item, index) => [
+        `${index + 1}. ${item.path || "n/a"}`,
+        `scope=${item.unconfigured ? "unconfigured" : text(item.in_catalog_scope)}`,
+        `symbol=${text(item.symbol)}`,
+        `rows=${numberText(item.rows, 0)}`,
+        `quality=${text(item.quality_status)}`,
+        `storage=${text(item.storage_contract_status)}`,
+        `range=${rangeLabel(item.first_timestamp, item.last_timestamp)}`,
+        item.error ? `error=${item.error}` : "",
+      ].filter(Boolean).join(" | "))
+    : ["none"];
+  const fetchLines = (diagnostic.fetch_manifest_rows || []).length
+    ? (diagnostic.fetch_manifest_rows || []).slice(0, 10).map((item, index) => [
+        `${index + 1}. ${text(item.job_id)}`,
+        `type=${text(item.type)}`,
+        `status=${text(item.status || item.kind)}`,
+        item.day ? `day=${item.day}` : "",
+        item.path ? `path=${item.path}` : "",
+        item.message ? `message=${item.message}` : "",
+      ].filter(Boolean).join(" | "))
+    : ["none"];
+  return [
+    `Symbol Diagnostic: ${diagnostic.symbol}`,
+    `Status: ${text(diagnostic.status)} / ${text(summary.status)}`,
+    `Finding: ${text(diagnostic.message)}`,
+    `Next Step: ${text(diagnostic.action)}`,
+    `Catalog: visible=${numberText(summary.visible_match_count, 0)} configured=${numberText(summary.configured_candidate_count, 0)} unconfigured=${numberText(summary.unconfigured_match_count, 0)} limit_blocked=${numberText(summary.limit_blocked_count, 0)}`,
+    `Reviews: parser=${numberText(summary.parse_error_count, 0)} quality=${numberText(summary.visible_quality_review_count, 0)} timestamp=${numberText(summary.visible_timestamp_review_count, 0)} storage=${numberText(summary.visible_storage_contract_review_count, 0)} fetch_errors=${numberText(summary.fetch_error_count, 0)}`,
+    `Root Inventory: ${text(rootInventory.status || summary.root_inventory_status)} - ${text(rootInventory.primary_issue || summary.root_inventory_primary_issue)}`,
+    "Candidates:",
+    ...candidateLines,
+    "Fetch Manifest Clues:",
+    ...fetchLines,
+  ].join("\n");
+}
+
+function copySymbolDiagnosticReport() {
+  copyText(state.symbolDiagnosticReportText || "No symbol diagnostic loaded.").then(() => {
+    $("last-refresh").textContent = "Symbol diagnostic report copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Symbol diagnostic report copy failed: ${err.message}`;
+  });
 }
 
 function renderWorkbenchStatus() {
@@ -25644,6 +25699,7 @@ function init() {
       $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("copy-symbol-diagnostic-report").addEventListener("click", copySymbolDiagnosticReport);
   $("data-detail-form").addEventListener("submit", (event) => {
     reloadDataDetail(event).catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

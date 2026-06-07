@@ -871,6 +871,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       `root_inventory`, and per-candidate quality/timestamp/storage-contract
       fields, so a visible but malformed dataset is distinguished from
       root/configuration, parser, catalog-limit, and fetch-failure misses.
+    - partial; the Data Library diagnostics panel now has a Copy Report action
+      for the latest symbol diagnostic, producing a bounded public-safe summary
+      of the finding, next step, root inventory, candidate files, and fetch
+      manifest clues.
 - Expand data-root configuration for the dashboard:
   - support multiple roots in config and CLI
   - include real cache roots in private/local config

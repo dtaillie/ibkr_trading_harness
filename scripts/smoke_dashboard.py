@@ -557,6 +557,7 @@ def run_smoke(
             "data-minute-heatmap-body",
             "data-minute-date-hour-body",
             "data-symbol-diagnostic-form",
+            "copy-symbol-diagnostic-report",
             "data-symbol-candidates-body",
             "data-detail-form",
             "data-detail-symbol",
