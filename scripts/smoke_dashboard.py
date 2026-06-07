@@ -1016,6 +1016,7 @@ def run_smoke(
             "renderSymbolCoverageLedger",
             "data-symbol-coverage-body",
             "data-symbol-coverage-note",
+            "symbol-directory-workbench",
             "data-readiness-cell",
             "Replay Ready",
             "page-route-copy",

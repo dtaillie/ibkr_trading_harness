@@ -267,7 +267,7 @@ offline review, including per-symbol file counts, row counts, ranges, sources,
 bar sizes, quality counts, and the best inspectable saved file.
 Use Symbol Coverage Ledger when you want the same filtered symbol set as a
 compact range table with files, rows, sources, bars, sessions, replay
-readiness, and direct Inspect, Filter, and Compare actions.
+readiness, and direct Inspect, Filter, Compare, and Workbench actions.
 Use Symbol Browser quick picks when you only remember part of a ticker; the
 cards summarize matching symbols and select one into the existing Inspect,
 Compare, Filter, and Diagnose actions.

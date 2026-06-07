@@ -8719,6 +8719,7 @@ function renderSymbolCoverageLedger(directory) {
             <button type="button" class="secondary symbol-directory-inspect" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}">Inspect</button>
             <button type="button" class="secondary symbol-directory-filter" data-symbol="${escapeHtml(symbol)}">Filter</button>
             <button type="button" class="secondary symbol-directory-compare" data-symbol="${escapeHtml(symbol)}"${canCompare ? "" : " disabled"}>Compare</button>
+            <button type="button" class="secondary symbol-directory-workbench" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}" title="Use in Workbench">Build</button>
           </span>`,
         ]);
       }).join("")
@@ -8768,6 +8769,7 @@ function renderSymbolDirectory() {
             <div class="symbol-directory-actions">
               <button type="button" class="secondary symbol-directory-filter" data-symbol="${symbol}">Filter</button>
               <button type="button" class="secondary symbol-directory-inspect" data-symbol="${symbol}" data-path="${bestPath}">Inspect</button>
+              <button type="button" class="secondary symbol-directory-workbench" data-symbol="${symbol}" data-path="${bestPath}" title="Use in Workbench">Build</button>
               <button type="button" class="secondary symbol-directory-compare" data-symbol="${symbol}"${canCompare ? "" : " disabled"}>Compare</button>
               <button type="button" class="secondary symbol-directory-diagnose" data-symbol="${symbol}">Diagnose</button>
             </div>
@@ -10643,6 +10645,16 @@ async function handleSymbolDirectoryAction(target) {
     }
     await loadDataDetail(path, { resetControls: true });
     $("last-refresh").textContent = `Loaded ${symbol} data detail`;
+    return;
+  }
+  if (target.classList.contains("symbol-directory-workbench")) {
+    const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
+    const dataset = (state.dataCatalog.datasets || []).find((item) => item.path === path) || bestCatalogDatasetForSymbol(symbol);
+    if (!dataset || !dataset.path) {
+      $("data-symbol-directory-note").innerHTML = `<span class="status-bad">No Workbench-ready file for ${escapeHtml(symbol)}</span>`;
+      return;
+    }
+    selectCatalogDatasetInWorkbench(dataset);
     return;
   }
   if (target.classList.contains("symbol-directory-compare")) {

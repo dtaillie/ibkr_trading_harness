@@ -1066,6 +1066,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       table for the current filtered/sorted symbol set, showing range, files,
       rows, source/bar/session mix, readiness, and direct Inspect/Filter/
       Compare actions before the larger symbol-card grid.
+    - partial; Symbol Directory cards and Symbol Coverage Ledger rows now have
+      direct Workbench actions that select the best saved file for a symbol and
+      open Config Builder.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.

@@ -376,7 +376,7 @@ table. Use Symbol Directory to search and sort discovered symbols by files,
 rows, latest data, symbol, or quality, then jump directly to filter, inspect,
 compare, or diagnose actions. Use Symbol Coverage Ledger for the same filtered
 symbol set as a compact range/readiness table with direct Inspect, Filter, and
-Compare actions. Use Export Symbols CSV to download the same
+Compare, and Workbench actions. Use Export Symbols CSV to download the same
 server-owned symbol universe summary with file counts, row counts, sources,
 bar sizes, quality counts, ranges, and the best inspectable file for each
 symbol. Use Saved History Matrix to see the historical-bar inventory by asset,
