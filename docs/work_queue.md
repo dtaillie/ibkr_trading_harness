@@ -1438,6 +1438,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Operations now has Paper Monitor Health cards that summarize
     blocker/warning counts, next action, mode safety, and order-context
     visibility before the detailed checklist.
+  - partial; Paper Monitor now also has an Observation Packet that separates
+    runner heartbeat, Gateway/API, market-data feed, account feed, decision
+    loop, order context, and mode safety so users can tell whether a paper
+    runner is actively observing/evaluating before reading the full checklist.
   - partial; Operations Home now also includes workflow cards for Paper
     Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, and
     Diagnostics, giving users a job-oriented route into paper readiness,

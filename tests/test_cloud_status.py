@@ -1166,6 +1166,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "operations-home-gateway" in html
         assert "paper-monitor-note" in html
         assert "paper-monitor-health" in html
+        assert "paper-observation-note" in html
+        assert "paper-observation-cards" in html
+        assert "paper-observation-detail" in html
         assert "paper-monitor-guide" in html
         assert "remote-nodes-note" in html
         assert "remote-node-count" in html
@@ -1322,6 +1325,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function gapMarkerLegend" in js
         assert "gap-legend-swatch" in js
         assert "function renderWorkbenchSelectedDataPacket" in js
+        assert "function renderPaperObservationPacket" in js
     finally:
         server.shutdown()
         server.server_close()

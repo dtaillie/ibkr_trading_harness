@@ -15445,8 +15445,165 @@ function renderPaperMonitor() {
       ? `${warnCount} paper-monitor warning${warnCount === 1 ? "" : "s"}`
       : `${okCount} paper-monitor checks ready`;
   renderPaperMonitorHealth(items);
+  renderPaperObservationPacket();
   $("paper-monitor-guide").innerHTML = items.map((item) => (
     `<div class="check-item status-${escapeHtml(item.status)}"><span>${escapeHtml(item.status)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`
+  )).join("");
+}
+
+function paperObservationPacketModel() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const latestRun = latestTelemetryRun();
+  const supervisor = latestSupervisor();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const freshness = (latestRun && latestRun.freshness) || {};
+  const supervisorFreshness = (supervisor && supervisor.freshness) || {};
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestOrder = events.find((event) => event.type === "order");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const openOrders = currentOpenOrderRows();
+  const accountTimestamp = metricTimestamp(metrics, [
+    "account_end_time",
+    "latest_account_time",
+    "latest_account_timestamp",
+    "account_snapshot_time",
+  ]);
+  const marketTimestamp = metricTimestamp(metrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
+  const nextDecision = firstPresent(
+    metrics.next_decision_time,
+    metrics.next_expected_decision_time,
+    metrics.next_check_time,
+    metrics.next_signal_time,
+  );
+  const nextOrderContext = firstPresent(
+    metrics.next_order_condition,
+    metrics.next_order_reason,
+    metrics.latest_signal_reason,
+    metrics.signal_reason,
+    latestDecision && latestDecision.detail,
+  );
+  const heartbeatTimestamp = firstPresent(
+    freshness.timestamp,
+    metricTimestamp(metrics, ["last_decision_time", "account_end_time"]),
+    supervisor && supervisor.generated_at,
+    payload.generated_at,
+  );
+  const mode = String(metrics.mode || "").replace("-", "_").toLowerCase();
+  const stale = Boolean((freshness && freshness.stale) || (supervisorFreshness && supervisorFreshness.stale));
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const activeObserver = Boolean(latestRun && !stale && (marketTimestamp || decisionTimestamp));
+  let status = "bad";
+  let title = "Not Observing";
+  let note = "No current runner market-data or decision timestamp is visible.";
+  if (latestRun) {
+    status = activeObserver
+      ? latestReject || openOrders.length ? "warn" : "ok"
+      : stale ? "warn" : "bad";
+    title = activeObserver ? "Observing" : stale ? "Telemetry Stale" : "Waiting For Bars";
+    note = activeObserver
+      ? "Runner telemetry includes fresh market or decision observations."
+      : stale
+        ? "Runner or supervisor heartbeat is stale; confirm the process before trusting paper state."
+        : "Runner exists, but market-data or decision timestamps are missing.";
+  }
+  const cards = [
+    {
+      status,
+      label: "Observer",
+      title,
+      note,
+    },
+    {
+      status: gatewayStatus,
+      label: "Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      note: gateway.enabled
+        ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "" : `${gateway.latency_ms}ms`}`
+        : "Gateway reachability is not being checked.",
+    },
+    {
+      status: marketTimestamp ? stale ? "warn" : "ok" : "bad",
+      label: "Market Feed",
+      title: timestampAgeLabel(marketTimestamp),
+      note: marketTimestamp ? "Latest bar/snapshot timestamp from runner metrics." : "No market-data timestamp published.",
+    },
+    {
+      status: accountTimestamp ? stale ? "warn" : "ok" : "warn",
+      label: "Account Feed",
+      title: timestampAgeLabel(accountTimestamp),
+      note: accountTimestamp
+        ? `${numberText(metrics.account_snapshot_count, 0)} account snapshot${Number(metrics.account_snapshot_count || 0) === 1 ? "" : "s"} summarized.`
+        : "No account snapshot timestamp published.",
+    },
+    {
+      status: decisionTimestamp ? stale ? "warn" : "ok" : latestRun ? "warn" : "bad",
+      label: "Decision Loop",
+      title: decisionTimestamp ? timestampAgeLabel(decisionTimestamp) : nextDecision ? "Scheduled" : "Missing",
+      note: decisionTimestamp
+        ? latestDecision ? `${text(latestDecision.symbol)} ${text(latestDecision.detail)}` : "Last decision time is published in metrics."
+        : nextDecision ? `Next expected decision ${text(nextDecision)}.` : "No decision timestamp or next check is visible.",
+    },
+    {
+      status: latestReject ? "bad" : openOrders.length ? "warn" : nextOrderContext || latestOrder || latestFill ? "ok" : latestRun ? "warn" : "bad",
+      label: "Order Context",
+      title: latestReject ? "Rejected" : openOrders.length ? `${numberText(openOrders.length, 0)} open` : nextOrderContext ? "Signal Visible" : latestOrder ? "Order Visible" : latestFill ? "Fill Visible" : "Missing",
+      note: latestReject
+        ? `${text(latestReject.symbol)} ${text(latestReject.status)} ${text(latestReject.detail)}`
+        : openOrders.length
+          ? `${text(openOrders[0].symbol)} ${text(openOrders[0].status)} ${timestampAgeLabel(openOrders[0].timestamp)}.`
+          : nextOrderContext
+            ? text(nextOrderContext)
+            : latestOrder
+              ? `${text(latestOrder.symbol)} ${text(latestOrder.status)}.`
+              : latestFill
+                ? `${text(latestFill.symbol)} filled ${timestampAgeLabel(latestFill.timestamp)}.`
+                : "No next-order condition, recent order, or fill context is visible.",
+    },
+    {
+      status: latestRun ? ["paper", "simulated_paper", "shadow"].includes(mode) ? "ok" : mode ? "warn" : "bad" : "bad",
+      label: "Mode",
+      title: text(metrics.mode || "unpublished"),
+      note: latestRun ? `Run ${text(latestRun.id)} status=${text(latestRun.status)}; heartbeat ${timestampAgeLabel(heartbeatTimestamp)}.` : "No current run is publishing telemetry.",
+    },
+  ];
+  const detail = [
+    ["Run", latestRun ? `${text(latestRun.id)} / ${text(latestRun.status)} / ${text(metrics.mode || "unpublished")}` : "none"],
+    ["Supervisor", supervisor ? `${text(supervisor.id)} / ${text(supervisor.status)} / ${timestampAgeLabel(supervisor.generated_at)}` : "none"],
+    ["Market Timestamp", text(marketTimestamp)],
+    ["Account Timestamp", text(accountTimestamp)],
+    ["Decision Timestamp", text(decisionTimestamp)],
+    ["Next Decision", text(nextDecision)],
+    ["Latest Order", latestOrder ? `${text(latestOrder.symbol)} ${text(latestOrder.status)} ${text(latestOrder.timestamp)}` : "none"],
+    ["Latest Fill", latestFill ? `${text(latestFill.symbol)} ${text(latestFill.timestamp)}` : "none"],
+    ["Latest Rejection", latestReject ? `${text(latestReject.symbol)} ${text(latestReject.status)} ${text(latestReject.detail)}` : "none"],
+    ["Next Order Context", text(nextOrderContext)],
+  ];
+  return { status, title, note, cards, detail };
+}
+
+function renderPaperObservationPacket() {
+  if (!$("paper-observation-note") || !$("paper-observation-cards") || !$("paper-observation-detail")) return;
+  const model = paperObservationPacketModel();
+  $("paper-observation-note").innerHTML = `<span class="${escapeHtml(statusClass(model.status))}">${escapeHtml(model.title)}</span> - ${escapeHtml(model.note)}`;
+  $("paper-observation-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("paper-observation-detail").innerHTML = model.detail.map(([key, value]) => (
+    `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
 }
 
