@@ -910,6 +910,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       that summarizes visible/hidden rows, matched symbols, quality, source/bar
       breakdowns, and catalog-backed Filter, Inspect, Compare, and Diagnose
       actions for likely symbol matches.
+    - partial; the Search Assistant now also summarizes storage-contract
+      counts and includes contract status in active facets and symbol
+      suggestions, so filtered file sets show metadata review pressure.
     - partial; Data Library now has a first-screen Data Source Map that
       translates configured and suggested root diagnostics into visible,
       hidden/capped, parser-error, unavailable, and not-scanned root states

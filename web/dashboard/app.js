@@ -6582,6 +6582,7 @@ function renderDataSearchAssistant(filteredRows = []) {
   const hiddenCount = Math.max(0, datasets.length - filteredRows.length);
   const exactSymbols = new Set(filteredRows.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const qualityCounts = countBy(filteredRows, "quality_status");
+  const contractCounts = countBy(filteredRows, "storage_contract_status");
   const sourceCounts = countBy(filteredRows, "source");
   const barCounts = countBy(filteredRows, "bar_size");
   const bestMatch = filteredRows.find((dataset) => dataset.path) || null;
@@ -6592,6 +6593,7 @@ function renderDataSearchAssistant(filteredRows = []) {
     filters.asset ? `asset ${filters.asset}` : "",
     filters.source ? `source ${filters.source}` : "",
     filters.session ? `session ${filters.session}` : "",
+    filters.contract ? `contract ${filters.contract}` : "",
   ].filter(Boolean);
   let title = "No search applied";
   let note = "Use search and facets to narrow saved files, then inspect, compare, or diagnose a symbol.";
@@ -6602,7 +6604,7 @@ function renderDataSearchAssistant(filteredRows = []) {
       : `No saved files match ${[query, ...activeFacets].filter(Boolean).join(" / ")}. Diagnose can check roots and fetch manifests for a symbol.`;
   } else if (datasets.length) {
     title = `${numberText(datasets.length, 0)} searchable saved file${datasets.length === 1 ? "" : "s"}`;
-    note = "Start from a ticker, source, bar size, storage session, quality state, or local path.";
+    note = "Start from a ticker, source, bar size, storage session, quality state, contract state, or local path.";
   }
   $("data-search-title").textContent = title;
   $("data-search-note").textContent = note;
@@ -6628,6 +6630,14 @@ function renderDataSearchAssistant(filteredRows = []) {
         : filteredRows.length ? "Matching rows are currently ok-quality." : "No quality counts to show.",
     },
     {
+      label: "Contract",
+      status: Number(contractCounts.bad || 0) ? "bad" : Number(contractCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      title: countSummary(contractCounts),
+      note: Number(contractCounts.bad || 0) || Number(contractCounts.warn || 0)
+        ? "Review storage metadata before replay."
+        : filteredRows.length ? "Matching rows satisfy current storage-contract checks." : "No contract counts to show.",
+    },
+    {
       label: "Source And Bar",
       status: filteredRows.length ? "ok" : "warn",
       title: topCountEntries(sourceCounts, 2).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none",
@@ -6649,7 +6659,7 @@ function renderDataSearchAssistant(filteredRows = []) {
         <div>
           <strong>${escapeHtml(summary.symbol)}</strong>
           <span>${escapeHtml(numberText(summary.file_count, 0))} file${summary.file_count === 1 ? "" : "s"} / ${escapeHtml(numberText(summary.rows_total, 0))} rows</span>
-          <small>${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")} / ${qualityBadge(summary.quality_status)}</small>
+          <small>${escapeHtml(summary.sources.join(", ") || "unknown source")} / ${escapeHtml(summary.bars.join(", ") || "unknown bar")} / ${qualityBadge(summary.quality_status)} / contract ${escapeHtml(countSummary(countBy(exactRows, "storage_contract_status")))}</small>
         </div>
         <div>
           <button type="button" data-home-action="filter" data-symbol="${escapeHtml(summary.symbol)}">Filter</button>
