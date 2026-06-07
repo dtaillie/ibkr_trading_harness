@@ -7301,9 +7301,11 @@ function dataUniverseRows() {
       mixed_sessions: Boolean(summary.mixed_storage_sessions),
       session_profile: text(summary.storage_session_profile || ((summary.storage_sessions || []).join(", "))),
       qualities: summary.quality_counts || {},
+      contracts: summary.storage_contract_counts || {},
       first_day: summary.first_timestamp,
       last_day: summary.last_timestamp,
       best_quality_status: text(summary.best_quality_status),
+      best_storage_contract_status: text(summary.best_storage_contract_status),
       best_rows: Number(summary.best_rows || 0),
     }));
   }
@@ -7322,9 +7324,11 @@ function dataUniverseRows() {
       mixed_sessions: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).length > 1,
       session_profile: Array.from(new Set(rows.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).join(", ") || "unknown",
       qualities: countBy(rows, "quality_status"),
+      contracts: countBy(rows, "storage_contract_status"),
       first_day: ranges.start,
       last_day: ranges.end,
       best_quality_status: text(best.quality_status),
+      best_storage_contract_status: text(best.storage_contract_status),
       best_rows: Number(best.rows || 0),
     };
   });
@@ -7339,6 +7343,7 @@ function renderDataUniversePanel() {
     .map((item) => timestampMillis(item.last_day) || 0)
     .reduce((max, value) => Math.max(max, value), 0);
   const qualityIssueSymbols = rows.filter((item) => Number(item.qualities.bad || 0) || Number(item.qualities.warn || 0));
+  const contractIssueSymbols = rows.filter((item) => Number(item.contracts.bad || 0) || Number(item.contracts.warn || 0));
   const multiFileSymbols = rows.filter((item) => Number(item.file_count || 0) >= 2);
   const mixedSessionSymbols = rows.filter((item) => item.mixed_sessions);
   const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 4);
@@ -7356,6 +7361,9 @@ function renderDataUniversePanel() {
   } else if (qualityIssueSymbols.length) {
     nextAction = "Review Quality";
     note = `${numberText(qualityIssueSymbols.length, 0)} symbol${qualityIssueSymbols.length === 1 ? "" : "s"} have warn/bad files. Review diagnostics before replay.`;
+  } else if (contractIssueSymbols.length) {
+    nextAction = "Review Metadata";
+    note = `${numberText(contractIssueSymbols.length, 0)} symbol${contractIssueSymbols.length === 1 ? "" : "s"} have storage-contract warnings. Review metadata before replay.`;
   } else if (!multiFileSymbols.length && rows.length > 1) {
     nextAction = "Compare Symbols";
     note = "The universe has multiple symbols. Use Compare for overlapping date windows or fetch additional bar sizes for same-symbol checks.";
@@ -7389,9 +7397,13 @@ function renderDataUniversePanel() {
     },
     {
       label: "Replay Readiness",
-      status: !rows.length ? "bad" : qualityIssueSymbols.length ? "warn" : "ok",
-      title: qualityIssueSymbols.length ? `${numberText(qualityIssueSymbols.length, 0)} review` : rows.length ? "Ready To Inspect" : "No Data",
-      note: multiFileSymbols.length
+      status: !rows.length ? "bad" : qualityIssueSymbols.length || contractIssueSymbols.length ? "warn" : "ok",
+      title: qualityIssueSymbols.length || contractIssueSymbols.length
+        ? `${numberText(qualityIssueSymbols.length + contractIssueSymbols.length, 0)} review`
+        : rows.length ? "Ready To Inspect" : "No Data",
+      note: qualityIssueSymbols.length || contractIssueSymbols.length
+        ? `${numberText(qualityIssueSymbols.length, 0)} quality / ${numberText(contractIssueSymbols.length, 0)} contract symbol reviews.`
+        : multiFileSymbols.length
         ? `${numberText(multiFileSymbols.length, 0)} symbol${multiFileSymbols.length === 1 ? "" : "s"} have multiple files for same-symbol comparisons.`
         : "Inspect representative files before using this universe in Workbench.",
     },
@@ -7409,6 +7421,7 @@ function renderDataUniversePanel() {
         <strong>${escapeHtml(item.symbol)}</strong>
         <span>${escapeHtml(numberText(item.file_count, 0))} files / ${escapeHtml(numberText(item.row_count, 0))} rows</span>
         <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")} / ${escapeHtml(item.session_profile || item.sessions.join(", ") || "unknown session")}</small>
+        <small>quality ${escapeHtml(countSummary(item.qualities))} / contract ${escapeHtml(countSummary(item.contracts))}</small>
       </button>
     `).join("")
     : `<div class="empty-card"><strong>No symbols to rank</strong><span>Refresh Data Library after adding saved data roots.</span></div>`;

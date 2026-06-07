@@ -192,6 +192,9 @@ strategy-private.
     - partial; Symbol Directory now includes storage-contract filtering, sort,
       summary/assistant cards, and per-symbol contract counts so large symbol
       universes can be screened for metadata readiness before inspection.
+    - partial; Data Library Home universe cards and top-symbol chips now include
+      storage-contract readiness, so metadata review pressure is visible before
+      entering Browse or Workbench.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.
