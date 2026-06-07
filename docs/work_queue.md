@@ -769,6 +769,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     active filters, blocked by unconfigured suggested roots, or ready to
     browse, with direct actions for max-row scanning, diagnostics, root YAML,
     filter clearing, symbol browsing, and refresh.
+  - partial; Data Home now includes a Data Inventory panel that consolidates
+    the saved universe, configured/suggested root scope, coverage range,
+    quality/storage-contract readiness, visible filtered rows, and direct
+    Browse/Diagnostics/Workbench routes before the detailed root and symbol
+    surfaces.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

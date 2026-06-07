@@ -1787,6 +1787,7 @@ section {
   margin-top: 22px;
 }
 
+#data-inventory-actions a,
 #help-workbench-quickstart-actions a {
   display: inline-flex;
   align-items: center;
@@ -1800,6 +1801,7 @@ section {
   text-decoration: none;
 }
 
+#data-inventory-actions a.secondary,
 #help-workbench-quickstart-actions a.secondary {
   border-color: var(--line);
   background: #ffffff;
@@ -1959,6 +1961,45 @@ section {
   grid-template-columns: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
   gap: 12px;
   margin: 14px 0;
+}
+
+.data-inventory-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.76fr) minmax(360px, 1.24fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.data-inventory-main,
+.data-inventory-cards {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: var(--surface-shadow);
+}
+
+.data-inventory-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.data-inventory-main > span:last-of-type {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-inventory-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
 }
 
 .data-home-main,
@@ -4380,6 +4421,7 @@ footer {
   .viewer-controls,
   .symbol-browser,
   .data-home-panel,
+  .data-inventory-panel,
   .help-start-panel,
   .performance-home-panel,
   .workbench-home-panel,

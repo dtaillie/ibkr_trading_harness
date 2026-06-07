@@ -935,6 +935,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-home-workflows" in html
         assert "data-home-shortlist" in html
         assert "data-home-inspect-top" in html
+        assert "data-inventory-title" in html
+        assert "data-inventory-note" in html
+        assert "data-inventory-cards" in html
+        assert "data-inventory-actions" in html
         assert "data-source-map-note" in html
         assert "data-source-map" in html
         assert "help-start-panel" in html

@@ -9171,9 +9171,119 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Contract", contractCounts),
   ].join("");
   renderDataScopeAssistant(filteredRows);
+  renderDataInventoryPanel(filteredRows);
   renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
+}
+
+function renderDataInventoryPanel(filteredRows = []) {
+  if (!$("data-inventory-title") || !$("data-inventory-cards") || !$("data-inventory-actions")) return;
+  const catalog = state.dataCatalog || {};
+  const diagnostics = state.diagnostics || {};
+  const datasets = catalog.datasets || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const loadState = dataLibraryLoadState();
+  const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
+  const catalogCount = Number(catalog.count || datasets.length || 0);
+  const rootSummaries = catalog.root_summaries || [];
+  const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const range = timestampRangeFromDatasets(datasets);
+  const qualityCounts = catalog.quality_counts || countBy(datasets, "quality_status");
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const capped = catalogScopeIsCapped(catalog);
+  const hiddenByFilters = Math.max(0, catalogCount - filteredRows.length);
+  const rootScopes = countBy(roots, "scope");
+  const localRootCount = roots.filter((root) => ["private", "local-cache", "local-path"].includes(text(root.scope))).length;
+  let status = "bad";
+  let title = "No saved data visible";
+  let note = "Configure dashboard.data_roots, run a fetch job, or add a suggested local root before using the Workbench.";
+  let nextHref = "#data/diagnostics";
+  let nextLabel = "Open Diagnostics";
+  if (firstCatalogLoad) {
+    status = "warn";
+    title = "Scanning saved-data roots";
+    note = "The catalog is loading in the background; large history folders can take longer than the lightweight status refresh.";
+    nextHref = "#data";
+    nextLabel = "Stay On Data Home";
+  } else if (suggestedRoots.length && (!roots.length || !catalogCount)) {
+    status = "bad";
+    title = "Add suggested roots";
+    note = `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} may contain real history outside the configured scan.`;
+  } else if (capped) {
+    status = "warn";
+    title = "Raise the scan limit";
+    note = `The catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows, so missing symbols may simply be beyond the current scan window.`;
+  } else if (catalogCount && hiddenByFilters === catalogCount) {
+    status = "warn";
+    title = "Filters hide all rows";
+    note = "Saved data is loaded, but the active Browse filters hide every catalog row.";
+    nextHref = "#data/browse";
+    nextLabel = "Clear Or Browse";
+  } else if (parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0)) {
+    status = "bad";
+    title = "Review data readiness";
+    note = `${numberText(parserErrors, 0)} parser errors, ${numberText(qualityIssues, 0)} quality reviews, and ${numberText(contractIssues, 0)} metadata reviews are visible.`;
+  } else if (catalogCount) {
+    status = qualityIssues || contractIssues ? "warn" : "ok";
+    title = `${numberText(symbols.size, 0)} symbols ready to browse`;
+    note = `${numberText(catalogCount, 0)} saved files are visible under configured roots; inspect or compare files before sending them to Workbench.`;
+    nextHref = "#data/browse";
+    nextLabel = "Browse Symbols";
+  }
+  $("data-inventory-title").textContent = title;
+  $("data-inventory-title").className = statusClass(status);
+  $("data-inventory-note").textContent = note;
+  const rootScopeText = countSummary(rootScopes) || (roots.length ? "unknown scope" : "no roots");
+  const cards = [
+    {
+      label: "Universe",
+      title: firstCatalogLoad ? "Loading" : `${numberText(symbols.size, 0)} symbols`,
+      status: firstCatalogLoad ? "warn" : symbols.size ? "ok" : "bad",
+      detail: `${numberText(catalogCount, 0)} catalog files / ${numberText(catalog.row_count_total || 0, 0)} rows.`,
+    },
+    {
+      label: "Roots",
+      title: `${numberText(roots.length, 0)} configured`,
+      status: suggestedRoots.length ? "warn" : roots.length && totalRootFiles ? "ok" : "bad",
+      detail: `${rootScopeText}; ${numberText(localRootCount, 0)} local/private root${localRootCount === 1 ? "" : "s"}; ${numberText(suggestedRoots.length, 0)} suggested.`,
+    },
+    {
+      label: "Coverage",
+      title: range.start && range.end ? `${range.start} to ${range.end}` : "n/a",
+      status: range.start && range.end ? "ok" : catalogCount ? "warn" : "bad",
+      detail: catalog.latest_modified_at ? `Latest file modified ${timestampAgeLabel(catalog.latest_modified_at)}.` : "No latest modification timestamp.",
+    },
+    {
+      label: "Readiness",
+      title: parserErrors || qualityIssues || contractIssues ? `${numberText(parserErrors + qualityIssues + contractIssues, 0)} review` : catalogCount ? "Clean Enough" : "Unknown",
+      status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : catalogCount ? "ok" : "bad",
+      detail: `quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}.`,
+    },
+    {
+      label: "Visible Now",
+      title: `${numberText(filteredRows.length, 0)} shown`,
+      status: hiddenByFilters ? hiddenByFilters === catalogCount ? "bad" : "warn" : catalogCount ? "ok" : "bad",
+      detail: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} rows hidden by filters.` : "No active filters hide catalog rows.",
+    },
+  ];
+  $("data-inventory-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("data-inventory-actions").innerHTML = [
+    `<a href="${escapeHtml(nextHref)}">${escapeHtml(nextLabel)}</a>`,
+    `<a class="secondary" href="#data/diagnostics">Root Diagnostics</a>`,
+    `<a class="secondary" href="#workbench/builder">Open Workbench</a>`,
+  ].join("");
 }
 
 function dataHomeWorkflowCards(filteredRows = []) {
