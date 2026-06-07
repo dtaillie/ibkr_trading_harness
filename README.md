@@ -344,8 +344,12 @@ artifacts for decisions, orders, fills, account snapshots, return, drawdown,
 time-normalized return projections, gross/net exposure, position count, and an
 equity curve. Runs includes a copyable Event Flow Report for recent decisions,
 orders, fills, rejects, filters, latest event, and next inspection action before
-dense event rows; raw strategy signal payloads are not returned by the public
-artifact view. Plugins can opt into public-safe dashboard drilldowns by placing
+dense event rows. Runs Events also includes an Execution Quality Review for
+public-safe order/fill telemetry: missed-fill rate, order type mix, quote
+coverage, limit/cap coverage, fill price/timing coverage, and spread evidence
+are shown when runners publish those fields. Raw strategy signal payloads are
+not returned by the public artifact view. Plugins can opt into public-safe
+dashboard drilldowns by placing
 sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
 diagnostics remain hidden. Plugin registries can declare `result_fields`,
 `result_sections`, and `result_widgets` so Run Artifacts can label, group, and

@@ -2202,6 +2202,16 @@ QQQ show up, treat that as a bug until proven otherwise.
   - adaptive priority variants
 - Log decision-time bid/ask, submit bid/ask, order type, limit/cap price, fill
   time, average fill, effective spread capture, and missed-fill rate.
+  - partial; Runs Events now includes an Execution Quality Review that combines
+    recent published orders/fills with loaded artifact orders/fills, reports
+    missed/rejected/canceled/held order rate, order types, quote coverage,
+    limit/cap coverage, fill price/timing coverage, and spread evidence. The
+    public status/artifact sanitizers now preserve only explicit public-safe
+    execution fields such as decision/submit bid/ask, limit/cap price,
+    avg-fill/fill price, fill/submission timestamps, and spread bps while still
+    excluding raw metadata and private strategy diagnostics. Runner/broker code
+    still needs to publish complete quote/spread rows before the review can be
+    considered fully covered.
 - Run A/B paper tests before changing defaults away from market orders.
 - Keep crypto order handling separate from stock execution algos.
 

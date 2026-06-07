@@ -20194,6 +20194,7 @@ function runEventRows() {
         status: event.status,
         symbol: event.symbol,
         detail: `${text(event.side)} ${text(event.order_type)} qty=${text(event.quantity)} cash=${text(event.cash_quantity)} reason=${text(event.reason)} tag=${text(event.tag)}`,
+        raw: event,
       });
     }
     for (const event of recent.fills || []) {
@@ -20204,6 +20205,7 @@ function runEventRows() {
         status: "filled",
         symbol: event.symbol,
         detail: `${text(event.side)} qty=${text(event.quantity)} price=${text(event.price)} commission=${text(event.commission)} tag=${text(event.tag)}`,
+        raw: event,
       });
     }
   }
@@ -20372,6 +20374,7 @@ function renderRunEvents() {
   const events = sortedRunEvents(filteredRunEvents(allEvents));
   renderRunsEventsAssistant(allEvents, events);
   renderRunsEventFlowReport(allEvents, events);
+  renderExecutionQualityReview(allEvents, events);
   $("run-events-note").textContent = `${numberText(events.length, 0)} shown / ${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"}`;
   $("run-events-body").innerHTML = events.length
     ? events.map((event) => row([
@@ -20691,6 +20694,304 @@ function renderRunsEventFlowReport(allEvents = [], visibleEvents = []) {
     `<button type="button" class="secondary" data-runs-event-flow-action="latest-run" data-run-id="${escapeHtml(model.latestRunId)}"${model.latestRunId ? "" : " disabled"}>Latest Run</button>`,
     `<button type="button" class="secondary" data-runs-event-flow-action="clear"${model.activeFilters.length ? "" : " disabled"}>Clear Filters</button>`,
   ].join("");
+}
+
+function executionField(row, keys) {
+  for (const key of keys) {
+    const value = row ? row[key] : null;
+    if (value !== null && value !== undefined && value !== "") return value;
+  }
+  return null;
+}
+
+function executionNumber(row, keys) {
+  const value = executionField(row, keys);
+  const number = finiteNumber(value);
+  return number === null ? null : number;
+}
+
+function executionStatusIsMissed(row) {
+  const status = String(executionField(row, ["status", "order_status"]) || "").toLowerCase();
+  const reason = String(executionField(row, ["reason", "message", "error"]) || "").toLowerCase();
+  const combined = `${status} ${reason}`;
+  return ["reject", "cancel", "fail", "error", "expired", "inactive", "approval_required", "held"].some((token) => combined.includes(token));
+}
+
+function executionStatusIsFilled(row) {
+  const status = String(executionField(row, ["status", "order_status"]) || "").toLowerCase();
+  return status.includes("fill");
+}
+
+function executionReviewRows(allEvents = [], visibleEvents = []) {
+  const artifacts = state.configArtifacts || {};
+  const rows = [];
+  for (const event of visibleEvents || []) {
+    if (event.type !== "order" && event.type !== "fill") continue;
+    rows.push({
+      source: "recent",
+      run_id: event.run_id,
+      event_type: event.type,
+      timestamp: event.timestamp,
+      symbol: event.symbol,
+      status: event.status,
+      row: event.raw || event,
+    });
+  }
+  for (const orderItem of artifacts.orders || []) {
+    rows.push({
+      source: "artifact",
+      run_id: artifacts.run_id || artifacts.draft_id || "",
+      event_type: "order",
+      timestamp: orderItem.timestamp,
+      symbol: orderItem.symbol,
+      status: orderItem.status,
+      row: orderItem,
+    });
+  }
+  for (const fill of artifacts.fills || []) {
+    rows.push({
+      source: "artifact",
+      run_id: artifacts.run_id || artifacts.draft_id || "",
+      event_type: "fill",
+      timestamp: fill.timestamp,
+      symbol: fill.symbol,
+      status: fill.status || (fill.simulated ? "simulated" : "filled"),
+      row: fill,
+    });
+  }
+  const keyFor = (item) => [
+    item.source,
+    item.event_type,
+    item.run_id,
+    item.timestamp,
+    item.symbol,
+    text(executionField(item.row, ["side"])),
+    text(executionField(item.row, ["quantity", "cash_quantity"])),
+    text(executionField(item.row, ["status", "order_status"])),
+  ].join("|");
+  const seen = new Set();
+  return rows.filter((item) => {
+    const key = keyFor(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function executionQuote(row, prefix) {
+  const bid = executionNumber(row, [`${prefix}_bid`, `${prefix}_bid_price`, `${prefix}Bid`, `${prefix}BidPrice`]);
+  const ask = executionNumber(row, [`${prefix}_ask`, `${prefix}_ask_price`, `${prefix}Ask`, `${prefix}AskPrice`]);
+  return { bid, ask, spread: bid !== null && ask !== null ? ask - bid : null };
+}
+
+function executionSpreadBps(row) {
+  const explicit = executionNumber(row, ["effective_spread_bps", "spread_capture_bps", "spread_bps", "fill_spread_bps"]);
+  if (explicit !== null) return explicit;
+  const fill = executionNumber(row, ["avg_fill_price", "average_fill_price", "price", "fill_price", "avg_price"]);
+  const bid = executionNumber(row, ["submit_bid", "submit_bid_price", "decision_bid", "decision_bid_price", "bid", "bid_price"]);
+  const ask = executionNumber(row, ["submit_ask", "submit_ask_price", "decision_ask", "decision_ask_price", "ask", "ask_price"]);
+  if (fill === null || bid === null || ask === null || bid <= 0 || ask <= 0 || ask < bid) return null;
+  const mid = (bid + ask) / 2;
+  if (mid <= 0) return null;
+  return (2 * Math.abs(fill - mid) / mid) * 10000;
+}
+
+function executionQualityReviewModel(allEvents = [], visibleEvents = []) {
+  const rows = executionReviewRows(allEvents, visibleEvents);
+  const orders = rows.filter((item) => item.event_type === "order");
+  const fills = rows.filter((item) => item.event_type === "fill");
+  const missed = orders.filter((item) => executionStatusIsMissed(item.row));
+  const filledOrders = orders.filter((item) => executionStatusIsFilled(item.row));
+  const orderTypes = countBy(orders.map((item) => ({
+    order_type: executionField(item.row, ["order_type", "orderType", "type"]) || "unknown",
+  })), "order_type");
+  const decisionQuotes = orders.filter((item) => {
+    const quote = executionQuote(item.row, "decision");
+    return quote.bid !== null && quote.ask !== null;
+  });
+  const submitQuotes = orders.filter((item) => {
+    const quote = executionQuote(item.row, "submit");
+    return quote.bid !== null && quote.ask !== null;
+  });
+  const limitRows = orders.filter((item) => executionField(item.row, ["limit_price", "lmtPrice", "lmt_price", "entry_limit_price", "cap_price", "price_cap"]) !== null);
+  const fillTimingRows = fills.filter((item) => executionField(item.row, ["fill_time", "filled_at", "timestamp"]) !== null);
+  const avgFillRows = fills.filter((item) => executionField(item.row, ["avg_fill_price", "average_fill_price", "price", "fill_price", "avg_price"]) !== null);
+  const spreadRows = fills.filter((item) => executionSpreadBps(item.row) !== null);
+  const latestIssue = missed[0] || null;
+  const missedRate = orders.length ? (missed.length / orders.length) * 100 : null;
+  const fillEvidenceCount = Math.min(orders.length, filledOrders.length + fills.length);
+  const fillRate = orders.length ? (fillEvidenceCount / orders.length) * 100 : null;
+  let status = "bad";
+  let title = "No execution telemetry";
+  let note = "Publish order and fill rows to review execution quality fields.";
+  if (rows.length) {
+    if (missed.length) {
+      status = "bad";
+      title = "Missed fills need review";
+      note = `${numberText(missed.length, 0)} missed/rejected/canceled/held order event${missed.length === 1 ? "" : "s"} visible.`;
+    } else if (fills.length && (decisionQuotes.length || submitQuotes.length || spreadRows.length)) {
+      status = "ok";
+      title = "Execution context visible";
+      note = "Fills and at least one quote or spread context field are available.";
+    } else if (fills.length || orders.length) {
+      status = "warn";
+      title = "Basic execution visible";
+      note = "Orders/fills are visible, but richer quote, limit, timing, or spread fields are incomplete.";
+    }
+  }
+  const missing = [];
+  if (orders.length && !decisionQuotes.length) missing.push("decision bid/ask");
+  if (orders.length && !submitQuotes.length) missing.push("submit bid/ask");
+  if (orders.length && !limitRows.length) missing.push("limit/cap price");
+  if (fills.length && !avgFillRows.length) missing.push("average fill");
+  if (fills.length && !spreadRows.length) missing.push("effective spread");
+  const cards = [
+    {
+      status: orders.length || fills.length ? "ok" : "bad",
+      label: "Rows",
+      title: `${numberText(orders.length, 0)}O / ${numberText(fills.length, 0)}F`,
+      note: `${numberText(rows.filter((item) => item.source === "recent").length, 0)} recent / ${numberText(rows.filter((item) => item.source === "artifact").length, 0)} artifact rows.`,
+    },
+    {
+      status: missed.length ? "bad" : orders.length ? "ok" : "warn",
+      label: "Missed Fill Rate",
+      title: missedRate === null ? "n/a" : pctText(missedRate),
+      note: missed.length ? `${numberText(missed.length, 0)} missed/rejected/canceled/held order rows.` : "No missed-order status is visible.",
+    },
+    {
+      status: decisionQuotes.length || submitQuotes.length ? "ok" : orders.length ? "warn" : "bad",
+      label: "Quote Coverage",
+      title: `${numberText(decisionQuotes.length, 0)}D / ${numberText(submitQuotes.length, 0)}S`,
+      note: "Decision-time and submit-time bid/ask rows.",
+    },
+    {
+      status: fills.length ? avgFillRows.length === fills.length ? "ok" : "warn" : "bad",
+      label: "Fill Price",
+      title: `${numberText(avgFillRows.length, 0)} / ${numberText(fills.length, 0)}`,
+      note: "Fills with average/fill price fields.",
+    },
+    {
+      status: spreadRows.length ? "ok" : fills.length ? "warn" : "bad",
+      label: "Spread Context",
+      title: `${numberText(spreadRows.length, 0)} rows`,
+      note: "Rows with explicit spread fields or enough quote/fill data to derive effective spread.",
+    },
+  ];
+  const lines = [
+    {
+      status,
+      title: "Summary",
+      detail: `${title}. ${numberText(orders.length, 0)} order rows, ${numberText(fills.length, 0)} fill rows, ${numberText(missed.length, 0)} missed/rejected/canceled/held rows.`,
+    },
+    {
+      status: missed.length ? "bad" : orders.length ? "ok" : "warn",
+      title: "Order Outcomes",
+      detail: `Fill rate ${fillRate === null ? "n/a" : pctText(fillRate)}; missed-fill rate ${missedRate === null ? "n/a" : pctText(missedRate)}; order types ${countSummary(orderTypes)}.`,
+    },
+    {
+      status: decisionQuotes.length || submitQuotes.length ? "ok" : orders.length ? "warn" : "bad",
+      title: "Quote Evidence",
+      detail: `${numberText(decisionQuotes.length, 0)} decision-time quote row${decisionQuotes.length === 1 ? "" : "s"} and ${numberText(submitQuotes.length, 0)} submit-time quote row${submitQuotes.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: limitRows.length ? "ok" : orders.length ? "warn" : "bad",
+      title: "Order Style",
+      detail: `${numberText(limitRows.length, 0)} order row${limitRows.length === 1 ? "" : "s"} include limit/cap price fields. Types: ${countSummary(orderTypes)}.`,
+    },
+    {
+      status: avgFillRows.length && fillTimingRows.length ? "ok" : fills.length ? "warn" : "bad",
+      title: "Fill Evidence",
+      detail: `${numberText(avgFillRows.length, 0)} fills include average/fill price; ${numberText(fillTimingRows.length, 0)} include fill timestamps.`,
+    },
+    {
+      status: spreadRows.length ? "ok" : fills.length ? "warn" : "bad",
+      title: "Spread Evidence",
+      detail: spreadRows.length
+        ? `${numberText(spreadRows.length, 0)} row${spreadRows.length === 1 ? "" : "s"} expose effective spread or quote-derived spread context.`
+        : "No effective-spread or sufficient bid/ask plus fill-price fields are visible.",
+    },
+    {
+      status: missing.length ? "warn" : rows.length ? "ok" : "bad",
+      title: "Instrumentation Gap",
+      detail: missing.length
+        ? `Next runner/broker fields to publish: ${missing.join(", ")}.`
+        : rows.length ? "Required review fields are covered in the visible execution rows." : "No order/fill rows are available yet.",
+    },
+    {
+      status: latestIssue ? "bad" : "ok",
+      title: "Latest Issue",
+      detail: latestIssue
+        ? `${text(latestIssue.timestamp)} / ${text(latestIssue.symbol)} / ${text(executionField(latestIssue.row, ["status", "order_status"]))} / ${text(executionField(latestIssue.row, ["reason", "message", "error"]))}`
+        : "No missed/rejected/canceled/held order is visible in the current review set.",
+    },
+  ];
+  return { status, title, note, cards, lines, missed, orders, fills, missing };
+}
+
+function executionQualityReviewText(model) {
+  return [
+    `Execution Quality Review: ${model.title}`,
+    ...model.lines.map((line) => `${line.title}: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderExecutionQualityReview(allEvents = [], visibleEvents = []) {
+  if (!$("execution-quality-review-title") || !$("execution-quality-review-note") || !$("execution-quality-review-cards") || !$("execution-quality-review-body") || !$("execution-quality-review-actions")) return;
+  const model = executionQualityReviewModel(allEvents, visibleEvents);
+  state.executionQualityReviewText = executionQualityReviewText(model);
+  $("execution-quality-review-title").textContent = model.title;
+  $("execution-quality-review-title").className = statusClass(model.status);
+  $("execution-quality-review-note").textContent = model.note;
+  $("execution-quality-review-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("execution-quality-review-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("execution-quality-review-actions").innerHTML = [
+    `<button type="button" data-execution-quality-action="copy">Copy Review</button>`,
+    `<button type="button" class="secondary" data-execution-quality-action="issues"${model.missed.length ? "" : " disabled"}>Show Missed</button>`,
+    `<button type="button" class="secondary" data-execution-quality-action="orders"${model.orders.length ? "" : " disabled"}>Show Orders</button>`,
+    `<button type="button" class="secondary" data-execution-quality-action="fills"${model.fills.length ? "" : " disabled"}>Show Fills</button>`,
+    `<button type="button" class="secondary" data-execution-quality-action="clear">Clear Filters</button>`,
+  ].join("");
+}
+
+function handleExecutionQualityAction(action) {
+  if (action === "copy") {
+    copyText(state.executionQualityReviewText || "No execution quality review loaded").then(() => {
+      $("last-refresh").textContent = "Execution quality review copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Execution quality copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "issues") {
+    $("run-events-filter-text").value = "reject cancel fail error expired inactive approval held";
+    $("run-events-filter-type").value = "order";
+    $("run-events-filter-status").value = "";
+  } else if (action === "orders") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "order";
+    $("run-events-filter-status").value = "";
+  } else if (action === "fills") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "fill";
+    $("run-events-filter-status").value = "";
+  } else if (action === "clear") {
+    $("run-events-filter-text").value = "";
+    $("run-events-filter-type").value = "";
+    $("run-events-filter-status").value = "";
+  }
+  renderRunEvents();
+  navigateToRunsLens("events");
 }
 
 function handleRunsEventFlowAction(target) {
@@ -24815,6 +25116,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-event-flow-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleRunsEventFlowAction(target);
+  });
+  $("execution-quality-review-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-execution-quality-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleExecutionQualityAction(target.dataset.executionQualityAction || "");
   });
   for (const id of ["config-dataset", "config-start-date", "config-end-date"]) {
     if ($(id)) $(id).addEventListener("change", renderConfigLivePanels);

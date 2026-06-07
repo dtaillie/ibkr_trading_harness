@@ -627,7 +627,12 @@ run results are shown below the draft list. Use Inspect on a saved draft or run
 row to review summarized `summary.json`, decisions, orders, fills, account
 snapshots, return, drawdown, elapsed time, time-normalized return projections,
 gross/net exposure, max position count, and an equity curve. The artifact view
-intentionally omits raw strategy signal payloads. If a plugin wants public-safe
+intentionally omits raw strategy signal payloads. Runs Events can also review
+public-safe execution-quality fields from recent status or loaded artifacts:
+decision/submit bid/ask, order type, limit/cap price, fill time, average fill,
+effective spread evidence, and missed/rejected/canceled/held order rate. If
+those fields are missing, treat that as a runner/broker instrumentation gap, not
+as proof of good execution. If a plugin wants public-safe
 strategy drilldowns in the dashboard, publish only sanitized fields under
 `StrategyDecision.diagnostics["dashboard"]`; the dashboard allowlists fields
 such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,

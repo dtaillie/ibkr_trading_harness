@@ -7757,6 +7757,61 @@ def summarize_plugin_result_widget_coverage(
     return rows
 
 
+PUBLIC_EXECUTION_NUMERIC_FIELDS = (
+    "decision_bid",
+    "decision_ask",
+    "decision_bid_price",
+    "decision_ask_price",
+    "decision_mid",
+    "submit_bid",
+    "submit_ask",
+    "submit_bid_price",
+    "submit_ask_price",
+    "submit_mid",
+    "bid",
+    "ask",
+    "bid_price",
+    "ask_price",
+    "mid_price",
+    "limit_price",
+    "lmt_price",
+    "entry_limit_price",
+    "cap_price",
+    "price_cap",
+    "avg_fill_price",
+    "average_fill_price",
+    "fill_price",
+    "avg_price",
+    "effective_spread_bps",
+    "spread_capture_bps",
+    "spread_bps",
+    "fill_spread_bps",
+)
+
+PUBLIC_EXECUTION_TEXT_FIELDS = (
+    "submitted_at",
+    "submit_time",
+    "fill_time",
+    "filled_at",
+    "order_status",
+    "message",
+    "error",
+)
+
+
+def public_execution_fields(row: dict[str, Any]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    for field in PUBLIC_EXECUTION_NUMERIC_FIELDS:
+        value = finite_float(row.get(field))
+        if value is not None:
+            fields[field] = value
+    for field in PUBLIC_EXECUTION_TEXT_FIELDS:
+        value = row.get(field)
+        if value not in (None, ""):
+            fields[field] = value
+    return fields
+
+
 def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "timestamp": row.get("timestamp"),
@@ -7768,6 +7823,7 @@ def summarize_order_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "cash_quantity": row.get("cash_quantity"),
         "reason": row.get("reason"),
         "tag": row.get("tag"),
+        **public_execution_fields(row),
     }
 
 
@@ -7810,6 +7866,7 @@ def summarize_fill_artifact(row: dict[str, Any]) -> dict[str, Any]:
         "commission": row.get("commission"),
         "tag": row.get("tag"),
         "simulated": row.get("simulated"),
+        **public_execution_fields(row),
     }
 
 

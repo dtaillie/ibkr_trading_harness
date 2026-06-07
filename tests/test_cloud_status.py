@@ -443,7 +443,14 @@ def test_collect_status_includes_opt_in_recent_run_events(tmp_path):
             "status": "observed",
             "symbol": "SPY",
             "side": "buy",
+            "order_type": "limit",
+            "decision_bid": 99.95,
+            "decision_ask": 100.05,
+            "submit_bid": 99.98,
+            "submit_ask": 100.08,
+            "limit_price": 100.1,
             "tag": "example",
+            "metadata": {"private_signal": "hidden"},
         })
         + "\n"
     )
@@ -454,6 +461,9 @@ def test_collect_status_includes_opt_in_recent_run_events(tmp_path):
             "side": "buy",
             "quantity": 1,
             "price": 100.0,
+            "avg_fill_price": 100.0,
+            "effective_spread_bps": 1.5,
+            "metadata": {"private_signal": "hidden"},
         })
         + "\n"
     )
@@ -473,7 +483,14 @@ def test_collect_status_includes_opt_in_recent_run_events(tmp_path):
     assert recent["max_rows"] == 1
     assert recent["decisions"][0]["timestamp"] == "2026-01-02T14:30:00+00:00"
     assert recent["orders"][0]["symbol"] == "SPY"
+    assert recent["orders"][0]["decision_bid"] == 99.95
+    assert recent["orders"][0]["submit_ask"] == 100.08
+    assert recent["orders"][0]["limit_price"] == 100.1
     assert recent["fills"][0]["price"] == 100.0
+    assert recent["fills"][0]["avg_fill_price"] == 100.0
+    assert recent["fills"][0]["effective_spread_bps"] == 1.5
+    assert "metadata" not in recent["orders"][0]
+    assert "metadata" not in recent["fills"][0]
 
 
 def test_collect_status_warns_on_invalid_recent_run_events_config(tmp_path):
@@ -489,6 +506,43 @@ def test_collect_status_warns_on_invalid_recent_run_events_config(tmp_path):
     assert payload["runs"][0]["status"] == "ok"
     assert payload["runs"][0]["recent_events"] is None
     assert payload["alerts"][0]["kind"] == "run_recent_events_config"
+
+
+def test_cloud_status_artifact_summaries_keep_public_execution_fields():
+    raw_order = {
+        "timestamp": "2026-01-02T14:30:00+00:00",
+        "status": "submitted",
+        "symbol": "SPY",
+        "side": "buy",
+        "order_type": "limit",
+        "decision_bid": "99.95",
+        "decision_ask": 100.05,
+        "submit_bid": 99.98,
+        "submit_ask": 100.08,
+        "limit_price": 100.1,
+        "metadata": {"private_signal": "hidden"},
+    }
+    raw_fill = {
+        "timestamp": "2026-01-02T14:30:01+00:00",
+        "symbol": "SPY",
+        "side": "buy",
+        "quantity": 1,
+        "price": 100.0,
+        "avg_fill_price": 100.0,
+        "effective_spread_bps": 1.5,
+        "metadata": {"private_signal": "hidden"},
+    }
+
+    order = status_server.summarize_order_artifact(raw_order)
+    fill = status_server.summarize_fill_artifact(raw_fill)
+
+    assert order["decision_bid"] == 99.95
+    assert order["submit_ask"] == 100.08
+    assert order["limit_price"] == 100.1
+    assert fill["avg_fill_price"] == 100.0
+    assert fill["effective_spread_bps"] == 1.5
+    assert "metadata" not in order
+    assert "metadata" not in fill
 
 
 def test_collect_status_summarizes_remote_control_audit(tmp_path):

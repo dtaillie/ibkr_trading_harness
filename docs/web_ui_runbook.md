@@ -173,6 +173,13 @@ Start with Event Flow Report on Runs Home or Runs Events when you need the
 plain-language path through the recent timeline: it explains active filters,
 execution issues, decision/order/fill mix, latest event, run/symbol coverage,
 and the next inspection action before the dense event table.
+On Runs Events, use Execution Quality Review when you need to audit fills rather
+than strategy logic. It summarizes visible and loaded-artifact order/fill rows,
+missed/rejected/canceled/held order rate, order type mix, decision-time and
+submit-time bid/ask coverage, limit/cap price coverage, fill-price evidence, and
+spread evidence. Missing rows are instrumentation gaps: the panel does not infer
+bid/ask, average fill, or spread capture when runners have not published those
+public-safe fields.
 Use the Runs workflow cards first when you know the review job: Current State,
 Open Orders, Positions, Event Timeline, Run Search, or Loaded Artifacts. They
 route directly into the focused Runs, Performance, or Workbench views behind
