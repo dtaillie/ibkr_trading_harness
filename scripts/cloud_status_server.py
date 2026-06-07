@@ -510,6 +510,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_index_export",
+        "category": "data",
+        "description": "Download the broad filename/path-inferred saved-data symbol index.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/docs/{name}",
         "category": "help",
         "description": "Serve allowlisted public Markdown docs for in-dashboard runbooks and guidance.",
@@ -3468,6 +3475,32 @@ DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
 )
 
 
+DATA_SYMBOL_INDEX_EXPORT_FIELDS = (
+    "row_type",
+    "symbol",
+    "display_symbol",
+    "asset_class",
+    "file_count",
+    "size_bytes_total",
+    "latest_modified_at",
+    "sources",
+    "bar_sizes",
+    "storage_sessions",
+    "adjustment_statuses",
+    "roots",
+    "sample_paths",
+    "path",
+    "root",
+    "format",
+    "source",
+    "bar_size",
+    "storage_session",
+    "adjustment_status",
+    "size_bytes",
+    "modified_at",
+)
+
+
 DATA_CATALOG_SCAN_EXPORT_FIELDS = (
     "row_type",
     "path",
@@ -3766,6 +3799,24 @@ def build_data_symbol_directory_csv(data_roots: list[Path], *, limit: int = 200)
     writer.writeheader()
     for row in catalog.get("symbol_summaries", []):
         writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS})
+    return out.getvalue()
+
+
+def build_data_symbol_index_csv(data_roots: list[Path], *, limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT) -> str:
+    index = build_data_symbol_index(data_roots, limit=limit)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_INDEX_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in index.get("symbols", []):
+        writer.writerow({
+            field: compact_csv_value(row.get(field))
+            for field in DATA_SYMBOL_INDEX_EXPORT_FIELDS
+        } | {"row_type": "symbol"})
+    for row in index.get("files", []):
+        writer.writerow({
+            field: compact_csv_value(row.get(field))
+            for field in DATA_SYMBOL_INDEX_EXPORT_FIELDS
+        } | {"row_type": "file"})
     return out.getvalue()
 
 
@@ -10961,6 +11012,28 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_index_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_int_param(
+                    params,
+                    "limit",
+                    default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
+                    maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
+                )
+                csv_body = build_data_symbol_index_csv(self.data_roots, limit=limit)
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_symbol_index.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_catalog_export":
             if not self.require_auth():

@@ -379,7 +379,8 @@ catalog by asset, source, bar size, storage session, quality, and
 storage-contract state, then filters the saved-data table with one click. Data
 Home also shows a Root Index count that infers candidate files and symbols from
 configured-root filenames/paths without parsing every dataset, which is useful
-when the parsed catalog looks too small. Start with Catalog Scope when a
+when the parsed catalog looks too small. Use Export Root Index CSV to review
+that broader candidate universe offline. Start with Catalog Scope when a
 symbol is missing or the catalog looks too small: it calls out empty scans,
 scan-limit caps, filters hiding loaded rows, suggested roots outside
 `dashboard.data_roots`, and quality/metadata review pressure, then offers Scan

@@ -24566,6 +24566,21 @@ async function downloadDataSymbolDirectoryCsv() {
   $("last-refresh").textContent = `Symbol directory CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadDataSymbolIndexCsv() {
+  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000));
+  const body = await fetchText(`/data_symbol_index_export?limit=${symbolIndexLimit}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_symbol_index.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Root index CSV exported: ${new Date().toLocaleString()}`;
+}
+
 function downloadSymbolCoverageLedgerCsv() {
   const directory = symbolDirectoryRows();
   const header = [
@@ -25644,6 +25659,11 @@ function init() {
   $("export-data-symbol-directory-csv").addEventListener("click", () => {
     downloadDataSymbolDirectoryCsv().catch((err) => {
       $("last-refresh").textContent = `Symbol directory CSV export failed: ${err.message}`;
+    });
+  });
+  $("export-data-symbol-index-csv").addEventListener("click", () => {
+    downloadDataSymbolIndexCsv().catch((err) => {
+      $("last-refresh").textContent = `Root index CSV export failed: ${err.message}`;
     });
   });
   $("export-symbol-coverage-ledger-csv").addEventListener("click", downloadSymbolCoverageLedgerCsv);

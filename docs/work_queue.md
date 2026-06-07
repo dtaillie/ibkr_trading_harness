@@ -235,6 +235,8 @@ strategy-private.
       The README, public quickstart, Web UI runbook, and in-app Help now explain
       Root Index versus parsed catalog counts for capped scans and missing
       symbol diagnosis.
+      `/data_symbol_index_export` and the Data Library Export Root Index CSV
+      action now let users review that broader candidate universe offline.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

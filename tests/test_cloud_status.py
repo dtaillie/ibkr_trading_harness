@@ -1051,6 +1051,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-directory" in html
         assert "data-symbol-directory-note" in html
         assert "export-data-symbol-directory-csv" in html
+        assert "export-data-symbol-index-csv" in html
         assert "data-symbol-directory-filter" in html
         assert "data-symbol-directory-asset" in html
         assert "data-symbol-directory-source" in html
@@ -1455,6 +1456,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_symbol_index") in endpoints
+        assert ("GET", "/data_symbol_index_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
@@ -2589,6 +2591,16 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         assert index["symbols"][0]["file_count"] == 1
         assert index["symbols"][0]["sample_paths"][0].endswith("_1min_sample.csv")
         assert len(index["files"]) == 12
+
+        with request.urlopen(f"{base}/data_symbol_index_export?limit=20", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="data_symbol_index.csv"'
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert exported[0]["row_type"] == "symbol"
+        assert exported[0]["symbol"].startswith("SYM")
+        assert exported[0]["file_count"] == "1"
+        assert any(row["row_type"] == "file" and row["path"].endswith("_1min_sample.csv") for row in exported)
 
         with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:
             capped = json.loads(resp.read().decode("utf-8"))

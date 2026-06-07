@@ -540,6 +540,7 @@ def run_smoke(
             "data-symbol-directory-sort",
             "data-symbol-directory-limit",
             "export-data-symbol-directory-csv",
+            "export-data-symbol-index-csv",
             "data-filter-symbol-options",
             "data-explorer-note",
             "data-explorer-cards",
@@ -1149,6 +1150,7 @@ def run_smoke(
             "data-symbol-coverage-note",
             "symbol-directory-workbench",
             "downloadSymbolCoverageLedgerCsv",
+            "downloadDataSymbolIndexCsv",
             "export-symbol-coverage-ledger-csv",
             "selectedDataCoverageRows",
             "renderWorkbenchSelectedDataCoverage",
@@ -1302,6 +1304,7 @@ def run_smoke(
         coverage_symbol_limit = 50 if scenario == "seeded" else 10
         catalog = fetch_json(base_url, f"/data_catalog?limit={catalog_limit}&preview_points=3")
         symbol_index = fetch_json(base_url, f"/data_symbol_index?limit={max(catalog_limit, 500)}")
+        data_symbol_index_csv = fetch_text(base_url, f"/data_symbol_index_export?limit={max(catalog_limit, 500)}")
         data_catalog_csv = fetch_text(base_url, f"/data_catalog_export?limit={catalog_limit}")
         data_symbol_directory_csv = fetch_text(base_url, f"/data_symbol_directory_export?limit={catalog_limit}")
         data_catalog_scan_csv = fetch_text(base_url, f"/data_catalog_scan_export?limit={catalog_limit}")
@@ -1348,6 +1351,10 @@ def run_smoke(
         for field in ("symbol", "canonical_symbol", "raw_symbols", "raw_symbol_count", "mixed_raw_symbols", "file_count", "row_count"):
             if field not in symbol_directory_header:
                 raise RuntimeError(f"data symbol directory CSV header is missing {field}")
+        symbol_index_header = data_symbol_index_csv.splitlines()[0]
+        for field in ("row_type", "symbol", "file_count", "sample_paths", "path"):
+            if field not in symbol_index_header:
+                raise RuntimeError(f"data symbol index CSV header is missing {field}")
         if "row_type,path,display_path" not in data_catalog_scan_csv:
             raise RuntimeError("data catalog scan CSV header is missing")
         for field in ("inventory_status", "inventory_reason"):
@@ -1406,6 +1413,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
         if ("GET", "/data_symbol_index") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_index")
+        if ("GET", "/data_symbol_index_export") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_symbol_index_export")
         if ("GET", "/data_coverage_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_coverage_export")
         if ("GET", "/data_gap_summary") not in endpoint_paths:
