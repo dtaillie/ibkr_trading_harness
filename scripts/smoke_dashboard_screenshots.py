@@ -388,6 +388,119 @@ LAYOUT_CHECK_SCRIPT = r"""
 """
 
 
+EMPTY_STATE_CHECK_SCRIPT = r"""
+(() => {
+  const failures = [];
+  const visible = (element) => {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+  };
+  const label = (element) => {
+    const id = element.id ? `#${element.id}` : "";
+    const klass = Array.from(element.classList || []).slice(0, 3).map((item) => `.${item}`).join("");
+    const text = (element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    return `${element.tagName.toLowerCase()}${id}${klass}${text ? ` "${text}"` : ""}`;
+  };
+  const visibleChildren = (element) => Array.from(element.children || []).filter(visible);
+  const activePath = location.hash.replace(/^#/, "") || "overview";
+  const requirements = {
+    "overview": [
+      { selector: "#overview-workflow-note" },
+      { selector: "#overview-glance-title" }
+    ],
+    "overview/activity": [{ selector: "#overview-timeline-note" }],
+    "overview/diagnostics": [{ selector: "#overview-checklist", minChildren: 1 }],
+    "performance": [
+      { selector: "#performance-home-result" },
+      { selector: "#performance-workflows", minChildren: 1 }
+    ],
+    "performance/trades": [{ selector: "#performance-trade-assistant-title" }],
+    "performance/rollups": [{ selector: "#performance-rollup-assistant-title" }],
+    "performance/diagnostics": [{ selector: "#performance-context-note" }],
+    "data": [
+      { selector: "#data-home-title" },
+      { selector: "#data-scope-assistant-title" }
+    ],
+    "data/browse": [
+      { selector: "#data-facet-summary-title" },
+      { selector: "#data-explorer-groups", minChildren: 1 }
+    ],
+    "data/inspect": [{ selector: "#data-detail-assistant-title" }],
+    "data/compare": [{ selector: "#data-compare-assistant-title" }],
+    "data/diagnostics": [
+      { selector: "#data-storage-assistant-title" },
+      { selector: "#data-coverage-assistant-title" }
+    ],
+    "fetch": [
+      { selector: "#fetch-triage-note" },
+      { selector: "#fetch-jobs-guide-note" }
+    ],
+    "fetch/jobs": [{ selector: "#fetch-search-title" }],
+    "fetch/detail": [
+      { selector: "#fetch-detail-title" },
+      { selector: "#fetch-resume-note" }
+    ],
+    "workbench": [
+      { selector: "#workbench-home-result" },
+      { selector: "#workbench-guide-note" }
+    ],
+    "workbench/builder": [
+      { selector: "#workbench-builder-assistant-title" },
+      { selector: "#workbench-plugin-boundary-title" }
+    ],
+    "workbench/run": [
+      { selector: "#workbench-run-readiness-note" },
+      { selector: "#workbench-result-title" }
+    ],
+    "workbench/artifacts": [{ selector: "#workbench-artifacts-assistant-title" }],
+    "runs": [
+      { selector: "#runs-lens-title" },
+      { selector: "#runs-triage-note" }
+    ],
+    "runs/state": [{ selector: "#runs-account-boundary-note" }],
+    "runs/runs": [{ selector: "#runs-search-title" }],
+    "runs/events": [{ selector: "#runs-events-assistant-title" }],
+    "operations": [
+      { selector: "#operations-home-result" },
+      { selector: "#operations-home-note" }
+    ],
+    "operations/paper": [{ selector: "#paper-observation-note" }],
+    "operations/remote": [{ selector: "#remote-nodes-assistant-title" }],
+    "operations/control": [{ selector: "#control-assistant-title" }],
+    "operations/diagnostics": [{ selector: "#diagnostics-note" }],
+    "help": [
+      { selector: "#help-next-title" },
+      { selector: ".help-start-grid", minChildren: 1 }
+    ],
+    "help/pages": [{ selector: ".help-card[data-help-lens='pages']", text: "Page Guide" }],
+    "help/workflows": [{ selector: ".help-card[data-help-lens='workflows']", text: "Common Workflows" }],
+    "help/data": [{ selector: ".help-card[data-help-lens='data']", text: "Data To Simulation Fast Path" }],
+    "help/boundary": [{ selector: "#help-public-checklist", text: "Public Repo Preflight" }],
+    "help/docs": [{ selector: ".help-card[data-help-lens='docs']", text: "Useful Local Docs" }]
+  };
+  const checks = requirements[activePath] || requirements[activePath.split("/")[0]] || [];
+  for (const check of checks) {
+    const matches = Array.from(document.querySelectorAll(check.selector)).filter(visible);
+    if (!matches.length) {
+      failures.push({ type: "missing-empty-guidance", selector: check.selector, view: activePath });
+      continue;
+    }
+    if (check.text && !matches.some((element) => (element.textContent || "").includes(check.text))) {
+      failures.push({ type: "missing-empty-guidance-text", selector: check.selector, text: check.text, elements: matches.map(label), view: activePath });
+    }
+    if (check.minChildren !== undefined && !matches.some((element) => visibleChildren(element).length >= check.minChildren)) {
+      failures.push({ type: "empty-guidance-no-visible-children", selector: check.selector, minChildren: check.minChildren, elements: matches.map(label), view: activePath });
+    }
+    if (check.minChildren === undefined && !check.text && !matches.some((element) => (element.textContent || "").replace(/\s+/g, " ").trim().length > 0)) {
+      failures.push({ type: "empty-guidance-blank", selector: check.selector, elements: matches.map(label), view: activePath });
+    }
+  }
+  return { ok: failures.length === 0, failures, view: activePath, checkCount: checks.length };
+})()
+"""
+
+
 def find_chrome(explicit: str | None = None) -> str:
     candidates = [explicit] if explicit else []
     candidates.extend(["google-chrome", "chromium", "chromium-browser"])
@@ -674,6 +787,21 @@ class LayoutChecker:
             raise RuntimeError(f"layout check failed for {url} {self.width}x{self.height}: {sample}")
         return value
 
+    def check_empty_state_current(self, url: str) -> dict:
+        if self.client is None:
+            raise RuntimeError("layout checker is closed")
+        result = self.client.send("Runtime.evaluate", {
+            "expression": EMPTY_STATE_CHECK_SCRIPT,
+            "returnByValue": True,
+            "awaitPromise": True,
+        })
+        value = ((result.get("result") or {}).get("value")) or {}
+        if not value.get("ok"):
+            failures = value.get("failures") or []
+            sample = json.dumps(failures[:8], indent=2, sort_keys=True)
+            raise RuntimeError(f"empty-state guidance check failed for {url} {self.width}x{self.height}: {sample}")
+        return value
+
     def check(self, url: str) -> dict:
         self.navigate(url)
         return self.check_current(url)
@@ -743,6 +871,7 @@ def run_screenshot_smoke(
             post_seed_status(base_url)
         captures = []
         layout_checks = []
+        empty_state_checks = []
         for target_id, target_hash in VIEW_TARGETS:
             for label, (width, height) in VIEWPORTS.items():
                 url = f"{base_url}/#{target_hash}"
@@ -772,6 +901,13 @@ def run_screenshot_smoke(
                         "viewport": label,
                         **page.check_current(url),
                     })
+                if scenario == "empty":
+                    empty_state_checks.append({
+                        "view": target_id,
+                        "hash": target_hash,
+                        "viewport": label,
+                        **page.check_empty_state_current(url),
+                    })
         return {
             "base_url": base_url,
             "scenario": scenario,
@@ -780,6 +916,8 @@ def run_screenshot_smoke(
             "captures": captures,
             "layout_check_count": len(layout_checks),
             "layout_checks": layout_checks,
+            "empty_state_check_count": len(empty_state_checks),
+            "empty_state_checks": empty_state_checks,
         }
     finally:
         for page in browser_pages.values():
@@ -838,7 +976,8 @@ def main() -> None:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         layout = f", layout checks={result['layout_check_count']}" if result.get("layout_check_count") else ""
-        print(f"Dashboard screenshot smoke OK: {result['capture_count']} captures{layout} scenario={result['scenario']} in {result['output_dir']}")
+        empty = f", empty-state checks={result['empty_state_check_count']}" if result.get("empty_state_check_count") else ""
+        print(f"Dashboard screenshot smoke OK: {result['capture_count']} captures{layout}{empty} scenario={result['scenario']} in {result['output_dir']}")
 
 
 if __name__ == "__main__":

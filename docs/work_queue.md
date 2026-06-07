@@ -674,6 +674,10 @@ strategy-private.
     - partial; smoke checks now assert the Data Home shortlist and Help Start
       panel remain present, and screenshot overflow checks cover their card
       labels so these first-screen guide surfaces do not regress silently.
+    - partial; empty-state screenshot runs now also execute semantic guidance
+      checks for every focused view, failing if the expected empty-state
+      assistants, workflow launchers, or setup notes disappear even when the
+      page still passes geometric layout checks.
   - seeded demo-state smoke tests with many symbols, multiple runs, fills,
     rejects, and warnings
     - partial; `scripts/smoke_dashboard.py --scenario seeded` now creates a
