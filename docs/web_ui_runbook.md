@@ -60,12 +60,13 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Read Data Inventory, Universe Coverage, Data Visibility Report, and Catalog
-   Scope. Compare Root Index counts with parsed catalog counts: if Root Index
-   sees many more candidate files/symbols, the dashboard has found local files
-   but the quality catalog is still a bounded parsed sample. If Catalog Scope
-   says the scan is capped, use Scan Max Rows before deciding a symbol is
-   missing. If filters hide everything, use Clear Filters.
+2. Read Data Inventory, Historical Inventory Evidence, Universe Coverage, Data
+   Visibility Report, and Catalog Scope. Compare Root Index counts with parsed
+   catalog counts: if Root Index sees many more candidate files/symbols, the
+   dashboard has found local files but the quality catalog is still a bounded
+   parsed sample. If Catalog Scope says the scan is capped, use Scan Max Rows
+   before deciding a symbol is missing. If filters hide everything, use Clear
+   Filters.
 3. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
 4. Use Find Missing Symbol for a ticker you expected to see.
@@ -93,9 +94,12 @@ CSV when you want that
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.
 In the Browse lens, type a ticker into Symbol Browser and read Symbol
-Visibility before deciding data is missing. It separates visible catalog rows,
-rows hidden by active facets, root-index candidates that are on disk but not
-parsed into the catalog, and diagnostic/fetch evidence.
+Visibility for ticker-specific detail. Use Historical Inventory Evidence before
+deciding data is missing. It separates visible catalog rows, rows hidden by
+active facets, root-index candidates that are on disk but not parsed into the
+catalog, saved-history matrix readiness, root/scanner clues, and
+diagnostic/fetch evidence, with direct actions for Browse, Matrix, Diagnostics,
+Fetch Jobs, filters, root YAML, and Workbench.
 The Root Index root cards show which configured roots were indexed, capped,
 unavailable, or dominated by unsupported files.
 Use Saved History Matrix when you want the concrete bar inventory first: it

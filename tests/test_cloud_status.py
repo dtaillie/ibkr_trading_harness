@@ -1000,6 +1000,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-inventory-note" in html
         assert "data-inventory-cards" in html
         assert "data-inventory-actions" in html
+        assert "data-inventory-evidence-note" in html
+        assert "data-inventory-evidence-cards" in html
+        assert "data-inventory-evidence-body" in html
+        assert "data-inventory-evidence-actions" in html
         assert "data-history-note" in html
         assert "data-history-cards" in html
         assert "data-history-actions" in html

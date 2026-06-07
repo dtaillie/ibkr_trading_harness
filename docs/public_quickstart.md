@@ -436,12 +436,15 @@ Compare, and Workbench actions; Export Ledger CSV downloads that current table.
 Use Export Symbols CSV to download the same
 server-owned symbol universe summary with file counts, row counts, sources,
 bar sizes, quality counts, ranges, and the best inspectable file for each
-symbol. Use Saved History Matrix to see the historical-bar inventory by asset,
-source, bar size, and session before searching a ticker; each row can filter
-Browse to that slice, open the best file, compare the group, or send the group
-to Workbench. The matrix assistant names the best starting group, readiness,
-active scope, and next action before the table. Export Matrix CSV downloads the
-grouped inventory.
+symbol. Use Historical Inventory Evidence on Data Home when you need one
+copyable proof chain for what is parsed, what the root index sees on disk, what
+the saved-history matrix can replay, what filters hide, and which root/fetch
+condition to check next. Use Saved History Matrix to see the historical-bar
+inventory by asset, source, bar size, and session before searching a ticker;
+each row can filter Browse to that slice, open the best file, compare the
+group, or send the group to Workbench. The matrix assistant names the best
+starting group, readiness, active scope, and next action before the table.
+Export Matrix CSV downloads the grouped inventory.
 Symbol Browser's Selected Symbol strip summarizes the active symbol,
 selected saved file, coverage, and quality, with one-click Filter, Inspect,
 Workbench, Compare, and Diagnose actions. Use Copy data_roots YAML when Data Library finds
@@ -538,12 +541,13 @@ which CSV/parquet roots are scanned. The public example points only at
 file and add roots such as `cache`, `cache/ibkr`, or your historical-data
 directory. You can also repeat `--data-root` on the command line to override the
 config for one run. If Data Library only shows the public SPY/QQQ examples,
-read Data Inventory, Universe Coverage, Data Visibility Report, and Catalog
-Scope first. Compare Root Index counts with parsed catalog counts to see
-whether configured roots contain more candidate files than the quality catalog
-loaded. Then check whether the current Rows to scan limit, active filters,
-parser skips, missing fetch outputs, or unconfigured roots are hiding data, and
-review the root cards: the dashboard will call out likely local roots that
+read Data Inventory, Historical Inventory Evidence, Universe Coverage, Data
+Visibility Report, and Catalog Scope first. Compare Root Index counts with
+parsed catalog counts to see whether configured roots contain more candidate
+files than the quality catalog loaded. Then check whether the current Rows to
+scan limit, active filters, parser skips, missing fetch outputs, or
+unconfigured roots are hiding data, and review the root cards: the dashboard
+will call out likely local roots that
 exist but are not currently configured.
 Data roots are scanned locally; the dashboard receives coverage summaries and
 small downsampled previews, not full bar files.

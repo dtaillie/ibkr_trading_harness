@@ -50,6 +50,7 @@ const state = {
   performanceBenchmarkDetail: null,
   workbenchEvidenceText: "",
   fetchEvidenceText: "",
+  dataInventoryEvidenceText: "",
   operationsEvidenceText: "",
   runsEvidenceText: "",
   commands: [],
@@ -11862,6 +11863,253 @@ function handleDataVisibilityReportAction(action) {
   copyDataRootsYaml();
 }
 
+function dataInventoryEvidenceModel(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
+  const diagnostics = state.diagnostics || {};
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const symbolIndex = state.dataSymbolIndex || {};
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const fetchTotals = fetchManifestVisibilityTotals(manifests);
+  const filters = dataFilterSummary();
+  const activeRows = filters.length ? filteredRows : datasets;
+  const catalogRows = Number(catalog.count || datasets.length || 0);
+  const hiddenByFilters = Math.max(0, catalogRows - filteredRows.length);
+  const catalogSymbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const visibleSymbols = new Set((activeRows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const indexSymbols = Number(symbolIndex.symbol_count || ((symbolIndex.symbols || []).length) || 0);
+  const indexFiles = Number(symbolIndex.file_count || ((symbolIndex.files || []).length) || 0);
+  const indexCapped = symbolIndex.index_complete === false || Number(symbolIndex.scan_capped_root_count || 0) > 0;
+  const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
+  const rootSummaries = catalog.root_summaries || [];
+  const rootInventory = catalog.root_inventory || {};
+  const capped = catalogScopeIsCapped(catalog);
+  const parserErrors = Number(rootInventory.parse_error_count ?? catalog.error_count ?? rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const unsupportedFiles = Number(rootInventory.unsupported_file_count || rootSummaries.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0));
+  const qualityCounts = catalog.quality_counts || countBy(datasets, "quality_status");
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const matrix = dataHistoryMatrixRows(activeRows || []);
+  const readyGroups = matrix.filter((group) => group.status === "ok").length;
+  const reviewGroups = matrix.filter((group) => group.status === "warn").length;
+  const blockedGroups = matrix.filter((group) => group.status === "bad").length;
+  const range = timestampRangeFromDatasets(activeRows || []);
+  const totalRows = (activeRows || []).reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+  const suggestedCount = suggestedRoots.length;
+  const catalogLooksPartial = Boolean(capped || indexCapped || (indexFiles && indexFiles > catalogRows));
+  const hasBlockingIssues = Boolean(parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) || indexError !== "n/a");
+
+  let status = "bad";
+  let headline = "No historical data is visible";
+  let note = "Configure saved-data roots, run a fetch job, or refresh Data Library before using saved bars.";
+  if (catalogRows && !hasBlockingIssues && !catalogLooksPartial && !hiddenByFilters && !fetchTotals.issues && !fetchTotals.errors) {
+    status = "ok";
+    headline = "Historical data is discoverable";
+    note = `${numberText(catalogSymbols.size, 0)} symbols, ${numberText(catalogRows, 0)} files, and ${numberText(matrix.length, 0)} source/bar/session groups are visible.`;
+  } else if (catalogRows) {
+    status = hasBlockingIssues ? "bad" : "warn";
+    headline = "Historical data is visible, but needs review";
+    note = `${numberText(catalogRows, 0)} catalog files are loaded; use the evidence below to explain missing symbols, filters, caps, or replay blockers.`;
+  } else if (indexFiles || suggestedCount || manifests.length) {
+    status = "warn";
+    headline = "Historical data clues exist outside the parsed catalog";
+    note = `${numberText(indexFiles, 0)} root-index candidate files, ${numberText(suggestedCount, 0)} suggested roots, and ${numberText(manifests.length, 0)} fetch manifests are visible.`;
+  }
+
+  const nextAction = parserErrors
+    ? "Open Diagnostics and resolve parser/root scan errors before trusting replay results."
+    : suggestedCount && !catalogRows
+      ? "Copy the data_roots YAML and add suggested local roots, then refresh Data Library."
+      : catalogLooksPartial
+        ? "Raise the catalog/root-index limit, refresh Data Library, then recheck whether missing symbols are still absent."
+        : hiddenByFilters
+          ? "Clear filters or open Browse to inspect the full saved-data catalog."
+          : fetchTotals.issues || fetchTotals.errors
+            ? "Open Fetch Jobs and inspect manifests with hidden, missing, unsupported, or failed outputs."
+            : blockedGroups
+              ? "Use the Saved History Matrix to review blocked groups before Workbench replay."
+              : catalogRows
+                ? "Browse symbols, inspect a file, compare matching files, or send ready groups to Workbench."
+                : "Run a fetch job or configure saved-data roots.";
+
+  const cards = [
+    {
+      status,
+      label: "Evidence",
+      title: headline,
+      note,
+    },
+    {
+      status: catalogRows ? hiddenByFilters ? "warn" : "ok" : "bad",
+      label: "Parsed Catalog",
+      title: `${numberText(catalogRows, 0)} files`,
+      note: `${numberText(catalogSymbols.size, 0)} symbols / ${numberText(catalog.row_count_total || totalRows, 0)} rows; ${numberText(hiddenByFilters, 0)} hidden by filters.`,
+    },
+    {
+      status: indexError !== "n/a" ? "bad" : indexFiles ? indexCapped || indexFiles > catalogRows ? "warn" : "ok" : catalogRows ? "warn" : "bad",
+      label: "Root Index",
+      title: indexFiles ? `${numberText(indexFiles, 0)} candidates` : "n/a",
+      note: indexError !== "n/a"
+        ? `Root index failed: ${indexError}.`
+        : `${numberText(indexSymbols, 0)} inferred symbols${indexCapped ? "; index capped" : ""}${indexFiles > catalogRows ? "; broader than parsed catalog" : ""}.`,
+    },
+    {
+      status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
+      label: "Matrix",
+      title: `${numberText(matrix.length, 0)} groups`,
+      note: `${numberText(readyGroups, 0)} ready / ${numberText(reviewGroups, 0)} review / ${numberText(blockedGroups, 0)} blocked.`,
+    },
+    {
+      status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : catalogRows ? "ok" : "bad",
+      label: "Replay Quality",
+      title: parserErrors || qualityIssues || contractIssues ? `${numberText(parserErrors + qualityIssues + contractIssues, 0)} review` : catalogRows ? "Clean enough" : "Unknown",
+      note: `${numberText(parserErrors, 0)} parser errors; quality ${countSummary(qualityCounts)}; contract ${countSummary(contractCounts)}.`,
+    },
+    {
+      status: fetchTotals.issues || fetchTotals.errors ? "warn" : fetchTotals.visible ? "ok" : manifests.length ? "warn" : "bad",
+      label: "Fetch Clues",
+      title: `${numberText(fetchTotals.visible, 0)} visible`,
+      note: `${numberText(manifests.length, 0)} manifests; ${numberText(fetchTotals.missing, 0)} missing / ${numberText(fetchTotals.outside, 0)} outside roots / ${numberText(fetchTotals.errors, 0)} failures.`,
+    },
+  ];
+
+  const lines = [
+    {
+      status: catalogRows ? "ok" : "bad",
+      title: "Parsed Catalog",
+      detail: `${numberText(catalogRows, 0)} saved file row${catalogRows === 1 ? "" : "s"} across ${numberText(catalogSymbols.size, 0)} symbol${catalogSymbols.size === 1 ? "" : "s"} are currently parsed under configured roots.`,
+    },
+    {
+      status: activeRows.length ? "ok" : catalogRows ? "warn" : "bad",
+      title: "Current Scope",
+      detail: filters.length
+        ? `${filters.join(" / ")} leaves ${numberText(activeRows.length, 0)} file${activeRows.length === 1 ? "" : "s"} and ${numberText(visibleSymbols.size, 0)} symbol${visibleSymbols.size === 1 ? "" : "s"} visible; ${numberText(hiddenByFilters, 0)} files are hidden.`
+        : `No Browse filters are active; Data Home is using all ${numberText(activeRows.length, 0)} catalog file${activeRows.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: range.start && range.end ? "ok" : activeRows.length ? "warn" : "bad",
+      title: "Saved-Bar Window",
+      detail: range.start && range.end
+        ? `${range.start} to ${range.end} across ${numberText(totalRows, 0)} parsed row${totalRows === 1 ? "" : "s"} in the current scope.`
+        : "No timestamp range is available for the current saved-data scope.",
+    },
+    {
+      status: indexError !== "n/a" ? "bad" : indexFiles ? indexCapped || indexFiles > catalogRows ? "warn" : "ok" : catalogRows ? "warn" : "bad",
+      title: "Root Index Cross-Check",
+      detail: indexError !== "n/a"
+        ? `Root index failed with: ${indexError}.`
+        : `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} were inferred from root paths; parsed catalog has ${numberText(catalogRows, 0)} files${catalogLooksPartial ? ", so the catalog may be partial" : ""}.`,
+    },
+    {
+      status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
+      title: "Saved History Matrix",
+      detail: `${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"}: ${numberText(readyGroups, 0)} ready, ${numberText(reviewGroups, 0)} review, ${numberText(blockedGroups, 0)} blocked.`,
+    },
+    {
+      status: suggestedCount || unsupportedFiles || capped ? "warn" : roots.length ? "ok" : "bad",
+      title: "Roots And Scanner",
+      detail: `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; ${numberText(suggestedCount, 0)} suggested root${suggestedCount === 1 ? "" : "s"}; ${numberText(unsupportedFiles, 0)} unsupported file${unsupportedFiles === 1 ? "" : "s"}; catalog scan ${capped ? "appears capped" : "not capped"}.`,
+    },
+    {
+      status: fetchTotals.issues || fetchTotals.errors ? "warn" : fetchTotals.visible ? "ok" : manifests.length ? "warn" : "bad",
+      title: "Fetch Output Link",
+      detail: `${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"} loaded; ${numberText(fetchTotals.visible, 0)} outputs are Data Library-visible, ${numberText(fetchTotals.outside, 0)} are outside data roots, ${numberText(fetchTotals.missing, 0)} are missing, and ${numberText(fetchTotals.errors, 0)} failed.`,
+    },
+    {
+      status: status === "ok" ? "ok" : hasBlockingIssues ? "bad" : "warn",
+      title: "Next Action",
+      detail: nextAction,
+    },
+  ];
+
+  return { status, headline, note, cards, lines };
+}
+
+function dataInventoryEvidenceText(model) {
+  return [
+    `Historical Inventory Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderDataInventoryEvidence(filteredRows = []) {
+  if (!$("data-inventory-evidence-note") || !$("data-inventory-evidence-cards") || !$("data-inventory-evidence-body") || !$("data-inventory-evidence-actions")) return;
+  const model = dataInventoryEvidenceModel(filteredRows);
+  state.dataInventoryEvidenceText = dataInventoryEvidenceText(model);
+  $("data-inventory-evidence-note").textContent = model.note;
+  $("data-inventory-evidence-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-inventory-evidence-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("data-inventory-evidence-actions").innerHTML = [
+    `<button type="button" data-data-inventory-evidence-action="copy">Copy Evidence</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="browse">Browse Saved Data</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="matrix">Open Matrix</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="diagnostics">Diagnostics</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="fetch">Fetch Jobs</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="clear">Clear Filters</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="roots">Copy Root YAML</button>`,
+    `<button type="button" class="secondary" data-data-inventory-evidence-action="workbench">Workbench</button>`,
+  ].join("");
+}
+
+function handleDataInventoryEvidenceAction(action) {
+  if (action === "copy") {
+    copyText(state.dataInventoryEvidenceText || "No historical inventory evidence loaded").then(() => {
+      $("last-refresh").textContent = "Historical inventory evidence copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Historical inventory evidence copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "browse") {
+    navigateToDataLens("browse");
+    return;
+  }
+  if (action === "matrix") {
+    navigateToDataLens("home");
+    window.setTimeout(() => {
+      const destination = $("data-history-matrix-summary") || $("data-history-matrix-body");
+      if (destination) destination.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+    return;
+  }
+  if (action === "diagnostics") {
+    navigateToDataLens("diagnostics");
+    refreshDataDiagnostics({ force: false }).catch((err) => {
+      $("last-refresh").textContent = `Data diagnostics refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "fetch") {
+    navigateToView("fetch");
+    return;
+  }
+  if (action === "clear") {
+    clearDataCatalogFilters();
+    renderDataCatalog();
+    $("last-refresh").textContent = "Data Library filters cleared";
+    return;
+  }
+  if (action === "roots") {
+    copyDataRootsYaml();
+    return;
+  }
+  navigateToWorkbenchLens("builder");
+}
+
 function renderDataHome(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -11946,6 +12194,7 @@ function renderDataHome(filteredRows = []) {
   renderDataInventoryPanel(filteredRows);
   renderDataHistoryReview(filteredRows);
   renderDataVisibilityReport(filteredRows);
+  renderDataInventoryEvidence(filteredRows);
   renderDataHistoryMatrix(filteredRows);
   renderDataUniversePanel();
   renderRootIndexBrowser();
@@ -26758,6 +27007,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-visibility-report-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleDataVisibilityReportAction(target.dataset.dataVisibilityReportAction || "");
+  });
+  $("data-inventory-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-inventory-evidence-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleDataInventoryEvidenceAction(target.dataset.dataInventoryEvidenceAction || "");
   });
   $("data-catalog-scan-report-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-catalog-scan-report-action]") : null;

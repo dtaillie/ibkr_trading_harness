@@ -2236,6 +2236,10 @@ section {
   margin: 12px 0;
 }
 
+.data-inventory-evidence-panel {
+  margin: 12px 0;
+}
+
 .data-catalog-scan-report-panel {
   margin: 12px 0;
 }
@@ -3572,6 +3576,7 @@ section {
 .performance-evidence-panel,
 .workbench-evidence-panel,
 .fetch-evidence-panel,
+.data-inventory-evidence-panel,
 .operations-evidence-panel,
 .runs-evidence-panel {
   padding: 14px;
@@ -3585,6 +3590,7 @@ section {
 .performance-evidence-panel .section-note,
 .workbench-evidence-panel .section-note,
 .fetch-evidence-panel .section-note,
+.data-inventory-evidence-panel .section-note,
 .operations-evidence-panel .section-note,
 .runs-evidence-panel .section-note {
   color: #334155;
@@ -5248,5 +5254,21 @@ footer {
 
   .side-nav .nav-link {
     width: auto;
+  }
+
+  .section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-head .section-note {
+    width: 100%;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .section-head > .button-pair {
+    width: 100%;
+    justify-content: flex-start;
   }
 }

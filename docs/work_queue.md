@@ -877,6 +877,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality/storage-contract blockers, replay readiness, and fetch
     manifest output visibility so users can see why saved data is hidden,
     missing, outside roots, or ready to use.
+  - partial; Data Home now includes a Historical Inventory Evidence panel that
+    ties parsed catalog rows, root-index candidate counts, Saved History Matrix
+    replay readiness, filter pressure, root/scanner issues, fetch-output
+    visibility, and a copyable next-action summary into one first-screen proof
+    chain before users open dense Browse/Diagnostics/Fetch tables.
   - partial; `/data_catalog` now publishes a normalized `root_inventory`
     summary plus per-root `inventory_status`/`inventory_reason` fields, and the
     Data Library scope/visibility/scan reports use those fields so parser
@@ -938,6 +943,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Saved History Matrix now starts with assistant cards for the
       best starting group, readiness mix, compare/workbench availability,
       active scope, and next action before the detailed matrix rows.
+    - partial; Data Home Historical Inventory Evidence now cross-checks the
+      Saved History Matrix against the parsed catalog and root index so users
+      can tell whether missing history is a filter issue, scan cap, replay
+      blocker, root issue, or fetch-output visibility issue.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend
