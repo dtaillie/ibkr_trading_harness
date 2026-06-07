@@ -13473,6 +13473,63 @@ function pluginResultSparkline(points = [], label = "plugin result trend") {
   return `<svg class="plugin-widget-sparkline-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(text(label))}"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline></svg>`;
 }
 
+function pluginResultLineChart(fieldRows = [], label = "plugin result chart") {
+  const series = (fieldRows || [])
+    .map((field, index) => ({
+      name: text(field.label || field.name || `Series ${index + 1}`),
+      className: `plugin-series-${index % 6}`,
+      values: (field.points || [])
+        .map((point, pointIndex) => ({
+          index: pointIndex,
+          timestamp: point.timestamp,
+          value: finiteNumber(point.value),
+        }))
+        .filter((point) => point.value !== null),
+    }))
+    .filter((item) => item.values.length >= 2)
+    .slice(0, 6);
+  if (!series.length) return `<span class="muted">No chart points yet</span>`;
+  const allValues = series.flatMap((item) => item.values.map((point) => point.value));
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const span = max - min || 1;
+  const maxPoints = Math.max(...series.map((item) => item.values.length));
+  const width = 420;
+  const height = 170;
+  const pad = 18;
+  const chartWidth = width - pad * 2;
+  const chartHeight = height - pad * 2;
+  const zeroY = min < 0 && max > 0
+    ? pad + chartHeight - ((0 - min) / span) * chartHeight
+    : null;
+  const zeroLine = zeroY === null
+    ? ""
+    : `<line class="plugin-widget-line-zero" x1="${pad}" x2="${width - pad}" y1="${zeroY.toFixed(1)}" y2="${zeroY.toFixed(1)}"></line>`;
+  const paths = series.map((item) => {
+    const coords = item.values.map((point, pointIndex) => {
+      const x = pad + (maxPoints <= 1 ? 0 : (pointIndex / (maxPoints - 1)) * chartWidth);
+      const y = pad + chartHeight - ((point.value - min) / span) * chartHeight;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const first = item.values[0].value;
+    const last = item.values[item.values.length - 1].value;
+    const title = `${item.name} ${numberText(first)} to ${numberText(last)} across ${numberText(item.values.length, 0)} points`;
+    return `<polyline class="${escapeHtml(item.className)}" points="${coords}"><title>${escapeHtml(title)}</title></polyline>`;
+  }).join("");
+  const legend = series.map((item) => `
+    <span><i class="${escapeHtml(item.className)}"></i>${escapeHtml(item.name)}</span>
+  `).join("");
+  const caption = `${text(label)} / ${numberText(series.length, 0)} series / ${numberText(maxPoints, 0)} max points`;
+  return `
+    <svg class="plugin-widget-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(text(label))}">
+      ${zeroLine}
+      ${paths}
+    </svg>
+    <div class="plugin-widget-line-legend">${legend}</div>
+    <small>${escapeHtml(caption)}</small>
+  `;
+}
+
 function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-result-widgets")) return;
   const summary = artifacts.plugin_result_summary || {};
@@ -13508,6 +13565,8 @@ function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisio
           ${pluginResultSparkline(field.points || [], field.label || field.name)}
         </div>
       `).join("")}</div>`;
+    } else if (kind === "line_chart") {
+      body = `<div class="plugin-widget-line-chart-wrap">${pluginResultLineChart(fieldRows, widget.label || widget.id)}</div>`;
     } else {
       body = `<div class="plugin-widget-card-list">${fieldRows.map((field) => `
         <span><b>${escapeHtml(text(field.label || field.name))}</b> ${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</span>

@@ -909,6 +909,8 @@ def run_smoke(
             "plugin-widget-bars",
             "plugin-widget-sparklines",
             "pluginResultSparkline",
+            "plugin-widget-line-chart",
+            "pluginResultLineChart",
             "pluginResultDisplayDescriptor",
             "artifact-plugin-display-plan",
             "renderConfigBrokerBoundary",

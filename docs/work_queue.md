@@ -1598,8 +1598,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     public-safe plugin display metadata for descriptions, placeholders, units,
     affixes, advanced badges, ordering, select-option descriptions, and grouped
     plugin result sections. Plugin registries can now also declare public-safe
-    result widgets for card, table, bar-summary, and sparkline artifact
-    displays; richer multi-axis/custom chart widgets remain open.
+    result widgets for card, table, bar-summary, sparkline, and multi-series
+    line-chart artifact displays; arbitrary custom chart plugins remain open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

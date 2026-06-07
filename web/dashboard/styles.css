@@ -1200,6 +1200,78 @@ button.secondary {
   stroke-linejoin: round;
 }
 
+.plugin-widget-line-chart-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.plugin-widget-line-chart {
+  display: block;
+  width: 100%;
+  min-height: 170px;
+}
+
+.plugin-widget-line-chart polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.plugin-widget-line-chart .plugin-widget-line-zero {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.plugin-widget-line-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.plugin-widget-line-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.plugin-widget-line-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.plugin-series-0 {
+  color: var(--accent);
+}
+
+.plugin-series-1 {
+  color: #2563eb;
+}
+
+.plugin-series-2 {
+  color: #b45309;
+}
+
+.plugin-series-3 {
+  color: #7c3aed;
+}
+
+.plugin-series-4 {
+  color: #db2777;
+}
+
+.plugin-series-5 {
+  color: #0f766e;
+}
+
 .wide-field {
   flex: 1 1 320px;
   grid-column: 1 / -1;

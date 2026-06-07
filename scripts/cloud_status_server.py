@@ -217,6 +217,14 @@ CONFIG_BUILDER_PLUGINS = (
                 "fields": ["signal_value", "threshold_distance"],
                 "order": 30,
             },
+            {
+                "id": "example_line_chart",
+                "label": "Example Line Chart",
+                "kind": "line_chart",
+                "description": "Example-only multi-field chart from public-safe numeric diagnostics.",
+                "fields": ["signal_value", "threshold_distance"],
+                "order": 40,
+            },
         ],
     },
 )
@@ -230,7 +238,8 @@ PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "pre
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
-PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary", "sparkline"}
+PLUGIN_RESULT_CHART_WIDGET_KINDS = {"sparkline", "line_chart"}
+PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary"} | PLUGIN_RESULT_CHART_WIDGET_KINDS
 PLUGIN_RESULT_WIDGET_DISPLAY_KEYS = {"description", "help"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
@@ -7333,7 +7342,7 @@ def summarize_plugin_result_widget_coverage(
         field_summaries = []
         for row in field_rows[:12]:
             points: list[dict[str, Any]] = []
-            if widget.get("kind") == "sparkline":
+            if widget.get("kind") in PLUGIN_RESULT_CHART_WIDGET_KINDS:
                 field_name = str(row.get("name") or "")
                 for decision in decisions[-80:]:
                     drilldown = decision.get("drilldown") if isinstance(decision.get("drilldown"), dict) else {}
