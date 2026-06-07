@@ -22,12 +22,15 @@ Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.
 
-Use the topbar Quick Jump selector when you already know the destination. It
-lists every public page and focused lens, including entries such as Data
-Inspect, Workbench Run, Performance Trades, and Operations Remote. Each page
-also shows a route strip above the intro. Page Home returns the current page to
-its home lens, and Copy Link copies the exact page/lens URL for notes,
-runbooks, or another browser tab.
+Use the topbar task selector when you know the job but not the page: choose
+items such as Monitor today's run, Find saved data, Build a simulation, Check
+runtime health, or Publish safely. The dashboard routes that task to the
+current best page/lens using the public-safe state it has loaded. Use Quick
+Jump when you already know the destination; it lists every public page and
+focused lens, including entries such as Data Inspect, Workbench Run,
+Performance Trades, and Operations Remote. Each page also shows a route strip
+above the intro. Page Home returns the current page to its home lens, and Copy
+Link copies the exact page/lens URL for notes, runbooks, or another browser tab.
 
 Open Help when you are not sure where to start. The Start Here panel maps the
 main questions to pages: current health, performance, saved data, simulation,

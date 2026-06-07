@@ -311,10 +311,13 @@ into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
-Use Quick Jump in the topbar to open any page or focused lens without knowing
-the hash route. The route strip above each page intro shows the current page
-and lens; Page Home returns that page to its home lens, and Copy Link copies
-the exact dashboard URL.
+Use the "I want to" task selector in the topbar when you know the job but not
+the page, for example monitoring today's run, finding saved data, recovering a
+fetch, building a simulation, checking runtime health, or publishing safely.
+Use Quick Jump when you already know the page or focused lens but do not want
+to type the hash route. The route strip above each page intro shows the current
+page and lens; Page Home returns that page to its home lens, and Copy Link
+copies the exact dashboard URL.
 health checks, setup checklist items, open positions, and recent
 decision/order/fill events. After a second successful refresh, Overview also
 calls out new recent events, alerts, and terminal fetch-job changes since the
