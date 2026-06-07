@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import parse_qs, unquote, urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 import yaml
@@ -2197,6 +2198,44 @@ def single_metadata_value(df: pd.DataFrame, *names: str) -> str | None:
     return None
 
 
+def normalize_timezone_metadata(value: Any) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    lowered = re.sub(r"[\s_/-]+", " ", raw.lower()).strip()
+    aliases = {
+        "utc": "UTC",
+        "z": "UTC",
+        "gmt": "UTC",
+        "america new york": "America/New_York",
+        "new york": "America/New_York",
+        "us eastern": "America/New_York",
+        "u s eastern": "America/New_York",
+        "eastern": "America/New_York",
+        "eastern time": "America/New_York",
+        "eastern timezone": "America/New_York",
+        "est edt": "America/New_York",
+    }
+    candidate = aliases.get(lowered, raw)
+    try:
+        ZoneInfo(candidate)
+    except ZoneInfoNotFoundError:
+        return None
+    return candidate
+
+
+def explicit_source_timezone(df: pd.DataFrame) -> str | None:
+    value = single_metadata_value(
+        df,
+        "source_timezone",
+        "source timezone",
+        "timezone",
+        "time_zone",
+        "tz",
+    )
+    return normalize_timezone_metadata(value)
+
+
 def infer_storage_session(path: Path, df: pd.DataFrame, asset_class: str) -> str:
     explicit = single_metadata_value(df, "session", "trading_session", "rth")
     if explicit is not None:
@@ -2338,11 +2377,41 @@ def source_timezone_label(raw: pd.Series | pd.Index) -> str:
     return "naive/unknown"
 
 
-def parse_datetime_utc(raw: Any) -> Any:
+def parse_datetime_utc(raw: Any, *, source_timezone: str | None = None) -> Any:
+    source_timezone = normalize_timezone_metadata(source_timezone)
+    if source_timezone:
+        try:
+            ZoneInfo(source_timezone)
+        except ZoneInfoNotFoundError:
+            source_timezone = None
+    if not source_timezone:
+        try:
+            return pd.to_datetime(raw, utc=True, errors="coerce", format="mixed")
+        except TypeError:
+            return pd.to_datetime(raw, utc=True, errors="coerce")
+
     try:
-        return pd.to_datetime(raw, utc=True, errors="coerce", format="mixed")
+        parsed = pd.to_datetime(raw, errors="coerce", format="mixed")
     except TypeError:
-        return pd.to_datetime(raw, utc=True, errors="coerce")
+        parsed = pd.to_datetime(raw, errors="coerce")
+
+    if isinstance(parsed, pd.Series):
+        if getattr(parsed.dtype, "tz", None) is not None:
+            return parsed.dt.tz_convert("UTC")
+        return parsed.dt.tz_localize(source_timezone, ambiguous="NaT", nonexistent="NaT").dt.tz_convert("UTC")
+    if isinstance(parsed, pd.DatetimeIndex):
+        if parsed.tz is not None:
+            return parsed.tz_convert("UTC")
+        return parsed.tz_localize(source_timezone, ambiguous="NaT", nonexistent="NaT").tz_convert("UTC")
+    if pd.isna(parsed):
+        return parsed
+    ts = pd.Timestamp(parsed)
+    if ts.tzinfo is not None:
+        return ts.tz_convert("UTC")
+    try:
+        return ts.tz_localize(source_timezone, ambiguous="NaT", nonexistent="NaT").tz_convert("UTC")
+    except (TypeError, ValueError):
+        return pd.NaT
 
 
 def close_column(df: pd.DataFrame) -> str | None:
@@ -2471,9 +2540,10 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
     parsed_all = pd.Series([], dtype="datetime64[ns, UTC]")
     parsed_ts = pd.Series([], dtype="datetime64[ns, UTC]")
     source_tz = None
+    explicit_tz = explicit_source_timezone(df)
     if raw_ts is not None:
-        source_tz = source_timezone_label(raw_ts)
-        parsed_all = pd.Series(parse_datetime_utc(raw_ts))
+        source_tz = explicit_tz or source_timezone_label(raw_ts)
+        parsed_all = pd.Series(parse_datetime_utc(raw_ts, source_timezone=explicit_tz))
         parsed_ts = parsed_all.dropna()
 
     first_ts = last_ts = None
@@ -2521,7 +2591,7 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
     preview = []
     if close_col and not parsed_ts.empty:
         scoped = pd.DataFrame({
-            "timestamp": parse_datetime_utc(raw_ts),
+            "timestamp": parse_datetime_utc(raw_ts, source_timezone=explicit_tz),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
         })
         if volume_col:
@@ -3663,7 +3733,8 @@ def coverage_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
     df, fmt = read_timestamp_frame(path)
     ts_col = timestamp_column(df)
     raw_ts = df[ts_col] if ts_col else df.index
-    parsed = pd.Series(parse_datetime_utc(raw_ts)).dropna()
+    source_tz = explicit_source_timezone(df)
+    parsed = pd.Series(parse_datetime_utc(raw_ts, source_timezone=source_tz)).dropna()
     if parsed.empty:
         raise ValueError("no parseable timestamps")
     dates = sorted({item.date().isoformat() for item in parsed})
@@ -3891,7 +3962,8 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
     df, fmt = read_timestamp_frame(path)
     ts_col = timestamp_column(df)
     raw_ts = df[ts_col] if ts_col else df.index
-    parsed = pd.Series(parse_datetime_utc(raw_ts)).dropna().sort_values()
+    source_tz = explicit_source_timezone(df)
+    parsed = pd.Series(parse_datetime_utc(raw_ts, source_timezone=source_tz)).dropna().sort_values()
     if parsed.empty:
         raise ValueError("no parseable timestamps")
     ordered = parsed.drop_duplicates().sort_values()
@@ -5691,8 +5763,9 @@ def timestamp_summary_for_file(
     ts_col = timestamp_column(df)
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
     parsed = pd.Series([], dtype="datetime64[ns, UTC]")
+    source_tz = explicit_source_timezone(df)
     if raw_ts is not None:
-        parsed = pd.Series(parse_datetime_utc(raw_ts))
+        parsed = pd.Series(parse_datetime_utc(raw_ts, source_timezone=source_tz))
     valid_all = parsed.dropna().drop_duplicates().sort_values()
     valid = valid_all
     if start_ts is not None:
@@ -5842,8 +5915,9 @@ def build_data_compare(payload: dict[str, Any], *, data_roots: list[Path]) -> di
             raise ValueError(f"{symbol}: no timestamp column found")
         if not close_col:
             raise ValueError(f"{symbol}: no close/last column found")
+        source_tz = explicit_source_timezone(df)
         scoped = pd.DataFrame({
-            "timestamp": parse_datetime_utc(df[ts_col]),
+            "timestamp": parse_datetime_utc(df[ts_col], source_timezone=source_tz),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
         }).dropna(subset=["timestamp", "close"]).sort_values("timestamp")
         available_rows = int(len(scoped))
@@ -5998,8 +6072,9 @@ def data_missing_intervals_csv(
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
     if raw_ts is None:
         raise ValueError("data file has no timestamp column")
+    source_tz = explicit_source_timezone(df)
     analysis = missing_interval_analysis(
-        pd.Series(parse_datetime_utc(raw_ts)),
+        pd.Series(parse_datetime_utc(raw_ts, source_timezone=source_tz)),
         gap_limit=MAX_DATA_GAP_ROWS,
         missing_interval_limit=max_rows,
     )
@@ -6055,7 +6130,9 @@ def data_detail_range_csv(
     if raw_ts is None:
         raise ValueError("data file has no timestamp column")
 
-    parsed = pd.Series(parse_datetime_utc(raw_ts), index=df.index)
+    explicit_tz = explicit_source_timezone(df)
+    source_tz = explicit_tz or source_timezone_label(raw_ts)
+    parsed = pd.Series(parse_datetime_utc(raw_ts, source_timezone=explicit_tz), index=df.index)
     scoped = df.copy()
     scoped.insert(0, "normalized_timestamp", parsed)
     scoped = scoped.dropna(subset=["normalized_timestamp"]).sort_values("normalized_timestamp")
@@ -6101,7 +6178,7 @@ def data_detail_range_csv(
         "bar_size": infer_bar_size(path, df),
         "storage_session": infer_storage_session(path, df, asset_class),
         "adjustment_status": infer_adjustment_status(path, df, asset_class),
-        "source_timezone": source_timezone_label(raw_ts),
+        "source_timezone": source_tz,
     }
     for _idx, row_item in scoped.iterrows():
         exported = {
@@ -6153,9 +6230,10 @@ def build_data_detail(
     raw_ts = df[ts_col] if ts_col else (df.index if isinstance(df.index, pd.DatetimeIndex) else None)
     parsed_ts = pd.Series([], dtype="datetime64[ns, UTC]")
     source_tz = None
+    explicit_tz = explicit_source_timezone(df)
     if raw_ts is not None:
-        source_tz = source_timezone_label(raw_ts)
-        parsed_ts = pd.Series(parse_datetime_utc(raw_ts))
+        source_tz = explicit_tz or source_timezone_label(raw_ts)
+        parsed_ts = pd.Series(parse_datetime_utc(raw_ts, source_timezone=explicit_tz))
 
     analysis = missing_interval_analysis(
         parsed_ts,
@@ -6234,7 +6312,7 @@ def build_data_detail(
     }
     if close_col and raw_ts is not None:
         scoped = pd.DataFrame({
-            "timestamp": parse_datetime_utc(raw_ts),
+            "timestamp": parse_datetime_utc(raw_ts, source_timezone=explicit_tz),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
         })
         for name in ("open", "high", "low"):

@@ -3491,6 +3491,55 @@ def test_cloud_status_server_serves_data_detail(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_honors_explicit_source_timezone_metadata(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    data_file = data_root / "SPY_5min_sample.csv"
+    data_file.write_text(
+        "\n".join(
+            [
+                "timestamp,open,high,low,close,volume,source_timezone,session,adjustment",
+                "2026-01-02 09:30:00,100,101,99,100.0,1000,America/New_York,rth,raw",
+                "2026-01-02 09:35:00,100,102,99,101.0,1200,America/New_York,rth,raw",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=5&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+
+        dataset = catalog["datasets"][0]
+        assert dataset["source_timezone"] == "America/New_York"
+        assert dataset["normalized_timezone"] == "UTC"
+        assert dataset["storage_contract_status"] == "ok"
+        assert dataset["storage_contract_warnings"] == []
+        assert dataset["first_timestamp"] == "2026-01-02T14:30:00+00:00"
+        assert dataset["last_timestamp"] == "2026-01-02T14:35:00+00:00"
+        assert dataset["preview"][0]["timestamp"] == "2026-01-02T14:30:00+00:00"
+
+        with request.urlopen(f"{base}/data_detail?path={data_file}&preview_points=2", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+
+        assert detail["source_timezone"] == "America/New_York"
+        assert detail["coverage"]["first_timestamp"] == "2026-01-02T14:30:00+00:00"
+        assert detail["viewer"]["first_timestamp"] == "2026-01-02T14:30:00+00:00"
+        assert detail["preview"][0]["timestamp"] == "2026-01-02T14:30:00+00:00"
+
+        with request.urlopen(f"{base}/data_detail_export?path={data_file}&max_rows=10", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert exported[0]["normalized_timestamp"] == "2026-01-02T14:30:00+00:00"
+        assert exported[0]["source_timezone"] == "America/New_York"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_serves_data_minute_heatmap(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()

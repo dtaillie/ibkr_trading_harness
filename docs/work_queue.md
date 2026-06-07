@@ -1441,6 +1441,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       and Workbench handoff. Storage Audit applies the same normalization to
       path-derived guesses while keeping its bounded no-file-read scan fast.
   - UTC-normalized timestamp storage with source timezone metadata
+    - partial; Data Catalog, Data Detail, range exports, coverage, compare,
+      alignment, heatmap, and missing-interval tooling now honor explicit
+      `source_timezone`/`timezone` metadata before normalizing naive timestamps
+      to UTC. Common UTC/Eastern aliases are normalized, and regression coverage
+      proves an `America/New_York` 09:30 source bar is exposed as 14:30 UTC
+      without a naive-timezone storage-contract warning.
   - adjustment metadata for stocks
   - clear distinction between RTH, extended hours, and 24/7 crypto
     - partial; Data Catalog and Data Detail now expose inferred canonical
