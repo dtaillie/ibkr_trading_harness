@@ -133,6 +133,10 @@ Or run the consolidated gate and then do the manual review:
 python3 scripts/public_publish_check.py --include-screenshots
 ```
 
+The dashboard mirrors this checklist in Help > Boundary > Publication Review
+Assistant. Use it as a quick operator triage view before the final manual
+read-through; it is guidance, not a replacement for the gate or human review.
+
 Then manually inspect:
 
 - `README.md` or `README.public.md` for public-safe positioning and commands.

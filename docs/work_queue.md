@@ -2042,6 +2042,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     the exported public candidate, consolidated publish gate, required manual
     review, private boundary, and direct links to publication, quickstart,
     privacy, and blog-draft docs before the command checklist.
+  - partial; Help Boundary now also includes a Publication Review Assistant
+    that turns the export boundary, automated gate, dashboard setup story,
+    local example evidence, cloud boundary, and human review requirement into
+    status cards, copyable review text, and direct boundary actions.
 - Finish blog post polish.
   - partial; `docs/blog_public_ibkr_harness_draft.md` has been expanded into a
     public-safe draft covering local-first design, data fetches, manifests,

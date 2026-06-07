@@ -159,6 +159,10 @@ or another browser tab.
 Use Data Library Diagnostics > Catalog Scan Report when saved files or symbols
 are missing; it summarizes root scan scope, parser/skipped-file evidence,
 catalog caps, Storage Audit visibility, and the next recovery action.
+Use Help > Boundary > Publication Review Assistant before copying the public
+repo to GitHub; it separates export manifest review, the automated publish
+gate, dashboard setup evidence, cloud boundary checks, private material that
+must never be exported, and the required manual read-through.
 
 Smoke-test dashboard assets and core endpoints:
 

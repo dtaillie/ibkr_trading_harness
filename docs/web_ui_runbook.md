@@ -495,6 +495,12 @@ python3 scripts/smoke_dashboard.py
 Keep private strategy plugins, tuned configs, account IDs, credentials, local
 runtime logs, and private research outputs out of the public repo.
 
+In the dashboard, open Help > Boundary > Publication Review Assistant before
+copying the public repo to GitHub. It separates automated gates from human
+review, flags visible dashboard setup gaps, summarizes local public-safe
+evidence, reminds you which private material must never be exported, and can
+copy either the review text or the final publish/export commands.
+
 ## Related Runbooks
 
 - `docs/ibkr_gateway_runbook.md`: Gateway startup, API checks, and recovery.

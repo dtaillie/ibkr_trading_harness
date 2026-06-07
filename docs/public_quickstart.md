@@ -146,6 +146,12 @@ which adapters require Gateway, which order types and sizing styles they
 advertise, whether they expose account IDs for verification, whether they
 persist local state, and which IBKR ports are treated as paper or live.
 
+Before publishing a public copy or walkthrough, open Help > Boundary >
+Publication Review Assistant. It turns the export manifest, consolidated
+publish gate, dashboard setup story, local example evidence, cloud boundary,
+private "never export" list, and manual review requirement into status cards
+and copyable operator notes.
+
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
 `paper`, reloads the latest data each interval, skips duplicate latest bars by

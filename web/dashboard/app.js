@@ -1799,6 +1799,7 @@ function renderHelpSetupGaps() {
   renderHelpWorkflowLauncher(items);
   renderHelpNextAssistant(items);
   renderHelpTaskNavigator(items);
+  renderPublicationReviewAssistant(items);
   renderHelpWorkbenchQuickstart();
 }
 
@@ -2173,6 +2174,166 @@ function handleHelpTaskNavigatorAction(action) {
   if (action === "runs") return navigateToRunsLens("events");
   if (action === "operations") return navigateToOperationsLens("diagnostics");
   if (action === "boundary") return navigateToHelpLens("boundary");
+}
+
+function publicationReviewModel(setupItems = helpSetupGapItems()) {
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const runs = (state.status && state.status.runs) || [];
+  const badSetup = setupItems.filter((item) => item.status === "bad");
+  const warnSetup = setupItems.filter((item) => item.status === "warn");
+  const hasOperationalEvidence = datasets.length || manifests.length || drafts.length || workbenchRuns.length || runs.length;
+  const headline = badSetup.length
+    ? "Resolve visible setup blockers before publishing a walkthrough"
+    : "Public candidate still needs automated gate plus human review";
+  const nextAction = badSetup.length
+    ? `${text(badSetup[0].label)} is blocking the operator story: ${text(badSetup[0].note)}`
+    : "Export the public subset, run the consolidated gate in the public copy, then manually read docs, examples, dashboard copy, and the blog draft.";
+  const cards = [
+    {
+      status: "ok",
+      label: "Export Boundary",
+      title: "Explicit Copy",
+      note: "Use the exporter and review the manifest instead of pushing this private tree.",
+    },
+    {
+      status: "warn",
+      label: "Automated Gate",
+      title: "Run Before Push",
+      note: "Strict readiness, cloud examples, tests, smokes, accessibility, and optional screenshot layout checks run outside the browser.",
+    },
+    {
+      status: badSetup.length ? "bad" : warnSetup.length ? "warn" : "ok",
+      label: "Dashboard Story",
+      title: badSetup.length ? `${numberText(badSetup.length, 0)} blockers` : warnSetup.length ? `${numberText(warnSetup.length, 0)} warnings` : "Coherent",
+      note: badSetup[0] ? text(badSetup[0].title) : warnSetup[0] ? text(warnSetup[0].title) : "Current public dashboard setup checks have no visible blockers.",
+    },
+    {
+      status: hasOperationalEvidence ? "ok" : "warn",
+      label: "Example Evidence",
+      title: `${numberText(datasets.length, 0)} data / ${numberText(drafts.length, 0)} drafts`,
+      note: hasOperationalEvidence
+        ? `${numberText(manifests.length, 0)} manifests, ${numberText(workbenchRuns.length, 0)} Workbench runs, ${numberText(remoteNodes.length, 0)} remote nodes visible.`
+        : "Seeded smokes still cover the UI, but local state has little example evidence loaded.",
+    },
+    {
+      status: "bad",
+      label: "Never Publish",
+      title: "Private Edge",
+      note: "Keep tuned strategy logic, real configs, account IDs, credentials, local logs, and research outputs out of the public copy.",
+    },
+    {
+      status: "warn",
+      label: "Human Review",
+      title: "Still Required",
+      note: "Read README, examples, docs, dashboard labels, cloud examples, and blog draft for private assumptions and overclaims.",
+    },
+  ];
+  const lines = [
+    {
+      status: "ok",
+      title: "1. Review the public export manifest",
+      detail: "Run the manifest list command first so the public subset shape is inspectable before replacing the public mirror.",
+    },
+    {
+      status: "warn",
+      title: "2. Run the consolidated publish gate",
+      detail: "Use the exported public repo as the working directory; include screenshots for the slower final UI/layout pass.",
+    },
+    {
+      status: "warn",
+      title: "3. Manually inspect public copy and blog draft",
+      detail: "Automated checks can catch sensitive tokens and private paths, but they cannot judge strategy leakage, performance claims, or publication tone.",
+    },
+    {
+      status: "bad",
+      title: "4. Keep private strategy material out",
+      detail: "Do not export private plugins, tuned universes, research notebooks, paper/live configs, account identifiers, credentials, logs, or cached private data.",
+    },
+    {
+      status: remoteNodes.length ? "warn" : "ok",
+      title: "5. Treat cloud controls as a conservative prototype",
+      detail: remoteNodes.length
+        ? "Remote nodes are visible; verify auth, network allowlists, audit retention, and sanitized payload boundaries before writing about hosted access."
+        : "Public cloud examples should stay token-authenticated, allowlisted, sanitized, and local-authority-first.",
+    },
+  ];
+  return { headline, nextAction, cards, lines };
+}
+
+function publicationReviewText(model) {
+  return [
+    `Publication Review Assistant: ${model.headline}`,
+    `Next action: ${model.nextAction}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderPublicationReviewAssistant(setupItems = helpSetupGapItems()) {
+  if (
+    !$("help-publication-review-title")
+    || !$("help-publication-review-note")
+    || !$("help-publication-review-cards")
+    || !$("help-publication-review-body")
+    || !$("help-publication-review-actions")
+  ) return;
+  const model = publicationReviewModel(setupItems);
+  state.publicationReviewText = publicationReviewText(model);
+  $("help-publication-review-title").textContent = model.headline;
+  $("help-publication-review-note").textContent = model.nextAction;
+  $("help-publication-review-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-publication-review-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("help-publication-review-actions").innerHTML = [
+    `<button type="button" data-publication-review-action="copy">Copy Review</button>`,
+    `<button type="button" class="secondary" data-publication-review-action="copy-gate">Copy Gate</button>`,
+    `<button type="button" class="secondary" data-publication-review-action="copy-export">Copy Export</button>`,
+    `<button type="button" class="secondary" data-publication-review-action="workbench">Plugin Boundary</button>`,
+    `<button type="button" class="secondary" data-publication-review-action="operations">Cloud Boundary</button>`,
+  ].join("");
+}
+
+function handlePublicationReviewAction(action) {
+  if (action === "copy") {
+    copyText(state.publicationReviewText || "No publication review loaded").then(() => {
+      $("last-refresh").textContent = "Publication review copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Publication review copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "copy-gate") {
+    copyText("python3 scripts/public_publish_check.py --include-screenshots").then(() => {
+      $("last-refresh").textContent = "Publication gate command copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Publication gate copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "copy-export") {
+    copyText("python3 scripts/export_public_repo.py --dest ../algo_trade_public --force").then(() => {
+      $("last-refresh").textContent = "Public export command copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Public export command copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "workbench") return navigateToWorkbenchLens("builder");
+  if (action === "operations") return navigateToOperationsLens("diagnostics");
 }
 
 function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
@@ -23869,6 +24030,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-task-navigator-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleHelpTaskNavigatorAction(target.dataset.helpTaskNavigatorAction || "");
+  });
+  $("help-publication-review-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-publication-review-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handlePublicationReviewAction(target.dataset.publicationReviewAction || "");
   });
   $("data-home-shortlist").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
