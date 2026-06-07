@@ -162,6 +162,10 @@ strategy-private.
       no-telemetry, data-root, alert, rejected-order, open-order, position-open,
       awaiting-signal, filled, and normal monitoring states with direct next
       actions.
+    - partial; Overview Home now includes a copyable Strategy Health Report
+      that consolidates telemetry, runtime loop, alerts/orders, execution
+      state, account/positions, saved data, Workbench readiness, and the next
+      inspection action before lower tables.
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
     - partial; Overview now has a Source Detail action that routes the current

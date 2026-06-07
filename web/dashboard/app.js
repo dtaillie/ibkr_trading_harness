@@ -5230,6 +5230,7 @@ function renderOverview() {
   renderOverviewCommandCenter();
   renderOverviewPerformanceSnapshot();
   renderOverviewGlance();
+  renderOverviewHealthReport();
   renderOverviewWorkflowLauncher();
   renderOverviewSessionState();
   renderRuntimeStatus();
@@ -5504,6 +5505,232 @@ function renderOverviewGlance() {
       <small>${escapeHtml(card.detail)}</small>
     </div>
   `).join("");
+}
+
+function worstStatusFrom(items = []) {
+  const ranks = { bad: 3, warn: 2, unknown: 1, ok: 0 };
+  return (items || []).reduce((worst, item) => {
+    const status = text(item.status || "unknown").toLowerCase();
+    return (ranks[status] ?? 1) > (ranks[worst] ?? 1) ? status : worst;
+  }, "ok");
+}
+
+function overviewHealthReportModel() {
+  const payload = state.status || {};
+  const runs = payload.runs || [];
+  const alerts = payload.alerts || [];
+  const latestRun = latestTelemetryRun();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const latestAccount = latestAccountRow(accountRows);
+  const positions = nonzeroPositionsFromSource(source);
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestOrder = events.find((event) => event.type === "order");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const openOrders = currentOpenOrderRows();
+  const runtimeItems = runtimeStatusItems();
+  const healthChecks = overviewHealthChecks();
+  const glance = overviewGlanceModel();
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const todayWindow = performancePeriodWindow(accountRows, "today");
+  const todayRows = rowsInWindow(accountRows, todayWindow);
+  const todayPerf = performanceFromAccountRows(todayRows);
+  const runtimeWorst = worstStatusFrom(runtimeItems);
+  const healthWorst = worstStatusFrom(healthChecks);
+  const accountFresh = latestAccount.timestamp ? timestampAgeLabel(latestAccount.timestamp) : "missing";
+  const marketTimestamp = metricTimestamp(metrics, [
+    "latest_data_time",
+    "latest_market_data_time",
+    "latest_bar_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
+  const nextCheck = firstPresent(
+    metrics.next_decision_time,
+    metrics.next_expected_decision_time,
+    metrics.next_check_time,
+    metrics.next_signal_time,
+  );
+  const executionStatus = latestReject ? "bad" : openOrders.length || positions.length ? "warn" : latestFill || latestOrder || latestDecision ? "ok" : latestRun ? "warn" : "bad";
+  const dataStatus = datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad";
+  const workbenchStatus = drafts.length ? "ok" : datasets.length ? "warn" : "bad";
+  const blockers = [
+    runtimeWorst === "bad" ? "runtime" : "",
+    healthWorst === "bad" ? "health" : "",
+    alerts.some((alert) => ["bad", "error"].includes(text(alert.level).toLowerCase())) ? "alerts" : "",
+    latestReject ? "rejected order" : "",
+    !runs.length && !source.has_data ? "no telemetry/artifact" : "",
+  ].filter(Boolean);
+  const warnings = [
+    runtimeWorst === "warn" ? "runtime" : "",
+    healthWorst === "warn" ? "health" : "",
+    alerts.length ? "alerts" : "",
+    openOrders.length ? "open orders" : "",
+    positions.length ? "open positions" : "",
+    datasets.length <= 2 ? "saved data" : "",
+    !drafts.length ? "workbench draft" : "",
+  ].filter(Boolean);
+  const status = blockers.length ? "bad" : warnings.length ? "warn" : "ok";
+  const headline = blockers.length ? "Review blockers before trusting today" : warnings.length ? "Usable with review items" : "Current strategy state looks usable";
+  let nextAction = blockers.length
+    ? "Open Operations or Runs to resolve the first blocker before trusting performance."
+    : warnings.length
+      ? "Review warnings, then use Performance for results and Runs for exact event evidence."
+      : "Use Performance for current results; use Runs if a number needs exact evidence.";
+  if (latestReject) {
+    nextAction = "Open Runs Events and inspect the rejected/canceled order before continuing.";
+  } else if (openOrders.length) {
+    nextAction = "Open Runs State to reconcile non-terminal order telemetry with broker/account state.";
+  } else if (!datasets.length) {
+    nextAction = "Open Data Library to configure saved data roots before replay/benchmark work.";
+  } else if (!drafts.length && datasets.length) {
+    nextAction = "Open Workbench to turn visible saved data into a validated example replay draft.";
+  }
+  const cards = [
+    {
+      status,
+      label: "Current Read",
+      title: headline,
+      note: glance.summary,
+    },
+    {
+      status: runtimeWorst,
+      label: "Runtime",
+      title: runtimeWorst === "bad" ? "Blocked" : runtimeWorst === "warn" ? "Review" : "OK",
+      note: runtimeItems.map((item) => `${item.label}: ${item.value}`).slice(0, 3).join("; ") || "No runtime items loaded.",
+    },
+    {
+      status: alerts.length ? "warn" : "ok",
+      label: "Alerts",
+      title: numberText(alerts.length, 0),
+      note: alerts.length ? text(alerts[0].message || alerts[0].kind) : "No current alerts published.",
+    },
+    {
+      status: executionStatus,
+      label: "Execution",
+      title: `${numberText(openOrders.length, 0)} open / ${latestReject ? "reject" : latestFill ? "fill" : latestDecision ? "checked" : "quiet"}`,
+      note: latestReject
+        ? `${text(latestReject.symbol)} ${text(latestReject.status)} ${text(latestReject.detail)}`
+        : latestFill ? `${text(latestFill.symbol)} filled ${shortTimestampAgeLabel(latestFill.timestamp)}.`
+          : latestDecision ? `${text(latestDecision.symbol)} decision ${shortTimestampAgeLabel(latestDecision.timestamp)}.`
+            : "No recent decision/order/fill event is visible.",
+    },
+    {
+      status: todayPerf.total_return_pct == null ? "warn" : todayPerf.total_return_pct >= 0 ? "ok" : "bad",
+      label: "Performance",
+      title: pctText(todayPerf.total_return_pct),
+      note: todayRows.length ? `${numberText(todayRows.length, 0)} account snapshots today; latest account ${accountFresh}.` : "No current-day account path loaded.",
+    },
+    {
+      status: dataStatus,
+      label: "Saved Data",
+      title: numberText(datasets.length, 0),
+      note: fetchManifests.length ? `${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"} visible.` : "No fetch manifests loaded.",
+    },
+    {
+      status: workbenchStatus,
+      label: "Workbench",
+      title: drafts.length ? `${numberText(drafts.length, 0)} drafts` : "No Drafts",
+      note: drafts.length ? "Saved drafts are available for validation/run review." : datasets.length ? "Visible saved data can be turned into a replay draft." : "Workbench needs visible saved data first.",
+    },
+  ];
+  const lines = [
+    {
+      status,
+      title: "Summary",
+      detail: `${headline}. ${numberText(blockers.length, 0)} blocker${blockers.length === 1 ? "" : "s"} / ${numberText(warnings.length, 0)} warning${warnings.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: payload.generated_at ? "ok" : "bad",
+      title: "Telemetry",
+      detail: payload.generated_at
+        ? `Status updated ${shortTimestampAgeLabel(payload.generated_at)}; ${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"} published; mode ${text(metrics.mode)}.`
+        : "No status payload is published.",
+    },
+    {
+      status: runtimeWorst,
+      title: "Runtime Loop",
+      detail: `Market ${timestampAgeLabel(marketTimestamp)}; decision ${timestampAgeLabel(decisionTimestamp)}; next check ${text(nextCheck || "n/a")}.`,
+    },
+    {
+      status: alerts.length || latestReject ? latestReject ? "bad" : "warn" : "ok",
+      title: "Alerts And Orders",
+      detail: `${numberText(alerts.length, 0)} alert${alerts.length === 1 ? "" : "s"}; ${numberText(openOrders.length, 0)} non-terminal order event${openOrders.length === 1 ? "" : "s"}; latest reject ${latestReject ? `${text(latestReject.symbol)} ${text(latestReject.status)}` : "none"}.`,
+    },
+    {
+      status: positions.length ? "warn" : source.has_data ? "ok" : "bad",
+      title: "Account And Positions",
+      detail: `${text(source.label || source.source_type)}; latest account ${accountFresh}; ${numberText(positions.length, 0)} open position${positions.length === 1 ? "" : "s"}; today return ${pctText(todayPerf.total_return_pct)}.`,
+    },
+    {
+      status: dataStatus,
+      title: "Data And Workbench",
+      detail: `${numberText(datasets.length, 0)} saved dataset${datasets.length === 1 ? "" : "s"}; ${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"}; ${numberText(drafts.length, 0)} Workbench draft${drafts.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status,
+      title: "Next Action",
+      detail: nextAction,
+    },
+  ];
+  return { status, headline, nextAction, cards, lines };
+}
+
+function overviewHealthReportText(model) {
+  return [
+    `Strategy Health Report: ${model.headline}`,
+    ...model.lines.map((line) => `${line.title}: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderOverviewHealthReport() {
+  if (!$("overview-health-report-note") || !$("overview-health-report-cards") || !$("overview-health-report-body") || !$("overview-health-report-actions")) return;
+  const model = overviewHealthReportModel();
+  state.overviewHealthReportText = overviewHealthReportText(model);
+  $("overview-health-report-note").textContent = model.nextAction;
+  $("overview-health-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("overview-health-report-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("overview-health-report-actions").innerHTML = [
+    `<button type="button" data-overview-health-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-overview-health-report-action="performance">Performance</button>`,
+    `<button type="button" class="secondary" data-overview-health-report-action="runs">Runs Events</button>`,
+    `<button type="button" class="secondary" data-overview-health-report-action="operations">Operations</button>`,
+    `<button type="button" class="secondary" data-overview-health-report-action="data">Data Library</button>`,
+    `<button type="button" class="secondary" data-overview-health-report-action="workbench">Workbench</button>`,
+  ].join("");
+}
+
+function handleOverviewHealthReportAction(action) {
+  if (action === "copy") {
+    copyText(state.overviewHealthReportText || "No strategy health report loaded").then(() => {
+      $("last-refresh").textContent = "Strategy health report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Strategy health report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "performance") return navigateToView("performance");
+  if (action === "runs") return navigateToRunsLens("events");
+  if (action === "operations") return navigateToOperationsLens("home");
+  if (action === "data") return navigateToDataLens("home");
+  if (action === "workbench") return navigateToWorkbenchLens("home");
 }
 
 function workflowHref(target, lens = "") {
@@ -23070,6 +23297,11 @@ function init() {
   $("data-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
   $("overview-open-source").addEventListener("click", openOverviewSourceDetail);
+  $("overview-health-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-overview-health-report-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleOverviewHealthReportAction(target.dataset.overviewHealthReportAction || "");
+  });
   $("data-home-shortlist").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
     if (!(target instanceof HTMLElement)) return;

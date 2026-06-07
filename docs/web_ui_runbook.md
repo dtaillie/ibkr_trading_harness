@@ -113,6 +113,9 @@ symbol/path table.
 Start in Overview. The hero card and Runtime Status strip answer whether a
 runner is publishing telemetry, whether Gateway/API is reachable, what mode is
 active, and when the latest decision/account/data timestamps were published.
+Read Strategy Health Report on Overview Home for the fastest copyable summary:
+telemetry, runtime loop, alerts/orders, execution state, account/positions,
+saved data, Workbench readiness, and the next inspection action.
 The page intro strip changes with each top-level view and gives the fastest
 next step plus the current public telemetry counts for that view.
 Use the Overview Start Here cards as the main workflow launcher:

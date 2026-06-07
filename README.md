@@ -242,7 +242,9 @@ dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
 Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,
 new-activity cues since the prior refresh, and a latest decision/order/fill
-timeline. Performance shows latest equity,
+timeline. Its Strategy Health Report gives a copyable current-state summary for
+telemetry, runtime loop, alerts/orders, execution state, account/positions,
+saved data, Workbench readiness, and next action. Performance shows latest equity,
 return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
 bars plus a calendar-style daily return heatmap when account artifacts are
 available. It also shows the active source, mode, latest account timestamp,
