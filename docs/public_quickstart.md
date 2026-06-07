@@ -596,6 +596,13 @@ Recent Run Events table. It intentionally omits raw strategy `signal` and raw
 explicit public-safe `diagnostics.dashboard` fields are eligible for dashboard
 drilldowns.
 
+The status publisher also classifies bounded recent `orders.jsonl` rows into
+public-safe order-state alert categories, including approval-required,
+broker-login/session, broker-API disconnect, inactive, cancelled, rejected, and
+risk-limit cases. It reports counts and the latest sanitized symbol/status/reason
+for those categories without publishing raw broker logs or private strategy
+diagnostics.
+
 ## 9. Safe Remote Command Prototype
 
 The command prototype keeps authority on the local machine. The server stores

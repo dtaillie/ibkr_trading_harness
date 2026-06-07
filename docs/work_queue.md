@@ -1516,9 +1516,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     heartbeat, Gateway unreachable/API disconnected/login-required clues,
     stale market-data bars, stale account snapshots, rejected orders,
     risk-limit-like rejection reasons, and opt-in expected flat/positioned
-    state mismatches. Dashboard alert display already surfaces the emitted
-    alert rows; richer broker-native login/order-state categories still depend
-    on runner/broker telemetry.
+    state mismatches. It now also classifies bounded recent generic runner
+    `orders.jsonl` rows into public-safe order-state categories such as held
+    for approval, broker login/session required, broker API disconnected,
+    inactive, cancelled, rejected, and risk-limit. Dashboard alert display
+    already surfaces the emitted alert rows; deeper broker-native open-order
+    state still depends on adapter-specific telemetry.
 - Add historical run pages in the cloud view with bounded artifacts and logs.
   - partial; `/remote_node_detail` and the Operations Remote Node Detail panel
     now provide bounded sanitized latest runs, alerts, and status history for

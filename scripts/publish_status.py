@@ -48,6 +48,15 @@ RUN_ARTIFACT_JSONL_FILES = {
     "account.jsonl",
     "order_previews.jsonl",
 }
+ORDER_STATE_CATEGORY_LABELS = {
+    "approval_required": "held for manual approval",
+    "broker_api_disconnected": "broker API disconnected",
+    "broker_login_required": "broker login/session required",
+    "cancelled": "cancelled orders",
+    "inactive": "inactive broker orders",
+    "rejected": "rejected orders",
+    "risk_limit": "risk-limit order rejections",
+}
 
 
 def artifact_file_category(name: str) -> str:
@@ -362,7 +371,7 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
                     "message": f"{run_id}: last decision is stale",
                 })
             if isinstance(entry, dict):
-                operational_extra, operational_alerts = run_operational_alerts(run_id, metrics, entry, now=now)
+                operational_extra, operational_alerts = run_operational_alerts(run_id, run_path, metrics, entry, now=now)
                 record.update(operational_extra)
                 alerts.extend(operational_alerts)
             recent_enabled, recent_max_rows, recent_error = parse_recent_events_config(recent_events_cfg)
@@ -424,6 +433,77 @@ def nonzero_position_count(positions: Any) -> int:
     return count
 
 
+def classify_order_state(row: dict[str, Any]) -> str | None:
+    status = str(row.get("status") or row.get("order_status") or "").strip().lower()
+    reason = str(row.get("reason") or row.get("message") or row.get("error") or "").strip().lower()
+    combined = f"{status} {reason}"
+    if any(token in combined for token in ("auth", "login", "log in", "not logged", "session")):
+        return "broker_login_required"
+    if any(token in combined for token in ("api disconnected", "connection refused", "not connected", "socket", "gateway")):
+        return "broker_api_disconnected"
+    if "risk" in combined or "limit" in combined or "max_orders_per_run" in combined:
+        return "risk_limit"
+    if status in {"approval_required", "approval-required", "held", "pending_approval"}:
+        return "approval_required"
+    if status in {"inactive", "api_cancelled"}:
+        return "inactive"
+    if status in {"cancelled", "canceled"}:
+        return "cancelled"
+    if status in {"rejected", "reject"}:
+        return "rejected"
+    return None
+
+
+def summarize_order_state_alerts(
+    run_id: str,
+    run_path: Path,
+    *,
+    max_rows: int = 100,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    rows = load_recent_jsonl(run_path / "orders.jsonl", max_rows=max_rows)
+    category_counts: Counter[str] = Counter()
+    status_counts: Counter[str] = Counter()
+    latest_by_category: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        status = str(row.get("status") or row.get("order_status") or "").strip().lower()
+        if status:
+            status_counts[status] += 1
+        category = classify_order_state(row)
+        if not category:
+            continue
+        category_counts[category] += 1
+        latest_by_category[category] = {
+            "timestamp": row.get("timestamp"),
+            "symbol": row.get("symbol"),
+            "status": row.get("status") or row.get("order_status"),
+            "reason": row.get("reason") or row.get("message") or row.get("error"),
+        }
+    extra = {
+        "order_state": {
+            "checked_recent_rows": len(rows),
+            "status_counts": dict(sorted(status_counts.items())),
+            "category_counts": dict(sorted(category_counts.items())),
+            "latest_by_category": {
+                category: latest_by_category[category]
+                for category in sorted(latest_by_category)
+            },
+        }
+    }
+    alerts = [
+        {
+            "level": "warn",
+            "kind": f"order_state_{category}",
+            "category": category,
+            "message": (
+                f"{run_id}: {count} {ORDER_STATE_CATEGORY_LABELS.get(category, category)} "
+                f"in the last {len(rows)} order event{'' if len(rows) == 1 else 's'}"
+            ),
+        }
+        for category, count in sorted(category_counts.items())
+    ]
+    return extra, alerts
+
+
 def alert_on_timestamp_age(
     alerts: list[dict[str, str]],
     *,
@@ -449,6 +529,7 @@ def alert_on_timestamp_age(
 
 def run_operational_alerts(
     run_id: str,
+    run_path: Path,
     metrics: dict[str, Any],
     config: dict[str, Any],
     *,
@@ -480,6 +561,37 @@ def run_operational_alerts(
     )
     if account_freshness is not None:
         extra["account_freshness"] = account_freshness
+
+    try:
+        max_order_state_rows = int(config.get("max_order_state_rows", 100))
+    except (TypeError, ValueError):
+        max_order_state_rows = 100
+        alerts.append({
+            "level": "warn",
+            "kind": "run_order_state_config",
+            "message": f"{run_id}: max_order_state_rows must be an integer",
+        })
+    if max_order_state_rows < 1 or max_order_state_rows > 500:
+        alerts.append({
+            "level": "warn",
+            "kind": "run_order_state_config",
+            "message": f"{run_id}: max_order_state_rows must be between 1 and 500",
+        })
+        max_order_state_rows = min(500, max(1, max_order_state_rows))
+    try:
+        order_state_extra, order_state_alerts = summarize_order_state_alerts(
+            run_id,
+            run_path,
+            max_rows=max_order_state_rows,
+        )
+        extra.update(order_state_extra)
+        alerts.extend(order_state_alerts)
+    except Exception as exc:
+        alerts.append({
+            "level": "warn",
+            "kind": "run_order_state_error",
+            "message": f"{run_id}: {exc}",
+        })
 
     rejections = int(metrics.get("rejections") or 0)
     if rejections > 0:

@@ -674,9 +674,60 @@ def test_collect_status_warns_on_run_operational_alerts(tmp_path):
         "stale_bars",
         "stale_account_snapshot",
         "rejected_orders",
+        "order_state_risk_limit",
         "risk_limit_trip",
         "unexpected_positioned_state",
     }.issubset(kinds)
+    assert payload["runs"][0]["order_state"]["category_counts"]["risk_limit"] == 1
+
+
+def test_collect_status_classifies_recent_broker_order_states(tmp_path):
+    run_dir = tmp_path / "run"
+    now = datetime.now(timezone.utc).isoformat()
+    write_run(run_dir, timestamp=now)
+    (run_dir / "orders.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"timestamp": now, "status": "rejected", "reason": "session not logged in", "symbol": "SPY"}),
+                json.dumps({"timestamp": now, "status": "rejected", "reason": "API disconnected", "symbol": "QQQ"}),
+                json.dumps({"timestamp": now, "status": "approval_required", "reason": "approval file missing", "symbol": "IWM"}),
+                json.dumps({"timestamp": now, "status": "cancelled", "reason": "operator cancelled", "symbol": "DIA"}),
+                json.dumps({"timestamp": now, "status": "inactive", "reason": "broker marked inactive", "symbol": "TLT"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "runs": [{"id": "example", "path": str(run_dir), "max_order_state_rows": 10}],
+    })
+
+    run = payload["runs"][0]
+    kinds = {alert["kind"] for alert in payload["alerts"]}
+    assert run["order_state"]["checked_recent_rows"] == 5
+    assert run["order_state"]["status_counts"] == {
+        "approval_required": 1,
+        "cancelled": 1,
+        "inactive": 1,
+        "rejected": 2,
+    }
+    assert run["order_state"]["category_counts"] == {
+        "approval_required": 1,
+        "broker_api_disconnected": 1,
+        "broker_login_required": 1,
+        "cancelled": 1,
+        "inactive": 1,
+    }
+    assert {
+        "order_state_approval_required",
+        "order_state_broker_api_disconnected",
+        "order_state_broker_login_required",
+        "order_state_cancelled",
+        "order_state_inactive",
+    }.issubset(kinds)
+    assert run["order_state"]["latest_by_category"]["broker_login_required"]["symbol"] == "SPY"
 
 
 def test_collect_status_warns_on_unexpected_flat_state(tmp_path):

@@ -54,6 +54,12 @@ tell whether a run produced inspectable local artifacts. It does not publish
 raw artifact contents, stdout/stderr tails, credentials, or private strategy
 diagnostics.
 
+The publisher also classifies bounded recent order events from generic runner
+`orders.jsonl` artifacts into sanitized alert categories such as
+approval-required, broker-login/session, broker-API disconnect, inactive,
+cancelled, rejected, and risk-limit. These are counts and latest sanitized
+symbol/status/reason snippets, not raw broker logs.
+
 ## Private Remote Access Options
 
 Prefer private networking before exposing the dashboard publicly:
@@ -422,6 +428,9 @@ Keep service files local and environment-specific. Commit only examples.
 - Stale heartbeat: publisher stopped, network is down, or the runner stopped.
 - Gateway unreachable: Gateway/TWS closed, login expired, API disabled, or port
   changed.
+- Order-state alerts: recent order artifacts show approval holds,
+  broker-login/session clues, API disconnects, inactive/cancelled orders,
+  rejections, or risk-limit messages.
 - Dashboard reachable but no data: publisher token/endpoint mismatch or
   receiver storage was reset.
 - Commands stuck pending: worker is not running, token mismatch, node ID
