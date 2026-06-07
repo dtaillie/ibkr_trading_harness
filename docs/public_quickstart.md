@@ -317,6 +317,8 @@ into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
+The sticky topbar keeps mode, equity, status freshness, Gateway/API, visible
+runs, saved-data count, and alerts in view while you move between pages.
 Use Help Task Navigator when the next action is unclear. It reads the current
 public-safe dashboard state and links directly to monitoring, performance,
 saved data, fetch recovery, simulation, run-event, operations, and publishing

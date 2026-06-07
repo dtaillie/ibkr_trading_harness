@@ -607,6 +607,10 @@ strategy-private.
   - partial; the "I want to" task selector now also tracks the active route,
     so sidebar, hash, Quick Jump, and page-intro navigation keep the broad task
     context visible instead of leaving the selector stale after a page change.
+  - partial; the sticky topbar now includes a compact global status strip for
+    mode, equity, status freshness, Gateway/API, visible runs, saved-data file
+    count, and alerts, keeping brokerage-style operating context visible while
+    users move between pages.
   - modern app-shell layout, restrained cards, clean spacing, readable tables
   - a cleaner top-level hierarchy so users are not forced through dense
     developer tables before seeing performance

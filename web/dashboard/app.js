@@ -1372,6 +1372,78 @@ function renderPageIntroEvidence(view) {
   `).join("");
 }
 
+function topbarStatusModel() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const source = latestArtifactPerformance();
+  const summary = (source && source.summary) || {};
+  const perf = (source && source.performance) || {};
+  const latestRun = latestTelemetryRun();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const latestAccount = latestAccountRow((source && source.account) || []);
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const runs = payload.runs || [];
+  const alerts = payload.alerts || [];
+  const mode = firstPresent(metrics.mode, summary.mode, perf.mode, "offline");
+  const equity = finiteNumber(firstPresent(
+    latestAccount.equity,
+    summary.final_equity,
+    perf.final_equity,
+    metrics.final_equity,
+  ));
+  const statusFresh = payload.generated_at ? shortTimestampAgeLabel(payload.generated_at) : "missing";
+  const gatewayValue = gateway.enabled ? gateway.reachable ? "reachable" : "down" : "disabled";
+  return [
+    {
+      label: "Mode",
+      value: text(mode),
+      status: mode && mode !== "offline" && mode !== "unknown" ? "ok" : "warn",
+    },
+    {
+      label: "Equity",
+      value: equity === null ? "n/a" : money(equity),
+      status: equity === null ? "warn" : "ok",
+      valueClass: "value-equity",
+    },
+    {
+      label: "Status",
+      value: statusFresh,
+      status: payload.generated_at ? "ok" : "bad",
+    },
+    {
+      label: "Gateway",
+      value: gatewayValue,
+      status: gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn",
+    },
+    {
+      label: "Runs",
+      value: numberText(runs.length, 0),
+      status: runs.length ? "ok" : "warn",
+    },
+    {
+      label: "Data",
+      value: `${numberText(datasets.length, 0)} files`,
+      status: datasets.length ? "ok" : "bad",
+    },
+    {
+      label: "Alerts",
+      value: numberText(alerts.length, 0),
+      status: alerts.length ? "warn" : "ok",
+    },
+  ];
+}
+
+function renderTopbarStatusStrip() {
+  const container = $("topbar-status-strip");
+  if (!container) return;
+  container.innerHTML = topbarStatusModel().map((item) => `
+    <span class="topbar-status-chip status-${escapeHtml(item.status)}">
+      <b>${escapeHtml(item.label)}</b>
+      <em class="${escapeHtml(item.valueClass || "")}">${escapeHtml(item.value)}</em>
+    </span>
+  `).join("");
+}
+
 function pageIntroContent(view) {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
@@ -6283,6 +6355,7 @@ function renderMetrics() {
   const alerts = payload.alerts || [];
   const history = state.history || [];
   $("subtitle").textContent = `${text(payload.node_id)} - ${text(payload.generated_at)}`;
+  renderTopbarStatusStrip();
   $("metric-status").textContent = text(payload.status);
   $("metric-status").className = statusClass(payload.status);
   $("metric-gateway").textContent = gateway.enabled ? text(gateway.reachable) : "disabled";

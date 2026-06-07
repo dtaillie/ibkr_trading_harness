@@ -150,7 +150,9 @@ Data Library, Workbench, Runs, Operations, and the local runbooks.
 Use the topbar "I want to" selector when you know the job but not the page; it
 routes tasks such as monitoring today's run, finding saved data, building a
 simulation, checking runtime health, and publishing safely to the right
-page/lens. Use Quick Jump when you already know the destination. The route
+page/lens. Use Quick Jump when you already know the destination. The topbar
+status strip keeps mode, equity, status freshness, Gateway/API, visible runs,
+saved-data count, and alerts visible while you move between pages. The route
 strip above each page intro shows the current page/lens, Page Home returns that
 page to its home lens, and Copy Link copies the exact dashboard URL for notes
 or another browser tab.

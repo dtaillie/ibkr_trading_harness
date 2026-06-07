@@ -186,6 +186,68 @@ body {
   backdrop-filter: blur(8px);
 }
 
+.topbar-title {
+  min-width: min(360px, 100%);
+}
+
+.topbar-title h1,
+.topbar-title p {
+  margin-left: 0;
+}
+
+.topbar-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 720px;
+  margin-top: 8px;
+}
+
+.topbar-status-chip {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  max-width: 190px;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--soft-panel);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.topbar-status-chip b {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.topbar-status-chip em {
+  overflow: hidden;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-status-chip.status-ok {
+  border-color: rgba(4, 120, 87, 0.2);
+  background: var(--status-ok-bg);
+}
+
+.topbar-status-chip.status-warn {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: var(--status-warn-bg);
+}
+
+.topbar-status-chip.status-bad {
+  border-color: rgba(185, 28, 28, 0.2);
+  background: var(--status-bad-bg);
+}
+
 .page-intro {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
@@ -4826,6 +4888,14 @@ footer {
 
   .topbar {
     position: static;
+  }
+
+  .topbar-title {
+    margin-bottom: 14px;
+  }
+
+  .topbar-status-strip {
+    max-width: none;
   }
 
   .symbol-typeahead-option {

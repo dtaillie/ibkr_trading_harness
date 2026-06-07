@@ -28,7 +28,9 @@ runtime health, or Publish safely. The dashboard routes that task to the
 current best page/lens using the public-safe state it has loaded. Use Quick
 Jump when you already know the destination; it lists every public page and
 focused lens, including entries such as Data Inspect, Workbench Run,
-Performance Trades, and Operations Remote. Each page also shows a route strip
+Performance Trades, and Operations Remote. The topbar status strip keeps mode,
+equity, status freshness, Gateway/API, visible runs, saved-data count, and
+alerts visible while you move through pages. Each page also shows a route strip
 above the intro. Page Home returns the current page to its home lens, and Copy
 Link copies the exact page/lens URL for notes, runbooks, or another browser tab.
 
