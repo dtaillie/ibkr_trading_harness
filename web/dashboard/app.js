@@ -8313,6 +8313,7 @@ function renderDataCatalog() {
   renderDataLibrarySummary();
   renderDataHome(filtered);
   renderDataFacetSummary(datasets, filtered);
+  renderDataExplorer(datasets, filtered);
   renderDataSearchAssistant(filtered);
   renderSymbolBrowser();
   renderSymbolDirectory();
@@ -8459,6 +8460,152 @@ function renderDataFacetSummary(datasets = [], filteredRows = []) {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+}
+
+function dataExplorerDimensions() {
+  return [
+    { key: "asset_class", label: "Asset", filter: "asset", control: "data-filter-asset" },
+    { key: "source", label: "Source", filter: "source", control: "data-filter-source" },
+    { key: "bar_size", label: "Bar Size", filter: "bar", control: "data-filter-bar" },
+    { key: "storage_session", label: "Session", filter: "session", control: "data-filter-session" },
+    { key: "quality_status", label: "Quality", filter: "quality", control: "data-filter-quality" },
+    { key: "storage_contract_status", label: "Contract", filter: "contract", control: "data-filter-contract" },
+  ];
+}
+
+function dataExplorerGroupRows(datasets, dimension) {
+  const groups = new Map();
+  for (const dataset of datasets || []) {
+    const value = text(dataset[dimension.key]);
+    if (!value || value === "n/a") continue;
+    if (!groups.has(value)) {
+      groups.set(value, {
+        value,
+        file_count: 0,
+        row_count: 0,
+        symbols: new Set(),
+        latest: null,
+        quality_counts: {},
+        contract_counts: {},
+      });
+    }
+    const group = groups.get(value);
+    group.file_count += 1;
+    group.row_count += Number(dataset.rows || 0);
+    const symbol = text(dataset.symbol);
+    if (symbol !== "n/a") group.symbols.add(symbol);
+    const latest = timestampMillis(dataset.last_timestamp) || timestampMillis(dataset.modified_at);
+    if (latest && (!group.latest || latest > group.latest)) group.latest = latest;
+    const quality = text(dataset.quality_status);
+    if (quality !== "n/a") group.quality_counts[quality] = (group.quality_counts[quality] || 0) + 1;
+    const contract = text(dataset.storage_contract_status);
+    if (contract !== "n/a") group.contract_counts[contract] = (group.contract_counts[contract] || 0) + 1;
+  }
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      symbol_count: group.symbols.size,
+      latest_label: group.latest ? new Date(group.latest).toISOString().slice(0, 10) : "n/a",
+      status: Number(group.quality_counts.bad || 0) || Number(group.contract_counts.bad || 0)
+        ? "bad"
+        : Number(group.quality_counts.warn || 0) || Number(group.contract_counts.warn || 0) ? "warn" : "ok",
+    }))
+    .sort((left, right) => Number(right.file_count || 0) - Number(left.file_count || 0) || String(left.value).localeCompare(String(right.value)));
+}
+
+function renderDataExplorer(datasets = [], filteredRows = []) {
+  if (!$("data-explorer-note") || !$("data-explorer-cards") || !$("data-explorer-groups")) return;
+  const symbolCount = new Set((datasets || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const filteredSymbolCount = new Set((filteredRows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const totalRows = (datasets || []).reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+  const latest = (datasets || [])
+    .map((dataset) => timestampMillis(dataset.last_timestamp) || 0)
+    .reduce((max, value) => Math.max(max, value), 0);
+  const filters = dataFilterSummary();
+  $("data-explorer-note").textContent = datasets.length
+    ? filters.length
+      ? `${numberText(filteredRows.length, 0)} files match ${filters.join(", ")}. Click a group to replace the current Browse filter.`
+      : `${numberText(datasets.length, 0)} files across ${numberText(symbolCount, 0)} symbols. Click a group to filter the table, Symbol Browser, and downstream actions.`
+    : "Configure data roots or fetch history, then refresh Data Library to explore saved files.";
+  const cards = [
+    {
+      status: datasets.length ? "ok" : "bad",
+      label: "Catalog",
+      title: `${numberText(datasets.length, 0)} files`,
+      note: `${numberText(symbolCount, 0)} symbols / ${numberText(totalRows, 0)} rows in the current bounded catalog.`,
+    },
+    {
+      status: filteredRows.length ? "ok" : datasets.length ? "warn" : "bad",
+      label: "Visible Now",
+      title: `${numberText(filteredRows.length, 0)} files`,
+      note: `${numberText(filteredSymbolCount, 0)} symbols after Browse filters.`,
+    },
+    {
+      status: latest ? "ok" : datasets.length ? "warn" : "bad",
+      label: "Latest Bar",
+      title: latest ? new Date(latest).toISOString().slice(0, 10) : "n/a",
+      note: latest ? "Newest timestamp in the loaded catalog." : "No timestamped saved files loaded.",
+    },
+  ];
+  $("data-explorer-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const dimensions = dataExplorerDimensions();
+  $("data-explorer-groups").innerHTML = datasets.length
+    ? dimensions.map((dimension) => {
+        const groups = dataExplorerGroupRows(datasets, dimension).slice(0, 8);
+        return `
+          <section class="data-explorer-group">
+            <div>
+              <span class="eyebrow">${escapeHtml(dimension.label)}</span>
+              <strong>${escapeHtml(groups.length ? `${numberText(groups.length, 0)} top group${groups.length === 1 ? "" : "s"}` : "No values")}</strong>
+            </div>
+            <div class="data-explorer-buttons">
+              ${groups.length ? groups.map((group) => `
+                <button type="button" class="data-explorer-button status-${escapeHtml(group.status)}" data-data-explorer-action="filter" data-explorer-filter="${escapeHtml(dimension.filter)}" data-explorer-value="${escapeHtml(group.value)}">
+                  <span>
+                    <strong>${escapeHtml(group.value)}</strong>
+                    <small>${escapeHtml(numberText(group.file_count, 0))} files / ${escapeHtml(numberText(group.symbol_count, 0))} symbols / ${escapeHtml(numberText(group.row_count, 0))} rows</small>
+                    <small>latest ${escapeHtml(group.latest_label)} / Q ${escapeHtml(countSummary(group.quality_counts))} / contract ${escapeHtml(countSummary(group.contract_counts))}</small>
+                  </span>
+                  <b>Filter</b>
+                </button>
+              `).join("") : `<div class="empty-card"><strong>No ${escapeHtml(dimension.label)} groups</strong><span>No values found in the current catalog.</span></div>`}
+            </div>
+          </section>
+        `;
+      }).join("")
+    : `<div class="empty-card"><strong>No saved-data groups</strong><span>Refresh Data Library after configuring data roots or running fetch jobs.</span></div>`;
+}
+
+function setDataCatalogFacetFilter(filter, value) {
+  clearDataCatalogFilters();
+  const mapping = {
+    asset: "data-filter-asset",
+    source: "data-filter-source",
+    bar: "data-filter-bar",
+    session: "data-filter-session",
+    quality: "data-filter-quality",
+    contract: "data-filter-contract",
+  };
+  const id = mapping[filter] || "";
+  if (id && $(id)) $(id).value = value;
+  state.manifestPathFilter = null;
+  renderDataCatalog();
+  const label = dataExplorerDimensions().find((item) => item.filter === filter)?.label || filter;
+  $("last-refresh").textContent = `Browse filtered to ${label}: ${value}`;
+  if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function handleDataExplorerAction(target) {
+  const action = String(target.dataset.dataExplorerAction || "");
+  if (action === "filter") {
+    setDataCatalogFacetFilter(target.dataset.explorerFilter || "", target.dataset.explorerValue || "");
+  }
 }
 
 function clearDataCatalogFilters() {
@@ -19896,6 +20043,11 @@ function init() {
     handleDataHomeShortlistAction(target).catch((err) => {
       $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("data-explorer-groups").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-explorer-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataExplorerAction(target);
   });
   $("data-source-map").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;

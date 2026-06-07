@@ -767,6 +767,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library Browse now has an explicit facet summary that shows
       active filters plus visible asset, source, bar, session, quality, and
       storage-contract breakdowns before the dense saved-file table.
+    - partial; Data Library Browse now includes a Saved Data Explorer that
+      groups the bounded catalog by asset, source, bar size, storage session,
+      quality, and storage-contract state, with one-click filters and summary
+      counts before users reach the dense saved-file table.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend

@@ -2779,6 +2779,91 @@ section {
   margin: 2px 0 4px;
 }
 
+.data-explorer-panel {
+  background: var(--panel);
+}
+
+.data-explorer-cards {
+  margin-bottom: 14px;
+}
+
+.data-explorer-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.data-explorer-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfffc;
+}
+
+.data-explorer-group > div:first-child strong,
+.data-explorer-group > div:first-child span {
+  display: block;
+}
+
+.data-explorer-group > div:first-child strong {
+  margin-top: 5px;
+  font-size: 15px;
+}
+
+.data-explorer-buttons {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.data-explorer-button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--soft-panel);
+  text-align: left;
+}
+
+.data-explorer-button:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+.data-explorer-button strong,
+.data-explorer-button small,
+.data-explorer-button span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.data-explorer-button strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.data-explorer-button small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.data-explorer-button b {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .fetch-workflow-grid {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin: 12px 0 18px;
@@ -4171,6 +4256,9 @@ footer {
   .data-search-cards,
   .data-search-actions,
   .data-search-action-card,
+  .data-explorer-groups,
+  .data-explorer-group,
+  .data-explorer-button,
   .data-directory-assistant,
   .data-directory-assistant-cards,
   .data-directory-assistant-actions,
