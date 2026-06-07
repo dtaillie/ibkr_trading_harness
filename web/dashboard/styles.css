@@ -296,6 +296,50 @@ body {
   display: none;
 }
 
+.page-intro-guide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.page-guide-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--soft-panel);
+}
+
+.page-guide-card span,
+.page-guide-card strong,
+.page-guide-card small {
+  display: block;
+}
+
+.page-guide-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.page-guide-card strong {
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.page-guide-card small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .page-intro-steps {
   grid-column: 1 / -1;
   display: grid;
@@ -4389,6 +4433,11 @@ footer {
 
   .page-intro-actions {
     justify-content: flex-start;
+  }
+
+  .page-intro-guide {
+    grid-template-columns: 1fr;
+    margin-top: 12px;
   }
 
   .page-intro-steps {

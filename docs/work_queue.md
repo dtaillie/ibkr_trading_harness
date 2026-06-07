@@ -637,9 +637,13 @@ strategy-private.
     - partial; the reusable page-intro actions now support a target lens, so
       primary/secondary shortcuts take users to the relevant focused subview
       for the job being suggested.
-    - partial; each page-intro now names a Recommended Next action and
-      rationale, keeping the top of every page oriented around a concrete next
-      task instead of only status text and dense workflow steps.
+  - partial; each page-intro now names a Recommended Next action and
+    rationale, keeping the top of every page oriented around a concrete next
+    task instead of only status text and dense workflow steps.
+  - partial; each page-intro now also renders a compact Use This Page guide
+    with Answers, Evidence, and Next Move cards, giving first-time users a
+    plain-language orientation before dense dashboard surfaces or focused
+    workflow steppers.
   - default every page to the most common question a user has on that page
   - add "last updated" and source labels beside every derived metric
     - partial; Overview and Performance cards now show compact source/freshness
@@ -678,6 +682,9 @@ strategy-private.
       checks for every focused view, failing if the expected empty-state
       assistants, workflow launchers, or setup notes disappear even when the
       page still passes geometric layout checks.
+    - partial; screenshot layout checks now include the page-intro Use This
+      Page guide cards in overflow, hit-test, and overlap coverage so the
+      first-screen orientation layer is protected at desktop and mobile widths.
   - seeded demo-state smoke tests with many symbols, multiple runs, fills,
     rejects, and warnings
     - partial; `scripts/smoke_dashboard.py --scenario seeded` now creates a
