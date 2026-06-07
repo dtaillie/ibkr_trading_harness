@@ -3,7 +3,8 @@
 
 This runner is intentionally strategy-neutral. It loads a plugin from config,
 feeds it bar data, records decisions, and can run in replay, shadow,
-simulated-paper, or explicitly confirmed IBKR paper mode.
+simulated-paper, or explicitly confirmed paper mode. Live mode is recognized
+only to enforce explicit safety gates; live execution is not implemented.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ from live.ibkr_data import BAR_SIZES, fetch_ibkr_bars
 
 log = logging.getLogger(__name__)
 
-VALID_MODES = {"replay", "shadow", "simulated_paper", "paper"}
+VALID_MODES = {"replay", "shadow", "simulated_paper", "paper", "live"}
 SUPPORTED_ORDER_TYPES = {"market"}
 SUPPORTED_BROKER_ADAPTERS = broker_adapter_ids()
 KNOWN_IBKR_PAPER_PORTS = {4002, 7497}
@@ -511,6 +512,7 @@ def validate_config(
     validate_bool(execution_cfg.get("require_current_price"), "execution.require_current_price", errors)
     validate_bool(execution_cfg.get("allow_quantity_and_cash"), "execution.allow_quantity_and_cash", errors)
     validate_bool(execution_cfg.get("require_order_approval"), "execution.require_order_approval", errors)
+    validate_bool(execution_cfg.get("enable_live_orders"), "execution.enable_live_orders", errors)
     validate_optional_string(execution_cfg.get("approval_dir"), "execution.approval_dir", errors)
     validate_positive_int(execution_cfg.get("max_orders_per_run"), "execution.max_orders_per_run", errors)
     validate_nonnegative_float(execution_cfg.get("max_quantity"), "execution.max_quantity", errors, positive=True)
@@ -575,6 +577,15 @@ def validate_config(
         errors.append("broker.require_expected_account_id requires broker.expected_account_id")
     if normalized_account_mode == "live" and not expected_account_id:
         errors.append("broker.account_mode live requires broker.expected_account_id")
+    if normalized_mode == "live":
+        if not bool(execution_cfg.get("enable_live_orders")):
+            errors.append("runner.mode live requires execution.enable_live_orders: true")
+        if normalized_account_mode != "live":
+            errors.append("runner.mode live requires broker.account_mode: live")
+        if not expected_account_id:
+            errors.append("runner.mode live requires broker.expected_account_id")
+        if bool(execution_cfg.get("require_order_approval")) is not True:
+            errors.append("runner.mode live requires execution.require_order_approval: true")
     if adapter == "file":
         validate_optional_string(broker_cfg.get("account_id"), "broker.account_id", errors)
         if broker_cfg.get("state_path") is not None and not str(broker_cfg["state_path"]).strip():
@@ -1940,6 +1951,7 @@ def run_from_config(
     output_dir_override: Path | None = None,
     max_steps: int | None = None,
     confirm_paper_orders: bool = False,
+    confirm_live_orders: bool = False,
     approve_orders: bool = False,
     allow_live_broker_port: bool = False,
     loop: bool | None = None,
@@ -1959,6 +1971,10 @@ def run_from_config(
     mode = normalize_mode(mode_override or str(runner_cfg.get("mode", "replay")))
     if mode == "paper" and not confirm_paper_orders:
         raise ValueError("paper mode requires --confirm-paper-orders")
+    if mode == "live" and not confirm_live_orders:
+        raise ValueError("live mode requires --confirm-live-orders")
+    if mode == "live":
+        raise ValueError("live mode execution is not implemented in the public generic runner")
     if mode == "paper":
         paper_safety_errors = paper_broker_safety_errors(
             config.get("broker") or {},
@@ -2558,7 +2574,11 @@ def run_from_config(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a generic strategy plugin")
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--mode", default=None, help="replay, shadow, simulated-paper, or paper")
+    parser.add_argument(
+        "--mode",
+        default=None,
+        help="replay, shadow, simulated-paper, paper, or live (guarded placeholder; not implemented)",
+    )
     parser.add_argument("--output-dir", default=None, type=Path)
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument(
@@ -2570,6 +2590,11 @@ def main() -> None:
         "--confirm-paper-orders",
         action="store_true",
         help="Required for mode=paper because it submits orders through IBKR.",
+    )
+    parser.add_argument(
+        "--confirm-live-orders",
+        action="store_true",
+        help="Reserved live-mode opt-in. Live execution is not implemented in the public runner.",
     )
     parser.add_argument(
         "--allow-live-broker-port",
@@ -2622,6 +2647,7 @@ def main() -> None:
             output_dir_override=args.output_dir,
             max_steps=args.max_steps,
             confirm_paper_orders=args.confirm_paper_orders,
+            confirm_live_orders=args.confirm_live_orders,
             approve_orders=args.approve_orders,
             allow_live_broker_port=args.allow_live_broker_port,
             loop=args.loop if args.loop else None,

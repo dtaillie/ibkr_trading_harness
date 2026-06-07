@@ -10,6 +10,8 @@ avoids private strategy details.
 - `simulated-paper`: uses local simulated fills and account state.
 - `paper`: submits orders to a broker paper account and requires
   `--confirm-paper-orders`.
+- `live`: recognized only as a fail-closed placeholder in the public runner.
+  It requires explicit live opt-ins but still refuses execution.
 
 Use replay or simulated-paper before broker paper. Use broker paper only after
 Gateway/API and market-data checks pass.
@@ -63,6 +65,13 @@ Use `broker.adapter: ibkr` for real IBKR paper execution. Use
 state file and order journal and fills at configured static prices. Metadata-only
 future adapters such as `schwab` may appear in the capability registry, but the
 runner rejects them for paper/live execution until an implementation exists.
+
+Live mode is not implemented in the public generic runner. A config that sets
+`runner.mode: live` must also set `execution.enable_live_orders: true`,
+`execution.require_order_approval: true`, `broker.account_mode: live`, and
+`broker.expected_account_id`; the command must pass `--confirm-live-orders`.
+After those gates, the public runner still exits before execution because no
+live broker path is published yet.
 
 For broker-backed paper sessions, set `broker.expected_account_id` in your
 ignored local config so the runner verifies the connected account before it can
@@ -152,6 +161,7 @@ its final summary/artifacts.
 - Account is paper, not live.
 - Broker config has `account_mode: paper` and a paper API port.
 - Broker config has the intended `adapter` (`ibkr` for real paper execution).
+- `execution.enable_live_orders` is absent or false for paper workflows.
 - Config is ignored locally and points at the intended plugin.
 - `--validate-only` passes.
 - Risk limits are small and explicit.

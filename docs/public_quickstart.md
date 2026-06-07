@@ -76,7 +76,9 @@ Then point the config at your private plugin. Do not commit the copied files.
 ## 6. Run the Generic Plugin Runner
 
 The public runner accepts a plugin spec and supports replay, shadow,
-simulated-paper, and explicitly confirmed IBKR paper modes.
+simulated-paper, and explicitly confirmed IBKR paper modes. It also recognizes
+`live` mode only as a guarded placeholder; public live execution is not
+implemented.
 
 Replay the public no-edge example:
 
@@ -118,6 +120,13 @@ explicit live-port override. For real broker sessions, set
 verify the connected broker account before it submits any order. Set
 `broker.require_expected_account_id: true` when a local config must not run
 without that expected-account check.
+
+Live mode deliberately fails closed in the public generic runner. A live config
+must set `execution.enable_live_orders: true`,
+`execution.require_order_approval: true`, `broker.account_mode: live`, and
+`broker.expected_account_id`, and the command must pass
+`--confirm-live-orders`; after those gates the public runner still exits before
+execution because no live broker implementation is published.
 
 Broker execution is selected with `broker.adapter`. The public runner ships
 with `ibkr` for IBKR paper execution and `file` for local adapter plumbing tests

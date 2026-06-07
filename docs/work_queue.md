@@ -1669,8 +1669,13 @@ QQQ show up, treat that as a bug until proven otherwise.
     accounts; the file-backed adapter exposes its local account id for tests
     and demos. Configs can also set `broker.require_expected_account_id: true`
     to fail validation when the expected account is absent. Unsupported broker
-    live account modes now fail config validation; live-mode enablement gates
-    remain open.
+    live account modes now fail config validation.
+  - partial; generic live mode is now a recognized fail-closed placeholder:
+    configs must opt in with `execution.enable_live_orders: true`,
+    `execution.require_order_approval: true`, `broker.account_mode: live`, and
+    `broker.expected_account_id`, and commands must pass
+    `--confirm-live-orders`. The public generic runner still refuses live
+    execution until a real live broker path is designed and implemented.
 
 ## P2: Publication readiness
 

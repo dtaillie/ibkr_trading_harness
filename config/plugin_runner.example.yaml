@@ -46,6 +46,7 @@ execution:
   allow_short: false
   require_current_price: true
   require_order_approval: false
+  enable_live_orders: false
   # For manual per-order approval, keep approvals outside a cleaned output_dir.
   # approval_dir: paper_logs/control/order_approvals
   max_orders_per_run: 1
@@ -95,4 +96,5 @@ broker:
 notes:
   - Example only; do not trade this.
   - Paper mode submits IBKR orders only with --confirm-paper-orders.
+  - Live mode is a guarded placeholder in the public runner and still refuses execution.
   - Point metadata.strategy_plugin at a private plugin for real paper testing.

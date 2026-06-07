@@ -1248,6 +1248,60 @@ def test_validate_config_file_rejects_unsupported_broker_live_mode_and_requires_
     assert not output_dir.exists()
 
 
+def test_validate_config_file_rejects_live_mode_without_explicit_live_gates(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={"mode": "live"},
+        broker={"adapter": "ibkr", "account_mode": "paper", "port": 4002},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    text = str(exc.value)
+    assert "runner.mode live requires execution.enable_live_orders: true" in text
+    assert "runner.mode live requires broker.account_mode: live" in text
+    assert "runner.mode live requires broker.expected_account_id" in text
+    assert "runner.mode live requires execution.require_order_approval: true" in text
+    assert not output_dir.exists()
+
+
+def test_validate_config_file_rejects_live_mode_even_after_live_gates_until_adapter_exists(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={"mode": "live"},
+        execution={"enable_live_orders": True, "require_order_approval": True},
+        broker={
+            "adapter": "ibkr",
+            "account_mode": "live",
+            "expected_account_id": "example-live-account",
+            "port": 4001,
+        },
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    text = str(exc.value)
+    assert "broker.adapter ibkr does not support account_mode live" in text
+    assert "live mode execution is not implemented" not in text
+    assert not output_dir.exists()
+
+
 def test_validate_config_file_rejects_required_missing_expected_account(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
