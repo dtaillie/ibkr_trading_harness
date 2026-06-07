@@ -1163,6 +1163,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       symbol, storage session (`rth`, extended, `24_7`, unknown), and
       adjustment status metadata, with catalog CSV export fields for the same
       values.
+    - partial; Data Catalog, Data Detail, Storage Audit, catalog/directory CSV
+      exports, and the storage-audit CLI now expose a storage-contract status
+      that flags missing/ambiguous symbol, bar-size, session, stock adjustment,
+      timestamp timezone, and UTC-normalization metadata before replay.
 - Add resumability:
   - skip chunks already present
   - retry failed chunks
@@ -1206,6 +1210,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       RTH/extended/24_7 storage-session guesses across configured and suggested
       roots, including API payloads, CSV export headers, and CLI human/JSON
       output.
+    - partial; regression coverage now asserts storage-contract status/counts
+      in catalog rows, symbol summaries, Data Detail, Storage Audit API output,
+      CSV headers, and CLI JSON/human output.
 - Add data ingestion acceptance tests:
   - a fixture with hundreds of synthetic symbols must show more than the public
     SPY/QQQ examples

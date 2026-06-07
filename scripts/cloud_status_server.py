@@ -2139,6 +2139,69 @@ def infer_adjustment_status(path: Path, df: pd.DataFrame, asset_class: str) -> s
     return "unknown"
 
 
+def storage_contract_summary(
+    *,
+    symbol: str | None,
+    canonical_symbol_value: str | None,
+    asset_class: str,
+    bar_size: str | None,
+    storage_session: str | None,
+    adjustment_status: str | None,
+    timestamp_column_name: str | None = None,
+    source_timezone: str | None = None,
+    normalized_timezone: str | None = None,
+    timestamp_parse_failures: int | None = None,
+    include_timestamp: bool = True,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not symbol:
+        blockers.append("missing symbol metadata")
+    elif not canonical_symbol_value:
+        blockers.append("missing canonical symbol")
+    if not bar_size:
+        warnings.append("missing bar-size metadata")
+
+    session = str(storage_session or "").strip()
+    if not session or session == "unknown":
+        warnings.append("missing storage-session metadata")
+    elif asset_class == "crypto" and session != "24_7":
+        warnings.append("crypto file is not marked 24_7")
+    elif asset_class in {"stock", "etf"} and session not in {"rth", "extended"}:
+        warnings.append("stock/ETF file should be marked rth or extended")
+
+    adjustment = str(adjustment_status or "").strip()
+    if asset_class == "crypto":
+        if adjustment != "not_applicable":
+            warnings.append("crypto adjustment metadata should be not_applicable")
+    elif asset_class in {"stock", "etf"}:
+        if adjustment in {"", "unknown"}:
+            warnings.append("missing stock adjustment metadata")
+        elif adjustment not in {"raw", "adjusted"}:
+            warnings.append("stock adjustment metadata should be raw or adjusted")
+
+    if include_timestamp:
+        if not timestamp_column_name:
+            blockers.append("missing timestamp column")
+        if normalized_timezone != "UTC":
+            blockers.append("timestamps are not normalized to UTC")
+        if source_timezone == "naive/unknown":
+            warnings.append("timestamp source timezone is naive/unknown")
+        elif not source_timezone:
+            warnings.append("missing source timezone metadata")
+        if timestamp_parse_failures:
+            warnings.append(f"{timestamp_parse_failures} timestamp parse failures")
+
+    status = "bad" if blockers else "warn" if warnings else "ok"
+    messages = blockers + warnings
+    return {
+        "storage_contract_status": status,
+        "storage_contract_warnings": messages,
+        "storage_contract_warning_count": len(messages),
+        "storage_contract_label": "canonical" if status == "ok" else "review",
+    }
+
+
 def classify_data_root(path: Path) -> str:
     lowered = "/".join(part.lower() for part in path.resolve().parts)
     if "examples/data" in lowered:
@@ -2379,6 +2442,23 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
     stat = path.stat()
     symbol = infer_symbol(path, df)
     asset_class = infer_asset_class(path, symbol)
+    canonical = canonical_symbol(symbol, asset_class)
+    bar_size = infer_bar_size(path, df)
+    storage_session = infer_storage_session(path, df, asset_class)
+    adjustment_status = infer_adjustment_status(path, df, asset_class)
+    normalized_timezone = "UTC" if source_tz else None
+    storage_contract = storage_contract_summary(
+        symbol=symbol,
+        canonical_symbol_value=canonical,
+        asset_class=asset_class,
+        bar_size=bar_size,
+        storage_session=storage_session,
+        adjustment_status=adjustment_status,
+        timestamp_column_name=ts_col,
+        source_timezone=source_tz,
+        normalized_timezone=normalized_timezone,
+        timestamp_parse_failures=timestamp_parse_failures,
+    )
     return {
         "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
@@ -2389,14 +2469,15 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
         "symbol": symbol,
-        "canonical_symbol": canonical_symbol(symbol, asset_class),
+        "canonical_symbol": canonical,
         "asset_class": asset_class,
-        "bar_size": infer_bar_size(path, df),
-        "storage_session": infer_storage_session(path, df, asset_class),
-        "adjustment_status": infer_adjustment_status(path, df, asset_class),
+        "bar_size": bar_size,
+        "storage_session": storage_session,
+        "adjustment_status": adjustment_status,
+        **storage_contract,
         "timestamp_column": ts_col,
         "source_timezone": source_tz,
-        "normalized_timezone": "UTC" if source_tz else None,
+        "normalized_timezone": normalized_timezone,
         "first_timestamp": first_ts,
         "last_timestamp": last_ts,
         "median_interval_seconds": median_interval,
@@ -2479,6 +2560,7 @@ def build_data_catalog(
         "source_counts": count_values(datasets, "source"),
         "storage_session_counts": count_values(datasets, "storage_session"),
         "adjustment_status_counts": count_values(datasets, "adjustment_status"),
+        "storage_contract_counts": count_values(datasets, "storage_contract_status"),
         "row_count_total": sum(int(item.get("rows") or 0) for item in datasets),
         "size_bytes_total": sum(int(item.get("size_bytes") or 0) for item in datasets),
         "latest_modified_at": max(modified_values) if modified_values else None,
@@ -2538,6 +2620,8 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
         quality_counts = count_values(rows, "quality_status")
         warnings = sum(int(item.get("quality_warning_count") or 0) for item in rows)
         missing_intervals = sum(int(item.get("estimated_missing_intervals") or 0) for item in rows)
+        storage_contract_counts = count_values(rows, "storage_contract_status")
+        storage_contract_issue_file_count = int(storage_contract_counts.get("warn") or 0) + int(storage_contract_counts.get("bad") or 0)
         storage_sessions, storage_session_count, mixed_storage_sessions, storage_session_profile_value = storage_session_profile(
             item.get("storage_session") for item in rows
         )
@@ -2560,6 +2644,8 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
             "quality_counts": quality_counts,
             "quality_issue_file_count": int(quality_counts.get("warn") or 0) + int(quality_counts.get("bad") or 0),
             "quality_warning_count": warnings,
+            "storage_contract_counts": storage_contract_counts,
+            "storage_contract_issue_file_count": storage_contract_issue_file_count,
             "estimated_missing_intervals": missing_intervals,
             "first_timestamp": min(first_values) if first_values else None,
             "last_timestamp": max(last_values) if last_values else None,
@@ -2569,6 +2655,7 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
             "best_source": best.get("source"),
             "best_bar_size": best.get("bar_size"),
             "best_storage_session": best.get("storage_session"),
+            "best_storage_contract_status": best.get("storage_contract_status"),
             "best_quality_status": best.get("quality_status"),
             "best_rows": best.get("rows"),
         })
@@ -2630,13 +2717,27 @@ def audit_data_root(
         display = display_path(path)
         symbol = infer_symbol(path, pd.DataFrame())
         asset_class = infer_asset_class(path, symbol)
+        canonical = canonical_symbol(symbol, asset_class)
+        bar_size = infer_bar_size(path, pd.DataFrame())
+        storage_session = infer_storage_session(path, pd.DataFrame(), asset_class)
+        adjustment_status = infer_adjustment_status(path, pd.DataFrame(), asset_class)
+        storage_contract = storage_contract_summary(
+            symbol=symbol,
+            canonical_symbol_value=canonical,
+            asset_class=asset_class,
+            bar_size=bar_size,
+            storage_session=storage_session,
+            adjustment_status=adjustment_status,
+            include_timestamp=False,
+        )
         file_rows.append({
             "path": display,
             "extension": path.suffix.lower(),
             "source": infer_data_source(path),
             "asset_class": asset_class,
-            "bar_size": infer_bar_size(path, pd.DataFrame()),
-            "storage_session": infer_storage_session(path, pd.DataFrame(), asset_class),
+            "bar_size": bar_size,
+            "storage_session": storage_session,
+            "storage_contract_status": storage_contract["storage_contract_status"],
             "catalog_visible": display in catalog_paths,
         })
     visible_count = sum(1 for row in file_rows if row["catalog_visible"])
@@ -2666,6 +2767,7 @@ def audit_data_root(
         "source_guess_counts": count_values(file_rows, "source"),
         "bar_size_guess_counts": count_values(file_rows, "bar_size"),
         "storage_session_guess_counts": count_values(file_rows, "storage_session"),
+        "storage_contract_guess_counts": count_values(file_rows, "storage_contract_status"),
         "sample_hidden_paths": [row["path"] for row in hidden_rows[:10]],
         "unsupported_file_count": unsupported["unsupported_file_count"],
         "unsupported_extension_counts": unsupported["unsupported_extension_counts"],
@@ -2733,6 +2835,10 @@ def build_data_storage_audit(
         warnings.append("Some configured-root files failed catalog parsing.")
     if any(row.get("scan_capped") for row in configured_rows + suggested_rows):
         warnings.append("The storage audit reached its per-root scan limit.")
+    if any((row.get("storage_contract_guess_counts") or {}).get("bad") for row in configured_rows + suggested_rows):
+        warnings.append("Some files are missing required storage-contract metadata.")
+    if any((row.get("storage_contract_guess_counts") or {}).get("warn") for row in configured_rows + suggested_rows):
+        warnings.append("Some files need storage-contract metadata review before replay.")
     if not configured_file_count and not suggested_file_count:
         status = "bad"
     elif warnings:
@@ -2770,11 +2876,13 @@ def build_data_storage_audit(
         "source_guess_counts": merge_count_maps(configured_rows + suggested_rows, "source_guess_counts"),
         "bar_size_guess_counts": merge_count_maps(configured_rows + suggested_rows, "bar_size_guess_counts"),
         "storage_session_guess_counts": merge_count_maps(configured_rows + suggested_rows, "storage_session_guess_counts"),
+        "storage_contract_guess_counts": merge_count_maps(configured_rows + suggested_rows, "storage_contract_guess_counts"),
         "configured_extension_counts": merge_count_maps(configured_rows, "extension_counts"),
         "configured_asset_class_guess_counts": merge_count_maps(configured_rows, "asset_class_guess_counts"),
         "configured_source_guess_counts": merge_count_maps(configured_rows, "source_guess_counts"),
         "configured_bar_size_guess_counts": merge_count_maps(configured_rows, "bar_size_guess_counts"),
         "configured_storage_session_guess_counts": merge_count_maps(configured_rows, "storage_session_guess_counts"),
+        "configured_storage_contract_guess_counts": merge_count_maps(configured_rows, "storage_contract_guess_counts"),
         "configured_roots": configured_rows,
         "suggested_roots": suggested_rows,
     }
@@ -2790,6 +2898,9 @@ DATA_CATALOG_EXPORT_FIELDS = (
     "bar_size",
     "storage_session",
     "adjustment_status",
+    "storage_contract_status",
+    "storage_contract_warning_count",
+    "storage_contract_label",
     "format",
     "rows",
     "first_timestamp",
@@ -2828,6 +2939,8 @@ DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
     "quality_counts",
     "quality_issue_file_count",
     "quality_warning_count",
+    "storage_contract_counts",
+    "storage_contract_issue_file_count",
     "estimated_missing_intervals",
     "first_timestamp",
     "last_timestamp",
@@ -2837,6 +2950,7 @@ DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
     "best_source",
     "best_bar_size",
     "best_storage_session",
+    "best_storage_contract_status",
     "best_quality_status",
     "best_rows",
 )
@@ -2888,6 +3002,7 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "source_guess_counts",
     "bar_size_guess_counts",
     "storage_session_guess_counts",
+    "storage_contract_guess_counts",
     "sample_hidden_paths",
     "errors",
 )
@@ -5851,6 +5966,23 @@ def build_data_detail(
     stat = path.stat()
     symbol = infer_symbol(path, df)
     asset_class = infer_asset_class(path, symbol)
+    canonical = canonical_symbol(symbol, asset_class)
+    bar_size = infer_bar_size(path, df)
+    storage_session = infer_storage_session(path, df, asset_class)
+    adjustment_status = infer_adjustment_status(path, df, asset_class)
+    normalized_timezone = "UTC" if source_tz else None
+    storage_contract = storage_contract_summary(
+        symbol=symbol,
+        canonical_symbol_value=canonical,
+        asset_class=asset_class,
+        bar_size=bar_size,
+        storage_session=storage_session,
+        adjustment_status=adjustment_status,
+        timestamp_column_name=ts_col,
+        source_timezone=source_tz,
+        normalized_timezone=normalized_timezone,
+        timestamp_parse_failures=timestamp_parse_failures,
+    )
     return {
         "path": rel_path,
         "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
@@ -5861,14 +5993,15 @@ def build_data_detail(
         "rows": int(len(df)),
         "columns": [str(col) for col in df.columns],
         "symbol": symbol,
-        "canonical_symbol": canonical_symbol(symbol, asset_class),
+        "canonical_symbol": canonical,
         "asset_class": asset_class,
-        "bar_size": infer_bar_size(path, df),
-        "storage_session": infer_storage_session(path, df, asset_class),
-        "adjustment_status": infer_adjustment_status(path, df, asset_class),
+        "bar_size": bar_size,
+        "storage_session": storage_session,
+        "adjustment_status": adjustment_status,
+        **storage_contract,
         "column_map": columns,
         "source_timezone": source_tz,
-        "normalized_timezone": "UTC" if source_tz else None,
+        "normalized_timezone": normalized_timezone,
         "coverage": {
             "first_timestamp": ordered.iloc[0].isoformat() if not ordered.empty else None,
             "last_timestamp": ordered.iloc[-1].isoformat() if not ordered.empty else None,

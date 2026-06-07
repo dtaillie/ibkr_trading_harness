@@ -7493,6 +7493,7 @@ function renderDataCatalog() {
         escapeHtml(interval(dataset.median_interval_seconds)),
         escapeHtml(dataset.estimated_missing_intervals),
         qualityBadge(dataset.quality_status, dataset.quality_warnings),
+        qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings),
         escapeHtml(dataset.source_timezone),
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
@@ -7501,8 +7502,8 @@ function renderDataCatalog() {
         `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
     : firstCatalogLoad
-      ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-      : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+      ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+      : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
@@ -7511,6 +7512,7 @@ function renderDataCatalog() {
     `assets ${countSummary(catalog.asset_class_counts)}`,
     `sources ${countSummary(catalog.source_counts)}`,
     `sessions ${countSummary(catalog.storage_session_counts)}`,
+    `contracts ${countSummary(catalog.storage_contract_counts)}`,
     `rows ${numberText(catalog.row_count_total, 0)}`,
     `size ${bytes(catalog.size_bytes_total)}`,
   ].join(" | ");
@@ -8488,6 +8490,8 @@ function renderDataCatalogHealth() {
   const suggestedFiles = Number(auditSummary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
   const hiddenTotal = Number(auditSummary.hidden_total_file_count ?? (hiddenConfigured + suggestedFiles));
   const catalogLimit = Number(catalog.limit || 0);
+  const storageContractCounts = catalog.storage_contract_counts || {};
+  const contractIssues = Number(storageContractCounts.warn || 0) + Number(storageContractCounts.bad || 0);
   const cards = [
     {
       status: catalogRows ? "ok" : "bad",
@@ -8512,6 +8516,14 @@ function renderDataCatalogHealth() {
         : "No unsupported saved-data files found in current scan/audit summaries.",
     },
     {
+      status: contractIssues ? "warn" : catalogRows ? "ok" : "waiting",
+      label: "Storage Contract",
+      title: numberText(contractIssues, 0),
+      note: contractIssues
+        ? "Some files have ambiguous timestamp, session, bar-size, or adjustment metadata."
+        : "Visible files satisfy the current storage-contract checks.",
+    },
+    {
       status: cappedRoots ? "warn" : "ok",
       label: "Scan Caps",
       title: numberText(cappedRoots, 0),
@@ -8530,6 +8542,8 @@ function renderDataCatalogHealth() {
   ];
   const nextAction = parserErrors
     ? "Review Catalog Scan Diagnostics for malformed file samples."
+    : contractIssues
+      ? "Filter the catalog for review-status storage contracts before replay."
     : hiddenTotal
       ? "Inspect Storage Audit and copy data_roots YAML for suggested roots."
       : cappedRoots
@@ -8566,6 +8580,7 @@ function renderDataStorageAudit() {
     ["Suggested-root Files", numberText(audit.suggested_file_count, 0)],
     ["Unsupported Files", numberText(audit.unsupported_file_count, 0)],
     ["Storage Sessions", countSummary(audit.storage_session_guess_counts)],
+    ["Storage Contract", countSummary(audit.storage_contract_guess_counts)],
     ["Root Scan Time", `${numberText(audit.scan_duration_ms_total, 3)} ms`],
     ["Warnings", (audit.warnings || []).join("; ") || "none"],
   ];
@@ -8598,7 +8613,7 @@ function renderDataStorageAudit() {
           escapeHtml(countSummary(item.asset_class_guess_counts)),
           escapeHtml(countSummary(item.bar_size_guess_counts)),
           escapeHtml(countSummary(item.storage_session_guess_counts)),
-          escapeHtml(countSummary(item.source_guess_counts)),
+          `${escapeHtml(countSummary(item.source_guess_counts))}<br><span class="muted">contract ${escapeHtml(countSummary(item.storage_contract_guess_counts))}</span>`,
           hiddenSamples.length
             ? hiddenSamples.map((path) => `<span class="mono">${escapeHtml(path)}</span>`).join("<br>")
             : `<span class="muted">none</span>`,
@@ -9323,6 +9338,7 @@ function renderDataDetail() {
     ["Canonical Symbol", text(detail.canonical_symbol)],
     ["Session", text(detail.storage_session)],
     ["Adjustment", text(detail.adjustment_status)],
+    ["Storage Contract", `${text(detail.storage_contract_status)}${(detail.storage_contract_warnings || []).length ? ` (${(detail.storage_contract_warnings || []).join("; ")})` : ""}`],
     ["File Size", bytes(detail.size_bytes)],
     ["Modified", timestampAgeLabel(detail.modified_at)],
     ["Rows", numberText(detail.rows, 0)],

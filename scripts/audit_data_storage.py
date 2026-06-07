@@ -60,6 +60,7 @@ def human_report(audit: dict[str, Any]) -> str:
         f"Sources: {count_summary(audit.get('source_guess_counts'))}",
         f"Bar sizes: {count_summary(audit.get('bar_size_guess_counts'))}",
         f"Storage sessions: {count_summary(audit.get('storage_session_guess_counts'))}",
+        f"Storage contract: {count_summary(audit.get('storage_contract_guess_counts'))}",
     ]
     warnings = audit.get("warnings") or []
     if warnings:
