@@ -200,6 +200,11 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".data-detail-range-stats small",
     ".data-compare-stats strong",
     ".data-compare-stats small",
+    ".fetch-health-main strong",
+    ".fetch-health-main span",
+    ".fetch-health-cards strong",
+    ".fetch-health-cards small",
+    "#fetch-health-actions a",
     ".fetch-workflow-grid strong",
     ".fetch-workflow-grid small",
     ".workbench-workflow-grid strong",
@@ -302,6 +307,9 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".data-inventory-main strong",
     ".data-inventory-cards strong",
     "#data-inventory-actions a",
+    ".fetch-health-main strong",
+    ".fetch-health-cards strong",
+    "#fetch-health-actions a",
     ".fetch-workflow-grid strong",
     ".workbench-workflow-grid strong",
     ".workbench-simulation-main strong",
@@ -378,6 +386,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".performance-workflow-grid",
     ".data-workflow-grid",
     ".data-inventory-cards",
+    ".fetch-health-cards",
     ".fetch-workflow-grid",
     ".workbench-workflow-grid",
     ".workbench-simulation-cards",
@@ -491,6 +500,7 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
       { selector: "#data-coverage-assistant-title" }
     ],
     "fetch": [
+      { selector: "#fetch-health-title" },
       { selector: "#fetch-triage-note" },
       { selector: "#fetch-jobs-guide-note" }
     ],

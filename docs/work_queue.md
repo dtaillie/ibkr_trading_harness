@@ -228,6 +228,10 @@ strategy-private.
     - partial; Fetch Jobs now includes a contextual Fetch Workflow checklist
       that turns root readability, loaded jobs, filters, selected outputs, Data
       Library visibility, and recovery/export state into concrete next actions.
+    - partial; Fetch Jobs Home now includes a Fetch Health panel that
+      consolidates manifest-root readiness, loaded/filtered jobs, active
+      non-terminal pulls, retry/pacing pressure, output visibility, selected
+      detail state, and direct Jobs/Detail/Data/Workbench actions.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes

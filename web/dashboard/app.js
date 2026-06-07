@@ -12524,6 +12524,7 @@ function renderFetchJobs() {
         `;
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
+  renderFetchHealthPanel({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchWorkflowLauncher({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
@@ -12585,6 +12586,119 @@ function renderFetchJobs() {
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
     : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderFetchHealthPanel(context = {}) {
+  if (!$("fetch-health-title") || !$("fetch-health-cards") || !$("fetch-health-actions")) return;
+  const manifests = context.manifests || [];
+  const filteredManifests = context.filteredManifests || manifests;
+  const roots = context.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || [];
+  const rootManifestCount = roots.reduce((sum, root) => sum + Number(root.manifest_count || 0), 0);
+  const activeJobs = manifests.filter((item) => !fetchJobTerminal(item.status));
+  const reviewJobs = manifests.filter((item) => fetchManifestIssueCount(item) > 0 || fetchManifestOutputIssueCount(item) > 0);
+  const retryEvents = manifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const visibleOutputs = manifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = manifests.reduce((sum, item) => sum + fetchManifestOutputIssueCount(item), 0);
+  const selectedDetail = state.fetchManifestDetail || {};
+  const selectedVisibleOutputs = fetchVisibleOutputPaths(selectedDetail);
+  const hiddenByFilters = Math.max(0, manifests.length - filteredManifests.length);
+  let status = "bad";
+  let title = "No Fetch Jobs";
+  let note = "No dashboard-readable fetch manifests are loaded. Configure manifest roots or run a fetcher that writes JSON manifests.";
+  let primaryHref = "#fetch";
+  let primaryLabel = "Configure Roots";
+  if (!roots.length && rootConfigPaths.length) {
+    status = "warn";
+    title = "Manifest Roots Need Scan";
+    note = `${numberText(rootConfigPaths.length, 0)} manifest root path${rootConfigPaths.length === 1 ? "" : "s"} are configured or suggested, but no manifest rows are loaded.`;
+  } else if (activeJobs.length) {
+    status = "warn";
+    title = "Fetch Running Or Incomplete";
+    note = `${numberText(activeJobs.length, 0)} non-terminal manifest${activeJobs.length === 1 ? "" : "s"} are visible. Inspect progress before starting more pulls.`;
+    primaryHref = "#fetch/jobs";
+    primaryLabel = "Open Jobs";
+  } else if (reviewJobs.length) {
+    status = "warn";
+    title = "Recovery Needed";
+    note = `${numberText(reviewJobs.length, 0)} fetch job${reviewJobs.length === 1 ? "" : "s"} report failures, retry pressure, or output path issues.`;
+    primaryHref = "#fetch/detail";
+    primaryLabel = "Open Detail";
+  } else if (outputIssues) {
+    status = "warn";
+    title = "Output Visibility Issues";
+    note = `${numberText(outputIssues, 0)} produced output path issue${outputIssues === 1 ? "" : "s"} need Data Library root/path review.`;
+    primaryHref = "#fetch/detail";
+    primaryLabel = "Review Outputs";
+  } else if (visibleOutputs) {
+    status = "ok";
+    title = "Fetch Outputs Ready";
+    note = `${numberText(visibleOutputs, 0)} output file${visibleOutputs === 1 ? "" : "s"} are visible from Data Library roots.`;
+    primaryHref = selectedVisibleOutputs.length ? "#data/browse" : "#fetch/jobs";
+    primaryLabel = selectedVisibleOutputs.length ? "Open Data" : "Open Jobs";
+  } else if (manifests.length) {
+    status = "warn";
+    title = "Jobs Loaded";
+    note = `${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"} are loaded, but no Data Library-visible outputs are summarized yet.`;
+    primaryHref = "#fetch/jobs";
+    primaryLabel = "Inspect Jobs";
+  }
+  $("fetch-health-title").textContent = title;
+  $("fetch-health-title").className = statusClass(status);
+  $("fetch-health-note").textContent = note;
+  const cards = [
+    {
+      label: "Manifest Roots",
+      title: roots.length ? `${numberText(roots.length, 0)} roots` : "none",
+      status: roots.length && rootManifestCount ? "ok" : rootConfigPaths.length ? "warn" : "bad",
+      detail: `${numberText(rootManifestCount, 0)} manifest file${rootManifestCount === 1 ? "" : "s"} under configured roots.`,
+    },
+    {
+      label: "Loaded Jobs",
+      title: `${numberText(filteredManifests.length, 0)} / ${numberText(manifests.length, 0)}`,
+      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "bad",
+      detail: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} job${hiddenByFilters === 1 ? "" : "s"} hidden by filters.` : `${numberText(context.rowsTotal || 0, 0)} fetched rows summarized.`,
+    },
+    {
+      label: "Active Jobs",
+      title: numberText(activeJobs.length, 0),
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      detail: activeJobs.length ? "Inspect active/non-terminal manifests before launching another pull." : "No active/non-terminal jobs loaded.",
+    },
+    {
+      label: "Recovery",
+      title: numberText(reviewJobs.length, 0),
+      status: reviewJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      detail: `${numberText(retryEvents, 0)} retries / ${numberText(pacingWaits, 0)} pacing waits across loaded jobs.`,
+    },
+    {
+      label: "Output Visibility",
+      title: `${numberText(visibleOutputs, 0)} visible`,
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      detail: outputIssues ? `${numberText(outputIssues, 0)} missing/outside/no-path/unsupported output issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can be opened from Fetch Detail.",
+    },
+    {
+      label: "Selected Detail",
+      title: selectedDetail.job_id ? text(selectedDetail.job_id) : "none",
+      status: selectedDetail.job_id ? selectedVisibleOutputs.length ? "ok" : "warn" : "warn",
+      detail: selectedDetail.job_id ? `${numberText(selectedVisibleOutputs.length, 0)} selected visible output${selectedVisibleOutputs.length === 1 ? "" : "s"}.` : "Select a job to see resume and output actions.",
+    },
+  ];
+  $("fetch-health-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("fetch-health-actions").innerHTML = [
+    `<a href="${escapeHtml(primaryHref)}">${escapeHtml(primaryLabel)}</a>`,
+    `<a class="secondary" href="#fetch/jobs">Jobs</a>`,
+    `<a class="secondary" href="#fetch/detail">Detail</a>`,
+    `<a class="secondary" href="#data/browse">Data Library</a>`,
+    `<a class="secondary" href="#workbench/builder">Workbench</a>`,
+  ].join("");
 }
 
 function fetchManifestOutputIssueCount(item) {

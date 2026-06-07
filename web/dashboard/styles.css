@@ -1789,6 +1789,7 @@ section {
 
 #data-inventory-actions a,
 #workbench-simulation-actions a,
+#fetch-health-actions a,
 #runs-review-actions a,
 #operations-readiness-actions a,
 #help-workbench-quickstart-actions a {
@@ -1806,6 +1807,7 @@ section {
 
 #data-inventory-actions a.secondary,
 #workbench-simulation-actions a.secondary,
+#fetch-health-actions a.secondary,
 #runs-review-actions a.secondary,
 #operations-readiness-actions a.secondary,
 #help-workbench-quickstart-actions a.secondary {
@@ -2086,6 +2088,45 @@ section {
 }
 
 .workbench-simulation-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.fetch-health-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.76fr) minmax(360px, 1.24fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.fetch-health-main,
+.fetch-health-cards {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: var(--surface-shadow);
+}
+
+.fetch-health-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.fetch-health-main > span:last-of-type {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.fetch-health-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
@@ -4549,6 +4590,7 @@ footer {
   .performance-home-panel,
   .workbench-home-panel,
   .workbench-simulation-plan,
+  .fetch-health-panel,
   .workbench-result-panel,
   .runs-review-panel,
   .workbench-run-command-panel,

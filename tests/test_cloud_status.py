@@ -1064,6 +1064,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-filter-kind" in html
         assert "fetch-filter-sort" in html
         assert "export-fetch-manifests-csv" in html
+        assert "fetch-health-title" in html
+        assert "fetch-health-note" in html
+        assert "fetch-health-cards" in html
+        assert "fetch-health-actions" in html
         assert "fetch-jobs-guide-note" in html
         assert "fetch-jobs-guide" in html
         assert "fetch-triage-note" in html
