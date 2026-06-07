@@ -364,7 +364,10 @@ matrix rows offline.
    plugin boundary, and local commands without saving.
 8. Use Generate / Save after enabling Save draft locally when the preview is
    acceptable.
-9. In Workbench Run, read Run Readiness before pressing Run. It calls out the
+9. In Workbench Run, read Draft Inventory Review and Run Readiness before
+   pressing Run. Draft Inventory Review summarizes saved draft folders, tags,
+   validation coverage, runnable drafts, latest runs, and the selected draft's
+   next action before the dense tables. Run Readiness calls out the
    selected draft, validation state, run action, latest run, available results,
    blockers, and warnings, and it can jump directly to Validate, Run, or Open
    Results. Use Run Selected to stay in Workbench after completion, or Run +

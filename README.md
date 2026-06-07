@@ -269,7 +269,10 @@ the dashboard can answer how saved runs performed without a live process; period
 rollups summarize those same archived rows by month and year. It shows
 read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, searchable run history, recent open-order telemetry, managed
-positions, and local disk usage. Operations Remote includes a copyable Remote
+positions, and local disk usage. Workbench Run includes Draft Inventory Review
+for saved draft folders, tags, validation coverage, runnable drafts, selected
+draft state, latest runs, and next action before the dense draft/run tables.
+Operations Remote includes a copyable Remote
 Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
 alerts, open orders, stale data/account timestamps, and next actions.
 Operations Control includes Command Safety Review before the raw command form,

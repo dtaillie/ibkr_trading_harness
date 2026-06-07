@@ -615,6 +615,10 @@ example YAML.
 Use Export Drafts CSV to download a saved-draft inventory with folder, status,
 mode, plugin, symbols, tags, validation state, output directory, and local YAML
 path.
+Workbench Run's Draft Inventory Review gives the same inventory as a
+first-screen decision aid: folders, status labels, tags, validation coverage,
+runnable drafts, selected-draft state, latest runs, and the next action before
+the draft/run tables.
 Use Delete on a saved draft row to remove only that saved YAML; run archives and
 workbench output directories are handled separately by Workbench Maintenance.
 Saved drafts can then be validated, replayed, or simulated-paper-run from the

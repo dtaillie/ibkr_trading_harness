@@ -17440,6 +17440,191 @@ function renderWorkbenchTriage() {
   `).join("");
 }
 
+function workbenchDraftInventoryModel() {
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const runs = (state.configRuns && state.configRuns.runs) || [];
+  const validations = (state.draftValidations && state.draftValidations.validations) || [];
+  const validationByDraft = draftValidationById();
+  const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
+  const selectedDraft = drafts.find((draft) => draft.draft_id === selectedDraftId) || null;
+  const selectedValidation = selectedDraftId ? validationByDraft[selectedDraftId] : null;
+  const latestRun = latestWorkbenchRunForDraft(selectedDraftId);
+  const validCount = validations.filter((item) => item.valid).length;
+  const invalidCount = validations.filter((item) => item.valid === false).length;
+  const uncheckedDrafts = drafts.filter((draft) => !validationByDraft[draft.draft_id]);
+  const completedRuns = runs.filter((run) => run.status === "completed");
+  const failedRuns = runs.filter((run) => run.status === "failed" || run.status === "timeout");
+  const draftIdsWithRuns = new Set(runs.map((run) => run.draft_id).filter(Boolean));
+  const runnableDrafts = drafts.filter((draft) => {
+    const validation = validationByDraft[draft.draft_id];
+    return validation && validation.valid === true;
+  });
+  const folders = countBy(drafts, "folder");
+  const statuses = countBy(drafts, "status_label");
+  const tagCounts = {};
+  for (const draft of drafts) {
+    for (const tag of draft.tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+  }
+  const topTags = topCountEntries(tagCounts, 4).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
+  let headline = "No saved drafts yet";
+  let note = "Use Builder to select data, preview alignment, generate, and save a local draft before running.";
+  if (drafts.length) {
+    if (invalidCount) {
+      headline = "Fix invalid drafts before running";
+      note = `${numberText(invalidCount, 0)} saved draft${invalidCount === 1 ? "" : "s"} failed validation. Review messages before replay or simulated paper.`;
+    } else if (uncheckedDrafts.length) {
+      headline = "Validate saved drafts before running";
+      note = `${numberText(uncheckedDrafts.length, 0)} saved draft${uncheckedDrafts.length === 1 ? "" : "s"} have not been validated in this session.`;
+    } else if (runnableDrafts.length && !runs.length) {
+      headline = "Drafts are ready to run";
+      note = `${numberText(runnableDrafts.length, 0)} valid draft${runnableDrafts.length === 1 ? "" : "s"} are available; run replay or simulated paper to create artifacts.`;
+    } else {
+      headline = "Saved draft inventory is ready";
+      note = `${numberText(drafts.length, 0)} saved draft${drafts.length === 1 ? "" : "s"}, ${numberText(completedRuns.length, 0)} completed run${completedRuns.length === 1 ? "" : "s"}, and ${numberText(failedRuns.length, 0)} failed/timeout run${failedRuns.length === 1 ? "" : "s"}.`;
+    }
+  }
+  const cards = [
+    {
+      status: drafts.length ? "ok" : "bad",
+      label: "Drafts",
+      title: numberText(drafts.length, 0),
+      note: Object.keys(folders).length ? `Folders: ${countSummary(folders)}.` : "No draft folders loaded.",
+    },
+    {
+      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "bad",
+      label: "Validation",
+      title: `${numberText(validCount, 0)} valid`,
+      note: validations.length ? `${numberText(invalidCount, 0)} invalid; ${numberText(uncheckedDrafts.length, 0)} unchecked.` : "Click Validate Drafts to populate validation state.",
+    },
+    {
+      status: runnableDrafts.length ? "ok" : drafts.length ? "warn" : "bad",
+      label: "Runnable",
+      title: numberText(runnableDrafts.length, 0),
+      note: "Drafts with passing saved-draft validation.",
+    },
+    {
+      status: runs.length ? failedRuns.length ? "warn" : "ok" : drafts.length ? "warn" : "bad",
+      label: "Runs",
+      title: numberText(runs.length, 0),
+      note: `${numberText(completedRuns.length, 0)} completed; ${numberText(failedRuns.length, 0)} failed/timeout; ${numberText(draftIdsWithRuns.size, 0)} draft IDs with runs.`,
+    },
+    {
+      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "bad",
+      label: "Selected",
+      title: selectedDraft ? text(selectedDraft.draft_id) : "None",
+      note: selectedDraft
+        ? `${text(selectedDraft.status_label || selectedDraft.status)} / ${text(selectedDraft.folder)} / tags ${(selectedDraft.tags || []).join(", ") || "none"}.`
+        : "Choose a saved draft in the Run form.",
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      label: "Selected Latest",
+      title: latestRun ? text(latestRun.status) : "No run",
+      note: latestRun ? `${text(latestRun.action)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.` : "No run recorded for the selected draft.",
+    },
+  ];
+  const lines = [
+    {
+      status: drafts.length ? "ok" : "bad",
+      title: "Draft organization",
+      detail: drafts.length ? `Folders ${countSummary(folders)}; statuses ${countSummary(statuses)}; top tags ${topTags || "none"}.` : "No saved drafts are available yet.",
+    },
+    {
+      status: uncheckedDrafts.length ? "warn" : invalidCount ? "bad" : validations.length ? "ok" : drafts.length ? "warn" : "bad",
+      title: "Validation coverage",
+      detail: validations.length ? `${numberText(validations.length, 0)} checked at ${text((state.draftValidations || {}).generated_at)}; ${numberText(uncheckedDrafts.length, 0)} unchecked.` : "No saved-draft validation results are loaded in this session.",
+    },
+    {
+      status: failedRuns.length ? "warn" : runs.length ? "ok" : drafts.length ? "warn" : "bad",
+      title: "Run coverage",
+      detail: runs.length ? `${numberText(completedRuns.length, 0)} completed and ${numberText(failedRuns.length, 0)} failed/timeout runs; ${numberText(draftIdsWithRuns.size, 0)} draft IDs have run evidence.` : "No saved draft runs have been recorded yet.",
+    },
+    {
+      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "bad",
+      title: "Selected draft next step",
+      detail: selectedDraft
+        ? selectedValidation
+          ? selectedValidation.valid
+            ? latestRun ? "Selected draft is valid; inspect latest run or run another replay/simulated-paper pass." : "Selected draft is valid; choose replay or simulated paper to create artifacts."
+            : `Fix validation errors: ${(selectedValidation.errors || []).slice(0, 3).join("; ") || "validation failed"}.`
+          : "Validate the selected draft before replay or simulated paper."
+        : "Select a saved draft before running.",
+    },
+  ];
+  return { headline, note, cards, lines };
+}
+
+function workbenchDraftInventoryText(model) {
+  return [
+    `Draft Inventory Review: ${model.headline}`,
+    `Next action: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderWorkbenchDraftInventory() {
+  if (
+    !$("workbench-draft-inventory-title")
+    || !$("workbench-draft-inventory-note")
+    || !$("workbench-draft-inventory-cards")
+    || !$("workbench-draft-inventory-body")
+    || !$("workbench-draft-inventory-actions")
+  ) return;
+  const model = workbenchDraftInventoryModel();
+  state.workbenchDraftInventoryText = workbenchDraftInventoryText(model);
+  $("workbench-draft-inventory-title").textContent = model.headline;
+  $("workbench-draft-inventory-note").textContent = model.note;
+  $("workbench-draft-inventory-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-draft-inventory-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("workbench-draft-inventory-actions").innerHTML = [
+    `<button type="button" data-draft-inventory-action="copy">Copy Review</button>`,
+    `<button type="button" class="secondary" data-draft-inventory-action="validate">Validate Drafts</button>`,
+    `<button type="button" class="secondary" data-draft-inventory-action="export">Export Drafts CSV</button>`,
+    `<button type="button" class="secondary" data-draft-inventory-action="builder">Builder</button>`,
+    `<button type="button" class="secondary" data-draft-inventory-action="run">Run Form</button>`,
+  ].join("");
+}
+
+function handleWorkbenchDraftInventoryAction(action) {
+  if (action === "copy") {
+    copyText(state.workbenchDraftInventoryText || "No draft inventory review loaded").then(() => {
+      $("last-refresh").textContent = "Draft inventory review copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Draft inventory review copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "validate") {
+    validateDrafts().catch((err) => {
+      $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+    return;
+  }
+  if (action === "export") {
+    downloadDraftsCsv().catch((err) => {
+      $("last-refresh").textContent = `Draft CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "builder") return navigateToWorkbenchLens("builder");
+  if (action === "run") {
+    const element = $("config-run-form");
+    if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+}
+
 function workbenchRunReadinessModel() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   const runAction = $("config-run-action") ? $("config-run-action").value : "";
@@ -17753,6 +17938,7 @@ function renderWorkbenchRuns() {
   renderWorkbenchHome();
   renderWorkbenchGuide();
   renderWorkbenchRunReadiness();
+  renderWorkbenchDraftInventory();
   renderWorkbenchRunCommands();
   renderWorkbenchTriage();
   renderWorkbenchRunResult();
@@ -24663,6 +24849,7 @@ function init() {
     renderWorkbenchTriage();
     renderWorkbenchRunResult();
     renderWorkbenchRunCommands();
+    renderWorkbenchDraftInventory();
     renderConfigCompatibility();
     renderHelpWorkbenchQuickstart();
   });
@@ -25095,6 +25282,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest(".workbench-run-readiness-action") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleWorkbenchRunReadinessAction(target.dataset.runReadinessAction || "");
+  });
+  $("workbench-draft-inventory-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-draft-inventory-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleWorkbenchDraftInventoryAction(target.dataset.draftInventoryAction || "");
   });
   $("workbench-builder-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-builder-action]") : null;

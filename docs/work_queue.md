@@ -1642,6 +1642,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - done for offline inventory; Workbench now has Export Drafts CSV backed by
     `/config_drafts_export`, including folder, status, mode, plugin, symbols,
     tags, validation state, output directory, and local YAML path.
+  - done for first-screen triage; Workbench Run now includes a Draft Inventory
+    Review that summarizes folders, status labels, tags, validation coverage,
+    runnable drafts, selected-draft state, latest runs, and the next action
+    before the dense saved-draft and run tables.
 - Add safer empty states and validation messages.
   - partial; Workbench draft generation, alignment, saved drafts, draft
     validation, and run tables now show next-step guidance instead of blank or
