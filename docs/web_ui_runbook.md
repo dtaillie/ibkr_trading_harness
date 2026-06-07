@@ -92,6 +92,10 @@ search, diagnose missing symbols, or copy sample paths; use Export Root Index
 CSV when you want that
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.
+In the Browse lens, type a ticker into Symbol Browser and read Symbol
+Visibility before deciding data is missing. It separates visible catalog rows,
+rows hidden by active facets, root-index candidates that are on disk but not
+parsed into the catalog, and diagnostic/fetch evidence.
 The Root Index root cards show which configured roots were indexed, capped,
 unavailable, or dominated by unsupported files.
 Use Saved History Matrix when you want the concrete bar inventory first: it

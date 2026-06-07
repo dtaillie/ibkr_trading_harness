@@ -9602,6 +9602,187 @@ function moveSymbolTypeaheadSelection(delta) {
   return (suggestions[state.symbolTypeaheadActiveIndex] || {}).symbol || "";
 }
 
+function symbolRootIndexEntry(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  if (!normalized) return null;
+  return ((state.dataSymbolIndex || {}).symbols || [])
+    .find((item) => text(item.symbol).toUpperCase() === normalized) || null;
+}
+
+function symbolVisibilityDiagnostic(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  const diagnostic = state.symbolDiagnostic || {};
+  return normalized && text(diagnostic.symbol).toUpperCase() === normalized ? diagnostic : null;
+}
+
+function symbolVisibilityModel(symbol = selectedSymbolBrowserSymbol()) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  const filteredRows = normalized ? (symbolBrowserFilteredGroups().get(normalized) || []) : [];
+  const catalogRows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
+  const rootEntry = symbolRootIndexEntry(normalized);
+  const rootFiles = Number((rootEntry || {}).file_count || rootIndexArray(rootEntry || {}, "sample_paths").length || 0);
+  const diagnostic = symbolVisibilityDiagnostic(normalized);
+  const diagnosticSummary = (diagnostic || {}).diagnostic_summary || {};
+  const diagnosticStatus = diagnostic ? (
+    diagnosticSummary.status === "ok" || diagnostic.status === "visible" ? "ok"
+      : diagnosticSummary.status === "bad" || diagnostic.status === "not_found" ? "bad"
+        : "warn"
+  ) : normalized ? "warn" : "bad";
+  const facets = symbolBrowserFacetSummary();
+  const rootSamples = rootIndexArray(rootEntry || {}, "sample_paths");
+  const fetchRows = (diagnostic || {}).fetch_manifest_rows || [];
+  let status = "bad";
+  let title = "Enter a symbol";
+  let note = "Type a ticker in Symbol Browser to explain whether saved data is visible, filtered out, only on disk, or missing.";
+  if (normalized && filteredRows.length) {
+    status = "ok";
+    title = "Catalog visible";
+    note = `${normalized} has ${numberText(filteredRows.length, 0)} visible saved file${filteredRows.length === 1 ? "" : "s"} under current facets.`;
+  } else if (normalized && catalogRows.length) {
+    status = "warn";
+    title = "Hidden by facets";
+    note = `${normalized} exists in the catalog, but current Symbol Browser facets hide every file.`;
+  } else if (normalized && rootEntry) {
+    status = "warn";
+    title = "On disk, not catalog-visible";
+    note = `${normalized} appears in the root index, but no parsed catalog row is visible. Diagnose root scope, parsing, catalog limits, or storage metadata.`;
+  } else if (normalized && diagnostic) {
+    status = diagnostic.status === "visible" ? "ok" : diagnostic.status === "not_found" ? "bad" : "warn";
+    title = text(diagnostic.message || diagnostic.status || "Diagnostic loaded");
+    note = text(diagnostic.action || "Review symbol diagnostic details.");
+  } else if (normalized) {
+    status = "bad";
+    title = "No local evidence";
+    note = `${normalized} is not visible in the catalog or root index. Diagnose roots/fetch manifests or fetch the symbol.`;
+  }
+  const cards = [
+    {
+      status,
+      label: "Visibility",
+      title,
+      note,
+    },
+    {
+      status: filteredRows.length ? "ok" : catalogRows.length ? "warn" : "bad",
+      label: "Catalog",
+      title: `${numberText(filteredRows.length, 0)} visible / ${numberText(catalogRows.length, 0)} total`,
+      note: catalogRows.length
+        ? `${countSummary(countBy(catalogRows, "source"))} sources; ${countSummary(countBy(catalogRows, "bar_size"))} bars.`
+        : "No parsed catalog rows match this symbol.",
+    },
+    {
+      status: facets.length && !filteredRows.length && catalogRows.length ? "warn" : facets.length ? "ok" : "warn",
+      label: "Facets",
+      title: facets.length ? facets.join(" / ") : "None",
+      note: facets.length
+        ? filteredRows.length ? "Current facets still allow visible rows." : catalogRows.length ? "Clear facets to reveal catalog rows." : "Facets are active, but there are no catalog rows to reveal."
+        : "No Symbol Browser facets are narrowing this symbol.",
+    },
+    {
+      status: rootEntry ? catalogRows.length ? "ok" : "warn" : "bad",
+      label: "Root Index",
+      title: rootEntry ? `${numberText(rootFiles, 0)} candidate file${rootFiles === 1 ? "" : "s"}` : "No candidate",
+      note: rootEntry
+        ? `${rootIndexArray(rootEntry, "sources").join(", ") || "unknown source"} / ${rootIndexArray(rootEntry, "bar_sizes").join(", ") || "unknown bar"}.`
+        : "Root index has no filename/path-inferred match.",
+    },
+    {
+      status: diagnosticStatus,
+      label: "Diagnostic",
+      title: diagnostic ? text(diagnostic.status) : "Not run",
+      note: diagnostic
+        ? `${numberText(diagnosticSummary.configured_candidate_count ?? (diagnostic.configured_candidates || []).length, 0)} configured candidates / ${numberText(diagnosticSummary.unconfigured_match_count ?? (diagnostic.unconfigured_matches || []).length, 0)} unconfigured / ${numberText(fetchRows.length, 0)} fetch clues.`
+        : normalized ? "Run Diagnose for root, parser, catalog-limit, and fetch-manifest evidence." : "Enter a symbol before diagnosing.",
+    },
+  ];
+  const lines = [
+    {
+      status: filteredRows.length ? "ok" : catalogRows.length ? "warn" : "bad",
+      title: "Catalog Explanation",
+      detail: !normalized
+        ? "No symbol query is active."
+        : filteredRows.length
+          ? `${normalized} is visible now. Inspect, compare, filter, or send the best file to Workbench.`
+          : catalogRows.length
+            ? `${normalized} has catalog rows, but current facets hide them: ${facets.join(" / ") || "unknown facet state"}.`
+            : "No parsed catalog row currently matches this symbol.",
+    },
+    {
+      status: rootEntry ? "warn" : "bad",
+      title: "Disk Clues",
+      detail: rootEntry
+        ? `${numberText(rootFiles, 0)} root-index candidate${rootFiles === 1 ? "" : "s"}; sample ${text(rootSamples[0] || "n/a")}.`
+        : "No root-index candidate is loaded for this symbol.",
+    },
+    {
+      status: diagnostic ? "ok" : normalized ? "warn" : "bad",
+      title: "Diagnostic Evidence",
+      detail: diagnostic
+        ? `${text(diagnostic.message || diagnostic.status)} Next step: ${text(diagnostic.action || "review diagnostic tables")}.`
+        : "Diagnose has not been run for the active symbol in this session.",
+    },
+  ];
+  const next = !normalized
+    ? { label: "Type Symbol", action: "", status: "bad", disabled: true }
+    : filteredRows.length
+      ? { label: "Inspect Best File", action: "inspect", status: "ok" }
+      : catalogRows.length
+        ? { label: "Clear Facets", action: "clear-facets", status: "warn" }
+        : rootEntry || !diagnostic
+          ? { label: "Diagnose", action: "diagnose", status: "warn" }
+          : { label: "Open Fetch Jobs", action: "fetch", status: "bad" };
+  return { symbol: normalized, status, title, note, cards, lines, next, rootEntry };
+}
+
+function renderSymbolVisibilityExplainer() {
+  if (!$("data-symbol-visibility-note") || !$("data-symbol-visibility-cards") || !$("data-symbol-visibility-body") || !$("data-symbol-visibility-actions")) return;
+  const model = symbolVisibilityModel();
+  $("data-symbol-visibility-note").textContent = model.symbol ? `${model.symbol}: ${model.note}` : model.note;
+  $("data-symbol-visibility-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-symbol-visibility-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  const actions = [
+    model.next,
+    { label: "Filter Catalog", action: "filter", status: "ok", disabled: !model.symbol },
+    { label: "Diagnose", action: "diagnose", status: "warn", disabled: !model.symbol },
+    { label: "Fetch Jobs", action: "fetch", status: "warn", disabled: false },
+  ].filter((action, index, array) => action && action.action !== "" && array.findIndex((item) => item.action === action.action) === index);
+  $("data-symbol-visibility-actions").innerHTML = actions.map((action) => `
+    <button type="button" class="${action.status === "ok" ? "" : "secondary"}" data-symbol-visibility-action="${escapeHtml(action.action)}"${action.disabled ? " disabled" : ""}>${escapeHtml(action.label)}</button>
+  `).join("");
+}
+
+async function handleSymbolVisibilityAction(action) {
+  if (action === "clear-facets") {
+    $("data-symbol-browser-source").value = "";
+    $("data-symbol-browser-bar").value = "";
+    $("data-symbol-browser-session").value = "";
+    $("data-symbol-browser-quality").value = "";
+    $("data-symbol-browser-contract").value = "";
+    renderSymbolBrowser();
+    $("last-refresh").textContent = "Symbol facets cleared";
+    return;
+  }
+  if (action === "filter" || action === "inspect" || action === "diagnose") {
+    await handleSymbolSelectionAction(action);
+    renderSymbolVisibilityExplainer();
+    return;
+  }
+  if (action === "fetch") {
+    navigateToView("fetch");
+  }
+}
+
 function bestCatalogDatasetForSymbol(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return null;
@@ -9761,6 +9942,7 @@ function renderSymbolBrowser() {
   renderSymbolProfile(activeSymbol);
   renderSymbolTypeahead(groups, activeSymbol);
   renderSymbolQuickPicks(groups, activeSymbol);
+  renderSymbolVisibilityExplainer();
   const facetLabels = symbolBrowserFacetSummary();
   if (previousSymbol && !groups.has(previousSymbol)) {
     datasetSelect.innerHTML = "";
@@ -24841,6 +25023,7 @@ async function diagnoseDataSymbol(event) {
   const response = await fetchJson(`/data_symbol_diagnostic?symbol=${encodeURIComponent(symbol)}&limit=${catalogLimit}`);
   state.symbolDiagnostic = response;
   renderSymbolDiagnostic();
+  renderSymbolVisibilityExplainer();
   if (activeView() === "data") applyDataLens("diagnostics");
   $("last-refresh").textContent = `Symbol diagnostic loaded: ${new Date().toLocaleString()}`;
 }
@@ -26299,6 +26482,13 @@ function init() {
   $("data-symbol-browser-diagnose").addEventListener("click", () => {
     diagnoseSelectedSymbol().catch((err) => {
       $("data-symbol-browser-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-visibility-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-symbol-visibility-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleSymbolVisibilityAction(target.dataset.symbolVisibilityAction || "").catch((err) => {
+      $("data-symbol-visibility-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   for (const [id, action] of [

@@ -1058,6 +1058,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       source, bar-size, storage-session, quality, and storage-contract facets,
       with clear hidden by facets states and a Clear Facets action while
       leaving global catalog symbol completion unfiltered.
+    - partial; Symbol Browser now includes a Symbol Visibility explainer that
+      separates catalog-visible rows, facet-hidden rows, root-index-only
+      candidates, and diagnostic/fetch evidence before users assume a symbol is
+      missing.
     - partial; the main Saved Data search input now also uses catalog-fed
       symbol completion, so users can filter or browse from the same scanned
       symbol universe

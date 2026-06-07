@@ -1048,6 +1048,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-browser-quality" in html
         assert "data-symbol-browser-clear-facets" in html
         assert "data-symbol-browser-compare" in html
+        assert "data-symbol-visibility-note" in html
+        assert "data-symbol-visibility-cards" in html
+        assert "data-symbol-visibility-body" in html
+        assert "data-symbol-visibility-actions" in html
         assert "data-symbol-profile-title" in html
         assert "data-symbol-profile-workbench" in html
         assert "data-symbol-profile-chart" in html

@@ -387,7 +387,10 @@ candidate universe in the dashboard, route symbols into parsed-catalog search
 or diagnostics, inspect a supported sample file, and copy sample paths. Use
 the Root Index root cards to spot capped, unavailable, or unsupported-file
 roots. Use Export Root Index CSV to review
-that broader candidate universe offline. Start with Catalog Scope when a
+that broader candidate universe offline. In the Browse lens, Symbol Visibility
+updates as you type a ticker and explains whether the symbol is visible now,
+hidden by facets, only present in the root index, or needs diagnostics/fetch
+evidence. Start with Catalog Scope when a
 symbol is missing or the catalog looks too small: it calls out empty scans,
 scan-limit caps, filters hiding loaded rows, suggested roots outside
 `dashboard.data_roots`, and quality/metadata review pressure, then offers Scan

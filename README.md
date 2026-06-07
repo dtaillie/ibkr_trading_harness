@@ -329,7 +329,9 @@ larger on-disk universe. Root Index Browser searches those candidate symbols
 inside the dashboard, routes them into parsed-catalog search or diagnostics,
 opens supported sample files in Data Detail, copies sample paths, and shows
 root-level cap/unavailable/unsupported-file coverage; Export Root Index CSV
-downloads that candidate universe for offline review.
+downloads that candidate universe for offline review. Symbol Visibility in the
+Browse lens explains whether a typed symbol is catalog-visible, hidden by
+facets, only root-index-visible, or still needs diagnostics/fetch evidence.
 Saved-data coverage and quality
 metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and
 simulated-paper-run plugin-runner config drafts from saved data. Public exports
