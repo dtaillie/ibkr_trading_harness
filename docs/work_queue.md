@@ -752,6 +752,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       Browse for symbol search/table work, Inspect for saved-file charts,
       Compare for multi-file overlays, or Diagnostics for storage/root issues.
   - asset class filter: stock, ETF, crypto, unknown
+    - partial; Data Library Browse now has an explicit facet summary that shows
+      active filters plus visible asset, source, bar, session, quality, and
+      storage-contract breakdowns before the dense saved-file table.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend
@@ -759,6 +762,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       FirstRate, ZeroHash, file/example/cache-style sources where fixtures are
       available.
   - quality filter
+    - partial; the Browse facet summary now surfaces quality and
+      storage-contract readiness counts and provides a one-click Clear Browse
+      Filters action, making active filter state visible before row scanning.
   - coverage range table for every symbol
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
     - partial; Data Library rows now expose inferred storage session and

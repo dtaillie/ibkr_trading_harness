@@ -2056,6 +2056,7 @@ section {
   line-height: 1.35;
 }
 
+.data-facet-summary,
 .data-search-assistant,
 .data-directory-assistant,
 .data-storage-assistant,
@@ -2079,6 +2080,8 @@ section {
   box-shadow: var(--surface-shadow);
 }
 
+.data-facet-summary > div:first-child strong,
+.data-facet-summary > div:first-child span,
 .data-search-assistant > div:first-child strong,
 .data-search-assistant > div:first-child span,
 .data-directory-assistant > div:first-child strong,
@@ -2106,6 +2109,7 @@ section {
   display: block;
 }
 
+.data-facet-summary > div:first-child strong,
 .data-search-assistant > div:first-child strong,
 .data-directory-assistant > div:first-child strong,
 .data-storage-assistant > div:first-child strong,
@@ -2123,6 +2127,7 @@ section {
   line-height: 1.15;
 }
 
+.data-facet-summary > div:first-child > span:last-of-type,
 .data-search-assistant > div:first-child > span:last-of-type,
 .data-directory-assistant > div:first-child > span:last-of-type,
 .data-storage-assistant > div:first-child > span:last-of-type,
@@ -4102,6 +4107,7 @@ footer {
   .data-universe-panel,
   .data-universe-cards,
   .data-universe-symbols,
+  .data-facet-summary,
   .data-search-assistant,
   .data-search-cards,
   .data-search-actions,

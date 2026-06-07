@@ -7814,6 +7814,7 @@ function renderDataCatalog() {
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
   renderDataHome(filtered);
+  renderDataFacetSummary(datasets, filtered);
   renderDataSearchAssistant(filtered);
   renderSymbolBrowser();
   renderSymbolDirectory();
@@ -7880,11 +7881,86 @@ function dataFilterSummary() {
   if (filters.asset) labels.push(`asset ${filters.asset}`);
   if (filters.source) labels.push(`source ${filters.source}`);
   if (filters.session) labels.push(`session ${filters.session}`);
+  if (filters.contract) labels.push(`contract ${filters.contract}`);
   if (state.manifestPathFilter && (state.manifestPathFilter.paths || []).length) {
     labels.push(`fetch outputs ${numberText((state.manifestPathFilter.paths || []).length, 0)}`);
   }
   if (filters.sort && filters.sort !== "modified_desc") labels.push(`sort ${filters.sort.replace("_", " ")}`);
   return labels;
+}
+
+function renderDataFacetSummary(datasets = [], filteredRows = []) {
+  if (!$("data-facet-summary-title") || !$("data-facet-summary-cards") || !$("data-facet-clear")) return;
+  const filters = dataCatalogFilters();
+  const labels = dataFilterSummary();
+  const hiddenCount = Math.max(0, datasets.length - filteredRows.length);
+  const symbolCount = new Set(filteredRows.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const assetCounts = countBy(filteredRows, "asset_class");
+  const sourceCounts = countBy(filteredRows, "source");
+  const barCounts = countBy(filteredRows, "bar_size");
+  const sessionCounts = countBy(filteredRows, "storage_session");
+  const qualityCounts = countBy(filteredRows, "quality_status");
+  const contractCounts = countBy(filteredRows, "storage_contract_status");
+  const newest = filteredRows
+    .map((dataset) => timestampMillis(dataset.modified_at))
+    .filter((value) => value !== null)
+    .sort((left, right) => right - left)[0] || null;
+  $("data-facet-summary-title").textContent = datasets.length
+    ? `${numberText(filteredRows.length, 0)} visible file${filteredRows.length === 1 ? "" : "s"}`
+    : "No saved files loaded";
+  $("data-facet-summary-note").textContent = labels.length
+    ? `${labels.join(" / ")}; ${numberText(hiddenCount, 0)} file${hiddenCount === 1 ? "" : "s"} hidden.`
+    : datasets.length
+      ? "No Browse filters are active; use facets to narrow by asset, source, bar, session, quality, or contract state."
+      : "Refresh Data Library or configure data roots before browsing saved files.";
+  $("data-facet-clear").disabled = !labels.length;
+  const cards = [
+    {
+      label: "Active Filters",
+      status: labels.length ? "warn" : datasets.length ? "ok" : "bad",
+      title: labels.length ? numberText(labels.length, 0) : "None",
+      note: labels.length ? labels.join(" / ") : "Showing all loaded catalog rows.",
+    },
+    {
+      label: "Symbols",
+      status: symbolCount ? "ok" : datasets.length ? "warn" : "bad",
+      title: numberText(symbolCount, 0),
+      note: `${numberText(filteredRows.length, 0)} files visible / ${numberText(hiddenCount, 0)} hidden.`,
+    },
+    {
+      label: "Assets",
+      status: filteredRows.length ? "ok" : "warn",
+      title: countSummary(assetCounts) || "none",
+      note: "Stock, ETF, crypto, and unknown asset inference from catalog metadata.",
+    },
+    {
+      label: "Sources",
+      status: filteredRows.length ? "ok" : "warn",
+      title: topCountEntries(sourceCounts, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none",
+      note: "IBKR, Schwab, Polygon, FirstRate, ZeroHash, file, or inferred source labels.",
+    },
+    {
+      label: "Bars And Sessions",
+      status: filteredRows.length ? "ok" : "warn",
+      title: topCountEntries(barCounts, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none",
+      note: topCountEntries(sessionCounts, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "No storage-session metadata.",
+    },
+    {
+      label: "Readiness",
+      status: Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0)
+        ? "bad"
+        : Number(qualityCounts.warn || 0) || Number(contractCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      title: `Q ${countSummary(qualityCounts) || "n/a"}`,
+      note: `Contract ${countSummary(contractCounts) || "n/a"}; newest ${newest ? shortTimestampAgeLabel(new Date(newest).toISOString()) : "n/a"}.`,
+    },
+  ];
+  $("data-facet-summary-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function clearDataCatalogFilters() {
@@ -19109,6 +19185,11 @@ function init() {
     clearDataCatalogFilters();
     renderDataCatalog();
     $("last-refresh").textContent = "Data Library filters cleared";
+  });
+  $("data-facet-clear").addEventListener("click", () => {
+    clearDataCatalogFilters();
+    renderDataCatalog();
+    $("last-refresh").textContent = "Data Library browse filters cleared";
   });
   $("data-home-inspect-top").addEventListener("click", () => {
     const match = filteredDataCatalog(state.dataCatalog.datasets || []).find((dataset) => dataset.path);
