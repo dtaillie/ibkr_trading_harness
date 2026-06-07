@@ -1194,10 +1194,10 @@ function pageIntroContent(view) {
       secondary: { label: "Open Runs", target: "runs", lens: "runs" },
       next: {
         title: "Validate the data/config boundary",
-        note: "Review selected data quality and generated config before running a draft.",
+        note: "Review selected data quality, storage metadata, and generated config before running a draft.",
       },
       steps: [
-        { label: "1", title: "Select Data", note: "Choose scanned files and review quality warnings first." },
+        { label: "1", title: "Select Data", note: "Choose scanned files and review quality/metadata warnings first." },
         { label: "2", title: "Preview Align", note: "Confirm timestamps overlap for the selected symbols and range." },
         { label: "3", title: "Generate Draft", note: "Pick a public example or ignored private plugin boundary." },
         { label: "4", title: "Run And Inspect", note: "Validate, run replay/simulated paper, then open Performance." },
@@ -1719,7 +1719,7 @@ function renderPerformanceBenchmarkOptions() {
     { value: "", label: "No benchmark" },
     ...benchmarkDatasets().map((dataset) => ({
       value: dataset.path,
-      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} ${text(dataset.source)} [${text(dataset.quality_status)}]`,
+      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} ${text(dataset.source)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}]`,
     })),
   ];
   replaceOptions(select, options);
@@ -1737,6 +1737,22 @@ function selectedConfigDatasets() {
   if (!select) return [];
   const selectedPaths = Array.from(select.selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+}
+
+function selectedDataReadiness(selected = selectedConfigDatasets()) {
+  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
+  const badContract = contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad");
+  const issueCount = qualityIssues.length + contractIssues.length;
+  return {
+    qualityIssues,
+    contractIssues,
+    issueCount,
+    status: !selected.length ? "bad" : badContract ? "bad" : issueCount ? "warn" : "ok",
+    summary: `${numberText(qualityIssues.length, 0)} quality / ${numberText(contractIssues.length, 0)} contract`,
+    cleanNote: "Selected files pass current quality and storage-contract checks.",
+    reviewNote: `${numberText(qualityIssues.length, 0)} quality and ${numberText(contractIssues.length, 0)} contract issue${contractIssues.length === 1 ? "" : "s"} need review.`,
+  };
 }
 
 function configDateRangePayload() {
@@ -1785,6 +1801,7 @@ function renderConfigDataQuality() {
 
 function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues) {
   if (!selected.length) return { status: "bad", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
+  if (qualityIssues.length && contractIssues.length) return { status: "warn", title: "Review Data", note: `${numberText(qualityIssues.length, 0)} quality and ${numberText(contractIssues.length, 0)} metadata issue${contractIssues.length === 1 ? "" : "s"} need review.` };
   if (qualityIssues.length) return { status: "warn", title: "Review Quality", note: `${numberText(qualityIssues.length, 0)} selected file${qualityIssues.length === 1 ? "" : "s"} need review before replay.` };
   if (contractIssues.length) return { status: "warn", title: "Review Metadata", note: `${numberText(contractIssues.length, 0)} selected file${contractIssues.length === 1 ? "" : "s"} have storage-contract warnings.` };
   if (!alignment.dataset_count) return { status: "warn", title: "Preview Alignment", note: "Selected files are clean enough to review; preview timestamp overlap next." };
@@ -2059,7 +2076,7 @@ function workbenchGuideAction(step) {
   const id = String((step && step.id) || "");
   const actions = {
     data: { label: "Select Data", target: "config-dataset" },
-    quality: { label: "Review Quality", target: "config-data-quality-body" },
+    quality: { label: "Review Data", target: "config-data-quality-body" },
     range: { label: "Set Range", target: "config-start-date" },
     alignment: { label: "Preview Alignment", target: "config-alignment", click: "config-preview-alignment" },
     draft: { label: "Review Builder", target: "config-form" },
@@ -2072,6 +2089,7 @@ function workbenchGuideAction(step) {
 function renderWorkbenchGuide() {
   if (!$("workbench-guide") || !$("workbench-guide-note")) return;
   const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const draft = state.configDraft || {};
   const savedDraftId = draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
@@ -2094,13 +2112,13 @@ function renderWorkbenchGuide() {
     },
     {
       id: "quality",
-      status: !selected.length ? "bad" : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad") ? "warn" : "ok",
-      fallbackLabel: "Review Quality",
+      status: dataReadiness.status,
+      fallbackLabel: "Review Data",
       detail: !selected.length
         ? "No selected files to check yet."
-        : selected.some((item) => item.quality_status === "warn" || item.quality_status === "bad")
-          ? "One or more selected files has quality warnings; acknowledge only after review."
-          : "Selected files are marked ok by the catalog scanner.",
+        : dataReadiness.issueCount
+          ? `${dataReadiness.summary} issue counts; inspect quality and metadata before draft generation.`
+          : dataReadiness.cleanNote,
     },
     {
       id: "range",
@@ -2215,7 +2233,7 @@ function renderWorkbenchStepper(steps = []) {
 
 function workbenchHomeState() {
   const selected = selectedConfigDatasets();
-  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
+  const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const draft = state.configDraft || {};
   const savedDraft = selectedRunDraft();
@@ -2230,9 +2248,9 @@ function workbenchHomeState() {
   let result = "Select Saved Data";
   let note = "Choose one or more Data Library files before building a replay or simulated-paper draft.";
   let nextAction = "data";
-  if (selected.length && warningRows.length) {
-    result = "Review Data Quality";
-    note = `${numberText(warningRows.length, 0)} selected file${warningRows.length === 1 ? "" : "s"} need quality review or acknowledgement.`;
+  if (selected.length && dataReadiness.issueCount) {
+    result = "Review Data Readiness";
+    note = dataReadiness.reviewNote;
     nextAction = "quality";
   } else if (selected.length && !alignment.dataset_count) {
     result = "Preview Alignment";
@@ -2269,10 +2287,10 @@ function workbenchHomeState() {
   }
   const tiles = [
     {
-      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      status: dataReadiness.status,
       label: "Data",
       title: selected.length ? `${numberText(selected.length, 0)} selected` : "None",
-      note: selected.length ? selected.map((item) => text(item.symbol)).slice(0, 5).join(", ") : "Select datasets.",
+      note: selected.length ? `${selected.map((item) => text(item.symbol)).slice(0, 5).join(", ")}; ${dataReadiness.summary}.` : "Select datasets.",
     },
     {
       status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) > 0 ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
@@ -2330,7 +2348,7 @@ function renderWorkbenchHome() {
 
 function workbenchWorkflowCards() {
   const selected = selectedConfigDatasets();
-  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
+  const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const draft = state.configDraft || {};
   const savedDraft = selectedRunDraft();
@@ -2353,9 +2371,9 @@ function workbenchWorkflowCards() {
       label: "Select Data",
       title: selected.length ? `${numberText(selected.length, 0)} selected` : "No Data",
       value: selected.length ? selected.map((item) => text(item.symbol)).slice(0, 3).join(", ") : "choose files",
-      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      status: dataReadiness.status,
       detail: selected.length
-        ? `${numberText(warningRows.length, 0)} selected file${warningRows.length === 1 ? "" : "s"} need quality review.`
+        ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote
         : "Choose scanned files from Data Library or the Config Builder dataset field.",
       href: workflowHref("workbench", "builder"),
       cta: "Choose Data",
@@ -5652,7 +5670,7 @@ function compactDataPreviewChart(dataset) {
   return `
     <div class="symbol-profile-chart-head">
       <strong>${escapeHtml(text(dataset.symbol))} Preview</strong>
-      <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))} / ${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.quality_status))}</span>
+      <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))} / ${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.quality_status))}/${escapeHtml(text(dataset.storage_contract_status))}</span>
     </div>
     <svg class="detail-chart symbol-profile-preview ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="selected symbol best-file price preview">
       <polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>
@@ -6725,7 +6743,7 @@ function renderSymbolBrowser() {
   const selected = selectedSymbolBrowserDatasets();
   const datasetOptions = selected.map((dataset) => ({
     value: dataset.path,
-    label: `${text(dataset.bar_size)} ${text(dataset.source)} ${text(dataset.quality_status)} ${numberText(dataset.rows, 0)} rows`,
+    label: `${text(dataset.bar_size)} ${text(dataset.source)} ${text(dataset.quality_status)}/${text(dataset.storage_contract_status)} ${numberText(dataset.rows, 0)} rows`,
   }));
   replaceOptions(datasetSelect, datasetOptions);
   renderSymbolSelectionPanel(activeSymbol);
@@ -6739,7 +6757,7 @@ function renderSymbolBrowser() {
         <button type="button" class="symbol-match-card" data-path="${escapeHtml(dataset.path)}">
           <span>${escapeHtml(text(dataset.symbol))}</span>
           <strong>${escapeHtml(text(dataset.bar_size))}</strong>
-          <small>${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.asset_class))} / ${escapeHtml(text(dataset.quality_status))}</small>
+          <small>${escapeHtml(text(dataset.source))} / ${escapeHtml(text(dataset.asset_class))} / ${escapeHtml(text(dataset.quality_status))}/${escapeHtml(text(dataset.storage_contract_status))}</small>
           <small>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</small>
         </button>
       `).join("")
@@ -8097,7 +8115,7 @@ function selectCatalogDatasetInWorkbench(dataset) {
   if (!found) {
     const option = document.createElement("option");
     option.value = dataset.path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
     option.selected = true;
     datasetSelect.appendChild(option);
   }
@@ -11394,7 +11412,7 @@ function useFetchOutputsInWorkbench() {
     const dataset = catalogByPath.get(path) || { path };
     const option = document.createElement("option");
     option.value = path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${path}`;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${path}`;
     option.selected = true;
     datasetSelect.appendChild(option);
   }
@@ -11899,7 +11917,7 @@ function configFormOptionRows(field, options) {
   if (source === "datasets") {
     return (state.dataCatalog.datasets || []).map((dataset) => ({
       value: dataset.path,
-      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
+      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`,
     }));
   }
   return (field.options || []).map((option) => ({
@@ -12210,11 +12228,11 @@ function handleConfigDraftError(error) {
 function renderConfigBuilderReadiness() {
   if (!$("config-builder-readiness")) return;
   const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
   const plugin = selectedConfigPlugin();
   const mode = $("config-mode") ? $("config-mode").value : "";
   const dateRange = configDateRangePayload();
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
-  const warningRows = selected.filter((dataset) => dataset.quality_status === "warn" || dataset.quality_status === "bad");
   const riskValues = [
     finiteNumber($("config-max-orders") && $("config-max-orders").value),
     finiteNumber($("config-max-notional") && $("config-max-notional").value),
@@ -12228,13 +12246,13 @@ function renderConfigBuilderReadiness() {
   const draftValid = draft.validation ? Boolean(draft.validation.valid) : false;
   const cards = [
     {
-      status: selected.length ? warningRows.length ? "warn" : "ok" : "bad",
+      status: dataReadiness.status,
       title: numberText(selected.length, 0),
       label: "Data",
       note: selected.length
-        ? warningRows.length
-          ? `${numberText(warningRows.length, 0)} selected dataset${warningRows.length === 1 ? "" : "s"} need quality acknowledgement.`
-          : "Selected datasets are catalog-ready."
+        ? dataReadiness.issueCount
+          ? dataReadiness.reviewNote
+          : "Selected datasets pass catalog quality and metadata checks."
         : "Choose one or more Data Library files.",
     },
     {
@@ -12300,18 +12318,19 @@ function renderWorkbenchBuilderAssistant() {
   const draftErrors = normalizeConfigDraftErrors(state.configDraftErrors || []);
   const savedPath = draft.saved_path || "";
   const draftValid = draft.validation ? Boolean(draft.validation.valid) : false;
-  const warningRows = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const dataReadiness = selectedDataReadiness(selected);
   const allowQualityWarnings = $("config-allow-quality-warnings") ? $("config-allow-quality-warnings").checked : false;
-  const qualityBlocked = Boolean(warningRows.length && !allowQualityWarnings);
+  const qualityBlocked = Boolean(dataReadiness.qualityIssues.length && !allowQualityWarnings);
+  const dataReviewBlocked = qualityBlocked || dataReadiness.contractIssues.length > 0;
   let title = "Select Saved Data";
   let note = "Choose one or more Data Library files before generating a replay or simulated-paper draft.";
   if (selected.length && !alignment.dataset_count) {
     title = "Preview Alignment Next";
     note = `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected; preview timestamp overlap before trusting the replay window.`;
   } else if (selected.length && alignment.dataset_count && !draft.yaml) {
-    title = qualityBlocked ? "Acknowledge Data Warnings" : "Ready To Generate Draft";
-    note = qualityBlocked
-      ? `${numberText(warningRows.length, 0)} selected dataset${warningRows.length === 1 ? "" : "s"} have quality warnings; inspect them before allowing warnings.`
+    title = dataReviewBlocked ? "Review Data Readiness" : "Ready To Generate Draft";
+    note = dataReviewBlocked
+      ? `${dataReadiness.summary}; inspect quality and storage metadata before generating.`
       : `Alignment has ${numberText(alignment.common_timestamp_count, 0)} common timestamps; generate a public-safe draft next.`;
   } else if (draft.yaml && !draftValid) {
     title = "Draft Needs Fixes";
@@ -12327,11 +12346,11 @@ function renderWorkbenchBuilderAssistant() {
   $("workbench-builder-assistant-note").textContent = note;
   const cards = [
     {
-      status: selected.length ? qualityBlocked ? "warn" : "ok" : "bad",
+      status: selected.length ? dataReviewBlocked ? "warn" : "ok" : "bad",
       label: "Data",
       title: numberText(selected.length, 0),
       note: selected.length
-        ? warningRows.length ? `${numberText(warningRows.length, 0)} quality warning${warningRows.length === 1 ? "" : "s"}.` : "Selected files are ready for review."
+        ? dataReadiness.issueCount ? dataReadiness.reviewNote : "Selected files are ready for review."
         : "No saved files selected.",
     },
     {

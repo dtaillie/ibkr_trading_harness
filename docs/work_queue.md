@@ -1314,6 +1314,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench selected-data actions and Compatibility Review now count
     storage-contract warnings beside quality warnings before draft generation,
     and list selected contract issues in the compatibility detail.
+  - partial; Workbench guide steps, Home tiles, workflow cards, builder
+    readiness cards, builder assistant, dataset selectors, and benchmark
+    selectors now use combined quality/storage-contract readiness so users do
+    not see quality-only signals while building drafts.
   - partial; Workbench Builder now includes a Selected Data Packet panel that
     shows the current saved-file selection, quality pressure, bar/source mix,
     date-window choice, alignment overlap state, per-file ranges, and direct
