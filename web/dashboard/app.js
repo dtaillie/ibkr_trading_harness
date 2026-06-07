@@ -7673,6 +7673,223 @@ function dataFilterSummary() {
   return labels;
 }
 
+function clearDataCatalogFilters() {
+  $("data-filter-text").value = "";
+  $("data-filter-quality").value = "";
+  $("data-filter-bar").value = "";
+  $("data-filter-asset").value = "";
+  $("data-filter-source").value = "";
+  $("data-filter-session").value = "";
+  $("data-filter-contract").value = "";
+  $("data-filter-sort").value = "modified_desc";
+  state.manifestPathFilter = null;
+}
+
+function catalogScopeIsCapped(catalog = {}) {
+  const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
+  const count = Number(catalog.count || (catalog.datasets || []).length || 0);
+  const rootSummaries = catalog.root_summaries || [];
+  return Boolean(
+    limit
+    && count >= limit
+    && rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached")
+  );
+}
+
+function setDataCatalogLimitToMax() {
+  const limit = $("data-catalog-limit");
+  const values = Array.from(limit.options || []).map((option) => Number(option.value)).filter(Boolean);
+  const next = Math.max(...values, Number(limit.value || 0), Number((state.dataCatalog || {}).limit || 0));
+  if (next) limit.value = String(next);
+  dataLibraryLoadState().catalogLimitTouched = true;
+}
+
+function renderDataScopeAssistant(filteredRows = []) {
+  if (!$("data-scope-assistant-title") || !$("data-scope-assistant-cards") || !$("data-scope-assistant-actions")) return;
+  const catalog = state.dataCatalog || {};
+  const diagnostics = state.diagnostics || {};
+  const datasets = catalog.datasets || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
+  const count = Number(catalog.count || datasets.length || 0);
+  const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
+  const settings = dataCatalogSettings();
+  const maxLimit = Math.max(settings.defaultLimit, settings.maxLimit);
+  const capped = catalogScopeIsCapped(catalog);
+  const filterLabels = dataFilterSummary();
+  const hiddenByFilters = Math.max(0, count - filteredRows.length);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const parserErrors = Number(catalog.error_count || 0);
+  const qualityCounts = catalog.quality_counts || {};
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const loadState = dataLibraryLoadState();
+  const loading = loadState.catalogLoading && !loadState.catalogLoaded && !count;
+  let status = "bad";
+  let title = "No Catalog Loaded";
+  let note = "Refresh Data Library or configure dashboard.data_roots before browsing saved historical data.";
+  if (loading) {
+    status = "warn";
+    title = "Scanning Saved Data";
+    note = "Configured roots are loading in the background; large local caches can take tens of seconds.";
+  } else if (capped) {
+    status = "warn";
+    title = "Catalog May Be Capped";
+    note = `Loaded ${numberText(count, 0)} rows at the ${numberText(limit, 0)} row limit. Raise the scan limit before concluding symbols are missing.`;
+  } else if (hiddenByFilters === count && count) {
+    status = "warn";
+    title = "Filters Hide Everything";
+    note = `${filterLabels.join(" / ")} hides all ${numberText(count, 0)} loaded catalog rows.`;
+  } else if (suggestedRoots.length && (!roots.length || !count)) {
+    status = "bad";
+    title = "Suggested Roots Found";
+    note = `${numberText(suggestedRoots.length, 0)} unconfigured root${suggestedRoots.length === 1 ? "" : "s"} may contain saved data outside the current scan.`;
+  } else if (parserErrors || qualityIssues || contractIssues) {
+    status = parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : "warn";
+    title = "Review Data Readiness";
+    note = `${numberText(parserErrors, 0)} parser errors, ${numberText(qualityIssues, 0)} quality reviews, ${numberText(contractIssues, 0)} metadata reviews.`;
+  } else if (count) {
+    status = "ok";
+    title = "Catalog Scope Ready";
+    note = `${numberText(symbols.size, 0)} symbols and ${numberText(count, 0)} files are loaded under configured roots.`;
+  }
+  $("data-scope-assistant-title").textContent = title;
+  $("data-scope-assistant-title").className = statusClass(status);
+  $("data-scope-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: loading ? "warn" : capped ? "warn" : count ? "ok" : "bad",
+      label: "Loaded Files",
+      title: count ? `${numberText(count, 0)} / ${limit ? numberText(limit, 0) : "n/a"}` : loading ? "Loading" : "None",
+      note: capped ? "The scan hit its row cap." : count ? "Rows currently available to Browse, Inspect, Compare, and Workbench." : "No catalog rows are loaded.",
+    },
+    {
+      status: symbols.size ? "ok" : count ? "warn" : "bad",
+      label: "Symbols",
+      title: numberText(symbols.size, 0),
+      note: symbols.size ? "Use Browse or the Symbol Directory to search the scanned universe." : "No symbols could be inferred from loaded files.",
+    },
+    {
+      status: hiddenByFilters ? hiddenByFilters === count ? "bad" : "warn" : count ? "ok" : "bad",
+      label: "Filter Scope",
+      title: `${numberText(filteredRows.length, 0)} shown`,
+      note: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} rows hidden by current filters.` : filterLabels.length ? "Filters are active but still show rows." : "No catalog filters are active.",
+    },
+    {
+      status: suggestedRoots.length ? "warn" : roots.length ? "ok" : "bad",
+      label: "Roots",
+      title: `${numberText(roots.length, 0)} configured`,
+      note: suggestedRoots.length
+        ? `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} not scanned.`
+        : `${numberText(totalRootFiles, 0)} root-scanner file${totalRootFiles === 1 ? "" : "s"} visible.`,
+    },
+    {
+      status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : count ? "ok" : "bad",
+      label: "Readiness",
+      title: qualityIssues || contractIssues || parserErrors ? `${numberText(qualityIssues + contractIssues + parserErrors, 0)} review` : count ? "Clean Enough" : "Unknown",
+      note: `quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}`,
+    },
+  ];
+  $("data-scope-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-scope-assistant-actions").innerHTML = [
+    {
+      action: "raise-limit",
+      status: capped || (limit && limit < maxLimit) ? "warn" : "ok",
+      title: "Scan Max Rows",
+      note: `Set Rows to scan to ${numberText(maxLimit, 0)} and refresh the catalog.`,
+      disabled: !maxLimit || limit >= maxLimit,
+    },
+    {
+      action: "clear-filters",
+      status: filterLabels.length ? "ok" : "warn",
+      title: "Clear Filters",
+      note: filterLabels.length ? "Show every loaded catalog row again." : "No catalog filters are active.",
+      disabled: !filterLabels.length,
+    },
+    {
+      action: "browse",
+      status: count ? "ok" : "bad",
+      title: "Browse Symbols",
+      note: "Open the searchable saved-symbol universe.",
+      disabled: !count,
+    },
+    {
+      action: "diagnostics",
+      status: capped || suggestedRoots.length || parserErrors ? "warn" : count ? "ok" : "bad",
+      title: "Open Diagnostics",
+      note: "Inspect root visibility, parser skips, scan caps, and storage audit.",
+      disabled: !roots.length && !suggestedRoots.length,
+    },
+    {
+      action: "copy-roots",
+      status: dataRootConfigPaths().length ? "ok" : "bad",
+      title: "Copy Root YAML",
+      note: "Copy configured and suggested dashboard.data_roots.",
+      disabled: !dataRootConfigPaths().length,
+    },
+    {
+      action: "refresh",
+      status: "ok",
+      title: "Refresh Catalog",
+      note: "Reload saved-data rows from the selected scan limit.",
+      disabled: false,
+    },
+  ].map((item) => `
+    <button class="data-storage-assistant-action status-${escapeHtml(item.status)}" data-data-scope-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+function handleDataScopeAssistantAction(action) {
+  if (action === "raise-limit") {
+    setDataCatalogLimitToMax();
+    refreshDataLibrary({ force: true, includeDiagnostics: shouldLoadDataDiagnostics() }).catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "clear-filters") {
+    clearDataCatalogFilters();
+    renderDataCatalog();
+    $("last-refresh").textContent = "Data Library filters cleared";
+    return;
+  }
+  if (action === "browse") {
+    navigateToDataLens("browse");
+    $("data-symbol-browser-input").focus();
+    return;
+  }
+  if (action === "diagnostics") {
+    navigateToDataLens("diagnostics");
+    refreshDataDiagnostics({ force: false }).catch((err) => {
+      $("last-refresh").textContent = `Data diagnostics refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "copy-roots") {
+    copyDataRootsYaml();
+    return;
+  }
+  if (action === "refresh") {
+    refreshDataLibrary({ force: true, includeDiagnostics: shouldLoadDataDiagnostics() }).catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+  }
+}
+
 function renderDataHome(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -7753,6 +7970,7 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
     breakdownChips("Contract", contractCounts),
   ].join("");
+  renderDataScopeAssistant(filteredRows);
   renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
@@ -8953,11 +9171,7 @@ function handleDataStorageAssistantAction(action) {
     return;
   }
   if (action === "raise-catalog") {
-    const limit = $("data-catalog-limit");
-    const values = Array.from(limit.options || []).map((option) => Number(option.value)).filter(Boolean);
-    const next = Math.max(...values, Number(limit.value || 0), Number((state.dataCatalog || {}).limit || 0));
-    if (next) limit.value = String(next);
-    dataLibraryLoadState().catalogLimitTouched = true;
+    setDataCatalogLimitToMax();
     refreshDataLibrary({ includeDiagnostics: true, force: true }).catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
     });
@@ -18656,15 +18870,7 @@ function init() {
   $("data-filter-contract").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-home-clear-filters").addEventListener("click", () => {
-    $("data-filter-text").value = "";
-    $("data-filter-quality").value = "";
-    $("data-filter-bar").value = "";
-  $("data-filter-asset").value = "";
-  $("data-filter-source").value = "";
-  $("data-filter-session").value = "";
-  $("data-filter-contract").value = "";
-  $("data-filter-sort").value = "modified_desc";
-    state.manifestPathFilter = null;
+    clearDataCatalogFilters();
     renderDataCatalog();
     $("last-refresh").textContent = "Data Library filters cleared";
   });
@@ -18705,6 +18911,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-source-map-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataSourceMapAction(target);
+  });
+  $("data-scope-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-scope-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleDataScopeAssistantAction(target.dataset.dataScopeAction || "");
   });
   $("data-storage-assistant-actions").addEventListener("click", (event) => {
     const target = event.target;

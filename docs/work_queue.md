@@ -677,6 +677,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Data Home first-screen summaries, shortlist cards, workflow cards,
     and source-map root cards now include storage-contract readiness alongside
     quality so metadata blockers are visible before opening dense tables.
+  - partial; Data Home now includes a Catalog Scope Assistant that explains
+    whether the visible catalog is empty, capped by the scan limit, hidden by
+    active filters, blocked by unconfigured suggested roots, or ready to
+    browse, with direct actions for max-row scanning, diagnostics, root YAML,
+    filter clearing, symbol browsing, and refresh.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
@@ -1029,6 +1034,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       duration for the deeper full-root file audit.
   - warning when the catalog result is capped and not all symbols are shown
     - done in the Data Library visibility card
+    - partial; the Data Home Catalog Scope Assistant now surfaces scan-cap and
+      hidden-filter states as first-screen actions before users conclude a
+      symbol is missing.
 - Add saved fetch manifests:
   - Progress: stock and crypto fetchers write dashboard-readable JSON manifests
     under `paper_logs/fetch_manifests` by default; the dashboard has Fetch Jobs
