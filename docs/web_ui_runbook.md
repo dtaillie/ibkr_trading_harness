@@ -22,6 +22,13 @@ Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.
 
+Use the topbar Quick Jump selector when you already know the destination. It
+lists every public page and focused lens, including entries such as Data
+Inspect, Workbench Run, Performance Trades, and Operations Remote. Each page
+also shows a route strip above the intro. Page Home returns the current page to
+its home lens, and Copy Link copies the exact page/lens URL for notes,
+runbooks, or another browser tab.
+
 Open Help when you are not sure where to start. The Start Here panel maps the
 main questions to pages: current health, performance, saved data, simulation,
 run drilldowns, and operations diagnostics. The Current Setup Gaps panel is

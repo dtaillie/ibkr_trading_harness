@@ -145,6 +145,10 @@ Open `http://127.0.0.1:8765/` for the operational dashboard.
 The Help view is the easiest first screen for a new local copy: it recommends
 one next route from current setup state, then links to Overview, Performance,
 Data Library, Workbench, Runs, Operations, and the local runbooks.
+Use the topbar Quick Jump selector to open any page or focused lens directly.
+The route strip above each page intro shows the current page/lens, Page Home
+returns that page to its home lens, and Copy Link copies the exact dashboard
+URL for notes or another browser tab.
 
 Smoke-test dashboard assets and core endpoints:
 

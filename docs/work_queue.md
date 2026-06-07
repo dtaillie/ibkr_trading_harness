@@ -547,6 +547,9 @@ strategy-private.
   - partial; the Web UI runbook and public quickstart now document Catalog
     Scope as the first stop for capped scans, hidden filters, missing symbols,
     suggested roots, and root-YAML fixes before users browse dense data tables.
+  - partial; the README, public quickstart, and Web UI runbook now document
+    Quick Jump, Page Home, Copy Link, and exact page/lens URLs so new users can
+    navigate or share focused dashboard views without learning hash syntax.
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography
