@@ -1946,6 +1946,34 @@ def test_cloud_status_server_loads_dashboard_settings_from_config(tmp_path):
     assert override["auth_token_env"] == "OTHER_TOKEN"
 
 
+def test_cloud_status_server_rejects_reserved_high_risk_command_scopes(tmp_path):
+    config_path = tmp_path / "cloud_status.yaml"
+    config_path.write_text(
+        "\n".join([
+            "dashboard:",
+            "  command_scopes:",
+            "    allowed_action_classes:",
+            "      - read_only",
+            "      - high_risk",
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="cannot include reserved high_risk"):
+        status_server.dashboard_server_settings(config_path)
+
+    config_path.write_text(
+        "\n".join([
+            "dashboard:",
+            "  command_scopes:",
+            "    allowed_actions:",
+            "      - enable_live_orders",
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="reserved high-risk actions: enable_live_orders"):
+        status_server.dashboard_server_settings(config_path)
+
+
 def test_cloud_status_server_classifies_data_root_scope(tmp_path):
     assert status_server.classify_data_root(status_server.ROOT / "examples" / "data") == "public_example"
     assert status_server.classify_data_root(tmp_path / "cache" / "ibkr") == "local_cache"
@@ -5530,6 +5558,44 @@ def test_cloud_status_server_rejects_commands_outside_server_scope(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_rejects_reserved_high_risk_commands(tmp_path):
+    server = create_server("127.0.0.1", 0, tmp_path / "state")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        command_req = request.Request(
+            f"{base}/commands",
+            data=json.dumps({
+                "node_id": "test-node",
+                "action": "enable_live_orders",
+                "params": {},
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            request.urlopen(command_req, timeout=5)
+            raise AssertionError("expected reserved high-risk rejection")
+        except error.HTTPError as exc:
+            assert exc.code == 403
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"].startswith("reserved high-risk command is not supported: enable_live_orders")
+
+        with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
+            pending = json.loads(resp.read().decode("utf-8"))
+        assert pending["commands"] == []
+
+        with request.urlopen(f"{base}/command_audit?node_id=test-node", timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert audit["events"][0]["event"] == "queue_rejected"
+        assert audit["events"][0]["action_class"] == "high_risk"
+        assert audit["events"][0]["action"] == "enable_live_orders"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_allows_explicit_launcher_scope(tmp_path):
     server = create_server(
         "127.0.0.1",
@@ -5903,6 +5969,17 @@ def test_command_worker_executes_allowlisted_local_actions(tmp_path):
 
     rejected = execute_command({"command_id": "cmd-4", "action": "unknown", "params": {}}, config)
     assert rejected["status"] == "rejected"
+
+
+def test_command_worker_rejects_reserved_high_risk_actions_even_if_allowlisted(tmp_path):
+    config = {
+        "node_id": "test-node",
+        "allowed_actions": ["enable_live_orders"],
+    }
+    rejected = execute_command({"command_id": "cmd-live", "action": "enable_live_orders", "params": {}}, config)
+    assert rejected["status"] == "rejected"
+    assert rejected["action_class"] == "high_risk"
+    assert rejected["error"].startswith("reserved high-risk action is not supported: enable_live_orders")
 
 
 def test_command_worker_executes_allowlisted_supervisor_actions(tmp_path):

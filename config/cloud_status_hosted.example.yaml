@@ -30,6 +30,7 @@ dashboard:
     max_per_node: 10
   command_scopes:
     enabled: true
+    # high-risk live actions are reserved and cannot be enabled in the public receiver.
     allowed_action_classes:
       - read_only
       - control

@@ -2072,6 +2072,14 @@ QQQ show up, treat that as a bug until proven otherwise.
   - live flattening
   - changing strategy config
   - enabling live orders
+  - progress; the public receiver and local worker now reserve
+    `flatten_live_positions`, `change_strategy_config`, and
+    `enable_live_orders` as explicit high-risk action names. They are rejected
+    fail-closed even if added to server scopes or worker allowlists, and
+    rejected queue attempts are classified as `high_risk` in command audit
+    rows. Any future live-control support must be designed as a separate,
+    stronger local-confirmation path instead of reusing the public example
+    command surface.
 - Write immutable audit records locally and remotely for every command.
 
 ## P4: Execution quality

@@ -74,6 +74,12 @@ COMMAND_ACTION_CLASSES = {
     "validate_supervisor_config": "read_only",
 }
 
+RESERVED_HIGH_RISK_COMMAND_ACTIONS = {
+    "change_strategy_config": "Changing strategy config remotely is not supported by the public receiver.",
+    "enable_live_orders": "Enabling live orders remotely is not supported by the public receiver.",
+    "flatten_live_positions": "Flattening live broker positions remotely is not supported by the public receiver.",
+}
+
 DEFAULT_COMMAND_SCOPE_POLICY = {
     "enabled": True,
     "allowed_action_classes": ("read_only", "control"),
@@ -8768,11 +8774,16 @@ def normalize_command_scope_policy(
         if not isinstance(classes, (list, tuple, set)):
             raise ValueError("dashboard.command_scopes.allowed_action_classes must be a list")
         policy["allowed_action_classes"] = {str(item).strip() for item in classes if str(item).strip()}
+        if "high_risk" in policy["allowed_action_classes"]:
+            raise ValueError("dashboard.command_scopes.allowed_action_classes cannot include reserved high_risk commands")
     if raw.get("allowed_actions") is not None:
         actions = raw["allowed_actions"]
         if not isinstance(actions, (list, tuple, set)):
             raise ValueError("dashboard.command_scopes.allowed_actions must be a list")
         normalized_actions = {str(action).strip() for action in actions if str(action).strip()}
+        reserved = sorted(action for action in normalized_actions if action in RESERVED_HIGH_RISK_COMMAND_ACTIONS)
+        if reserved:
+            raise ValueError(f"dashboard.command_scopes.allowed_actions contains reserved high-risk actions: {', '.join(reserved)}")
         unknown = sorted(action for action in normalized_actions if action not in ALLOWED_COMMAND_ACTIONS)
         if unknown:
             raise ValueError(f"dashboard.command_scopes.allowed_actions contains unsupported actions: {', '.join(unknown)}")
@@ -8781,10 +8792,14 @@ def normalize_command_scope_policy(
 
 
 def command_action_class(action: str) -> str:
+    if action in RESERVED_HIGH_RISK_COMMAND_ACTIONS:
+        return "high_risk"
     return COMMAND_ACTION_CLASSES.get(action, "unknown")
 
 
 def command_scope_error(action: str, policy: dict[str, Any]) -> str | None:
+    if action in RESERVED_HIGH_RISK_COMMAND_ACTIONS:
+        return f"reserved high-risk command is not supported: {action}; {RESERVED_HIGH_RISK_COMMAND_ACTIONS[action]}"
     if policy.get("enabled") is False:
         return None
     allowed_actions = set(policy.get("allowed_actions") or [])

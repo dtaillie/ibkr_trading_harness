@@ -60,6 +60,7 @@ runs:
 notes:
   - No arbitrary shell commands are supported.
   - No broker credentials are stored here.
+  - Reserved high-risk actions such as enable_live_orders, change_strategy_config, and flatten_live_positions are rejected by both the receiver and this worker even if someone adds them to allowed_actions.
   - flatten_simulated_positions only operates on configured file-backed local broker state.
   - run_supervisor_once can launch configured local jobs; remove it from allowed_actions for monitoring-only deployments.
   - restart_child_process writes only a configured supervisor job restart marker; the local supervisor owns the actual restart.

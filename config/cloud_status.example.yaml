@@ -78,6 +78,7 @@ dashboard:
     # read_only: request/summarize/validate status commands.
     # control: pause/resume local runners.
     # launcher: run configured supervisor jobs; opt in only after review.
+    # high-risk live actions are reserved and cannot be enabled in the public receiver.
     allowed_action_classes:
       - read_only
       - control

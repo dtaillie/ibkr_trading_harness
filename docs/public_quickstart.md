@@ -715,6 +715,10 @@ Supported example actions are `request_status`, `supervisor_status`,
 `summarize_run`, `validate_config`, `validate_supervisor_config`,
 `flatten_simulated_positions`, `restart_child_process`,
 `run_supervisor_once`, `pause_runner`, and `resume_runner`.
+Reserved high-risk action names such as `flatten_live_positions`,
+`change_strategy_config`, and `enable_live_orders` are rejected by both the
+public receiver and local worker even if someone tries to add them to
+`dashboard.command_scopes` or `allowed_actions`.
 `flatten_simulated_positions` only operates on configured file-backed local
 broker state. `restart_child_process` writes a configured supervisor job
 restart marker and lets the local supervisor own the process restart.

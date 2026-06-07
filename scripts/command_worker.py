@@ -60,6 +60,12 @@ ACTION_CLASSES = {
     "restart_child_process": "launcher",
 }
 
+RESERVED_HIGH_RISK_ACTIONS = {
+    "change_strategy_config": "Changing strategy config remotely is not supported by the public command worker.",
+    "enable_live_orders": "Enabling live orders remotely is not supported by the public command worker.",
+    "flatten_live_positions": "Flattening live broker positions remotely is not supported by the public command worker.",
+}
+
 DEFAULT_LOCAL_ENABLE_ACTIONS = {"flatten_simulated_positions", "restart_child_process", "run_supervisor_once"}
 
 
@@ -299,6 +305,8 @@ def flatten_file_broker_positions(config_path: Path, *, command_id: str) -> dict
 
 
 def action_class(action: str) -> str:
+    if action in RESERVED_HIGH_RISK_ACTIONS:
+        return "high_risk"
     return ACTION_CLASSES.get(action, "unknown")
 
 
@@ -356,6 +364,10 @@ def execute_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str
     if not command_id:
         result["status"] = "rejected"
         result["error"] = "command_id is required"
+        return result
+    if action in RESERVED_HIGH_RISK_ACTIONS:
+        result["status"] = "rejected"
+        result["error"] = f"reserved high-risk action is not supported: {action}; {RESERVED_HIGH_RISK_ACTIONS[action]}"
         return result
     if action not in allowed:
         result["status"] = "rejected"
