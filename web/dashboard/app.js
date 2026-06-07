@@ -51,6 +51,7 @@ const state = {
   workbenchEvidenceText: "",
   fetchEvidenceText: "",
   operationsEvidenceText: "",
+  runsEvidenceText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -20656,6 +20657,7 @@ function renderRuns() {
   renderCurrentOrdersAndPositions();
   renderRunsTriage();
   renderRunsReviewPanel();
+  renderRunsEvidence();
   renderRunsWorkflowLauncher();
   renderRunsAccountBoundary();
   renderRunsSearchAssistant(runs, visibleRuns);
@@ -21144,6 +21146,250 @@ function renderRunsReviewPanel() {
     `<a class="secondary" href="#runs/events">Events</a>`,
     `<a class="secondary" href="#runs/runs">Run Search</a>`,
   ].join("");
+}
+
+function runsEvidenceModel() {
+  const status = state.status || {};
+  const runs = status.runs || [];
+  const history = state.history || [];
+  const allEvents = runEventRows();
+  const visibleEvents = sortedRunEvents(filteredRunEvents(allEvents));
+  const decisions = allEvents.filter((event) => event.type === "decision");
+  const orderEvents = allEvents.filter((event) => event.type === "order");
+  const fills = allEvents.filter((event) => event.type === "fill");
+  const badEvents = allEvents.filter(eventStatusIsBad);
+  const visibleBadEvents = visibleEvents.filter(eventStatusIsBad);
+  const eventFlow = runsEventFlowModel(allEvents, visibleEvents);
+  const execution = executionQualityReviewModel(allEvents, visibleEvents);
+  const orders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const positions = nonzeroPositionsFromSource(source);
+  const accountRows = source.account || [];
+  const accountRow = latestAccountRow(accountRows);
+  const artifacts = state.configArtifacts || {};
+  const savedRuns = (state.configRuns && state.configRuns.runs) || [];
+  const artifactLoaded = Boolean(artifacts.run_id || artifacts.draft_id);
+  const artifactDecisionRows = artifacts.decisions || [];
+  const artifactOrderRows = artifacts.orders || [];
+  const artifactFillRows = artifacts.fills || [];
+  const artifactAccountRows = artifacts.account || [];
+  const artifactLogs = artifacts.logs || [];
+  const rawArtifactRollups = artifacts.performance_rollups || artifacts.rollups || [];
+  const artifactRollups = Array.isArray(rawArtifactRollups)
+    ? rawArtifactRollups
+    : [
+        ...(rawArtifactRollups.rollups || []),
+        ...Object.values(rawArtifactRollups.period_rollups || {}).flat(),
+      ];
+  const hiddenEvents = Math.max(0, allEvents.length - visibleEvents.length);
+  const activeFilters = [
+    ($("run-events-filter-text") || {}).value ? `event search ${$("run-events-filter-text").value}` : "",
+    ($("run-events-filter-type") || {}).value ? `event type ${$("run-events-filter-type").value}` : "",
+    ($("run-events-filter-status") || {}).value ? `event status ${$("run-events-filter-status").value}` : "",
+    ($("runs-filter-text") || {}).value ? `run search ${$("runs-filter-text").value}` : "",
+    ($("runs-filter-status") || {}).value ? `run status ${$("runs-filter-status").value}` : "",
+    ($("runs-filter-mode") || {}).value ? `run mode ${$("runs-filter-mode").value}` : "",
+  ].filter(Boolean);
+  const latestRun = runs[0] || null;
+  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  let statusValue = "bad";
+  let headline = "No run evidence loaded";
+  let next = { action: "state", label: "Review State" };
+  let note = "Publish runner telemetry or load saved Workbench artifacts before trusting run evidence.";
+  if (orders.length) {
+    statusValue = "warn";
+    headline = "Open-order evidence needs review";
+    note = `${numberText(orders.length, 0)} non-terminal order event${orders.length === 1 ? "" : "s"} are visible; reconcile state before reading results.`;
+    next = { action: "state", label: "Review State" };
+  } else if (badEvents.length) {
+    statusValue = "bad";
+    headline = "Execution issue evidence needs review";
+    note = `${numberText(badEvents.length, 0)} rejected, canceled, failed, or error event${badEvents.length === 1 ? "" : "s"} are visible.`;
+    next = { action: "issues", label: "Show Issues" };
+  } else if (positions.length) {
+    statusValue = "warn";
+    headline = "Position evidence needs review";
+    note = `${numberText(positions.length, 0)} position${positions.length === 1 ? "" : "s"} visible in the selected/current account source.`;
+    next = { action: "state", label: "Review Positions" };
+  } else if (fills.length || artifactFillRows.length) {
+    statusValue = "ok";
+    headline = "Fill evidence is visible";
+    note = `${numberText(fills.length, 0)} recent fill event${fills.length === 1 ? "" : "s"} and ${numberText(artifactFillRows.length, 0)} loaded artifact fill row${artifactFillRows.length === 1 ? "" : "s"} are visible.`;
+    next = { action: "performance", label: "Open Performance" };
+  } else if (allEvents.length) {
+    statusValue = "ok";
+    headline = "Event evidence is visible";
+    note = `${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"} are available; inspect event rows for decision/order context.`;
+    next = { action: "events", label: "Open Events" };
+  } else if (runs.length) {
+    statusValue = "warn";
+    headline = "Run telemetry without event evidence";
+    note = `${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"} published, but no recent decision/order/fill rows are visible.`;
+    next = { action: "runs", label: "Search Runs" };
+  } else if (artifactLoaded || savedRuns.length) {
+    statusValue = artifactLoaded ? "ok" : "warn";
+    headline = artifactLoaded ? "Artifact evidence loaded" : "Saved runs are available";
+    note = artifactLoaded
+      ? "Loaded artifact rows can be reviewed in Performance, Runs, and Workbench Artifacts."
+      : "Saved Workbench runs exist; load one to expose detailed decisions, orders, fills, account rows, and logs.";
+    next = { action: artifactLoaded ? "artifacts" : "workbench-artifacts", label: "Open Artifacts" };
+  } else if (history.length) {
+    statusValue = "warn";
+    headline = "Status history without run evidence";
+    note = "Status snapshots exist, but no current run list or loaded artifact is visible.";
+    next = { action: "state", label: "Review State" };
+  }
+  const cards = [
+    {
+      status: runs.length ? "ok" : history.length || savedRuns.length || artifactLoaded ? "warn" : "bad",
+      label: "Run Source",
+      title: runs.length ? `${numberText(runs.length, 0)} current` : artifactLoaded ? "Artifact" : savedRuns.length ? `${numberText(savedRuns.length, 0)} saved` : "None",
+      note: latestRun
+        ? `${text(latestRun.id)} ${text(latestRun.status)} / ${text(latestMetrics.mode)} / age ${age((latestRun.freshness || {}).age_seconds)}.`
+        : artifactLoaded ? `${text(artifacts.draft_id || "draft")} ${text(artifacts.run_id || "run")} loaded.` : "No current run list.",
+    },
+    {
+      status: allEvents.length ? badEvents.length ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      label: "Recent Events",
+      title: `${numberText(visibleEvents.length, 0)} / ${numberText(allEvents.length, 0)}`,
+      note: `${numberText(decisions.length, 0)} decisions / ${numberText(orderEvents.length, 0)} orders / ${numberText(fills.length, 0)} fills; ${numberText(hiddenEvents, 0)} hidden by filters.`,
+    },
+    {
+      status: badEvents.length ? "bad" : execution.status,
+      label: "Execution Proof",
+      title: badEvents.length ? `${numberText(badEvents.length, 0)} issues` : execution.title,
+      note: execution.note,
+    },
+    {
+      status: accountRows.length || artifactAccountRows.length ? positions.length ? "warn" : "ok" : source.has_data ? "warn" : "bad",
+      label: "Account Proof",
+      title: accountRows.length || artifactAccountRows.length ? `${numberText(Math.max(accountRows.length, artifactAccountRows.length), 0)} rows` : "Missing",
+      note: accountRows.length
+        ? `Latest ${shortTimestampAgeLabel(accountRow.timestamp)} from ${text(source.label)}; ${numberText(positions.length, 0)} positions.`
+        : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "No selected/current account source.",
+    },
+    {
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      label: "Artifact Proof",
+      title: artifactLoaded ? "Loaded" : savedRuns.length ? "Available" : "Missing",
+      note: artifactLoaded
+        ? `${numberText(artifactDecisionRows.length, 0)} decisions / ${numberText(artifactOrderRows.length, 0)} orders / ${numberText(artifactFillRows.length, 0)} fills / ${numberText(artifactLogs.length, 0)} logs.`
+        : savedRuns.length ? "Saved runs exist, but no artifact is loaded." : "No saved run artifact is visible.",
+    },
+    {
+      status: activeFilters.length ? "warn" : "ok",
+      label: "Filters",
+      title: activeFilters.length ? `${numberText(activeFilters.length, 0)} active` : "Clear",
+      note: activeFilters.length ? activeFilters.slice(0, 3).join(" / ") : "No run/event filters are active.",
+    },
+  ];
+  const lines = [
+    {
+      status: statusValue,
+      title: "Summary",
+      detail: `${headline}. ${note}`,
+    },
+    {
+      status: cards[0].status,
+      title: "Run Source Evidence",
+      detail: latestRun
+        ? `Current run ${text(latestRun.id)} status=${text(latestRun.status)} mode=${text(latestMetrics.mode)} freshness=${age((latestRun.freshness || {}).age_seconds)}; ${numberText(history.length, 0)} status-history snapshot${history.length === 1 ? "" : "s"}.`
+        : artifactLoaded ? `Loaded artifact draft=${text(artifacts.draft_id)} run=${text(artifacts.run_id)}; ${numberText(savedRuns.length, 0)} saved run record${savedRuns.length === 1 ? "" : "s"} visible.`
+          : `${numberText(savedRuns.length, 0)} saved run record${savedRuns.length === 1 ? "" : "s"}; ${numberText(history.length, 0)} status-history snapshot${history.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: cards[1].status,
+      title: "Event Flow Evidence",
+      detail: `${numberText(visibleEvents.length, 0)} visible / ${numberText(allEvents.length, 0)} recent events; ${numberText(decisions.length, 0)} decisions, ${numberText(orderEvents.length, 0)} orders, ${numberText(fills.length, 0)} fills. ${eventFlow.nextAction}`,
+    },
+    {
+      status: badEvents.length ? "bad" : execution.status,
+      title: "Execution Quality Evidence",
+      detail: `${execution.title}. ${numberText(execution.orders.length, 0)} order rows, ${numberText(execution.fills.length, 0)} fill rows, ${numberText(execution.missed.length, 0)} missed/rejected/canceled/held rows.`,
+    },
+    {
+      status: orders.length || positions.length ? "warn" : source.has_data ? "ok" : "bad",
+      title: "Account Boundary Evidence",
+      detail: `${text(source.label || source.source_type)}; ${numberText(accountRows.length || artifactAccountRows.length, 0)} account row${(accountRows.length || artifactAccountRows.length) === 1 ? "" : "s"}; ${numberText(orders.length, 0)} non-terminal order event${orders.length === 1 ? "" : "s"}; ${numberText(positions.length, 0)} position${positions.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      title: "Artifact Evidence",
+      detail: artifactLoaded
+        ? `${numberText(artifactDecisionRows.length, 0)} decisions, ${numberText(artifactOrderRows.length, 0)} orders, ${numberText(artifactFillRows.length, 0)} fills, ${numberText(artifactAccountRows.length, 0)} account rows, ${numberText(artifactRollups.length, 0)} rollup rows, ${numberText(artifactLogs.length, 0)} logs.`
+        : savedRuns.length ? "Saved run records exist but detailed artifact rows are not loaded." : "No saved run artifact is loaded.",
+    },
+    {
+      status: activeFilters.length ? "warn" : "ok",
+      title: "Filter Evidence",
+      detail: activeFilters.length
+        ? `${activeFilters.join(" / ")}; ${numberText(hiddenEvents, 0)} recent event${hiddenEvents === 1 ? "" : "s"} hidden.`
+        : "No run or event filters are active.",
+    },
+    {
+      status: statusValue,
+      title: "Next Verification",
+      detail: `${next.label}: ${note}`,
+    },
+  ];
+  return { status: statusValue, headline, note, next, cards, lines, visibleBadEvents, badEvents, fills, orderEvents, decisions, artifactLoaded };
+}
+
+function runsEvidenceText(model) {
+  return [
+    `Runs Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((line) => `${line.title}: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderRunsEvidence() {
+  if (!$("runs-evidence-note") || !$("runs-evidence-cards") || !$("runs-evidence-body") || !$("runs-evidence-actions")) return;
+  const model = runsEvidenceModel();
+  state.runsEvidenceText = runsEvidenceText(model);
+  $("runs-evidence-note").textContent = `${model.headline}: ${model.note}`;
+  $("runs-evidence-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("runs-evidence-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("runs-evidence-actions").innerHTML = [
+    `<button type="button" data-runs-evidence-action="copy">Copy Evidence</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="${escapeHtml(model.next.action)}">${escapeHtml(model.next.label)}</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="state">State</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="events">Events</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="runs">Run Search</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="performance"${model.fills.length || model.artifactLoaded ? "" : " disabled"}>Performance</button>`,
+    `<button type="button" class="secondary" data-runs-evidence-action="artifacts"${model.artifactLoaded ? "" : " disabled"}>Artifacts</button>`,
+  ].join("");
+}
+
+function handleRunsEvidenceAction(action) {
+  if (action === "copy") {
+    copyText(state.runsEvidenceText || "No runs evidence loaded").then(() => {
+      $("last-refresh").textContent = "Runs evidence copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Runs evidence copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "issues") {
+    applyRunsEventsAssistantAction("issues");
+    return navigateToRunsLens("events");
+  }
+  if (action === "performance") return navigateToPerformanceLens("home");
+  if (action === "artifacts" || action === "workbench-artifacts") return navigateToWorkbenchLens("artifacts");
+  if (action === "events") return navigateToRunsLens("events");
+  if (action === "runs") return navigateToRunsLens("runs");
+  navigateToRunsLens("state");
 }
 
 function runsWorkflowCards() {
@@ -26631,6 +26877,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-search-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleRunsSearchAction(target);
+  });
+  $("runs-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-evidence-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleRunsEvidenceAction(target.dataset.runsEvidenceAction || "");
   });
   $("run-events-filter-text").addEventListener("input", renderRunEvents);
   $("run-events-filter-type").addEventListener("change", renderRunEvents);

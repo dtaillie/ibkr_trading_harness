@@ -521,6 +521,10 @@ strategy-private.
       current run source, account/position state, open orders, timeline mix,
       artifact availability, and the next inspection route before dense state,
       search, and event tables.
+    - partial; Runs Home now also includes a Runs Evidence panel that
+      separates current run source, recent decision/order/fill rows, execution
+      issues, account-boundary evidence, loaded artifacts, active filters, and
+      the next verification route in copyable rows.
     - partial; Runs now has Account State Boundary cards that distinguish
       selected source type, live/paper/simulated/replay authority, account
       snapshot freshness, managed positions, current telemetry, open-order

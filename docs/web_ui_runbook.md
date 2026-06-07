@@ -199,6 +199,10 @@ means one or more open positions lacked a current price in that snapshot.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+Read Runs Evidence on Runs Home before the dense tables when you need the proof
+chain. It separates current run source, recent decision/order/fill rows,
+execution issues, account-boundary evidence, loaded artifacts, active filters,
+and the next verification route.
 Start with Event Flow Report on Runs Home or Runs Events when you need the
 plain-language path through the recent timeline: it explains active filters,
 execution issues, decision/order/fill mix, latest event, run/symbol coverage,

@@ -699,6 +699,10 @@ stdout/stderr tails for the exact run. The same view calls
 stats, and the expected artifact-file manifest (`summary.json`,
 `runner_status.json`, `plugin_contract.json`, JSONL decision/order/fill/account
 files, and related rollups).
+When validating a run from the dashboard, open Runs Home and read Runs Evidence
+before the dense tables. It separates current run source, recent
+decision/order/fill rows, execution issues, account-boundary evidence, loaded
+artifact rows, active filters, and the next verification route.
 The Run Comparison section ranks recent saved draft runs by return, return/day,
 drawdown, and exposure using only successful run summaries; failed or timed-out
 runs stay visible for diagnosis but do not carry stale metrics from a previous
