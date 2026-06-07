@@ -1750,6 +1750,7 @@ function renderConfigDataQuality() {
   const selected = selectedConfigDatasets();
   if (!$("config-data-quality-note") || !$("config-data-quality-body")) return;
   renderConfigDataActions(selected);
+  renderWorkbenchSelectedDataPacket(selected);
   if (!selected.length) {
     $("config-data-quality-note").innerHTML = `<span class="muted">No datasets selected</span>`;
     $("config-data-quality-body").innerHTML = row([
@@ -1778,6 +1779,97 @@ function renderConfigDataQuality() {
     escapeHtml((dataset.quality_warnings || []).join("; ") || "none"),
     `<span class="mono">${escapeHtml(dataset.path)}</span>`,
   ])).join("");
+}
+
+function selectedDataPacketStatus(selected, alignment, qualityIssues) {
+  if (!selected.length) return { status: "bad", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
+  if (qualityIssues.length) return { status: "warn", title: "Review Quality", note: `${numberText(qualityIssues.length, 0)} selected file${qualityIssues.length === 1 ? "" : "s"} need review before replay.` };
+  if (!alignment.dataset_count) return { status: "warn", title: "Preview Alignment", note: "Selected files are clean enough to review; preview timestamp overlap next." };
+  if (Number(alignment.common_timestamp_count || 0) <= 0) return { status: "bad", title: "No Overlap", note: "Selected files do not share timestamps in the current date range." };
+  if (Number(alignment.warning_count || 0)) return { status: "warn", title: "Alignment Warnings", note: `${numberText(alignment.warning_count, 0)} alignment warning${Number(alignment.warning_count || 0) === 1 ? "" : "s"} need review.` };
+  return { status: "ok", title: "Ready", note: "Selected files have quality and timestamp overlap evidence." };
+}
+
+function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) {
+  if (!$("workbench-selected-data-note") || !$("workbench-selected-data-cards") || !$("workbench-selected-data-list")) return;
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const range = configDateRangePayload();
+  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
+  const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
+  const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
+  const status = selectedDataPacketStatus(selected, alignment, qualityIssues);
+  $("workbench-selected-data-note").textContent = selected.length
+    ? `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected for ${text($("config-mode") && $("config-mode").value)}`
+    : "No saved datasets selected";
+  const cards = [
+    {
+      status: status.status,
+      title: status.title,
+      label: "Packet",
+      note: status.note,
+    },
+    {
+      status: selected.length ? "ok" : "bad",
+      title: symbols.length ? `${numberText(symbols.length, 0)} symbol${symbols.length === 1 ? "" : "s"}` : "None",
+      label: "Universe",
+      note: symbols.length ? symbols.slice(0, 5).join(", ") : "Use Data Library to choose saved files.",
+    },
+    {
+      status: selected.length ? "ok" : "bad",
+      title: bars.length ? bars.join(", ") : "n/a",
+      label: "Bars",
+      note: sources.length ? `Sources: ${sources.slice(0, 4).join(", ")}` : "No source metadata loaded.",
+    },
+    {
+      status: range.start || range.end ? "ok" : selected.length ? "warn" : "bad",
+      title: range.start || range.end ? "Date Window" : "Full Files",
+      label: "Range",
+      note: range.start || range.end ? `${range.start || "first bar"} to ${range.end || "last bar"}` : "No Workbench date filter set.",
+    },
+    {
+      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) ? "ok" : "bad" : selected.length ? "warn" : "bad",
+      title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Not Previewed",
+      label: "Overlap",
+      note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Click Preview Alignment before generating a draft.",
+    },
+  ];
+  $("workbench-selected-data-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-selected-data-list").innerHTML = selected.length
+    ? selected.map((dataset, index) => {
+        const quality = text(dataset.quality_status).toLowerCase();
+        const statusClass = quality === "bad" ? "bad" : quality === "warn" ? "warn" : "ok";
+        const warnings = (dataset.quality_warnings || []).join("; ") || "No quality warnings reported.";
+        return `
+          <article class="workbench-selected-data-item status-${escapeHtml(statusClass)}">
+            <div>
+              <span>${escapeHtml(text(dataset.symbol))} / ${escapeHtml(text(dataset.bar_size))} / ${escapeHtml(text(dataset.source))}</span>
+              <strong>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</strong>
+              <small>${escapeHtml(numberText(dataset.rows, 0))} rows - ${escapeHtml(text(dataset.storage_session))} - ${escapeHtml(warnings)}</small>
+              <code>${escapeHtml(dataset.path)}</code>
+            </div>
+            <div>
+              <button type="button" class="secondary" data-workbench-selected-data-action="inspect" data-path="${escapeHtml(dataset.path)}">Inspect</button>
+              <button type="button" class="secondary" data-workbench-selected-data-action="compare" data-path="${escapeHtml(dataset.path)}">Compare</button>
+              <button type="button" class="secondary" data-workbench-selected-data-action="remove" data-path="${escapeHtml(dataset.path)}">Remove</button>
+              <span>${escapeHtml(`#${index + 1}`)}</span>
+            </div>
+          </article>
+        `;
+      }).join("")
+    : `
+      <div class="empty-card">
+        <strong>No saved files selected</strong>
+        <span>Open Data Library, choose one or more catalog rows, then return here to preview alignment and generate a draft.</span>
+        <button type="button" class="secondary" data-workbench-selected-data-action="library">Open Data Library</button>
+      </div>
+    `;
 }
 
 function renderConfigDataActions(selected = selectedConfigDatasets()) {
@@ -1857,6 +1949,71 @@ async function compareConfigDatasets() {
   navigateToDataLens("compare");
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
   $("last-refresh").textContent = `Compared ${numberText(selected.length, 0)} Workbench selected dataset${selected.length === 1 ? "" : "s"}`;
+}
+
+async function inspectWorkbenchSelectedDataset(path) {
+  if (!path) throw new Error("selected dataset path is missing");
+  await loadDataDetail(path, { resetControls: true });
+  navigateToDataLens("inspect");
+  if ($("data-detail-form")) $("data-detail-form").scrollIntoView({ block: "start", behavior: "smooth" });
+  $("last-refresh").textContent = "Opened Workbench selected dataset";
+}
+
+async function compareWorkbenchSelectedDataset(path) {
+  const selected = selectedConfigDatasets();
+  const paths = selected.map((dataset) => dataset.path);
+  const comparePaths = paths.includes(path) ? paths : [path, ...paths];
+  if (comparePaths.length < 2) {
+    $("workbench-selected-data-note").innerHTML = `<span class="status-warn">Select at least two datasets before comparing selected data</span>`;
+    return;
+  }
+  const range = configDateRangePayload();
+  state.dataCompareSelectedPaths = comparePaths.slice(0, MAX_DATA_COMPARE_DATASETS);
+  state.dataCompareSelectionCleared = false;
+  $("data-compare-filter").value = "";
+  $("data-compare-start").value = range.start;
+  $("data-compare-end").value = range.end;
+  renderDataCompareControls();
+  await loadDataCompare();
+  navigateToDataLens("compare");
+  if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function removeWorkbenchSelectedDataset(path) {
+  const select = $("config-dataset");
+  if (!select || !path) return;
+  for (const option of select.options) {
+    if (option.value === path) option.selected = false;
+  }
+  state.configDraft = null;
+  state.configDraftErrors = [];
+  state.alignmentPreview = null;
+  renderConfigLivePanels();
+  $("workbench-selected-data-note").textContent = "Removed selected dataset; preview alignment again before generating.";
+}
+
+function handleWorkbenchSelectedDataAction(button) {
+  const action = button.dataset.workbenchSelectedDataAction || "";
+  const path = button.dataset.path || "";
+  if (action === "library") {
+    navigateToDataLens("browse");
+    return;
+  }
+  if (action === "remove") {
+    removeWorkbenchSelectedDataset(path);
+    return;
+  }
+  if (action === "inspect") {
+    inspectWorkbenchSelectedDataset(path).catch((err) => {
+      $("workbench-selected-data-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+    return;
+  }
+  if (action === "compare") {
+    compareWorkbenchSelectedDataset(path).catch((err) => {
+      $("workbench-selected-data-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  }
 }
 
 function latestWorkbenchRunForDraft(draftId) {
@@ -18023,6 +18180,13 @@ function init() {
     });
   });
   $("config-data-open-library").addEventListener("click", () => navigateToView("data"));
+  $("workbench-selected-data-list").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest("[data-workbench-selected-data-action]")
+      : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchSelectedDataAction(target);
+  });
   $("config-run-draft").addEventListener("change", () => {
     renderWorkbenchGuide();
     renderWorkbenchTriage();

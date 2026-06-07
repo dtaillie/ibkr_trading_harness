@@ -1298,6 +1298,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-data-compare-selected" in html
         assert "config-data-open-library" in html
         assert "config-data-actions-cards" in html
+        assert "workbench-selected-data-note" in html
+        assert "workbench-selected-data-cards" in html
+        assert "workbench-selected-data-list" in html
         assert "config-validation-message-note" in html
         assert "config-validation-messages" in html
         assert "workbench-triage-note" in html
@@ -1312,11 +1315,13 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert ".json-drilldown" in css
         assert ".metric-source" in css
         assert ".gap-marker-legend" in css
+        assert ".workbench-selected-data-item" in css
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/app.js", timeout=5) as resp:
             js = resp.read().decode("utf-8")
         assert "function gapMarkerLegend" in js
         assert "gap-legend-swatch" in js
+        assert "function renderWorkbenchSelectedDataPacket" in js
     finally:
         server.shutdown()
         server.server_close()

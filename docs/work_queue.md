@@ -1274,6 +1274,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality issues, comparison readiness, and range, with direct actions
     to inspect the first selected file, compare selected files, or return to
     Data Library.
+  - partial; Workbench Builder now includes a Selected Data Packet panel that
+    shows the current saved-file selection, quality pressure, bar/source mix,
+    date-window choice, alignment overlap state, per-file ranges, and direct
+    Inspect/Compare/Remove actions before draft generation.
   - partial; generated Workbench dataset multi-selects no longer auto-select
     the first catalog file before the user chooses data, while the separate
     Compare Saved Data view keeps its deliberate two-file starter selection.

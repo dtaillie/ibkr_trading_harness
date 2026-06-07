@@ -2198,6 +2198,89 @@ section {
   background: #f4fbf7;
 }
 
+.workbench-selected-data-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--surface-shadow);
+}
+
+.workbench-selected-data-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workbench-selected-data-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfffc;
+}
+
+.workbench-selected-data-item.status-warn {
+  border-color: #e3c65a;
+  background: #fffdf2;
+}
+
+.workbench-selected-data-item.status-bad {
+  border-color: #f2a0a0;
+  background: #fff6f6;
+}
+
+.workbench-selected-data-item span,
+.workbench-selected-data-item strong,
+.workbench-selected-data-item small,
+.workbench-selected-data-item code {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workbench-selected-data-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workbench-selected-data-item strong {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.workbench-selected-data-item small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.workbench-selected-data-item code {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.workbench-selected-data-item > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.workbench-selected-data-item > div:last-child span {
+  align-self: center;
+  min-width: 26px;
+  text-align: right;
+}
+
 .fetch-search-assistant {
   display: grid;
   grid-template-columns: minmax(230px, 0.7fr) minmax(340px, 1.3fr);
@@ -3812,6 +3895,7 @@ footer {
   .workbench-builder-assistant-cards,
   .workbench-builder-assistant-actions,
   .workbench-builder-assistant-action,
+  .workbench-selected-data-item,
   .workbench-artifacts-assistant,
   .workbench-artifacts-assistant-cards,
   .workbench-artifacts-assistant-actions,
@@ -3826,7 +3910,8 @@ footer {
   .data-search-action-card > div:last-child,
   .data-directory-action-card > div:last-child,
   .fetch-search-action-card > div:last-child,
-  .runs-search-action-card > div:last-child {
+  .runs-search-action-card > div:last-child,
+  .workbench-selected-data-item > div:last-child {
     justify-content: flex-start;
   }
 
