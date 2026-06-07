@@ -125,6 +125,10 @@ strategy-private.
 - Add route-like navigation state so each top-level view can be deep-linked,
   refreshed, and shared by URL/hash without losing context.
   - done for top-level dashboard views with URL hash navigation
+  - partial; the page intro now renders a breadcrumb/deep-link strip for the
+    active view and focused lens, with Page Home and Copy Link actions so users
+    can share or return to the exact dashboard context without reading hash
+    syntax.
 - Add a brokerage-style "Strategy Home" view:
   - active strategy name, mode, and status
     - partial; Overview and Performance Home now render a public-safe strategy

@@ -211,6 +211,74 @@ body {
   line-height: 1.45;
 }
 
+.page-route {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.page-route-crumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.page-route-crumbs button,
+.page-route-crumbs span {
+  min-width: 0;
+}
+
+.page-route-crumbs button {
+  width: auto;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  background: var(--panel-raised);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.page-route-crumbs button:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  filter: none;
+}
+
+.route-separator {
+  color: var(--muted);
+}
+
+.route-current {
+  overflow: hidden;
+  max-width: 280px;
+  color: var(--accent-dark);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-route-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.page-route-actions button[disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .page-intro-side {
   display: grid;
   justify-items: end;
@@ -4442,6 +4510,15 @@ footer {
 
   .page-intro {
     margin: 0 16px 16px;
+  }
+
+  .page-route {
+    display: grid;
+    gap: 10px;
+  }
+
+  .page-route-actions {
+    justify-content: flex-start;
   }
 
   .page-intro-side {

@@ -713,6 +713,7 @@ function applyOverviewLens(lens) {
   const content = overviewLensContent(selected);
   if ($("overview-lens-title")) $("overview-lens-title").textContent = content.title;
   if ($("overview-lens-note")) $("overview-lens-note").textContent = content.note;
+  if (activeView() === "overview") renderRouteBreadcrumb("overview");
 }
 
 function navigateToOverviewLens(lens) {
@@ -767,6 +768,7 @@ function applyPerformanceLens(lens) {
   const content = performanceLensContent(selected);
   if ($("performance-lens-title")) $("performance-lens-title").textContent = content.title;
   if ($("performance-lens-note")) $("performance-lens-note").textContent = content.note;
+  if (activeView() === "performance") renderRouteBreadcrumb("performance");
 }
 
 function navigateToPerformanceLens(lens) {
@@ -827,6 +829,7 @@ function applyDataLens(lens) {
   const content = dataLensContent(selected);
   if ($("data-lens-title")) $("data-lens-title").textContent = content.title;
   if ($("data-lens-note")) $("data-lens-note").textContent = content.note;
+  if (activeView() === "data") renderRouteBreadcrumb("data");
   if (state.refreshLoaded && activeView() === "data") {
     refreshDataLibrary({ includeDiagnostics: selected === "diagnostics" }).catch((err) => {
       $("last-refresh").textContent = `Data Library refresh failed: ${err.message}`;
@@ -884,6 +887,7 @@ function applyFetchLens(lens) {
   const content = fetchLensContent(selected);
   if ($("fetch-lens-title")) $("fetch-lens-title").textContent = content.title;
   if ($("fetch-lens-note")) $("fetch-lens-note").textContent = content.note;
+  if (activeView() === "fetch") renderRouteBreadcrumb("fetch");
 }
 
 function navigateToFetchLens(lens) {
@@ -933,6 +937,7 @@ function applyWorkbenchLens(lens) {
   const content = workbenchLensContent(selected);
   if ($("workbench-lens-title")) $("workbench-lens-title").textContent = content.title;
   if ($("workbench-lens-note")) $("workbench-lens-note").textContent = content.note;
+  if (activeView() === "workbench") renderRouteBreadcrumb("workbench");
 }
 
 function navigateToWorkbenchLens(lens) {
@@ -982,6 +987,7 @@ function applyRunsLens(lens) {
   const content = runsLensContent(selected);
   if ($("runs-lens-title")) $("runs-lens-title").textContent = content.title;
   if ($("runs-lens-note")) $("runs-lens-note").textContent = content.note;
+  if (activeView() === "runs") renderRouteBreadcrumb("runs");
 }
 
 function navigateToRunsLens(lens) {
@@ -1035,6 +1041,7 @@ function applyOperationsLens(lens) {
   const content = operationsLensContent(selected);
   if ($("operations-lens-title")) $("operations-lens-title").textContent = content.title;
   if ($("operations-lens-note")) $("operations-lens-note").textContent = content.note;
+  if (activeView() === "operations") renderRouteBreadcrumb("operations");
 }
 
 function navigateToOperationsLens(lens) {
@@ -1092,6 +1099,7 @@ function applyHelpLens(lens) {
   const content = helpLensContent(selected);
   if ($("help-lens-title")) $("help-lens-title").textContent = content.title;
   if ($("help-lens-note")) $("help-lens-note").textContent = content.note;
+  if (activeView() === "help") renderRouteBreadcrumb("help");
 }
 
 function navigateToHelpLens(lens) {
@@ -1115,6 +1123,85 @@ function navigateToViewTarget(view, lens = "") {
   if (targetView === "operations" && lens) return navigateToOperationsLens(lens);
   if (targetView === "help" && lens) return navigateToHelpLens(lens);
   return navigateToView(targetView);
+}
+
+function currentRouteLens(view = activeView()) {
+  const targetView = normalizeView(view);
+  const lensByView = {
+    overview: selectedOverviewLens,
+    performance: selectedPerformanceLens,
+    data: selectedDataLens,
+    fetch: selectedFetchLens,
+    workbench: selectedWorkbenchLens,
+    runs: selectedRunsLens,
+    operations: selectedOperationsLens,
+    help: selectedHelpLens,
+  };
+  const getter = lensByView[targetView];
+  return getter ? getter() : "home";
+}
+
+function routeLensContent(view, lens) {
+  const targetView = normalizeView(view);
+  const contentByView = {
+    overview: overviewLensContent,
+    performance: performanceLensContent,
+    data: dataLensContent,
+    fetch: fetchLensContent,
+    workbench: workbenchLensContent,
+    runs: runsLensContent,
+    operations: operationsLensContent,
+    help: helpLensContent,
+  };
+  const getter = contentByView[targetView];
+  return getter ? getter(lens) : { title: "Home", note: "" };
+}
+
+function routeHash(view = activeView(), lens = currentRouteLens(view)) {
+  const targetView = normalizeView(view);
+  const selectedLens = String(lens || "home");
+  return selectedLens === "home" ? `#${targetView}` : `#${targetView}/${selectedLens}`;
+}
+
+function routeUrl(view = activeView(), lens = currentRouteLens(view)) {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  return `${base}${routeHash(view, lens)}`;
+}
+
+function renderRouteBreadcrumb(view = activeView()) {
+  const targetView = normalizeView(view);
+  const lens = currentRouteLens(targetView);
+  const page = pageIntroContent(targetView);
+  const lensContent = routeLensContent(targetView, lens);
+  const crumbs = $("page-route-crumbs");
+  if (crumbs) {
+    crumbs.innerHTML = `
+      <button type="button" data-route-action="overview">Dashboard</button>
+      <span class="route-separator">/</span>
+      <button type="button" data-route-action="page-home">${escapeHtml(page.eyebrow || targetView)}</button>
+      <span class="route-separator">/</span>
+      <span class="route-current">${escapeHtml(lensContent.title || "Home")}</span>
+    `;
+  }
+  const homeButton = $("page-route-home");
+  if (homeButton) {
+    homeButton.disabled = lens === "home";
+    homeButton.textContent = lens === "home" ? "On Page Home" : `${page.eyebrow || "Page"} Home`;
+  }
+  const copyButton = $("page-route-copy");
+  if (copyButton) {
+    copyButton.dataset.routeLink = routeUrl(targetView, lens);
+  }
+}
+
+function handleRouteAction(action) {
+  if (action === "overview") {
+    navigateToView("overview");
+    return;
+  }
+  if (action === "page-home") {
+    navigateToView(activeView());
+  }
 }
 
 function pageIntroAction(id, action) {
@@ -1428,6 +1515,7 @@ function pageIntroContent(view) {
 function renderPageIntro(view = activeView()) {
   if (!$("page-intro-title")) return;
   const content = pageIntroContent(normalizeView(view));
+  renderRouteBreadcrumb(normalizeView(view));
   $("page-intro-eyebrow").textContent = content.eyebrow;
   $("page-intro-title").textContent = content.title;
   $("page-intro-note").textContent = content.note;
@@ -19994,6 +20082,20 @@ function init() {
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToViewTarget(button.dataset.viewTarget, button.dataset.viewLens || ""));
   }
+  $("page-route-crumbs").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-route-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRouteAction(target.dataset.routeAction || "");
+  });
+  $("page-route-home").addEventListener("click", () => handleRouteAction("page-home"));
+  $("page-route-copy").addEventListener("click", () => {
+    const link = $("page-route-copy").dataset.routeLink || routeUrl();
+    copyText(link).then(() => {
+      $("last-refresh").textContent = `Dashboard link copied: ${routeHash()}`;
+    }).catch((err) => {
+      $("last-refresh").textContent = `Copy dashboard link failed: ${err.message}`;
+    });
+  });
   for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
     button.addEventListener("click", () => navigateToOverviewLens(button.dataset.overviewLensTarget));
   }
