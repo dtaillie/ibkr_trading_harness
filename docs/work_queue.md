@@ -627,6 +627,9 @@ strategy-private.
       dashboard controls/buttons for accessible names, validates top-level nav
       targets, verifies explicit focus-outline styling, and runs basic color
       contrast checks against dashboard tokens.
+    - partial; the accessibility smoke now also fails on duplicate static
+      element IDs and broken static ARIA id references, with an explicit
+      allowlist only for dashboard elements rendered dynamically by JavaScript.
   - no overlapping text in tables, cards, charts, or mobile navigation
     - partial; CI now runs the screenshot smoke with layout checks against
       seeded desktop and mobile top-level/focus-lens views. The gate covers

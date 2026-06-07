@@ -17,6 +17,18 @@ DEFAULT_CSS = ROOT / "web" / "dashboard" / "styles.css"
 
 FORM_CONTROL_TAGS = {"input", "select", "textarea"}
 BUTTON_TAGS = {"button"}
+ARIA_REFERENCE_ATTRS = {
+    "aria-controls",
+    "aria-describedby",
+    "aria-details",
+    "aria-errormessage",
+    "aria-labelledby",
+    "aria-owns",
+}
+ALLOWED_DYNAMIC_ARIA_IDS = {
+    # Rendered by web/dashboard/app.js after symbol suggestions are available.
+    "data-symbol-typeahead-list",
+}
 
 
 class DashboardA11yParser(HTMLParser):
@@ -28,10 +40,23 @@ class DashboardA11yParser(HTMLParser):
         self.labels_for: set[str] = set()
         self.view_targets: set[str] = set()
         self.data_views: set[str] = set()
+        self.ids: dict[str, int] = {}
+        self.aria_references: list[dict[str, str]] = []
         self._button_stack: list[dict[str, object]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr = {key: value or "" for key, value in attrs}
+        element_id = attr.get("id")
+        if element_id:
+            self.ids[element_id] = self.ids.get(element_id, 0) + 1
+        for name in ARIA_REFERENCE_ATTRS:
+            if attr.get(name):
+                for target_id in attr[name].split():
+                    self.aria_references.append({
+                        "source": element_id or tag,
+                        "attribute": name,
+                        "target": target_id,
+                    })
         if tag == "label" and attr.get("for"):
             self.labels_for.add(attr["for"])
         if attr.get("data-view-target"):
@@ -134,10 +159,23 @@ def run_accessibility_smoke(html_path: Path = DEFAULT_HTML, css_path: Path = DEF
         if not accessible_button(button)
     ]
     missing_view_targets = sorted(parser.view_targets - parser.data_views)
+    duplicate_ids = sorted(element_id for element_id, count in parser.ids.items() if count > 1)
+    missing_aria_references = [
+        reference for reference in parser.aria_references
+        if reference["target"] not in parser.ids and reference["target"] not in ALLOWED_DYNAMIC_ARIA_IDS
+    ]
     if unlabeled_controls:
         failures.append(f"{len(unlabeled_controls)} form control(s) lack accessible labels")
     if unnamed_buttons:
         failures.append(f"{len(unnamed_buttons)} button(s) lack accessible names")
+    if duplicate_ids:
+        failures.append(f"duplicate element id(s): {', '.join(duplicate_ids)}")
+    if missing_aria_references:
+        details = ", ".join(
+            f"{item['source']} {item['attribute']}->{item['target']}"
+            for item in missing_aria_references[:10]
+        )
+        failures.append(f"ARIA reference(s) point to missing element ids: {details}")
     if missing_view_targets:
         failures.append(f"navigation targets without sections: {', '.join(missing_view_targets)}")
     if not has_focus_style(css):
@@ -170,6 +208,8 @@ def run_accessibility_smoke(html_path: Path = DEFAULT_HTML, css_path: Path = DEF
         "css": str(css_path),
         "controls": len(parser.controls),
         "buttons": len(parser.buttons),
+        "ids": len(parser.ids),
+        "aria_references": len(parser.aria_references),
         "views": len(parser.data_views),
         "view_targets": len(parser.view_targets),
         "contrast": contrast_results,
@@ -196,6 +236,8 @@ def test_dashboard_accessibility_smoke() -> None:
     result = run_accessibility_smoke()
     assert result["controls"] > 0
     assert result["buttons"] > 0
+    assert result["ids"] > result["controls"]
+    assert result["aria_references"] >= 1
     assert result["views"] >= 8
 
 
