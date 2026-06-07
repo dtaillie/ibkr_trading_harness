@@ -40,9 +40,24 @@ def build_checks(*, include_screenshots: bool = False) -> list[Check]:
             [sys.executable, "scripts/audit_cloud_examples.py"],
         ),
         Check(
+            "python_compile",
+            "Compile public Python files.",
+            [sys.executable, "-m", "compileall", "-q", "."],
+        ),
+        Check(
+            "dashboard_javascript_syntax",
+            "Check dashboard JavaScript syntax.",
+            ["node", "--check", "web/dashboard/app.js"],
+        ),
+        Check(
             "pytest",
             "Run the public Python test suite.",
             [sys.executable, "-m", "pytest", "-q"],
+        ),
+        Check(
+            "dashboard_default_smoke",
+            "Smoke the dashboard with default example state.",
+            [sys.executable, "scripts/smoke_dashboard.py"],
         ),
         Check(
             "dashboard_seeded_smoke",

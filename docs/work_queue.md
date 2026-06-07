@@ -1899,9 +1899,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     no-edge examples, dashboard labels, and remaining limitations.
   - partial; `scripts/public_publish_check.py` now provides a consolidated
     public pre-publish gate for export-manifest JSON, strict public readiness,
-    cloud examples, pytest, seeded/empty dashboard smokes, accessibility, and
-    optional screenshot layout checks. Help and README point to it before the
-    manual inspection step.
+    cloud examples, Python compile, dashboard JavaScript syntax, pytest,
+    default/seeded/empty dashboard smokes, accessibility, and optional
+    screenshot layout checks. Help, README, and publication-readiness docs
+    point to it before the manual inspection step.
 - Finish blog post polish.
   - partial; `docs/blog_public_ibkr_harness_draft.md` has been expanded into a
     public-safe draft covering local-first design, data fetches, manifests,

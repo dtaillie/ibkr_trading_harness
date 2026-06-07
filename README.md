@@ -387,8 +387,11 @@ python3 scripts/public_readiness_audit.py --fail-on-review
 ```
 
 Use `python3 scripts/public_publish_check.py --list --json` to inspect the
-full gate without running it, and add `--include-screenshots` for the slower
-dashboard layout screenshot checks.
+full gate without running it. The default gate includes export-manifest review,
+strict readiness audit, cloud-example audit, Python compile, dashboard
+JavaScript syntax, pytest, default/empty/seeded dashboard smokes, and
+accessibility smoke. Add `--include-screenshots` for the slower dashboard
+layout screenshot checks.
 
 The private source tree can regenerate this public subset with
 `scripts/export_public_repo.py --force`. Repeated exports preserve the

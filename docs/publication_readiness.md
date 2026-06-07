@@ -61,7 +61,9 @@ python3 scripts/public_publish_check.py
 
 Use `--list --json` to inspect the exact checks without running them, and
 `--include-screenshots` when you want the slower screenshot layout checks
-included in the gate.
+included in the gate. The default gate now covers export-manifest review,
+strict public readiness, cloud examples, Python compile, dashboard JavaScript
+syntax, pytest, default/empty/seeded dashboard smokes, and accessibility smoke.
 
 Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
 repeatable public copy. If the destination is already a Git repo, `--force`
