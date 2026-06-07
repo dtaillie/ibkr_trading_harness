@@ -1262,6 +1262,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runs-lens-state" in html
         assert "runs-lens-runs" in html
         assert "runs-lens-events" in html
+        assert "runs-review-title" in html
+        assert "runs-review-note" in html
+        assert "runs-review-cards" in html
+        assert "runs-review-actions" in html
         assert "operations-lens-title" in html
         assert "operations-lens-note" in html
         assert "operations-lens-home" in html

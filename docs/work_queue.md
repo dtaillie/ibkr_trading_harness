@@ -456,6 +456,10 @@ strategy-private.
       Open Orders, Positions, Event Timeline, Run Search, and Loaded Artifacts,
       with deep links into Runs, Performance, and Workbench so users can start
       from a review job instead of scanning every table.
+    - partial; Runs Home now includes a Runs Review panel that consolidates
+      current run source, account/position state, open orders, timeline mix,
+      artifact availability, and the next inspection route before dense state,
+      search, and event tables.
     - partial; Runs now has Account State Boundary cards that distinguish
       selected source type, live/paper/simulated/replay authority, account
       snapshot freshness, managed positions, current telemetry, open-order
