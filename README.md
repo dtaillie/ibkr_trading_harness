@@ -275,7 +275,7 @@ also has a Saved History Matrix that groups saved files by asset, source, bar
 size, and session with one-click Browse, Inspect, Compare, Workbench, and CSV
 export actions plus assistant cards for readiness and next action, a Symbol
 Coverage Ledger for compact per-symbol ranges/readiness/actions with direct
-Workbench handoff, and can compare several saved datasets
+Workbench handoff and CSV export, and can compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
 configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size

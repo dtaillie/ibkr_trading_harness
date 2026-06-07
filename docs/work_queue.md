@@ -1069,6 +1069,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Symbol Directory cards and Symbol Coverage Ledger rows now have
       direct Workbench actions that select the best saved file for a symbol and
       open Config Builder.
+    - partial; Symbol Coverage Ledger can now export the current filtered,
+      sorted, and limited symbol coverage table to CSV for offline review.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.

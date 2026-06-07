@@ -21296,6 +21296,55 @@ async function downloadDataSymbolDirectoryCsv() {
   $("last-refresh").textContent = `Symbol directory CSV exported: ${new Date().toLocaleString()}`;
 }
 
+function downloadSymbolCoverageLedgerCsv() {
+  const directory = symbolDirectoryRows();
+  const header = [
+    "symbol",
+    "first_timestamp",
+    "last_timestamp",
+    "file_count",
+    "row_count",
+    "asset_classes",
+    "sources",
+    "bar_sizes",
+    "storage_sessions",
+    "storage_session_profile",
+    "mixed_storage_sessions",
+    "quality_counts",
+    "storage_contract_counts",
+    "best_path",
+  ];
+  const lines = [
+    csvLine(header),
+    ...(directory.rows || []).map((item) => csvLine([
+      item.symbol,
+      item.first_day,
+      item.last_day,
+      item.file_count,
+      item.row_count,
+      (item.assets || []).join("|"),
+      (item.sources || []).join("|"),
+      (item.bars || []).join("|"),
+      (item.sessions || []).join("|"),
+      item.session_profile,
+      item.mixed_sessions ? "true" : "false",
+      countSummary(item.qualities),
+      countSummary(item.contracts),
+      (item.best || {}).path || "",
+    ])),
+  ];
+  const blob = new Blob([`${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "symbol_coverage_ledger.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Symbol coverage ledger CSV exported: ${new Date().toLocaleString()}`;
+}
+
 function downloadDataHistoryMatrixCsv() {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
@@ -22193,6 +22242,7 @@ function init() {
       $("last-refresh").textContent = `Symbol directory CSV export failed: ${err.message}`;
     });
   });
+  $("export-symbol-coverage-ledger-csv").addEventListener("click", downloadSymbolCoverageLedgerCsv);
   $("export-data-history-matrix-csv").addEventListener("click", downloadDataHistoryMatrixCsv);
   $("export-data-catalog-scan-csv").addEventListener("click", () => {
     downloadDataCatalogScanCsv().catch((err) => {

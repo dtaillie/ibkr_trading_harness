@@ -1017,6 +1017,8 @@ def run_smoke(
             "data-symbol-coverage-body",
             "data-symbol-coverage-note",
             "symbol-directory-workbench",
+            "downloadSymbolCoverageLedgerCsv",
+            "export-symbol-coverage-ledger-csv",
             "data-readiness-cell",
             "Replay Ready",
             "page-route-copy",
