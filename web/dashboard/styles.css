@@ -1639,6 +1639,57 @@ section {
   margin-top: 22px;
 }
 
+.strategy-identity-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.strategy-identity-chip {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 25px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--soft-panel);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.strategy-identity-chip b {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.strategy-identity-chip em {
+  overflow: hidden;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strategy-identity-chip.status-ok {
+  border-color: rgba(4, 120, 87, 0.2);
+  background: var(--status-ok-bg);
+}
+
+.strategy-identity-chip.status-warn {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: var(--status-warn-bg);
+}
+
+.strategy-identity-chip.status-bad {
+  border-color: rgba(185, 28, 28, 0.2);
+  background: var(--status-bad-bg);
+}
+
 .overview-status-grid,
 .runtime-status-grid,
 .performance-kpis,

@@ -1827,6 +1827,85 @@ function latestArtifactPerformance() {
   return currentPerformanceSource();
 }
 
+function strategyIdentityModel(source = latestArtifactPerformance()) {
+  const telemetryRun = latestTelemetryRun() || {};
+  const metrics = telemetryRun.metrics || {};
+  const summary = (source && source.summary) || {};
+  const perf = (source && source.performance) || {};
+  const artifacts = state.configArtifacts || {};
+  const strategyName = firstPresent(
+    metrics.strategy_name,
+    metrics.strategy,
+    metrics.plugin,
+    metrics.plugin_id,
+    summary.strategy_name,
+    summary.strategy,
+    summary.plugin,
+    summary.plugin_id,
+    perf.strategy_name,
+    perf.strategy,
+    perf.plugin,
+    perf.plugin_id,
+    artifacts.strategy_name,
+    artifacts.plugin,
+    artifacts.plugin_id,
+  );
+  const draftId = firstPresent(
+    telemetryRun.draft_id,
+    metrics.draft_id,
+    summary.draft_id,
+    perf.draft_id,
+    artifacts.draft_id,
+  );
+  const runId = firstPresent(
+    telemetryRun.id,
+    telemetryRun.run_id,
+    metrics.run_id,
+    summary.run_id,
+    perf.run_id,
+    artifacts.run_id,
+  );
+  const mode = firstPresent(metrics.mode, summary.mode, perf.mode);
+  const sourceType = firstPresent(source && source.source_type, "none");
+  const updatedAt = firstPresent(
+    metrics.last_decision_time,
+    metrics.latest_data_time,
+    metrics.latest_market_data_time,
+    telemetryRun.generated_at,
+    sourceTimestamp(source),
+  );
+  const status = source && source.has_data ? "ok" : telemetryRun.id ? "warn" : "bad";
+  return {
+    status,
+    title: strategyName || (draftId ? text(draftId) : runId ? text(runId) : "No strategy identified"),
+    sourceType,
+    mode: mode || "unknown",
+    draftId: draftId || "n/a",
+    runId: runId || "n/a",
+    updatedAt,
+  };
+}
+
+function renderStrategyIdentity(targetId, source = latestArtifactPerformance()) {
+  const container = $(targetId);
+  if (!container) return;
+  const identity = strategyIdentityModel(source);
+  const updated = identity.updatedAt ? shortTimestampAgeLabel(identity.updatedAt) : "not published";
+  container.innerHTML = [
+    { label: "Strategy", value: identity.title, status: identity.status },
+    { label: "Mode", value: identity.mode, status: identity.mode === "unknown" ? "warn" : "ok" },
+    { label: "Source", value: identity.sourceType, status: identity.status },
+    { label: "Draft", value: identity.draftId, status: identity.draftId === "n/a" ? "warn" : "ok" },
+    { label: "Run", value: identity.runId, status: identity.runId === "n/a" ? "warn" : "ok" },
+    { label: "Updated", value: updated, status: identity.updatedAt ? "ok" : "warn" },
+  ].map((item) => `
+    <span class="strategy-identity-chip status-${escapeHtml(item.status)}">
+      <b>${escapeHtml(item.label)}</b>
+      <em>${escapeHtml(item.value)}</em>
+    </span>
+  `).join("");
+}
+
 function benchmarkDatasets() {
   return (state.dataCatalog.datasets || [])
     .filter((dataset) => dataset.path)
@@ -4133,6 +4212,7 @@ function renderOverview() {
   $("overview-equity").textContent = money(equity);
   $("overview-equity").className = "value-equity";
   $("overview-subtitle").textContent = sourceMeta;
+  renderStrategyIdentity("overview-strategy-identity", performance);
   setMetricValue("overview-mode", text(mode), {
     className: statusClass(mode ? "ok" : "unknown"),
     meta: sourceMeta,
@@ -5241,6 +5321,7 @@ function renderPerformanceHome(context) {
   $("performance-home-result").textContent = result;
   $("performance-home-result").className = returnClass;
   $("performance-home-note").textContent = `${text(source.label)} / ${text(mode)} / ${window.label}. ${nextNote}`;
+  renderStrategyIdentity("performance-strategy-identity", source);
   const executionStatus = rejections > 0 || approvalRequired > 0
     ? "warn"
     : fillCount > 0

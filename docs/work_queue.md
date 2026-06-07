@@ -127,6 +127,10 @@ strategy-private.
   - done for top-level dashboard views with URL hash navigation
 - Add a brokerage-style "Strategy Home" view:
   - active strategy name, mode, and status
+    - partial; Overview and Performance Home now render a public-safe strategy
+      identity strip with inferred strategy/plugin label, mode, source type,
+      draft id, run id, and latest update age from telemetry, summaries, or
+      loaded artifacts.
   - portfolio/equity headline first, not log tables
   - today's PnL/return, recent PnL/return, open exposure, and current risk
     - partial; Overview now has a Performance Snapshot section that derives
@@ -274,6 +278,9 @@ strategy-private.
       fallback when no current-day events have been published.
 - Add a Strategy Performance page with charts and summaries:
   - current active strategy selector
+    - partial; Performance Home now mirrors the Overview strategy identity
+      strip for the selected Current / Loaded Artifact / Latest Saved Run
+      source, making the active source visible before charts and tables.
   - current strategy snapshot independent of historical run comparison tables
     - partial; Performance now includes source, mode, latest account timestamp,
       open positions, and activity counts above artifact comparison tables
