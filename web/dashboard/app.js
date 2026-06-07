@@ -13780,12 +13780,13 @@ function renderFetchManifestDetail() {
         escapeHtml(numberText(item.rows, 0)),
         escapeHtml(`${interval(item.elapsed_seconds)} / ${numberText(item.attempt_count, 0)} attempts`),
         escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
+        fetchOutputReplayReadiness(item),
         `<span class="mono">${escapeHtml(item.path)}</span>`,
         item.data_detail_available
           ? `<button type="button" class="secondary inspect-data" data-path="${escapeHtml(item.data_detail_path)}">Inspect Data</button>`
           : `<span class="muted">${escapeHtml(fetchOutputVisibilityLabel(item))}</span>`,
       ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
   renderFetchJobsGuide();
 }
 
@@ -13929,6 +13930,35 @@ function fetchOutputVisibilityLabel(item) {
   if (item.data_detail_status === "no_path") return "no path";
   if (item.data_detail_status === "unsupported_file") return "unsupported file";
   return text(item.data_detail_reason || item.data_detail_status || "not inspectable");
+}
+
+function dataCatalogDatasetByPath(path) {
+  const target = text(path);
+  if (!target || target === "n/a") return null;
+  return (state.dataCatalog.datasets || []).find((dataset) => text(dataset.path) === target) || null;
+}
+
+function fetchOutputReplayReadiness(item) {
+  if (!item || !item.data_detail_available) {
+    const label = fetchOutputVisibilityLabel(item);
+    const status = item && item.data_detail_status === "missing_file" ? "bad" : "warn";
+    return `
+      <div class="data-readiness-cell ${escapeHtml(statusClass(status))}">
+        <strong>${escapeHtml(status === "bad" ? "Missing" : "Not Visible")}</strong>
+        <span>${escapeHtml(label)}</span>
+        <small>Fix output path or data roots before replay.</small>
+      </div>
+    `;
+  }
+  const dataset = dataCatalogDatasetByPath(item.data_detail_path || item.path);
+  if (dataset) return dataReplayReadiness(dataset);
+  return `
+    <div class="data-readiness-cell ${escapeHtml(statusClass("warn"))}">
+      <strong>Review</strong>
+      <span>Visible output is not in the current bounded catalog scan.</span>
+      <small>Refresh Data Library or raise Rows to scan.</small>
+    </div>
+  `;
 }
 
 function renderFetchResumePanel(detail, resumeCommand = "") {

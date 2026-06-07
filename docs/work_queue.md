@@ -1235,6 +1235,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Fetch Detail now summarizes output visibility as visible,
       missing-under-root, outside configured roots, or no-path, and surfaces
       those counts in recovery cards plus per-output status labels.
+    - partial; Fetch Detail output rows now include Replay readiness cells for
+      Data Library-visible outputs, reusing saved-data quality/storage-contract
+      screening and flagging missing/outside/unsupported outputs before
+      Workbench handoff.
     - partial; Fetch Detail can now filter Data Library to the selected job's
       visible output files, making completed fetch output sets reviewable as a
       group.

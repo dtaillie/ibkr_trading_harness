@@ -487,6 +487,9 @@ Use the row's Replay cell first when scanning many files; it combines the
 catalog's quality, storage-contract, missing-interval, timezone, and adjustment
 metadata into one readiness callout. The same readiness state is available as a
 Browse filter, a Replay-first sort, and a Saved Data Explorer group.
+Fetch Detail output rows show the same Replay readiness when a produced file is
+Data Library-visible, making completed fetch output review possible before
+Workbench handoff.
 Use Saved Data Explorer before choosing a row when you do not yet know which
 symbol or source matters; it shows whether the local catalog is mostly stocks,
 crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or warning-heavy

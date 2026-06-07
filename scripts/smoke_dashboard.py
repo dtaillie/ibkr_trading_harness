@@ -1000,6 +1000,8 @@ def run_smoke(
             "dashboard-task",
             "dataReplayReadiness",
             "dataReplayReadinessModel",
+            "fetchOutputReplayReadiness",
+            "dataCatalogDatasetByPath",
             "data-readiness-cell",
             "Replay Ready",
             "page-route-copy",
