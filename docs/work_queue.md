@@ -372,6 +372,10 @@ strategy-private.
     interprets the selected source/window in plain operational terms: verdict,
     evidence depth, return/drawdown/exposure, execution issues, live/paper
     continuity, benchmark context, and direct next routes.
+  - partial; Performance Home now includes a Current Strategy Report that
+    compresses source, latest equity, today/recent/month/all return, drawdown,
+    exposure, trades, open positions, execution issues, evidence depth, and the
+    next action into copyable plain-language rows.
   - partial; Overview now surfaces a smaller current Performance Snapshot from
     status-history rollups so the common "how is it doing today/recently?"
     question is visible before entering the full Performance page.

@@ -2056,6 +2056,52 @@ section {
   margin: 12px 0;
 }
 
+.performance-report-panel {
+  margin: 12px 0;
+}
+
+.performance-report-body {
+  display: grid;
+  gap: 8px;
+}
+
+.performance-report-line {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.3fr) minmax(220px, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+  background: #fbfffc;
+}
+
+.performance-report-line.status-ok {
+  border-left-color: var(--status-ok);
+}
+
+.performance-report-line.status-warn {
+  border-left-color: var(--status-warn);
+  background: #fffdf2;
+}
+
+.performance-report-line.status-bad {
+  border-left-color: var(--status-bad);
+  background: #fff6f6;
+}
+
+.performance-report-line strong {
+  font-size: 13px;
+}
+
+.performance-report-line span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .performance-live-period-panel {
   margin: 12px 0;
 }
@@ -4684,7 +4730,8 @@ footer {
   .overview-hero,
   .performance-layout,
   .chart-grid,
-  .symbol-directory-card {
+  .symbol-directory-card,
+  .performance-report-line {
     display: block;
   }
 

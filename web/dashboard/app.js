@@ -5857,6 +5857,24 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceReport({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+    positionCount,
+    turnover,
+  });
   renderPerformanceSnapshot({
     source,
     window,
@@ -6495,6 +6513,195 @@ function renderPerformanceReview(context) {
     `<a class="secondary" href="#runs/state">Orders</a>`,
     `<a class="secondary" href="#data/browse">Benchmark Data</a>`,
   ].join("");
+}
+
+function performanceReportModel(context) {
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+    positionCount,
+    turnover,
+  } = context;
+  const rollups = sortedStatusRollups();
+  const periodRollups = (state.statusEquityRollups && state.statusEquityRollups.period_rollups) || {};
+  const latestDay = rollups.length ? rollups[rollups.length - 1] : null;
+  const weekStats = statusRollupSeriesStats(trailingStatusRollups(rollups, 7));
+  const allStatusStats = statusRollupSeriesStats(rollups);
+  const latestMonth = ((periodRollups.month || [])[0]) || null;
+  const totalReturn = finiteNumber(periodPerf.total_return_pct);
+  const todayReturn = latestDay && finiteNumber(latestDay.daily_return_pct) !== null ? latestDay.daily_return_pct : null;
+  const recentReturn = finiteNumber(weekStats.total_return_pct);
+  const monthReturn = latestMonth && finiteNumber(latestMonth.total_return_pct) !== null ? latestMonth.total_return_pct : null;
+  const allReturn = finiteNumber(allStatusStats.total_return_pct) !== null ? allStatusStats.total_return_pct : totalReturn;
+  const drawdown = finiteNumber(allStatusStats.max_drawdown_pct) !== null ? allStatusStats.max_drawdown_pct : finiteNumber(periodPerf.max_drawdown_pct);
+  const equity = finiteNumber(periodPerf.final_equity) !== null ? periodPerf.final_equity : latestAccount.equity;
+  const issueCount = Number(rejections || 0) + Number(approvalRequired || 0);
+  const hasCurrentRollups = rollups.length > 0;
+  const hasSnapshots = accountRows.length || (allAccountRows || []).length;
+  let status = "bad";
+  let headline = "No current performance evidence";
+  let note = "Publish paper/live status or load a saved run artifact before reading the report.";
+  if (source.has_data && hasSnapshots) {
+    status = issueCount ? "warn" : "ok";
+    headline = totalReturn !== null ? `${pctText(totalReturn)} over ${window.label}` : "Current source loaded";
+    note = `${text(source.label)} has ${numberText(accountRows.length, 0)} account snapshots in the selected window.`;
+  } else if (source.has_data) {
+    status = "warn";
+    headline = "Summary-only source";
+    note = "Headline metrics or events are loaded, but account snapshots are limited.";
+  } else if (hasCurrentRollups) {
+    status = "warn";
+    headline = "Status rollups only";
+    note = "Current status-history rollups are available, but no selected source account path is loaded.";
+  }
+  const cards = [
+    {
+      status,
+      label: "Report",
+      title: headline,
+      note,
+      className: totalReturn === null ? statusClass(status) : signedValueClass(totalReturn),
+    },
+    {
+      status: todayReturn === null ? "warn" : todayReturn >= 0 ? "ok" : "bad",
+      label: "Today",
+      title: pctText(todayReturn),
+      note: latestDay ? `${text(latestDay.day)} from status-history snapshots.` : "No current-day status return loaded.",
+      className: signedValueClass(todayReturn),
+    },
+    {
+      status: monthReturn === null ? "warn" : monthReturn >= 0 ? "ok" : "bad",
+      label: "Month",
+      title: pctText(monthReturn),
+      note: latestMonth ? `${text(latestMonth.label)} status period; ${numberText(latestMonth.day_count, 0)} day rows.` : "No monthly status rollup yet.",
+      className: signedValueClass(monthReturn),
+    },
+    {
+      status: drawdown === null ? "warn" : drawdown <= -10 ? "bad" : drawdown < 0 ? "warn" : "ok",
+      label: "Risk",
+      title: pctText(drawdown),
+      note: `Max drawdown; exposure ${pctText(periodPerf.max_gross_exposure_pct)}.`,
+      className: drawdownValueClass(drawdown),
+    },
+  ];
+  const lines = [
+    {
+      status: source.has_data ? "ok" : "bad",
+      title: "Source",
+      detail: `${text(source.label)} / ${text(mode || "n/a")} / ${window.label}. Latest account snapshot ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}.`,
+    },
+    {
+      status: equity === null ? "warn" : "ok",
+      title: "Equity And Return",
+      detail: `Equity ${money(equity)}; today ${pctText(todayReturn)}, recent ${pctText(recentReturn)}, month ${pctText(monthReturn)}, all available ${pctText(allReturn)}.`,
+    },
+    {
+      status: drawdown === null ? "warn" : drawdown <= -10 ? "bad" : drawdown < 0 ? "warn" : "ok",
+      title: "Risk",
+      detail: `Max drawdown ${pctText(drawdown)}, max exposure ${pctText(periodPerf.max_gross_exposure_pct)}, turnover ${money(turnover.notional)} over ${window.label}.`,
+    },
+    {
+      status: ledger.stats.closed_count ? "ok" : fills.length ? "warn" : source.has_data ? "warn" : "bad",
+      title: "Trades",
+      detail: `${numberText(fillCount, 0)} fills, ${numberText(ledger.stats.closed_count, 0)} closed trades, ${numberText(ledger.stats.open_count, 0)} open trade rows, ${numberText(positionCount, 0)} open positions.`,
+    },
+    {
+      status: issueCount ? "warn" : source.has_data ? "ok" : "bad",
+      title: "Execution",
+      detail: `${numberText(decisions, 0)} decisions, ${numberText(orders, 0)} orders, ${numberText(rejections, 0)} rejections, ${numberText(approvalRequired, 0)} approval holds.`,
+    },
+    {
+      status: hasCurrentRollups || hasSnapshots ? "ok" : "warn",
+      title: "Evidence",
+      detail: `${numberText(rollups.length, 0)} status-history day rows and ${numberText((allAccountRows || []).length, 0)} account snapshots are available for charts and rollups.`,
+    },
+  ];
+  const nextAction = issueCount
+    ? "Review orders and rejections before judging strategy quality."
+    : source.has_data && !hasCurrentRollups
+      ? "Keep the status publisher running so paper/live daily history accumulates."
+      : source.has_data
+        ? "Use Rollups for period history and Trades for fill-level behavior."
+        : "Load telemetry, a saved run, or Workbench artifacts.";
+  lines.push({
+    status: issueCount ? "warn" : source.has_data ? "ok" : "bad",
+    title: "Next Action",
+    detail: nextAction,
+  });
+  return {
+    status,
+    headline,
+    note: `${text(source.label)} / ${text(mode || "n/a")} / ${window.label}`,
+    cards,
+    lines,
+  };
+}
+
+function performanceReportText(model) {
+  const lines = [
+    `Current Strategy Report: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ];
+  return lines.join("\n");
+}
+
+function renderPerformanceReport(context) {
+  if (!$("performance-report-note") || !$("performance-report-cards") || !$("performance-report-body") || !$("performance-report-actions")) return;
+  const model = performanceReportModel(context);
+  state.performanceReportText = performanceReportText(model);
+  $("performance-report-note").textContent = model.note;
+  $("performance-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-report-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("performance-report-actions").innerHTML = [
+    `<button type="button" data-performance-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-performance-report-action="rollups">Open Rollups</button>`,
+    `<button type="button" class="secondary" data-performance-report-action="trades">Open Trades</button>`,
+    `<button type="button" class="secondary" data-performance-report-action="operations">Check Operations</button>`,
+  ].join("");
+}
+
+function handlePerformanceReportAction(action) {
+  if (action === "copy") {
+    copyText(state.performanceReportText || "No current strategy report loaded").then(() => {
+      $("last-refresh").textContent = "Current strategy report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "rollups") {
+    navigateToPerformanceLens("rollups");
+    return;
+  }
+  if (action === "trades") {
+    navigateToPerformanceLens("trades");
+    return;
+  }
+  navigateToOperationsLens("paper");
 }
 
 function performanceSnapshotReturnCard({ label, value, detail, source }) {
@@ -22491,6 +22698,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-snapshot-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceSnapshotAction(target.dataset.performanceSnapshotAction || "");
+  });
+  $("performance-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-report-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceReportAction(target.dataset.performanceReportAction || "");
   });
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";

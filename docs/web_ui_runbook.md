@@ -125,6 +125,10 @@ Simulation, Troubleshoot, and Publish Safely.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.
+Open Performance Home for the fuller Current Strategy Report. It turns the
+selected source into copyable rows for source freshness, equity and return,
+risk, trades, execution issues, evidence depth, and the next action before you
+open charts, trades, or rollup tables.
 Generic plugin-runner executions also write `performance_rollups.json` and
 `plugin_contract.json` beside `summary.json`, giving each run its own durable
 period summaries plus public-safe plugin/run contract metadata even when the

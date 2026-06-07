@@ -328,6 +328,9 @@ account snapshots are available. It also shows the active source, mode, latest
 account timestamp, open position count, and decision/order/fill/reject activity
 above the charts. Use the Period selector to narrow artifact
 charts and KPIs to today, week, month, 3 months, or all available snapshots.
+Performance Home also includes a Current Strategy Report that summarizes source
+freshness, equity and return, risk, trades, execution issues, evidence depth,
+and the next action in copyable plain-language rows.
 When sanitized fills are present, Performance also shows an open/closed trade
 table, win/loss, average win/loss, and profit factor. Daily Run Rollups summarize
 archived account artifacts by UTC day with return, equity, orders, fills,
