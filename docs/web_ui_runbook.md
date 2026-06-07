@@ -384,20 +384,23 @@ matrix rows offline.
    wiring demos; ignored local/private plugins are only summarized there. Use a
    gallery action to populate plugin/mode fields, then choose a public example
    plugin or a private local plugin from an ignored registry in Builder.
-5. Preview alignment before generating a draft. The Selected Data Packet
+5. Read Workbench Evidence. It states whether the setup is only selected-data
+   evidence, a valid draft, a completed run waiting for artifacts, or loaded
+   artifact evidence that can be inspected in Performance and Runs.
+6. Preview alignment before generating a draft. The Selected Data Packet
    should move from Not Previewed to an overlap count or a clear no-overlap
    warning.
-6. Read Compatibility Review. It combines schema versions, plugin boundary,
+7. Read Compatibility Review. It combines schema versions, plugin boundary,
    selected data quality, alignment coverage, saved-draft validation, and the
    next action in one place. Plugin Field Help shows the selected plugin's
    public-safe strategy inputs, declarative validation rules, result fields, and
    result sections, including help text, defaults, bounds/options, formatting
    hints, and required/advanced flags.
-7. Use Preview Draft to validate and inspect generated YAML, alignment,
+8. Use Preview Draft to validate and inspect generated YAML, alignment,
    plugin boundary, and local commands without saving.
-8. Use Generate / Save after enabling Save draft locally when the preview is
+9. Use Generate / Save after enabling Save draft locally when the preview is
    acceptable.
-9. In Workbench Run, read Draft Inventory Review and Run Readiness before
+10. In Workbench Run, read Draft Inventory Review and Run Readiness before
    pressing Run. Draft Inventory Review summarizes saved draft folders, tags,
    validation coverage, runnable drafts, latest runs, and the selected draft's
    next action before the dense tables. Run Readiness calls out the

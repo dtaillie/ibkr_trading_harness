@@ -1613,6 +1613,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     selected data, alignment, plugin boundary, draft validity, latest run,
     loaded artifacts, and the next route into a plain-language run-or-fix
     decision before users enter the denser builder/run screens.
+  - partial; Workbench Home now includes a Workbench Evidence panel that
+    distinguishes selected-data evidence, alignment evidence, plugin boundary,
+    draft validation, latest run state, and loaded artifact evidence before
+    users trust Performance or Runs output.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.

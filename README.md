@@ -337,6 +337,9 @@ ship only generic no-edge example plugins, while local ignored plugin registries
 can expose private plugin metadata to the Workbench without publishing strategy
 logic. Workbench Home includes an Example Config Gallery that explains public
 examples and local plugin boundaries before opening Builder. The workbench path
+also includes a Workbench Evidence panel that states whether the current setup
+is only data-backed, draft-backed, run-backed, or loaded-artifact-backed before
+users trust performance output. It
 remains limited to file-based data under configured
 data roots and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths

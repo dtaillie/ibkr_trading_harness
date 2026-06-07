@@ -48,6 +48,7 @@ const state = {
   performanceSourceMode: "current",
   performanceBenchmarkPath: "",
   performanceBenchmarkDetail: null,
+  workbenchEvidenceText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -3410,6 +3411,7 @@ function renderWorkbenchHome() {
   renderWorkbenchExampleGallery();
   renderWorkbenchSimulationPlan(stateModel);
   renderWorkbenchReadinessReview(stateModel);
+  renderWorkbenchEvidence();
   renderWorkbenchWorkflowLauncher();
 }
 
@@ -3748,6 +3750,233 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
     `<a class="secondary" href="#workbench/artifacts">Artifacts</a>`,
     `<a class="secondary" href="#runs">Runs</a>`,
   ].join("");
+}
+
+function workbenchEvidenceModel() {
+  const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const plugin = selectedConfigPlugin();
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId) || ((state.configRuns && state.configRuns.runs) || [])[0] || null;
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const hasDraft = Boolean(draft.yaml || savedDraft);
+  const draftErrors = normalizeConfigDraftErrors(state.configDraftErrors || []);
+  const generatedValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const savedValid = Boolean(savedDraft && validation && validation.valid);
+  const draftValid = generatedValid || savedValid;
+  const commonTimestamps = Number(alignment.common_timestamp_count || 0);
+  const alignmentWarnings = Number(alignment.warning_count || (alignment.warnings || []).length || 0);
+  const alignmentReady = Boolean(alignment.dataset_count && commonTimestamps > 0);
+  const latestRunComplete = Boolean(latestRun && latestRun.status === "completed");
+  const latestRunIssue = Boolean(latestRun && latestRun.status && !["completed", "success", "ok"].includes(text(latestRun.status).toLowerCase()));
+  const artifactsMatchRun = !hasArtifacts || !latestRun || !artifacts.run_id || !latestRun.run_id || artifacts.run_id === latestRun.run_id;
+  let headlineStatus = "bad";
+  let headline = "No Workbench evidence";
+  let note = "Select saved data before trusting a replay or simulated-paper workflow.";
+  if (hasArtifacts) {
+    headlineStatus = artifactsMatchRun ? "ok" : "warn";
+    headline = artifactsMatchRun ? "Artifact-backed workflow" : "Loaded artifact differs from latest run";
+    note = `${text(artifacts.draft_id || savedDraftId || "draft")} artifacts are loaded for Performance, Runs, and Artifacts review.`;
+  } else if (latestRunComplete && latestRun.artifact_path) {
+    headlineStatus = "warn";
+    headline = "Completed run needs loading";
+    note = `${text(latestRun.run_id || latestRun.draft_id)} completed, but artifacts are not loaded in this dashboard session.`;
+  } else if (latestRun) {
+    headlineStatus = latestRunIssue ? "bad" : "warn";
+    headline = "Run evidence exists";
+    note = `${text(latestRun.action || "run")} ${text(latestRun.status || "unknown")} for ${text(latestRun.draft_id || savedDraftId || "draft")}.`;
+  } else if (draftValid) {
+    headlineStatus = "warn";
+    headline = "Draft evidence only";
+    note = "A valid draft is available, but no replay or simulated-paper run has produced artifacts yet.";
+  } else if (hasDraft) {
+    headlineStatus = "bad";
+    headline = "Draft needs validation";
+    note = draftErrors.length ? draftErrors.slice(0, 2).join("; ") : "A draft exists, but validation evidence is not clean.";
+  } else if (alignmentReady && plugin.id) {
+    headlineStatus = pluginBoundaryStatus(plugin) === "warn" ? "warn" : "ok";
+    headline = "Ready to draft";
+    note = "Selected data, alignment, and plugin metadata are ready for draft generation.";
+  } else if (selected.length) {
+    headlineStatus = alignment.dataset_count ? "bad" : "warn";
+    headline = "Data evidence selected";
+    note = "Selected files need alignment, plugin, draft, run, and artifact evidence before performance review.";
+  }
+  const selectedSymbols = selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a");
+  const cards = [
+    {
+      label: "Evidence Chain",
+      status: headlineStatus,
+      title: headline,
+      note,
+      className: statusClass(headlineStatus),
+    },
+    {
+      label: "Selected Data",
+      status: selected.length ? dataReadiness.status : "bad",
+      title: selected.length ? `${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"}` : "None",
+      note: selected.length
+        ? `${selectedSymbols.slice(0, 5).join(", ") || "selected files"}; ${dataReadiness.summary}.`
+        : "Choose saved data from Data Library, Compare, Fetch Outputs, or Builder.",
+      className: statusClass(selected.length ? dataReadiness.status : "bad"),
+    },
+    {
+      label: "Alignment",
+      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      title: alignment.dataset_count ? `${numberText(commonTimestamps, 0)} common` : "Not previewed",
+      note: alignment.dataset_count
+        ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignmentWarnings, 0)} warning${alignmentWarnings === 1 ? "" : "s"}.`
+        : "Preview shared timestamps before generating YAML.",
+      className: statusClass(alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad"),
+    },
+    {
+      label: "Plugin",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      title: plugin.label || plugin.id || "None",
+      note: plugin.id
+        ? `${text(plugin.visibility || plugin.status || "registry")}; ${text(plugin.description || plugin.boundary || "review registry metadata")}.`
+        : "Choose a public example plugin or ignored local plugin.",
+      className: statusClass(plugin.id ? pluginBoundaryStatus(plugin) : "bad"),
+    },
+    {
+      label: "Draft",
+      status: hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad",
+      title: savedDraftId || (draft.yaml ? "Generated" : "Missing"),
+      note: hasDraft
+        ? draftValid ? "Validation evidence is clean enough to run." : "Validation failed or has not passed."
+        : "Generate and save a draft before running.",
+      className: statusClass(hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad"),
+    },
+    {
+      label: "Run And Results",
+      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      title: hasArtifacts ? "Artifacts loaded" : latestRun ? text(latestRun.status || latestRun.action) : "Not run",
+      note: hasArtifacts
+        ? `${text(artifacts.run_id || artifacts.draft_id)} loaded.`
+        : latestRun
+          ? `${text(latestRun.action)} ${text(latestRun.run_id || latestRun.draft_id || "run")} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
+          : "Run validate, replay, or simulated paper after validation.",
+      className: statusClass(hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad"),
+    },
+  ];
+  const range = configDateRangePayload();
+  const lines = [
+    {
+      status: selected.length ? dataReadiness.status : "bad",
+      title: "Data Evidence",
+      detail: selected.length
+        ? `${numberText(selected.length, 0)} selected file${selected.length === 1 ? "" : "s"} across ${Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).join(", ") || "unknown bar sizes"}; replay window ${range.start || "first bar"} to ${range.end || "last bar"}.`
+        : "No saved files are selected for the workflow.",
+    },
+    {
+      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      title: "Alignment Evidence",
+      detail: alignment.dataset_count
+        ? `${numberText(commonTimestamps, 0)} common timestamps from ${text(alignment.common_first_timestamp || "n/a")} to ${text(alignment.common_last_timestamp || "n/a")}; ${pctText(alignment.common_coverage_pct)} common coverage.`
+        : "No alignment preview is loaded for the current selected data packet.",
+    },
+    {
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      title: "Plugin Boundary",
+      detail: plugin.id
+        ? `${text(plugin.id)} is ${text(plugin.visibility || plugin.status || "registry")}; public examples are wiring demos and private plugins should stay in ignored local config.`
+        : "No Workbench plugin is selected.",
+    },
+    {
+      status: hasDraft ? draftValid ? "ok" : "bad" : "warn",
+      title: "Draft Evidence",
+      detail: hasDraft
+        ? `${savedDraftId || draft.name || "generated draft"} ${draftValid ? "has passing validation evidence" : "does not have passing validation evidence"}${draft.saved_path ? `; saved at ${text(draft.saved_path)}` : savedDraft && savedDraft.path ? `; saved at ${text(savedDraft.path)}` : ""}.`
+        : "No generated or saved draft is active for this workflow.",
+    },
+    {
+      status: latestRun ? latestRunComplete ? "ok" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      title: "Run Evidence",
+      detail: latestRun
+        ? `${text(latestRun.action || "run")} ${text(latestRun.status || "unknown")} for ${text(latestRun.draft_id || savedDraftId || "draft")}; artifact path ${text(latestRun.artifact_path || "not recorded")}.`
+        : "No recent Workbench run is attached to the active draft.",
+    },
+    {
+      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRunComplete && latestRun.artifact_path ? "warn" : "bad",
+      title: "Artifact Evidence",
+      detail: hasArtifacts
+        ? `Loaded artifact ${text(artifacts.run_id || artifacts.draft_id)}${artifactsMatchRun ? " matches the current run context or no newer run is selected" : " differs from the latest selected run"}.`
+        : latestRunComplete && latestRun.artifact_path ? "A completed run has artifacts available; load them before reading performance." : "No run artifacts are loaded.",
+    },
+  ];
+  const next = !selected.length
+    ? { label: "Select Data", href: "#data/browse", status: "bad" }
+    : !alignmentReady
+      ? { label: "Preview Alignment", href: "#workbench/builder", status: "warn" }
+      : !plugin.id
+        ? { label: "Choose Plugin", href: "#workbench/builder", status: "bad" }
+        : !draftValid
+          ? { label: "Validate Draft", href: "#workbench/run", status: "bad" }
+          : !latestRun
+            ? { label: "Run Draft", href: "#workbench/run", status: "warn" }
+            : !hasArtifacts
+              ? { label: "Load Artifacts", href: "#workbench/artifacts", status: "warn" }
+              : { label: "Open Performance", href: "#performance", status: "ok" };
+  lines.push({
+    status: next.status,
+    title: "Next Verification",
+    detail: `${next.label}: ${next.href.replace("#", "")}.`,
+  });
+  return {
+    headline,
+    note: `${headline} / next: ${next.label}`,
+    cards,
+    lines,
+    next,
+  };
+}
+
+function workbenchEvidenceText(model) {
+  return [
+    `Workbench Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderWorkbenchEvidence() {
+  if (!$("workbench-evidence-note") || !$("workbench-evidence-cards") || !$("workbench-evidence-body") || !$("workbench-evidence-actions")) return;
+  const model = workbenchEvidenceModel();
+  state.workbenchEvidenceText = workbenchEvidenceText(model);
+  $("workbench-evidence-note").textContent = model.note;
+  $("workbench-evidence-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-evidence-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("workbench-evidence-actions").innerHTML = [
+    `<button type="button" data-workbench-evidence-action="copy">Copy Evidence</button>`,
+    `<a class="secondary" href="${escapeHtml(model.next.href)}">${escapeHtml(model.next.label)}</a>`,
+    `<a class="secondary" href="#workbench/run">Run</a>`,
+    `<a class="secondary" href="#performance">Performance</a>`,
+  ].join("");
+}
+
+function handleWorkbenchEvidenceAction(action) {
+  if (action !== "copy") return;
+  copyText(state.workbenchEvidenceText || "No workbench evidence loaded").then(() => {
+    $("last-refresh").textContent = "Workbench evidence copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Workbench evidence copy failed: ${err.message}`;
+  });
 }
 
 function workbenchWorkflowCards() {
@@ -17887,6 +18116,7 @@ function renderConfigLivePanels() {
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchGuide();
+  renderWorkbenchHome();
   renderHelpWorkbenchQuickstart();
 }
 
@@ -24396,6 +24626,7 @@ async function previewConfigAlignment() {
   renderWorkbenchBuilderAssistant();
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
+  renderWorkbenchHome();
   $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
 }
 
@@ -24635,6 +24866,7 @@ async function loadConfigArtifacts(draftId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchHome();
   renderWorkbenchRunReadiness();
   renderWorkbenchTriage();
   renderWorkbenchRunResult();
@@ -24722,6 +24954,7 @@ async function loadRunArtifacts(runId, options = {}) {
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
   renderWorkbenchArtifacts();
+  renderWorkbenchHome();
   renderWorkbenchRunReadiness();
   renderWorkbenchTriage();
   renderWorkbenchRunResult();
@@ -25732,6 +25965,11 @@ function init() {
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleWorkbenchExampleGalleryAction(target);
   });
+  $("workbench-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-evidence-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchEvidenceAction(target.dataset.workbenchEvidenceAction || "");
+  });
   for (const button of document.querySelectorAll("[data-operations-home-action]")) {
     button.addEventListener("click", () => {
       handleOperationsHomeAction(button.dataset.operationsHomeAction || "");
@@ -25856,6 +26094,7 @@ function init() {
     handleWorkbenchSelectedDataAction(target);
   });
   $("config-run-draft").addEventListener("change", () => {
+    renderWorkbenchHome();
     renderWorkbenchGuide();
     renderWorkbenchTriage();
     renderWorkbenchRunResult();

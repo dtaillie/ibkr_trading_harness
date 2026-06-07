@@ -602,7 +602,9 @@ one or more selected saved datasets. Public exports offer generic no-edge
 examples by default; local ignored plugin registries can add private plugin
 metadata for your own machine without publishing strategy logic. Workbench Home
 includes an Example Config Gallery that lists public examples and ignored local
-plugin availability before the full Builder form. Gallery actions only populate
+plugin availability before the full Builder form, plus Workbench Evidence that
+labels the current workflow as data-only, draft-only, run-backed, or
+loaded-artifact-backed. Gallery actions only populate
 plugin/mode fields; they do not save drafts or run simulations. The Workbench
 can render public-safe `strategy_fields` from that plugin metadata and writes
 those allowlisted values into the generated `strategy` section. It rejects
