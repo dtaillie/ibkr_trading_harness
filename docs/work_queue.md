@@ -547,6 +547,10 @@ strategy-private.
     - partial; dashboard CSS now defines semantic cash/equity/gain/loss/
       neutral/warning tokens plus reusable status background tokens for
       consistent financial/status styling.
+    - partial; Overview, Performance, rollup, trade-ledger, and saved-data
+      comparison return/PnL/equity values now use explicit `value-*`
+      financial classes instead of reusing health/status coloring, so green/red
+      performance language is visually separate from ok/warn/bad system state.
   - consistent badge styles for modes, health, fills, rejects, and stale data
     - partial; `statusText()` and quality/storage-contract badges now render
       through a shared `status-badge` style, giving ok/warn/bad/waiting states

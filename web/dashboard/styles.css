@@ -3477,6 +3477,35 @@ tr:last-child td {
   color: var(--bad);
 }
 
+.value-cash,
+.value-equity,
+.value-gain,
+.value-loss,
+.value-neutral {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.value-cash {
+  color: var(--cash);
+}
+
+.value-equity {
+  color: var(--equity);
+}
+
+.value-gain {
+  color: var(--gain);
+}
+
+.value-loss {
+  color: var(--loss);
+}
+
+.value-neutral {
+  color: var(--neutral);
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;

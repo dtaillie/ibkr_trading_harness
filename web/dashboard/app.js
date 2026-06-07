@@ -222,6 +222,36 @@ function pctText(value) {
   return `${number.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
 }
 
+function signedValueClass(value) {
+  if (value === null || value === undefined || value === "") return "value-neutral";
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return "value-neutral";
+  return number > 0 ? "value-gain" : "value-loss";
+}
+
+function drawdownValueClass(value) {
+  if (value === null || value === undefined || value === "") return "value-neutral";
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return "value-neutral";
+  return "value-loss";
+}
+
+function valueHtml(value, formatter, className) {
+  return `<span class="${escapeHtml(className)}">${escapeHtml(formatter(value))}</span>`;
+}
+
+function signedValueHtml(value, formatter = numberText) {
+  return valueHtml(value, formatter, signedValueClass(value));
+}
+
+function cashValueHtml(value) {
+  return valueHtml(value, money, "value-cash");
+}
+
+function equityValueHtml(value) {
+  return valueHtml(value, money, "value-equity");
+}
+
 function bytes(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
@@ -4011,6 +4041,7 @@ function renderOverview() {
   const weekMeta = weekRows.length ? `${weekWindow.label} / ${numberText(weekRows.length, 0)} account snapshots` : `${weekWindow.label} / no account snapshots`;
 
   $("overview-equity").textContent = money(equity);
+  $("overview-equity").className = "value-equity";
   $("overview-subtitle").textContent = sourceMeta;
   setMetricValue("overview-mode", text(mode), {
     className: statusClass(mode ? "ok" : "unknown"),
@@ -4036,21 +4067,21 @@ function renderOverview() {
     className: statusClass(latestRejection ? "bad" : "ok"),
     meta: latestRejection ? `${text(latestRejection.status)} ${shortTimestampAgeLabel(latestRejection.timestamp)}` : "no rejected/canceled order event",
   });
-  setMetricValue("overview-cash", money(cash), { meta: accountMeta });
+  setMetricValue("overview-cash", money(cash), { className: "value-cash", meta: accountMeta });
   setMetricValue("overview-realized-pnl", money(realizedPnl), {
-    className: statusClass(realizedPnl == null ? "" : Number(realizedPnl) >= 0 ? "ok" : "bad"),
+    className: signedValueClass(realizedPnl),
     meta: accountMeta,
   });
   setMetricValue("overview-unrealized-pnl", money(unrealizedPnl), {
-    className: statusClass(unrealizedPnl == null ? "" : Number(unrealizedPnl) >= 0 ? "ok" : "bad"),
+    className: signedValueClass(unrealizedPnl),
     meta: accountMeta,
   });
   setMetricValue("overview-today-return", pctText(todayPerf.total_return_pct), {
-    className: statusClass(todayPerf.total_return_pct == null ? "" : todayPerf.total_return_pct >= 0 ? "ok" : "bad"),
+    className: signedValueClass(todayPerf.total_return_pct),
     meta: todayMeta,
   });
   setMetricValue("overview-week-return", pctText(weekPerf.total_return_pct), {
-    className: statusClass(weekPerf.total_return_pct == null ? "" : weekPerf.total_return_pct >= 0 ? "ok" : "bad"),
+    className: signedValueClass(weekPerf.total_return_pct),
     meta: weekMeta,
   });
   setMetricValue("overview-exposure", pctText(exposurePct), {
@@ -4706,7 +4737,7 @@ function renderPerformance() {
     approvalRequired,
   });
   $("performance-note").textContent = `${source.label} / ${window.label}`;
-  setMetricValue("performance-equity", money(equity), { meta: sourceMeta });
+  setMetricValue("performance-equity", money(equity), { className: "value-equity", meta: sourceMeta });
   $("performance-context").textContent = accountRows.length
     ? `${numberText(accountRows.length, 0)} account snapshots in selected period; latest ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
     : "Showing latest summarized run; select Artifacts for an equity curve.";
@@ -4727,12 +4758,15 @@ function renderPerformance() {
     meta: sourceMeta,
   });
   setMetricValue("performance-return", pctText(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null)), {
+    className: signedValueClass(periodPerf.total_return_pct ?? (period === "all" ? summary.total_return_pct : null)),
     meta: windowMeta,
   });
   setMetricValue("performance-drawdown", pctText(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null)), {
+    className: drawdownValueClass(periodPerf.max_drawdown_pct ?? (period === "all" ? summary.max_drawdown_pct : null)),
     meta: windowMeta,
   });
   setMetricValue("performance-return-day", pctText(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null)), {
+    className: signedValueClass(periodPerf.return_per_day_pct ?? (period === "all" ? summary.return_per_day_pct : null)),
     meta: windowMeta,
   });
   setMetricValue("performance-exposure", pctText(periodPerf.max_gross_exposure_pct ?? (period === "all" ? summary.max_gross_exposure_pct : null)), {
@@ -4780,9 +4814,9 @@ function renderPerformance() {
     ? `${sessionStats.day} ${text(sessionStats.start_time)} -> ${text(sessionStats.end_time)}`
     : "Load account snapshots to see today's or the latest session's PnL";
   $("performance-intraday-pnl").textContent = sessionStats ? money(sessionStats.pnl) : "n/a";
-  $("performance-intraday-pnl").className = sessionStats ? (sessionStats.pnl >= 0 ? "status-ok" : "status-bad") : "status-unknown";
+  $("performance-intraday-pnl").className = sessionStats ? signedValueClass(sessionStats.pnl) : "value-neutral";
   $("performance-intraday-return").textContent = sessionStats ? pctText(sessionStats.return_pct) : "n/a";
-  $("performance-intraday-return").className = sessionStats ? (sessionStats.return_pct >= 0 ? "status-ok" : "status-bad") : "status-unknown";
+  $("performance-intraday-return").className = sessionStats ? signedValueClass(sessionStats.return_pct) : "value-neutral";
   $("performance-intraday-range").textContent = sessionStats
     ? `${money(sessionStats.high_pnl)} / ${money(sessionStats.low_pnl)}`
     : "n/a";
@@ -4818,7 +4852,7 @@ function renderPerformance() {
         numberText(trade.quantity, 4),
         `${escapeHtml(text(trade.entry_time))}<br>${escapeHtml(money(trade.entry_price))}`,
         trade.exit_time ? `${escapeHtml(text(trade.exit_time))}<br>${escapeHtml(money(trade.exit_price))}` : `<span class="muted">open</span>`,
-        trade.pnl === null ? "n/a" : `<span class="${Number(trade.pnl) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(money(trade.pnl))}</span>`,
+        trade.pnl === null ? "n/a" : signedValueHtml(trade.pnl, money),
         escapeHtml(holdDurationLabel(trade.entry_time, trade.exit_time || new Date().toISOString())),
       ])).join("")
     : row([`<span class="muted">${ledger.rows.length ? "No trades match the active filters" : "No fills in selected period"}</span>`, "", "", "", "", "", "", ""]);
@@ -5099,8 +5133,8 @@ function renderPerformanceHome(context) {
   const benchmark = state.performanceBenchmarkDetail || {};
   const totalReturn = Number(periodPerf.total_return_pct);
   const returnClass = Number.isFinite(totalReturn)
-    ? totalReturn >= 0 ? "status-ok" : "status-bad"
-    : "status-unknown";
+    ? signedValueClass(totalReturn)
+    : "value-neutral";
   const result = source.has_data
     ? `${pctText(periodPerf.total_return_pct)} / ${money(periodPerf.final_equity)}`
     : "No performance data";
@@ -5305,9 +5339,9 @@ function renderPerformanceRollups() {
         escapeHtml(item.draft_id),
         `<span class="mono">${escapeHtml(item.run_id)}</span>`,
         escapeHtml(item.mode),
-        `<span class="${Number(item.daily_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.daily_return_pct))}</span>`,
-        escapeHtml(money(item.start_equity)),
-        escapeHtml(money(item.end_equity)),
+        signedValueHtml(item.daily_return_pct, pctText),
+        equityValueHtml(item.start_equity),
+        equityValueHtml(item.end_equity),
         escapeHtml(numberText(item.snapshot_count, 0)),
         escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
         escapeHtml(pctText(item.max_gross_exposure_pct)),
@@ -5517,9 +5551,9 @@ function renderStatusEquityRollups() {
         escapeHtml(item.day),
         escapeHtml(item.node_id),
         escapeHtml(text(item.mode)),
-        `<span class="${Number(item.daily_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.daily_return_pct))}</span>`,
-        escapeHtml(money(item.start_equity)),
-        escapeHtml(money(item.end_equity)),
+        signedValueHtml(item.daily_return_pct, pctText),
+        equityValueHtml(item.start_equity),
+        equityValueHtml(item.end_equity),
         escapeHtml(numberText(item.snapshot_count, 0)),
         escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
         escapeHtml(numberText(item.alert_count, 0)),
@@ -5533,9 +5567,9 @@ function renderStatusEquityRollups() {
     ? periodRows.map((item) => row([
         escapeHtml(item.periodLabel),
         escapeHtml(rangeLabel(item.first_day, item.last_day)),
-        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
-        escapeHtml(money(item.start_equity)),
-        escapeHtml(money(item.end_equity)),
+        signedValueHtml(item.total_return_pct, pctText),
+        equityValueHtml(item.start_equity),
+        equityValueHtml(item.end_equity),
         escapeHtml(numberText(item.day_count, 0)),
         escapeHtml(numberText(item.node_count, 0)),
         escapeHtml(numberText(item.snapshot_count, 0)),
@@ -5559,9 +5593,9 @@ function renderPerformancePeriodRollups() {
     ? rows.map((item) => row([
         escapeHtml(item.periodLabel),
         escapeHtml(rangeLabel(item.first_day, item.last_day)),
-        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
-        escapeHtml(money(item.start_equity)),
-        escapeHtml(money(item.end_equity)),
+        signedValueHtml(item.total_return_pct, pctText),
+        equityValueHtml(item.start_equity),
+        equityValueHtml(item.end_equity),
         escapeHtml(numberText(item.day_count, 0)),
         escapeHtml(numberText(item.run_count, 0)),
         escapeHtml(`${numberText(item.order_count, 0)}O / ${numberText(item.fill_count, 0)}F / ${numberText(item.rejection_count, 0)}R`),
@@ -10787,7 +10821,7 @@ function renderDataCompare() {
         escapeHtml(timeRangeLabel(item.first_timestamp, item.last_timestamp, timezoneMode)),
         escapeHtml(numberText(item.first_close)),
         escapeHtml(numberText(item.last_close)),
-        `<span class="${Number(item.total_return_pct) >= 0 ? "status-ok" : "status-bad"}">${escapeHtml(pctText(item.total_return_pct))}</span>`,
+        signedValueHtml(item.total_return_pct, pctText),
         escapeHtml(`${text(item.source)} ${text(item.bar_size)}`),
         `<span class="mono">${escapeHtml(item.path)}</span>`,
       ])).join("")
