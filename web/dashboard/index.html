@@ -119,6 +119,20 @@
             </select>
           </label>
           <button id="dashboard-jump-go" type="button">Go</button>
+          <label class="jump-field task-field">
+            <span>I want to</span>
+            <select id="dashboard-task">
+              <option value="monitor">Monitor today's run</option>
+              <option value="performance">Review performance</option>
+              <option value="data">Find saved data</option>
+              <option value="fetch">Recover a fetch job</option>
+              <option value="simulate">Build a simulation</option>
+              <option value="runs">Inspect runs and orders</option>
+              <option value="operations">Check runtime health</option>
+              <option value="publish">Publish safely</option>
+            </select>
+          </label>
+          <button id="dashboard-task-go" type="button">Start</button>
           <label class="token-field">
             <span>Token</span>
             <input id="auth-token" type="password" autocomplete="off">

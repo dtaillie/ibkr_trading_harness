@@ -580,6 +580,11 @@ strategy-private.
     page and focused lens, letting users open specific views such as Data
     Inspect, Workbench Run, Performance Trades, or Operations Remote without
     memorizing sidebar structure or hash routes.
+  - partial; the topbar now also includes an "I want to" task selector that
+    routes goal-oriented work such as monitoring today's run, reviewing
+    performance, finding saved data, recovering fetches, building simulations,
+    checking operations, and publishing safely to the right page/lens using
+    current public-safe state.
   - modern app-shell layout, restrained cards, clean spacing, readable tables
   - a cleaner top-level hierarchy so users are not forced through dense
     developer tables before seeing performance

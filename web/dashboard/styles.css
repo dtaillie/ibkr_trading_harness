@@ -1787,6 +1787,11 @@ section {
   margin-top: 22px;
 }
 
+.task-field,
+.task-field select {
+  min-width: 170px;
+}
+
 #data-inventory-actions a,
 #data-history-actions a,
 #workbench-simulation-actions a,

@@ -1190,6 +1190,31 @@ function jumpToDashboardTarget(value) {
   navigateToViewTarget(targetView, lens);
 }
 
+function dashboardTaskTarget(value) {
+  const payload = state.status || {};
+  const runs = payload.runs || [];
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const source = latestArtifactPerformance();
+  const task = String(value || "").trim();
+  const targets = {
+    monitor: ["overview", runs.length ? "home" : "diagnostics"],
+    performance: ["performance", source.has_data || runs.length ? "home" : "diagnostics"],
+    data: ["data", datasets.length ? "browse" : "diagnostics"],
+    fetch: ["fetch", manifests.length ? "jobs" : "home"],
+    simulate: ["workbench", datasets.length ? "builder" : "home"],
+    runs: ["runs", runs.length ? "state" : "runs"],
+    operations: ["operations", "paper"],
+    publish: ["help", "boundary"],
+  };
+  return targets[task] || targets.monitor;
+}
+
+function startDashboardTask(value) {
+  const [targetView, lens] = dashboardTaskTarget(value);
+  navigateToViewTarget(targetView, lens);
+}
+
 function renderRouteBreadcrumb(view = activeView()) {
   const targetView = normalizeView(view);
   const lens = currentRouteLens(targetView);
@@ -21152,6 +21177,8 @@ function init() {
   }
   $("dashboard-jump-go").addEventListener("click", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
+  $("dashboard-task-go").addEventListener("click", () => startDashboardTask($("dashboard-task").value));
+  $("dashboard-task").addEventListener("change", () => startDashboardTask($("dashboard-task").value));
   $("page-route-crumbs").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("[data-route-action]") : null;
     if (!(target instanceof HTMLElement)) return;
