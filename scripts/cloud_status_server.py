@@ -232,7 +232,7 @@ CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
 CONFIG_FORM_SCHEMA_VERSION = 4
-CONFIG_GUIDE_SCHEMA_VERSION = 1
+CONFIG_GUIDE_SCHEMA_VERSION = 2
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
@@ -325,7 +325,7 @@ CONFIG_BUILDER_FORM_SECTIONS = (
 )
 CONFIG_BUILDER_GUIDE_STEPS = (
     {"id": "data", "label": "Choose Data", "help": "Select one or more scanned saved datasets.", "order": 10},
-    {"id": "quality", "label": "Review Quality", "help": "Review catalog quality warnings before replay.", "order": 20},
+    {"id": "quality", "label": "Review Data", "help": "Review catalog quality warnings and storage-contract metadata before replay.", "order": 20},
     {"id": "range", "label": "Choose Range", "help": "Optionally narrow replay to a date window.", "order": 30},
     {"id": "alignment", "label": "Inspect Alignment", "help": "Preview timestamp overlap across selected files.", "order": 40},
     {"id": "draft", "label": "Generate Draft", "help": "Generate and validate a public-safe runner config.", "order": 50},

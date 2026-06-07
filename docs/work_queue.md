@@ -1293,6 +1293,9 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; `/config_options` now exposes `guide_schema_version` and
     `guide_steps`, and the Workbench guide consumes backend step labels/order
     while keeping dynamic readiness details in the frontend.
+  - partial; the guide schema is now v2 and labels the old `quality` step as
+    Review Data, with help text that covers both catalog quality warnings and
+    storage-contract metadata before replay.
   - partial; Workbench guide rows now include compact action buttons that jump
     to the relevant schema-rendered form control, quality section, alignment
     preview, draft/run form, or results table, making the guide an actionable
