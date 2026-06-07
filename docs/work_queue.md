@@ -255,6 +255,13 @@ strategy-private.
     - partial; current equity, cash, exposure, and open positions are shown
       when account artifacts or telemetry publish them. Realized/unrealized PnL
       still needs richer account/position telemetry.
+    - partial; generic runner account snapshots now include estimated equity
+      when paper broker adapters supply cash/positions but no equity, plus
+      `equity_source`, gross/net exposure percentages, position count, price
+      count, priced/unpriced position counts, and `pricing_status`. Run
+      Artifacts surfaces the equity source and pricing coverage beside account
+      snapshots. Real broker account reconciliation still needs paper/live
+      validation.
     - partial; simulated-paper account artifacts now publish realized PnL,
       unrealized PnL, total PnL, total commission, and average costs, and the
       Overview/Performance pages display realized/unrealized PnL when those
@@ -330,6 +337,12 @@ strategy-private.
       curve derived from account snapshots. Runner telemetry still needs to
       publish richer live minute/account snapshots for this to be useful in all
       paper/live modes.
+    - partial; generic runner account snapshots now publish estimated equity,
+      equity source, exposure percentages, and pricing coverage in replay,
+      simulated-paper, and paper/file-broker modes, and sanitized artifact
+      endpoints preserve those fields. Remaining usefulness depends on each real
+      broker adapter publishing reliable cash, positions, and price context at
+      the desired cadence.
   - open/closed trade table
     - done for selected archived artifacts with sanitized fills
     - partial; Performance now adds open/closed/win-rate/shown summary cards

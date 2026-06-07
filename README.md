@@ -202,8 +202,11 @@ metadata:
 
 The generic runner writes `decisions.jsonl`, `orders.jsonl`, `fills.jsonl`,
 `account.jsonl`, and `summary.json` under the configured output directory.
-`account.jsonl` records per-step cash, equity, positions, and exposure, while
-`summary.json` includes account snapshot count, total return, max drawdown,
+`account.jsonl` records per-step cash, equity, positions, exposure, equity
+source, exposure percentages, and position-pricing coverage. Paper adapters that
+provide cash and positions but not equity are marked as
+`estimated_from_cash_and_prices`. `summary.json` includes account snapshot count,
+total return, max drawdown,
 elapsed account-observation time, and geometric return projections per day,
 month, and year when those values are available. Short run windows are marked
 as short-horizon projections so they are treated as context, not stable

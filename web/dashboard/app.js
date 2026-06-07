@@ -19365,18 +19365,20 @@ function renderWorkbenchArtifacts() {
     ? `${numberText(account.length, 0)} sanitized account snapshot${account.length === 1 ? "" : "s"}`
     : "No account snapshots in this artifact";
   $("artifact-account-body").innerHTML = account.length
-    ? account.map((snapshot) => row([
-        escapeHtml(snapshot.timestamp),
-        escapeHtml(text(snapshot.step)),
-        escapeHtml(text(snapshot.mode)),
-        escapeHtml(money(snapshot.cash)),
-        escapeHtml(money(snapshot.equity)),
-        escapeHtml(money(snapshot.gross_exposure)),
-        escapeHtml(money(snapshot.net_exposure)),
-        jsonDrilldown(snapshot.positions || {}, `${numberText(nonzeroObjectCount(snapshot.positions), 0)} open`),
-        positionSnapshotDrilldown(snapshot),
-      ])).join("")
-    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
+	    ? account.map((snapshot) => row([
+	        escapeHtml(snapshot.timestamp),
+	        escapeHtml(text(snapshot.step)),
+	        escapeHtml(text(snapshot.mode)),
+	        escapeHtml(money(snapshot.cash)),
+	        escapeHtml(money(snapshot.equity)),
+	        statusText(snapshot.equity_source === "provided" ? "ok" : snapshot.equity_source === "estimated_from_cash_and_prices" ? "warn" : "unknown", { suffix: ` ${text(snapshot.equity_source)}` }),
+	        escapeHtml(money(snapshot.gross_exposure)),
+	        escapeHtml(money(snapshot.net_exposure)),
+	        `${statusText(snapshot.pricing_status === "ok" || snapshot.pricing_status === "flat" ? "ok" : snapshot.pricing_status === "partial" ? "warn" : "unknown", { suffix: ` ${text(snapshot.pricing_status)}` })}<br><span class="muted">${escapeHtml(numberText(snapshot.priced_position_count, 0))}/${escapeHtml(numberText(snapshot.position_count, 0))} priced, ${escapeHtml(numberText(snapshot.price_count, 0))} prices</span>`,
+	        jsonDrilldown(snapshot.positions || {}, `${numberText(nonzeroObjectCount(snapshot.positions), 0)} open`),
+	        positionSnapshotDrilldown(snapshot),
+	      ])).join("")
+	    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderRuns() {

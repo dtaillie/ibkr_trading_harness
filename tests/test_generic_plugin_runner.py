@@ -268,6 +268,13 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[0]["cash"] == pytest.approx(9000.0)
     assert account[0]["equity"] == pytest.approx(10000.0)
+    assert account[0]["equity_source"] == "provided"
+    assert account[0]["gross_exposure_pct"] == pytest.approx(10.0)
+    assert account[0]["net_exposure_pct"] == pytest.approx(10.0)
+    assert account[0]["position_count"] == 1
+    assert account[0]["priced_position_count"] == 1
+    assert account[0]["unpriced_position_count"] == 0
+    assert account[0]["pricing_status"] == "ok"
     assert account[0]["average_costs"]["SPY"] == pytest.approx(100.0)
     assert account[0]["unrealized_pnl"] == pytest.approx(0.0)
     assert account[-1]["unrealized_pnl"] == pytest.approx(20.0)
@@ -1145,6 +1152,16 @@ def test_paper_mode_can_use_file_broker_adapter(tmp_path):
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["simulated"] is False
     assert fills[0]["price"] == pytest.approx(100.0)
+    account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
+    assert account[-1]["cash"] == pytest.approx(800.0)
+    assert account[-1]["equity"] == pytest.approx(1004.0)
+    assert account[-1]["equity_source"] == "estimated_from_cash_and_prices"
+    assert account[-1]["gross_exposure"] == pytest.approx(204.0)
+    assert account[-1]["gross_exposure_pct"] == pytest.approx(20.318725)
+    assert account[-1]["position_count"] == 1
+    assert account[-1]["priced_position_count"] == 1
+    assert account[-1]["unpriced_position_count"] == 0
+    assert account[-1]["pricing_status"] == "ok"
     broker_rows = [json.loads(line) for line in broker_orders.read_text().splitlines()]
     assert broker_rows[0]["status"] == "filled"
 

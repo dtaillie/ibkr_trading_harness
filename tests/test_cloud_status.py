@@ -4706,6 +4706,18 @@ def test_cloud_status_server_serves_order_preview_artifacts(tmp_path):
 def test_cloud_status_server_preserves_public_safe_position_accounting():
     row = status_server.summarize_account_artifact({
         "timestamp": "2026-01-02T14:30:00+00:00",
+        "cash": 800.0,
+        "equity": 1004.0,
+        "equity_source": "estimated_from_cash_and_prices",
+        "gross_exposure": 204.0,
+        "net_exposure": 204.0,
+        "gross_exposure_pct": 20.3187,
+        "net_exposure_pct": 20.3187,
+        "position_count": 1,
+        "price_count": 1,
+        "priced_position_count": 1,
+        "unpriced_position_count": 0,
+        "pricing_status": "ok",
         "positions": {"SPY": 2},
         "position_values": {"SPY": 204.0},
         "average_costs": {"SPY": 100.0},
@@ -4732,6 +4744,13 @@ def test_cloud_status_server_preserves_public_safe_position_accounting():
     })
 
     assert row["positions"] == {"SPY": 2}
+    assert row["equity_source"] == "estimated_from_cash_and_prices"
+    assert row["gross_exposure_pct"] == 20.3187
+    assert row["position_count"] == 1
+    assert row["price_count"] == 1
+    assert row["priced_position_count"] == 1
+    assert row["unpriced_position_count"] == 0
+    assert row["pricing_status"] == "ok"
     assert row["position_values"] == {"SPY": 204.0}
     assert row["average_costs"] == {"SPY": 100.0}
     assert row["unrealized_pnl_by_symbol"] == {"SPY": 4.0}

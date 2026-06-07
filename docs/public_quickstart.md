@@ -351,7 +351,9 @@ artifact with equity, return, drawdown, exposure, an equity curve, drawdown
 curve, daily return bars, and a calendar-style daily return heatmap when
 account snapshots are available. It also shows the active source, mode, latest
 account timestamp, open position count, and decision/order/fill/reject activity
-above the charts. Use the Period selector to narrow artifact
+above the charts. Run Artifacts account rows also show whether equity was
+provided by the broker/simulator or estimated from cash plus priced positions,
+and how many open positions had current prices. Use the Period selector to narrow artifact
 charts and KPIs to today, week, month, 3 months, or all available snapshots.
 Overview Home includes a Strategy Health Report that summarizes telemetry,
 runtime loop, alerts/orders, execution state, account/positions, saved data,

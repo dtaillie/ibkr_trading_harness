@@ -166,6 +166,11 @@ or cloud-side monitoring scripts.
 The Live/Paper Status Rollups section also charts end-of-day equity by node and
 recent daily status-history returns, which is the quickest view when the
 strategy is publishing status but no archived artifact is loaded.
+When inspecting Run Artifacts account snapshots, check `Equity Src` and
+`Pricing` before trusting equity or exposure curves. `provided` means the broker
+or simulator supplied equity; `estimated_from_cash_and_prices` means the runner
+estimated equity from cash plus currently priced positions. Partial pricing
+means one or more open positions lacked a current price in that snapshot.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.

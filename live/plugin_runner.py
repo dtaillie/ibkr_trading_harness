@@ -976,22 +976,54 @@ def account_snapshot_record(
     accounting: dict[str, Any] | None = None,
     position_details: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    position_values = {
-        symbol: float(qty) * float(prices.get(symbol, 0.0))
+    clean_positions = {
+        symbol: finite_float(qty)
         for symbol, qty in positions.items()
+        if finite_float(qty) is not None
     }
+    active_positions = {
+        symbol: qty
+        for symbol, qty in clean_positions.items()
+        if qty not in (None, 0.0)
+    }
+    clean_prices = {
+        symbol: finite_float(price)
+        for symbol, price in prices.items()
+        if finite_float(price) is not None
+    }
+    position_values = {
+        symbol: float(qty) * float(clean_prices.get(symbol, 0.0) or 0.0)
+        for symbol, qty in clean_positions.items()
+        if qty is not None
+    }
+    priced_position_count = sum(1 for symbol in active_positions if clean_prices.get(symbol) is not None)
+    unpriced_position_count = max(0, len(active_positions) - priced_position_count)
     gross_exposure = sum(abs(value) for value in position_values.values())
     net_exposure = sum(position_values.values())
+    cash_value = finite_float(cash)
+    supplied_equity = finite_float(equity)
+    estimated_equity = finite_float(cash_value + net_exposure) if cash_value is not None else None
+    equity_value = supplied_equity if supplied_equity is not None else estimated_equity
+    equity_source = "provided" if supplied_equity is not None else "estimated_from_cash_and_prices" if estimated_equity is not None else "missing"
+    pricing_status = "ok" if active_positions and not unpriced_position_count else "partial" if unpriced_position_count else "flat"
     record = {
         "timestamp": now,
         "step": step,
         "mode": mode,
-        "cash": finite_float(cash),
-        "equity": finite_float(equity),
-        "positions": {symbol: finite_float(qty) for symbol, qty in positions.items()},
+        "cash": cash_value,
+        "equity": equity_value,
+        "equity_source": equity_source,
+        "positions": clean_positions,
         "position_values": {symbol: finite_float(value) for symbol, value in position_values.items()},
         "gross_exposure": finite_float(gross_exposure),
         "net_exposure": finite_float(net_exposure),
+        "gross_exposure_pct": finite_float((gross_exposure / equity_value) * 100.0) if equity_value else None,
+        "net_exposure_pct": finite_float((net_exposure / equity_value) * 100.0) if equity_value else None,
+        "position_count": len(active_positions),
+        "price_count": len(clean_prices),
+        "priced_position_count": priced_position_count,
+        "unpriced_position_count": unpriced_position_count,
+        "pricing_status": pricing_status,
     }
     if position_details:
         record["position_details"] = position_details
