@@ -4136,6 +4136,15 @@ def build_data_symbol_diagnostic(
             "in_catalog_scope": True,
             "symbol": row.get("symbol"),
             "quality_status": row.get("quality_status"),
+            "quality_warning_count": row.get("quality_warning_count"),
+            "quality_warnings": row.get("quality_warnings"),
+            "storage_contract_status": row.get("storage_contract_status"),
+            "storage_contract_warning_count": row.get("storage_contract_warning_count"),
+            "storage_contract_warnings": row.get("storage_contract_warnings"),
+            "timestamp_parse_failures": row.get("timestamp_parse_failures"),
+            "duplicate_timestamps": row.get("duplicate_timestamps"),
+            "source_timezone": row.get("source_timezone"),
+            "normalized_timezone": row.get("normalized_timezone"),
             "rows": row.get("rows"),
             "bar_size": row.get("bar_size"),
             "first_timestamp": row.get("first_timestamp"),
@@ -4157,6 +4166,15 @@ def build_data_symbol_diagnostic(
                 row.update({
                     "symbol": summary.get("symbol"),
                     "quality_status": summary.get("quality_status"),
+                    "quality_warning_count": summary.get("quality_warning_count"),
+                    "quality_warnings": summary.get("quality_warnings"),
+                    "storage_contract_status": summary.get("storage_contract_status"),
+                    "storage_contract_warning_count": summary.get("storage_contract_warning_count"),
+                    "storage_contract_warnings": summary.get("storage_contract_warnings"),
+                    "timestamp_parse_failures": summary.get("timestamp_parse_failures"),
+                    "duplicate_timestamps": summary.get("duplicate_timestamps"),
+                    "source_timezone": summary.get("source_timezone"),
+                    "normalized_timezone": summary.get("normalized_timezone"),
                     "rows": summary.get("rows"),
                     "bar_size": summary.get("bar_size"),
                     "first_timestamp": summary.get("first_timestamp"),
@@ -4211,6 +4229,39 @@ def build_data_symbol_diagnostic(
         status = "not_found"
         message = f"No configured or suggested saved-data file was found for {cleaned}."
         action = "Fetch the symbol or add the directory containing it to dashboard.data_roots."
+    visible_quality_reviews = [
+        row for row in catalog_matches
+        if row.get("quality_status") in {"warn", "bad"}
+    ]
+    visible_contract_reviews = [
+        row for row in catalog_matches
+        if row.get("storage_contract_status") in {"warn", "bad"}
+    ]
+    visible_timestamp_reviews = [
+        row for row in catalog_matches
+        if row.get("timestamp_parse_failures") or row.get("duplicate_timestamps") or row.get("normalized_timezone") != "UTC"
+    ]
+    diagnostic_status = (
+        "bad" if status in {"parse_error", "not_found"} or visible_quality_reviews and any(row.get("quality_status") == "bad" for row in visible_quality_reviews)
+        else "warn" if status != "visible" or visible_quality_reviews or visible_contract_reviews or visible_timestamp_reviews
+        else "ok"
+    )
+    diagnostic_summary = {
+        "status": diagnostic_status,
+        "visible_match_count": len(catalog_matches),
+        "configured_candidate_count": len(configured_candidates),
+        "configured_resolved_count": len(configured_resolved),
+        "unconfigured_match_count": len(unconfigured_matches),
+        "parse_error_count": len(parse_errors),
+        "limit_blocked_count": len(limit_blocked),
+        "fetch_manifest_row_count": len(fetch_rows),
+        "fetch_error_count": sum(1 for row in fetch_rows if row.get("type") == "error"),
+        "visible_quality_review_count": len(visible_quality_reviews),
+        "visible_storage_contract_review_count": len(visible_contract_reviews),
+        "visible_timestamp_review_count": len(visible_timestamp_reviews),
+        "root_inventory_status": (catalog.get("root_inventory") or {}).get("status"),
+        "root_inventory_primary_issue": (catalog.get("root_inventory") or {}).get("primary_issue"),
+    }
     return {
         "generated_at": utc_now(),
         "symbol": cleaned,
@@ -4218,6 +4269,8 @@ def build_data_symbol_diagnostic(
         "message": message,
         "action": action,
         "catalog_limit": catalog_limit,
+        "diagnostic_summary": diagnostic_summary,
+        "root_inventory": catalog.get("root_inventory"),
         "catalog_matches": catalog_matches,
         "configured_candidates": configured_candidates,
         "unconfigured_matches": unconfigured_matches,

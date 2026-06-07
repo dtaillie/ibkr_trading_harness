@@ -867,6 +867,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     or the source returned no data
     - partial; the symbol diagnostic now checks configured roots, suggested
       roots, parse errors, catalog scan limit, and fetch manifest clues
+    - partial; symbol diagnostics now include a `diagnostic_summary`,
+      `root_inventory`, and per-candidate quality/timestamp/storage-contract
+      fields, so a visible but malformed dataset is distinguished from
+      root/configuration, parser, catalog-limit, and fetch-failure misses.
 - Expand data-root configuration for the dashboard:
   - support multiple roots in config and CLI
   - include real cache roots in private/local config

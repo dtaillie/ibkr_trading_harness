@@ -13531,18 +13531,26 @@ function handleDataCoverageAssistantAction(action) {
 
 function renderSymbolDiagnostic() {
   const diagnostic = state.symbolDiagnostic || {};
+  const summary = diagnostic.diagnostic_summary || {};
   $("data-symbol-diagnostic-status").innerHTML = diagnostic.status
-    ? statusText(diagnostic.status === "visible" ? "ok" : diagnostic.status === "not_found" ? "bad" : "warn")
+    ? statusText(summary.status || (diagnostic.status === "visible" ? "ok" : diagnostic.status === "not_found" ? "bad" : "warn"))
     : "No symbol checked";
   const pairs = diagnostic.symbol
     ? [
         ["Symbol", diagnostic.symbol],
         ["Status", diagnostic.status],
+        ["Diagnostic", summary.status || "n/a"],
         ["Finding", diagnostic.message],
         ["Next Step", diagnostic.action],
-        ["Catalog Matches", numberText((diagnostic.catalog_matches || []).length, 0)],
-        ["Configured Candidates", numberText((diagnostic.configured_candidates || []).length, 0)],
-        ["Unconfigured Matches", numberText((diagnostic.unconfigured_matches || []).length, 0)],
+        ["Catalog Matches", numberText(summary.visible_match_count ?? (diagnostic.catalog_matches || []).length, 0)],
+        ["Configured Candidates", numberText(summary.configured_candidate_count ?? (diagnostic.configured_candidates || []).length, 0)],
+        ["Unconfigured Matches", numberText(summary.unconfigured_match_count ?? (diagnostic.unconfigured_matches || []).length, 0)],
+        ["Parser Errors", numberText(summary.parse_error_count, 0)],
+        ["Catalog Limit Blocks", numberText(summary.limit_blocked_count, 0)],
+        ["Quality Reviews", numberText(summary.visible_quality_review_count, 0)],
+        ["Timestamp Reviews", numberText(summary.visible_timestamp_review_count, 0)],
+        ["Storage Reviews", numberText(summary.visible_storage_contract_review_count, 0)],
+        ["Root Inventory", `${text(summary.root_inventory_status || "unknown")} - ${text(summary.root_inventory_primary_issue || "n/a")}`],
       ]
     : [["How to use", "Enter a ticker to explain whether saved data is visible, outside the scan limit, in an unconfigured root, malformed, or only present in fetch errors."]];
   $("data-symbol-diagnostic-summary").innerHTML = pairs.map(([key, value]) => (
@@ -13560,7 +13568,12 @@ function renderSymbolDiagnostic() {
         escapeHtml(item.symbol || "n/a"),
         escapeHtml(numberText(item.rows, 0)),
         escapeHtml(rangeLabel(item.first_timestamp, item.last_timestamp)),
-        escapeHtml(item.error || item.quality_status || ""),
+        escapeHtml(item.error || [
+          item.quality_status ? `Q ${item.quality_status}` : "",
+          item.storage_contract_status ? `contract ${item.storage_contract_status}` : "",
+          item.timestamp_parse_failures ? `${numberText(item.timestamp_parse_failures, 0)} ts fail` : "",
+          item.duplicate_timestamps ? `${numberText(item.duplicate_timestamps, 0)} dup ts` : "",
+        ].filter(Boolean).join(" / ")),
       ])).join("")
     : row([`<span class="muted">No matching files checked</span>`, "", "", "", "", ""]);
 

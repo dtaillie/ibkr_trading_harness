@@ -2438,8 +2438,51 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
             diagnostic = json.loads(resp.read().decode("utf-8"))
         assert diagnostic["symbol"] == "SPY"
         assert diagnostic["status"] == "visible"
+        assert diagnostic["diagnostic_summary"]["status"] == "warn"
+        assert diagnostic["diagnostic_summary"]["visible_match_count"] == 1
+        assert diagnostic["diagnostic_summary"]["visible_storage_contract_review_count"] == 1
+        assert diagnostic["diagnostic_summary"]["root_inventory_status"] == "bad"
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
+        assert diagnostic["catalog_matches"][0]["storage_contract_status"] == "warn"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_symbol_diagnostic_flags_visible_bad_timestamp_file(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "BAD_5min_sample.csv").write_text(
+        "\n".join(
+            [
+                "not_time,price,volume",
+                "abc,100,10",
+                "def,101,11",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_symbol_diagnostic?symbol=BAD&limit=5", timeout=5) as resp:
+            diagnostic = json.loads(resp.read().decode("utf-8"))
+
+        assert diagnostic["status"] == "visible"
+        assert diagnostic["diagnostic_summary"]["status"] == "bad"
+        assert diagnostic["diagnostic_summary"]["visible_quality_review_count"] == 1
+        assert diagnostic["diagnostic_summary"]["visible_timestamp_review_count"] == 1
+        assert diagnostic["diagnostic_summary"]["visible_storage_contract_review_count"] == 1
+        assert diagnostic["root_inventory"]["status"] == "ok"
+        match = diagnostic["catalog_matches"][0]
+        assert match["quality_status"] == "bad"
+        assert "no timestamp column or DatetimeIndex found" in match["quality_warnings"]
+        assert match["storage_contract_status"] == "bad"
+        assert diagnostic["configured_candidates"][0]["normalized_timezone"] is None
     finally:
         server.shutdown()
         server.server_close()
