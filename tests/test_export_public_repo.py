@@ -34,6 +34,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "README.md").exists()
     assert (dest / "scripts" / "export_public_repo.py").exists()
     assert (dest / "scripts" / "audit_cloud_examples.py").exists()
+    assert (dest / "scripts" / "public_publish_check.py").exists()
     assert (dest / "scripts" / "smoke_dashboard.py").exists()
     assert (dest / "tests" / "test_cloud_examples_audit.py").exists()
     assert (dest / "ops" / "cloud" / "status-receiver.Dockerfile.example").exists()
@@ -77,6 +78,7 @@ def test_export_public_repo_lists_public_manifest_without_writing_destination(tm
     assert "README.public.md" not in rows
     assert "web/dashboard/app.js" in rows
     assert "scripts/export_public_repo.py" in rows
+    assert "scripts/public_publish_check.py" in rows
     assert "config/plugin_runner.example.yaml" in rows
     assert not any(row.startswith("paper_logs/") for row in rows)
     assert not any(row.startswith("private/") for row in rows)

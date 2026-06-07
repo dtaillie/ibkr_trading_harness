@@ -902,6 +902,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "help-start-panel" in html
         assert "help-workflows" in html
         assert "help-public-checklist" in html
+        assert "help-public-check-command" in html
         assert "help-public-list-command" in html
         assert "help-public-list-json-command" in html
         assert "help-public-audit-command" in html

@@ -75,6 +75,7 @@ COPY_FILES = [
     "scripts/export_public_repo.py",
     "scripts/is_us_stock_market_day.py",
     "scripts/plugin_supervisor.py",
+    "scripts/public_publish_check.py",
     "scripts/publish_status.py",
     "scripts/public_readiness_audit.py",
     "scripts/smoke_dashboard_accessibility.py",
@@ -96,6 +97,7 @@ COPY_FILES = [
     "tests/test_market_calendar.py",
     "tests/test_plugin_supervisor.py",
     "tests/test_plugin_run_summary.py",
+    "tests/test_public_publish_check.py",
     "tests/test_strategy_plugin_example.py",
     "tests/test_public_readiness_audit.py",
 ]

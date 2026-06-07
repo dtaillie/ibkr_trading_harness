@@ -53,6 +53,16 @@ findings fail the check:
 python3 scripts/public_readiness_audit.py --fail-on-review
 ```
 
+For a consolidated local pre-publish gate in the exported public repo, run:
+
+```bash
+python3 scripts/public_publish_check.py
+```
+
+Use `--list --json` to inspect the exact checks without running them, and
+`--include-screenshots` when you want the slower screenshot layout checks
+included in the gate.
+
 Use `scripts/export_public_repo.py --dest ../algo_trade_public --force` for a
 repeatable public copy. If the destination is already a Git repo, `--force`
 preserves its `.git` directory while replacing the exported working-tree files.
@@ -113,6 +123,12 @@ python3 scripts/smoke_dashboard.py --scenario empty
 python3 scripts/smoke_dashboard_accessibility.py
 python3 scripts/smoke_dashboard_screenshots.py --check-layout
 python3 scripts/smoke_dashboard_screenshots.py --scenario empty --check-layout
+```
+
+Or run the consolidated gate and then do the manual review:
+
+```bash
+python3 scripts/public_publish_check.py --include-screenshots
 ```
 
 Then manually inspect:

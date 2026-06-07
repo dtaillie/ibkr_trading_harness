@@ -373,14 +373,18 @@ Do not commit:
 Run this before publishing:
 
 ```bash
-python3 scripts/public_readiness_audit.py
+python3 scripts/public_publish_check.py
 ```
 
-Use strict mode in CI or before pushing a public branch:
+Use strict audit mode directly when you want only the sensitive-file gate:
 
 ```bash
 python3 scripts/public_readiness_audit.py --fail-on-review
 ```
+
+Use `python3 scripts/public_publish_check.py --list --json` to inspect the
+full gate without running it, and add `--include-screenshots` for the slower
+dashboard layout screenshot checks.
 
 The private source tree can regenerate this public subset with
 `scripts/export_public_repo.py --force`. Repeated exports preserve the
