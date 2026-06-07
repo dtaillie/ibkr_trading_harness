@@ -550,6 +550,9 @@ strategy-private.
       clearer active navigation, sticky desktop topbar, softened cards/tables,
       and mobile-safe nav/topbar behavior to make the dashboard feel less like
       a raw status dump while preserving the existing public-safe layout.
+    - partial; desktop navigation now gives every top-level view a short
+      plain-language purpose line while mobile keeps compact one-line tabs, so
+      the app shell is easier to scan without crowding small screens.
   - modern app-shell layout, restrained cards, clean spacing, readable tables
   - a cleaner top-level hierarchy so users are not forced through dense
     developer tables before seeing performance

@@ -104,11 +104,13 @@ body {
 
 .nav-link {
   position: relative;
+  display: grid;
   justify-content: flex-start;
+  gap: 3px;
   min-height: 38px;
   border: 0;
   border-radius: var(--radius-md);
-  padding: 8px 10px;
+  padding: 9px 10px;
   color: var(--text);
   background: transparent;
   text-align: left;
@@ -116,11 +118,37 @@ body {
   transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
+.nav-link strong,
+.nav-link small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-link strong {
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.nav-link small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  transition: color 0.16s ease;
+}
+
 .nav-link:hover,
 .nav-link.active {
   color: var(--accent-dark);
   background: var(--accent-soft);
   filter: none;
+}
+
+.nav-link:hover small,
+.nav-link.active small {
+  color: var(--accent-dark);
 }
 
 .nav-link.active {
@@ -4230,6 +4258,7 @@ footer {
 
   .nav-link {
     flex: 0 0 auto;
+    display: block;
     min-width: max-content;
     min-height: 36px;
     padding: 8px 12px;
@@ -4239,6 +4268,14 @@ footer {
     box-shadow: var(--surface-shadow);
     scroll-snap-align: start;
     white-space: nowrap;
+  }
+
+  .nav-link strong {
+    font-size: 13px;
+  }
+
+  .nav-link small {
+    display: none;
   }
 
   .nav-link.active {
