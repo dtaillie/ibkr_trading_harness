@@ -155,6 +155,10 @@ strategy is publishing status but no archived artifact is loaded.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+Start with Event Flow Report on Runs Home or Runs Events when you need the
+plain-language path through the recent timeline: it explains active filters,
+execution issues, decision/order/fill mix, latest event, run/symbol coverage,
+and the next inspection action before the dense event table.
 Use the Runs workflow cards first when you know the review job: Current State,
 Open Orders, Positions, Event Timeline, Run Search, or Loaded Artifacts. They
 route directly into the focused Runs, Performance, or Workbench views behind

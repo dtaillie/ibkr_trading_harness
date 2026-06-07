@@ -428,7 +428,10 @@ also include the backend-generated `resume_command`, so copied dashboard
 commands and offline exports point at the same manifest file.
 Runs shows searchable saved-run comparisons, recent run-event telemetry,
 current managed positions, and recent non-terminal order events when runners
-publish them. Operations shows node health, Gateway reachability,
+publish them. Runs Home and Runs Events include a copyable Event Flow Report
+that summarizes filters, execution issues, decision/order/fill mix, latest
+event, run/symbol coverage, and the next inspection action before dense event
+rows. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. The Remote Monitor Report summarizes remote node coverage, heartbeat,
 Gateway/API state, alerts, open orders, stale data/account timestamps, and next

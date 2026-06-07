@@ -19002,6 +19002,7 @@ function renderRunEvents() {
   renderRunEventFilterOptions(allEvents);
   const events = sortedRunEvents(filteredRunEvents(allEvents));
   renderRunsEventsAssistant(allEvents, events);
+  renderRunsEventFlowReport(allEvents, events);
   $("run-events-note").textContent = `${numberText(events.length, 0)} shown / ${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"}`;
   $("run-events-body").innerHTML = events.length
     ? events.map((event) => row([
@@ -19148,6 +19149,193 @@ function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
       <span>${statusText(item.status)}</span>
     </button>
   `).join("");
+}
+
+function runsEventFlowModel(allEvents = [], visibleEvents = []) {
+  const filters = {
+    text: ($("run-events-filter-text").value || "").trim(),
+    type: $("run-events-filter-type").value || "",
+    status: $("run-events-filter-status").value || "",
+    sort: $("run-events-filter-sort").value || "time_desc",
+  };
+  const runs = (state.status && state.status.runs) || [];
+  const savedRuns = (state.configRuns && state.configRuns.runs) || [];
+  const artifacts = state.configArtifacts || {};
+  const filteredOut = Math.max(0, allEvents.length - visibleEvents.length);
+  const latest = visibleEvents[0] || allEvents[0] || null;
+  const badEvents = visibleEvents.filter(eventStatusIsBad);
+  const allBadEvents = allEvents.filter(eventStatusIsBad);
+  const decisions = visibleEvents.filter((event) => event.type === "decision");
+  const orders = visibleEvents.filter((event) => event.type === "order");
+  const fills = visibleEvents.filter((event) => event.type === "fill");
+  const symbols = new Set(visibleEvents.map((event) => text(event.symbol)).filter((value) => value && value !== "n/a"));
+  const runIds = new Set(visibleEvents.map((event) => text(event.run_id)).filter((value) => value && value !== "n/a"));
+  const issueSymbols = new Set(badEvents.map((event) => text(event.symbol)).filter((value) => value && value !== "n/a"));
+  const typeCounts = countBy(visibleEvents, "type");
+  const statusCounts = countBy(visibleEvents, "status");
+  const runCounts = countBy(visibleEvents, "run_id");
+  const symbolCounts = countBy(visibleEvents, "symbol");
+  const activeFilters = [
+    filters.text ? `search ${filters.text}` : "",
+    filters.type ? `type ${filters.type}` : "",
+    filters.status ? `status ${filters.status}` : "",
+  ].filter(Boolean);
+  let status = "bad";
+  let headline = "No event flow visible";
+  let nextAction = "Start or publish a runner, or load a Workbench artifact with decisions/orders/fills.";
+  if (visibleEvents.length) {
+    if (badEvents.length) {
+      status = "bad";
+      headline = "Execution issues need review";
+      nextAction = "Filter to issues first, then inspect the affected run, symbol, order status, and broker/account boundary.";
+    } else if (fills.length) {
+      status = "ok";
+      headline = "Fills are visible";
+      nextAction = "Open fills or Performance Trades to connect executions to account/equity outcomes.";
+    } else if (orders.length) {
+      status = "warn";
+      headline = "Orders without fills visible";
+      nextAction = "Review order statuses and open-order state before trusting the run outcome.";
+    } else {
+      status = "ok";
+      headline = "Decision timeline visible";
+      nextAction = "Read decision rows for signal/no-order context, then inspect orders/fills if they appear.";
+    }
+  } else if (allEvents.length) {
+    status = "warn";
+    headline = "Filters hide every event";
+    nextAction = "Clear event filters or broaden the search to recover the recent timeline.";
+  } else if (runs.length || savedRuns.length || artifacts.run_id || artifacts.draft_id) {
+    status = "warn";
+    headline = "Runs exist but no recent event rows";
+    nextAction = "Open a saved artifact or verify runners publish bounded recent decisions, orders, and fills.";
+  }
+  const cards = [
+    {
+      status: visibleEvents.length ? "ok" : allEvents.length ? "warn" : "bad",
+      label: "Visible Flow",
+      title: `${numberText(visibleEvents.length, 0)} / ${numberText(allEvents.length, 0)}`,
+      note: filteredOut ? `${numberText(filteredOut, 0)} event${filteredOut === 1 ? "" : "s"} hidden by filters.` : "All recent events are visible.",
+    },
+    {
+      status: badEvents.length ? "bad" : allBadEvents.length ? "warn" : visibleEvents.length ? "ok" : "bad",
+      label: "Issues",
+      title: numberText(badEvents.length, 0),
+      note: badEvents.length
+        ? `${numberText(issueSymbols.size, 0)} affected symbol${issueSymbols.size === 1 ? "" : "s"} in the visible set.`
+        : allBadEvents.length ? `${numberText(allBadEvents.length, 0)} issue event${allBadEvents.length === 1 ? "" : "s"} hidden by filters.` : "No rejected/canceled/failed/error statuses in recent events.",
+    },
+    {
+      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "bad",
+      label: "Decision -> Fill",
+      title: `${numberText(decisions.length, 0)}D / ${numberText(orders.length, 0)}O / ${numberText(fills.length, 0)}F`,
+      note: fills.length ? "Executions are visible." : orders.length ? "Orders are visible without matching visible fills." : decisions.length ? "Only decision events are visible." : "No event mix loaded.",
+    },
+    {
+      status: runIds.size ? "ok" : "bad",
+      label: "Runs / Symbols",
+      title: `${numberText(runIds.size, 0)} / ${numberText(symbols.size, 0)}`,
+      note: topCountEntries(runCounts, 1).length
+        ? `Most active run ${topCountEntries(runCounts, 1).map(([key, value]) => `${key} (${numberText(value, 0)})`).join(", ")}.`
+        : "No run ids in visible events.",
+    },
+    {
+      status,
+      label: "Next Read",
+      title: headline,
+      note: nextAction,
+    },
+  ];
+  const lines = [
+    {
+      status,
+      title: "Summary",
+      detail: `${headline}. ${numberText(visibleEvents.length, 0)} visible recent event${visibleEvents.length === 1 ? "" : "s"} across ${numberText(runIds.size, 0)} run${runIds.size === 1 ? "" : "s"} and ${numberText(symbols.size, 0)} symbol${symbols.size === 1 ? "" : "s"}.`,
+    },
+    {
+      status: activeFilters.length ? "warn" : "ok",
+      title: "Current Filters",
+      detail: activeFilters.length ? `${activeFilters.join(" / ")}; ${numberText(filteredOut, 0)} hidden event${filteredOut === 1 ? "" : "s"}.` : "No event filters are active.",
+    },
+    {
+      status: badEvents.length ? "bad" : allBadEvents.length ? "warn" : "ok",
+      title: "Execution Issues",
+      detail: badEvents.length
+        ? `${numberText(badEvents.length, 0)} visible rejected/canceled/failed/error event${badEvents.length === 1 ? "" : "s"}; affected symbols ${Array.from(issueSymbols).slice(0, 6).join(", ") || "n/a"}.`
+        : allBadEvents.length ? `${numberText(allBadEvents.length, 0)} issue event${allBadEvents.length === 1 ? "" : "s"} exist outside the current filter.` : "No issue event status is visible in the recent event window.",
+    },
+    {
+      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "bad",
+      title: "Event Mix",
+      detail: `Types ${countSummary(typeCounts)}; statuses ${countSummary(statusCounts)}.`,
+    },
+    {
+      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "bad",
+      title: "Latest Event",
+      detail: latest ? `${text(latest.timestamp)} / ${text(latest.run_id)} / ${text(latest.type)} / ${text(latest.status)} / ${text(latest.symbol)} / ${text(latest.detail)}` : "No latest event row is available.",
+    },
+    {
+      status: symbols.size ? "ok" : "bad",
+      title: "Coverage",
+      detail: `Top symbols ${topCountEntries(symbolCounts, 5).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none"}; top runs ${topCountEntries(runCounts, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") || "none"}.`,
+    },
+    {
+      status,
+      title: "Next Action",
+      detail: nextAction,
+    },
+  ];
+  return { status, headline, nextAction, cards, lines, latestRunId: latest ? text(latest.run_id) : "", activeFilters, allBadEvents, allEvents };
+}
+
+function runsEventFlowReportText(model) {
+  return [
+    `Runs Event Flow Report: ${model.headline}`,
+    ...model.lines.map((line) => `${line.title}: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderRunsEventFlowReport(allEvents = [], visibleEvents = []) {
+  if (!$("runs-event-flow-note") || !$("runs-event-flow-cards") || !$("runs-event-flow-body") || !$("runs-event-flow-actions")) return;
+  const model = runsEventFlowModel(allEvents, visibleEvents);
+  state.runsEventFlowReportText = runsEventFlowReportText(model);
+  $("runs-event-flow-note").textContent = model.nextAction;
+  $("runs-event-flow-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("runs-event-flow-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("runs-event-flow-actions").innerHTML = [
+    `<button type="button" data-runs-event-flow-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="issues"${model.allBadEvents.length ? "" : " disabled"}>Show Issues</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="fills"${model.allEvents.some((event) => event.type === "fill") ? "" : " disabled"}>Show Fills</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="orders"${model.allEvents.some((event) => event.type === "order") ? "" : " disabled"}>Show Orders</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="decisions"${model.allEvents.some((event) => event.type === "decision") ? "" : " disabled"}>Show Decisions</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="latest-run" data-run-id="${escapeHtml(model.latestRunId)}"${model.latestRunId ? "" : " disabled"}>Latest Run</button>`,
+    `<button type="button" class="secondary" data-runs-event-flow-action="clear"${model.activeFilters.length ? "" : " disabled"}>Clear Filters</button>`,
+  ].join("");
+}
+
+function handleRunsEventFlowAction(target) {
+  const action = target.dataset.runsEventFlowAction || "";
+  if (action === "copy") {
+    copyText(state.runsEventFlowReportText || "No runs event flow report loaded").then(() => {
+      $("last-refresh").textContent = "Runs event flow report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Runs event flow copy failed: ${err.message}`;
+    });
+    return;
+  }
+  applyRunsEventsAssistantAction(action, target.dataset.runId || "");
+  navigateToRunsLens("events");
 }
 
 function applyRunsEventsAssistantAction(action, runId = "") {
@@ -23037,6 +23225,11 @@ function init() {
       : null;
     if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
     applyRunsEventsAssistantAction(button.dataset.runsEventsAction || "", button.dataset.runId || "");
+  });
+  $("runs-event-flow-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-event-flow-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleRunsEventFlowAction(target);
   });
   for (const id of ["config-dataset", "config-start-date", "config-end-date"]) {
     if ($(id)) $(id).addEventListener("change", renderConfigLivePanels);

@@ -318,7 +318,9 @@ Saved example YAML can be deleted from the draft table
 without touching archived run artifacts. Saved draft runs can be inspected through summarized
 artifacts for decisions, orders, fills, account snapshots, return, drawdown,
 time-normalized return projections, gross/net exposure, position count, and an
-equity curve; raw strategy signal payloads are not returned by the public
+equity curve. Runs includes a copyable Event Flow Report for recent decisions,
+orders, fills, rejects, filters, latest event, and next inspection action before
+dense event rows; raw strategy signal payloads are not returned by the public
 artifact view. Plugins can opt into public-safe dashboard drilldowns by placing
 sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
 diagnostics remain hidden. For open-position cards, the generic runner also

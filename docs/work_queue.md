@@ -446,6 +446,10 @@ strategy-private.
       timeline count, issue/rejection pressure, decision/order/fill mix, latest
       event, run/symbol coverage, and direct issue/fill/order/decision/latest
       run filter actions before the dense event table.
+    - partial; Runs Events and Home now include a copyable Event Flow Report
+      that explains filters, execution issues, decision/order/fill mix, latest
+      event, run/symbol coverage, and the next inspection action before the
+      dense timeline table.
   - current open orders and current managed positions
     - partial; current managed positions and recent non-terminal order events
       are visible, broker-native open-order state still depends on runner
