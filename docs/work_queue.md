@@ -137,6 +137,11 @@ strategy-private.
       latest day, month, year, all-available return, max drawdown, current
       equity path, and order/fill/reject/alert activity from sanitized
       status-history rollups without opening logs.
+    - partial; Performance Home now has its own Performance Snapshot strip that
+      puts Today, Recent, Month, Year, All Available, Max Drawdown, and readiness
+      in one brokerage-style panel, using status-history rollups when available
+      and selected account/artifact snapshots as a fallback while labeling the
+      source behind each horizon.
   - clear "no trade today" state with the latest checked signal
     - partial; Overview now has a Today's Signal State panel that separates
       no current run, awaiting a current-day check, no-trade-today,

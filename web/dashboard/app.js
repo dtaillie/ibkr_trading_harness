@@ -5164,6 +5164,22 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceSnapshot({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   renderPerformanceLivePeriodSummary();
   renderPerformanceStory({
     source,
@@ -5650,6 +5666,184 @@ function renderPerformanceHome(context) {
     </div>
   `).join("");
   renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
+}
+
+function performanceSnapshotReturnCard({ label, value, detail, source }) {
+  const numeric = finiteNumber(value);
+  return {
+    status: numeric === null ? "warn" : numeric >= 0 ? "ok" : "bad",
+    className: signedValueClass(numeric),
+    label,
+    title: pctText(numeric),
+    note: `${detail} Source: ${source}.`,
+  };
+}
+
+function performanceSnapshotModel(context) {
+  const {
+    source,
+    allAccountRows,
+    periodPerf,
+    mode,
+    rejections,
+    approvalRequired,
+  } = context;
+  const payload = state.statusEquityRollups || {};
+  const rollups = sortedStatusRollups();
+  const periodRollups = payload.period_rollups || {};
+  const latestDay = rollups.length ? rollups[rollups.length - 1] : null;
+  const weekStats = statusRollupSeriesStats(trailingStatusRollups(rollups, 7));
+  const allStatusStats = statusRollupSeriesStats(rollups);
+  const latestMonth = ((periodRollups.month || [])[0]) || null;
+  const latestYear = ((periodRollups.year || [])[0]) || null;
+  const todayRows = rowsInWindow(allAccountRows || [], performancePeriodWindow(allAccountRows || [], "today"));
+  const weekRows = rowsInWindow(allAccountRows || [], performancePeriodWindow(allAccountRows || [], "week"));
+  const monthRows = rowsInWindow(allAccountRows || [], performancePeriodWindow(allAccountRows || [], "month"));
+  const todayPerf = performanceFromAccountRows(todayRows);
+  const weekPerf = performanceFromAccountRows(weekRows);
+  const monthPerf = performanceFromAccountRows(monthRows);
+  const allAccountPerf = performanceFromAccountRows(allAccountRows || []);
+  const todayValue = latestDay && finiteNumber(latestDay.daily_return_pct) !== null
+    ? latestDay.daily_return_pct
+    : todayPerf.total_return_pct;
+  const todayDetail = latestDay && finiteNumber(latestDay.daily_return_pct) !== null
+    ? `${text(latestDay.day)} ${money(latestDay.start_equity)} to ${money(latestDay.end_equity)}; ${numberText(latestDay.snapshot_count, 0)} status snapshots.`
+    : todayRows.length
+      ? `${numberText(todayRows.length, 0)} account snapshots in the current-day window.`
+      : "No current-day status or account path is loaded.";
+  const weekValue = finiteNumber(weekStats.total_return_pct) !== null
+    ? weekStats.total_return_pct
+    : weekPerf.total_return_pct;
+  const weekDetail = finiteNumber(weekStats.total_return_pct) !== null
+    ? `${text(weekStats.first_day)} to ${text(weekStats.last_day)} from trailing status days.`
+    : weekRows.length
+      ? `${numberText(weekRows.length, 0)} account snapshots in the trailing-week window.`
+      : "No trailing-week equity path is loaded.";
+  const monthValue = latestMonth && finiteNumber(latestMonth.total_return_pct) !== null
+    ? latestMonth.total_return_pct
+    : monthPerf.total_return_pct;
+  const monthDetail = latestMonth && finiteNumber(latestMonth.total_return_pct) !== null
+    ? `${text(latestMonth.label)}; ${numberText(latestMonth.day_count, 0)} day rows / ${numberText(latestMonth.snapshot_count, 0)} snapshots.`
+    : monthRows.length
+      ? `${numberText(monthRows.length, 0)} account snapshots in the trailing-month window.`
+      : "No monthly status rollup or trailing-month account path is loaded.";
+  const yearValue = latestYear && finiteNumber(latestYear.total_return_pct) !== null
+    ? latestYear.total_return_pct
+    : null;
+  const yearDetail = latestYear && finiteNumber(latestYear.total_return_pct) !== null
+    ? `${text(latestYear.label)}; ${numberText(latestYear.day_count, 0)} day rows / ${numberText(latestYear.snapshot_count, 0)} snapshots.`
+    : "No yearly status-history rollup is loaded yet.";
+  const allValue = finiteNumber(allStatusStats.total_return_pct) !== null
+    ? allStatusStats.total_return_pct
+    : finiteNumber(periodPerf.total_return_pct) !== null
+      ? periodPerf.total_return_pct
+      : allAccountPerf.total_return_pct;
+  const allDetail = finiteNumber(allStatusStats.total_return_pct) !== null
+    ? `${text(allStatusStats.first_day)} to ${text(allStatusStats.last_day)} from status-history equity.`
+    : allAccountRows && allAccountRows.length
+      ? `${numberText(allAccountRows.length, 0)} account snapshots in the selected source.`
+      : "No all-available equity path is loaded.";
+  const drawdownValue = finiteNumber(allStatusStats.max_drawdown_pct) !== null
+    ? allStatusStats.max_drawdown_pct
+    : finiteNumber(periodPerf.max_drawdown_pct) !== null
+      ? periodPerf.max_drawdown_pct
+      : allAccountPerf.max_drawdown_pct;
+  const drawdownSource = finiteNumber(allStatusStats.max_drawdown_pct) !== null
+    ? "status-history rollups"
+    : allAccountRows && allAccountRows.length ? "selected account snapshots" : "unavailable";
+  const cards = [
+    performanceSnapshotReturnCard({
+      label: "Today",
+      value: todayValue,
+      detail: todayDetail,
+      source: latestDay && finiteNumber(latestDay.daily_return_pct) !== null ? "status-history latest day" : "selected account snapshots",
+    }),
+    performanceSnapshotReturnCard({
+      label: "Recent",
+      value: weekValue,
+      detail: weekDetail,
+      source: finiteNumber(weekStats.total_return_pct) !== null ? "status-history trailing 7 days" : "selected account snapshots",
+    }),
+    performanceSnapshotReturnCard({
+      label: "Month",
+      value: monthValue,
+      detail: monthDetail,
+      source: latestMonth && finiteNumber(latestMonth.total_return_pct) !== null ? "status-history month rollup" : "selected account snapshots",
+    }),
+    performanceSnapshotReturnCard({
+      label: "Year",
+      value: yearValue,
+      detail: yearDetail,
+      source: latestYear && finiteNumber(latestYear.total_return_pct) !== null ? "status-history year rollup" : "unavailable",
+    }),
+    performanceSnapshotReturnCard({
+      label: "All Available",
+      value: allValue,
+      detail: allDetail,
+      source: finiteNumber(allStatusStats.total_return_pct) !== null ? "status-history all days" : "selected source",
+    }),
+    {
+      status: drawdownValue === null ? "warn" : drawdownValue <= -10 ? "bad" : drawdownValue < 0 ? "warn" : "ok",
+      className: drawdownValueClass(drawdownValue),
+      label: "Max Drawdown",
+      title: pctText(drawdownValue),
+      note: `Peak-to-current equity loss. Source: ${drawdownSource}.`,
+    },
+    {
+      status: Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "bad",
+      className: statusClass(Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "bad"),
+      label: "Readiness",
+      title: source.has_data ? text(mode || "loaded") : "No Source",
+      note: source.has_data
+        ? `${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approval holds visible for this source.`
+        : "Publish telemetry or load run artifacts before reading performance.",
+    },
+  ];
+  const readyCount = cards.filter((card) => card.status === "ok").length;
+  const headline = rollups.length
+    ? `${numberText(rollups.length, 0)} status-history day row${rollups.length === 1 ? "" : "s"}`
+    : allAccountRows && allAccountRows.length
+      ? `${numberText(allAccountRows.length, 0)} account snapshot${allAccountRows.length === 1 ? "" : "s"}`
+      : "no equity path";
+  return {
+    note: `${headline}; ${readyCount} of ${cards.length} snapshot cards are green`,
+    cards,
+  };
+}
+
+function renderPerformanceSnapshot(context) {
+  if (!$("performance-snapshot-note") || !$("performance-snapshot-cards") || !$("performance-snapshot-actions")) return;
+  const model = performanceSnapshotModel(context);
+  $("performance-snapshot-note").textContent = model.note;
+  $("performance-snapshot-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-snapshot-actions").innerHTML = [
+    `<button type="button" data-performance-snapshot-action="rollups">Open Rollups</button>`,
+    `<button type="button" class="secondary" data-performance-snapshot-action="trades">Open Trades</button>`,
+    `<button type="button" class="secondary" data-performance-snapshot-action="runs">Open Runs</button>`,
+    `<button type="button" class="secondary" data-performance-snapshot-action="benchmark">Load Benchmark</button>`,
+  ].join("");
+}
+
+function handlePerformanceSnapshotAction(action) {
+  if (action === "rollups") {
+    navigateToPerformanceLens("rollups");
+    return;
+  }
+  if (action === "trades") {
+    navigateToPerformanceLens("trades");
+    return;
+  }
+  if (action === "runs") {
+    navigateToRunsLens("runs");
+    return;
+  }
+  if ($("performance-load-benchmark")) $("performance-load-benchmark").click();
 }
 
 function performanceWorkflowCards(context) {
@@ -19956,6 +20150,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-rollup-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceRollupAssistantAction(target.dataset.performanceRollupAction || "");
+  });
+  $("performance-snapshot-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-snapshot-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceSnapshotAction(target.dataset.performanceSnapshotAction || "");
   });
   $("performance-benchmark").addEventListener("change", () => {
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
