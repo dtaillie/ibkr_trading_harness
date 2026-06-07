@@ -6853,6 +6853,7 @@ function symbolDirectoryControls() {
     bar: (($("data-symbol-directory-bar") || {}).value || ""),
     session: (($("data-symbol-directory-session") || {}).value || ""),
     quality: (($("data-symbol-directory-quality") || {}).value || ""),
+    contract: (($("data-symbol-directory-contract") || {}).value || ""),
     sort: (($("data-symbol-directory-sort") || {}).value || "files_desc"),
     limit: Number((($("data-symbol-directory-limit") || {}).value || "60")),
   };
@@ -6875,6 +6876,7 @@ function renderSymbolDirectoryFilterOptions(datasets) {
   makeOptions("data-symbol-directory-bar", datasets.map((item) => item.bar_size));
   makeOptions("data-symbol-directory-session", datasets.map((item) => item.storage_session));
   makeOptions("data-symbol-directory-quality", datasets.map((item) => item.quality_status));
+  makeOptions("data-symbol-directory-contract", datasets.map((item) => item.storage_contract_status));
 }
 
 function symbolDirectoryQualityScore(qualities) {
@@ -6889,6 +6891,7 @@ function symbolDirectorySortValue(item, key) {
   if (key === "rows") return Number(item.row_count || 0);
   if (key === "latest") return timestampMillis(item.last_day) || 0;
   if (key === "quality") return symbolDirectoryQualityScore(item.qualities);
+  if (key === "contract") return symbolDirectoryQualityScore(item.contracts);
   return String(item.symbol || "").toLowerCase();
 }
 
@@ -6924,6 +6927,7 @@ function symbolDirectoryRows() {
         mixed_sessions: Boolean(summary.mixed_storage_sessions),
         session_profile: text(summary.storage_session_profile || ((summary.storage_sessions || []).join(", "))),
         qualities: summary.quality_counts || {},
+        contracts: summary.storage_contract_counts || {},
         first_day: summary.first_timestamp,
         last_day: summary.last_timestamp,
       }))
@@ -6943,6 +6947,7 @@ function symbolDirectoryRows() {
           mixed_sessions: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).length > 1,
           session_profile: Array.from(new Set(datasets.map((dataset) => text(dataset.storage_session)).filter((value) => value !== "n/a"))).join(", ") || "unknown",
           qualities: countBy(datasets, "quality_status"),
+          contracts: countBy(datasets, "storage_contract_status"),
           first_day: ranges.start,
           last_day: ranges.end,
         };
@@ -6956,6 +6961,7 @@ function symbolDirectoryRows() {
           item.bars.join(" "),
           item.sessions.join(" "),
           countSummary(item.qualities),
+          countSummary(item.contracts),
           item.first_day,
           item.last_day,
         ].map(text).join(" ").toLowerCase();
@@ -6968,6 +6974,7 @@ function symbolDirectoryRows() {
     && (!controls.bar || item.bars.includes(controls.bar))
     && (!controls.session || item.sessions.includes(controls.session))
     && (!controls.quality || Object.prototype.hasOwnProperty.call(item.qualities || {}, controls.quality))
+    && (!controls.contract || Object.prototype.hasOwnProperty.call(item.contracts || {}, controls.contract))
   ));
   const sorted = sortSymbolDirectoryRows(faceted, controls.sort);
   return {
@@ -7000,6 +7007,7 @@ function renderSymbolDirectorySummary(directory) {
     .map((item) => timestampMillis(item.last_day) || 0)
     .reduce((max, value) => Math.max(max, value), 0);
   const qualityIssueCount = rows.filter((item) => symbolDirectoryQualityScore(item.qualities) > 0).length;
+  const contractIssueCount = rows.filter((item) => symbolDirectoryQualityScore(item.contracts) > 0).length;
   const mixedSessionCount = rows.filter((item) => item.mixed_sessions).length;
   const sourceTop = topCountEntries(countArrayValues(rows, "sources"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
   const barTop = topCountEntries(countArrayValues(rows, "bars"), 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
@@ -7010,6 +7018,7 @@ function renderSymbolDirectorySummary(directory) {
     directory.controls.bar,
     directory.controls.session,
     directory.controls.quality,
+    directory.controls.contract,
   ].filter(Boolean);
   const cards = [
     {
@@ -7039,6 +7048,14 @@ function renderSymbolDirectorySummary(directory) {
       note: qualityIssueCount
         ? "Matched symbols include at least one warn/bad best-quality file."
         : rows.length ? "Matched symbols currently start with ok-quality files." : "No symbols matched.",
+    },
+    {
+      status: contractIssueCount ? "warn" : rows.length ? "ok" : "bad",
+      title: numberText(contractIssueCount, 0),
+      label: "Contract Review",
+      note: contractIssueCount
+        ? "Matched symbols include files with storage-contract metadata warnings."
+        : rows.length ? "Matched symbols satisfy current storage-contract checks." : "No symbols matched.",
     },
     {
       status: mixedSessionCount ? "warn" : rows.length ? "ok" : "bad",
@@ -7077,6 +7094,8 @@ function symbolDirectoryRecommendationRows(directory) {
   const cleanest = rows.slice().sort((left, right) => {
     const quality = symbolDirectoryQualityScore(left.qualities) - symbolDirectoryQualityScore(right.qualities);
     if (quality) return quality;
+    const contract = symbolDirectoryQualityScore(left.contracts) - symbolDirectoryQualityScore(right.contracts);
+    if (contract) return contract;
     return Number(right.row_count || 0) - Number(left.row_count || 0);
   })[0] || null;
   const mostFiles = rows.slice().sort((left, right) => Number(right.file_count || 0) - Number(left.file_count || 0))[0] || null;
@@ -7090,6 +7109,7 @@ function renderSymbolDirectoryAssistant(directory) {
   const recommendations = symbolDirectoryRecommendationRows(directory);
   const latest = recommendations.find((item) => timestampMillis(item.last_day)) || null;
   const qualityOk = rows.filter((item) => symbolDirectoryQualityScore(item.qualities) === 0).length;
+  const contractOk = rows.filter((item) => symbolDirectoryQualityScore(item.contracts) === 0).length;
   const compareReady = rows.filter((item) => Number(item.file_count || 0) >= 2).length;
   const activeFilters = [
     directory.controls.filter ? `search ${directory.controls.filter}` : "",
@@ -7098,6 +7118,7 @@ function renderSymbolDirectoryAssistant(directory) {
     directory.controls.bar,
     directory.controls.session,
     directory.controls.quality,
+    directory.controls.contract,
   ].filter(Boolean);
   let title = "No Symbols Matched";
   let note = activeFilters.length
@@ -7131,6 +7152,12 @@ function renderSymbolDirectoryAssistant(directory) {
       note: rows.length ? `${numberText(rows.length - qualityOk, 0)} matched symbol${rows.length - qualityOk === 1 ? "" : "s"} need quality review.` : "No quality rows loaded.",
     },
     {
+      status: contractOk ? "ok" : rows.length ? "warn" : "bad",
+      label: "Contract Clear",
+      title: numberText(contractOk, 0),
+      note: rows.length ? `${numberText(rows.length - contractOk, 0)} matched symbol${rows.length - contractOk === 1 ? "" : "s"} need metadata review.` : "No contract rows loaded.",
+    },
+    {
       status: compareReady ? "ok" : rows.length ? "warn" : "bad",
       label: "Compare Ready",
       title: numberText(compareReady, 0),
@@ -7155,7 +7182,7 @@ function renderSymbolDirectoryAssistant(directory) {
               <span>${escapeHtml(index === 0 ? "Recommended" : "Candidate")}</span>
               <strong>${escapeHtml(symbol)}</strong>
               <small>${escapeHtml(numberText(item.file_count, 0))} files / ${escapeHtml(numberText(item.row_count, 0))} rows / ${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
-              <small>${escapeHtml(item.assets.join(", ") || "unknown asset")} / ${escapeHtml(item.sources.join(", ") || "unknown source")} / quality ${escapeHtml(countSummary(item.qualities))}</small>
+              <small>${escapeHtml(item.assets.join(", ") || "unknown asset")} / ${escapeHtml(item.sources.join(", ") || "unknown source")} / quality ${escapeHtml(countSummary(item.qualities))} / contract ${escapeHtml(countSummary(item.contracts))}</small>
             </div>
             <div>
               <button type="button" data-directory-action="inspect" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(bestPath)}">Inspect</button>
@@ -7184,6 +7211,7 @@ function renderSymbolDirectory() {
     directory.controls.bar,
     directory.controls.session,
     directory.controls.quality,
+    directory.controls.contract,
   ].filter(Boolean);
   const filterLabel = activeFilters.length ? ` matching ${activeFilters.join(", ")}` : "";
   $("data-symbol-directory-note").textContent = totalSymbols
@@ -7205,7 +7233,7 @@ function renderSymbolDirectory() {
               <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bars.join(", ") || "unknown bar")}</small>
               <small>${escapeHtml(item.session_profile || item.sessions.join(", ") || "unknown session")}${item.mixed_sessions ? " / mixed session review" : ""}</small>
               <small>${escapeHtml(rangeLabel(item.first_day, item.last_day))}</small>
-              <small>quality ${escapeHtml(countSummary(item.qualities))}</small>
+              <small>quality ${escapeHtml(countSummary(item.qualities))} / contract ${escapeHtml(countSummary(item.contracts))}</small>
             </div>
             <div class="symbol-directory-actions">
               <button type="button" class="secondary symbol-directory-filter" data-symbol="${symbol}">Filter</button>
@@ -18578,6 +18606,7 @@ function init() {
   $("data-symbol-directory-bar").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-session").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-quality").addEventListener("change", renderSymbolDirectory);
+  $("data-symbol-directory-contract").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-sort").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-limit").addEventListener("change", renderSymbolDirectory);
   $("data-symbol-directory-clear").addEventListener("click", () => {
@@ -18587,6 +18616,7 @@ function init() {
     $("data-symbol-directory-bar").value = "";
     $("data-symbol-directory-session").value = "";
     $("data-symbol-directory-quality").value = "";
+    $("data-symbol-directory-contract").value = "";
     $("data-symbol-directory-sort").value = "files_desc";
     $("data-symbol-directory-limit").value = "60";
     renderSymbolDirectory();

@@ -989,6 +989,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-directory-bar" in html
         assert "data-symbol-directory-session" in html
         assert "data-symbol-directory-quality" in html
+        assert "data-symbol-directory-contract" in html
         assert "data-symbol-directory-sort" in html
         assert "data-symbol-directory-limit" in html
         assert "data-filter-symbol-options" in html

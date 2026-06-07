@@ -189,6 +189,9 @@ strategy-private.
     - partial; Symbol Profile and the selected-symbol action panel now surface
       storage-contract counts/status beside quality, so symbol selection shows
       metadata readiness before sending files to Workbench.
+    - partial; Symbol Directory now includes storage-contract filtering, sort,
+      summary/assistant cards, and per-symbol contract counts so large symbol
+      universes can be screened for metadata readiness before inspection.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.

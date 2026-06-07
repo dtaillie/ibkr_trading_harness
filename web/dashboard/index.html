@@ -1117,7 +1117,7 @@
         <div class="symbol-directory-toolbar">
           <label class="wide-field">
             <span>Find Symbol</span>
-            <input id="data-symbol-directory-filter" type="search" list="data-symbol-browser-options" placeholder="Symbol, asset, source, bar, quality">
+            <input id="data-symbol-directory-filter" type="search" list="data-symbol-browser-options" placeholder="Symbol, asset, source, bar, quality, contract">
           </label>
           <label>
             <span>Asset</span>
@@ -1140,6 +1140,10 @@
             <select id="data-symbol-directory-quality"></select>
           </label>
           <label>
+            <span>Contract</span>
+            <select id="data-symbol-directory-contract"></select>
+          </label>
+          <label>
             <span>Sort</span>
             <select id="data-symbol-directory-sort">
               <option value="files_desc" selected>Most files</option>
@@ -1147,6 +1151,7 @@
               <option value="latest_desc">Latest data</option>
               <option value="symbol_asc">Symbol A-Z</option>
               <option value="quality_asc">Best quality</option>
+              <option value="contract_asc">Best contract</option>
             </select>
           </label>
           <label>
