@@ -2236,6 +2236,49 @@ def explicit_source_timezone(df: pd.DataFrame) -> str | None:
     return normalize_timezone_metadata(value)
 
 
+def normalize_adjustment_metadata(value: Any) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    lowered = re.sub(r"[\s_/-]+", "_", raw.lower()).strip("_")
+    adjusted = {
+        "true",
+        "1",
+        "adj",
+        "adjusted",
+        "adj_close",
+        "adjusted_close",
+        "split_adjusted",
+        "dividend_adjusted",
+        "split_dividend_adjusted",
+    }
+    unadjusted = {
+        "false",
+        "0",
+        "raw",
+        "unadjusted",
+        "not_adjusted",
+        "split_unadjusted",
+    }
+    if lowered in adjusted:
+        return "adjusted"
+    if lowered in unadjusted:
+        return "raw"
+    return raw
+
+
+def adjustment_status_from_path(path: Path) -> str | None:
+    tokens = {token for token in re.split(r"[^a-z0-9]+", path.stem.lower()) if token}
+    if tokens & {"unadjusted", "raw"}:
+        return "raw"
+    if tokens & {"adjusted", "adjclose"} or {"adj", "close"}.issubset(tokens):
+        return "adjusted"
+    joined = "_".join(tokens)
+    if "split_adjusted" in joined or "dividend_adjusted" in joined:
+        return "adjusted"
+    return None
+
+
 def infer_storage_session(path: Path, df: pd.DataFrame, asset_class: str) -> str:
     explicit = single_metadata_value(df, "session", "trading_session", "rth")
     if explicit is not None:
@@ -2260,17 +2303,16 @@ def infer_storage_session(path: Path, df: pd.DataFrame, asset_class: str) -> str
 def infer_adjustment_status(path: Path, df: pd.DataFrame, asset_class: str) -> str:
     explicit = single_metadata_value(df, "adjustment", "adjusted", "price_adjustment")
     if explicit is not None:
-        lowered = explicit.lower()
-        if lowered in {"true", "1", "adjusted", "split_adjusted", "split/dividend_adjusted"}:
-            return "adjusted"
-        if lowered in {"false", "0", "raw", "unadjusted"}:
-            return "raw"
-        return explicit
+        normalized = normalize_adjustment_metadata(explicit)
+        return normalized or explicit
     lowered_cols = {str(col).lower().replace("_", " ") for col in df.columns}
     if any(name in lowered_cols for name in {"adj close", "adjusted close", "split factor", "dividend"}):
         return "adjusted"
     if asset_class == "crypto":
         return "not_applicable"
+    path_status = adjustment_status_from_path(path)
+    if path_status:
+        return path_status
     if infer_data_source(path) == "ibkr":
         return "raw"
     return "unknown"
@@ -3042,6 +3084,7 @@ def audit_data_root(
             "asset_class": asset_class,
             "bar_size": bar_size,
             "storage_session": storage_session,
+            "adjustment_status": adjustment_status,
             "storage_contract_status": storage_contract["storage_contract_status"],
             "catalog_visible": display in catalog_paths,
         })
@@ -3072,6 +3115,7 @@ def audit_data_root(
         "source_guess_counts": count_values(file_rows, "source"),
         "bar_size_guess_counts": count_values(file_rows, "bar_size"),
         "storage_session_guess_counts": count_values(file_rows, "storage_session"),
+        "adjustment_status_guess_counts": count_values(file_rows, "adjustment_status"),
         "storage_contract_guess_counts": count_values(file_rows, "storage_contract_status"),
         "sample_hidden_paths": [row["path"] for row in hidden_rows[:10]],
         "unsupported_file_count": unsupported["unsupported_file_count"],
@@ -3181,12 +3225,14 @@ def build_data_storage_audit(
         "source_guess_counts": merge_count_maps(configured_rows + suggested_rows, "source_guess_counts"),
         "bar_size_guess_counts": merge_count_maps(configured_rows + suggested_rows, "bar_size_guess_counts"),
         "storage_session_guess_counts": merge_count_maps(configured_rows + suggested_rows, "storage_session_guess_counts"),
+        "adjustment_status_guess_counts": merge_count_maps(configured_rows + suggested_rows, "adjustment_status_guess_counts"),
         "storage_contract_guess_counts": merge_count_maps(configured_rows + suggested_rows, "storage_contract_guess_counts"),
         "configured_extension_counts": merge_count_maps(configured_rows, "extension_counts"),
         "configured_asset_class_guess_counts": merge_count_maps(configured_rows, "asset_class_guess_counts"),
         "configured_source_guess_counts": merge_count_maps(configured_rows, "source_guess_counts"),
         "configured_bar_size_guess_counts": merge_count_maps(configured_rows, "bar_size_guess_counts"),
         "configured_storage_session_guess_counts": merge_count_maps(configured_rows, "storage_session_guess_counts"),
+        "configured_adjustment_status_guess_counts": merge_count_maps(configured_rows, "adjustment_status_guess_counts"),
         "configured_storage_contract_guess_counts": merge_count_maps(configured_rows, "storage_contract_guess_counts"),
         "configured_roots": configured_rows,
         "suggested_roots": suggested_rows,
@@ -3312,6 +3358,7 @@ DATA_STORAGE_AUDIT_EXPORT_FIELDS = (
     "source_guess_counts",
     "bar_size_guess_counts",
     "storage_session_guess_counts",
+    "adjustment_status_guess_counts",
     "storage_contract_guess_counts",
     "sample_hidden_paths",
     "errors",

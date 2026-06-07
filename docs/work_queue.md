@@ -1448,6 +1448,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       proves an `America/New_York` 09:30 source bar is exposed as 14:30 UTC
       without a naive-timezone storage-contract warning.
   - adjustment metadata for stocks
+    - partial; adjustment metadata inference now normalizes common explicit
+      aliases and recognizes conservative filename conventions such as `raw`,
+      `unadjusted`, `adjusted`, and `adj_close`. Storage Audit API/CSV output
+      and the CLI report now include adjustment-status guess counts, so files
+      that declare stock adjustment state can move from storage-contract review
+      to ok without requiring a full catalog parse.
   - clear distinction between RTH, extended hours, and 24/7 crypto
     - partial; Data Catalog and Data Detail now expose inferred canonical
       symbol, storage session (`rth`, extended, `24_7`, unknown), and

@@ -2956,7 +2956,11 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
     data_root.mkdir()
     suggested_root = tmp_path / "cache"
     suggested_root.mkdir()
-    for root, filename_symbol, session in [(data_root, "SPY_rth_true", "rth"), (data_root, "QQQ_rth_false", "extended"), (suggested_root, "BTC-USD", "24_7")]:
+    for root, filename_symbol, session in [
+        (data_root, "SPY_adjusted_rth_true", "rth"),
+        (data_root, "QQQ_raw_rth_false", "extended"),
+        (suggested_root, "BTC-USD", "24_7"),
+    ]:
         (root / f"{filename_symbol}_5min_sample.csv").write_text(
             "\n".join(
                 [
@@ -2994,7 +2998,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert audit["visibility_summary"]["configured_visibility_pct"] == pytest.approx(50.0)
         assert audit["unsupported_extension_counts"] == {".txt": 1}
         assert audit["storage_session_guess_counts"] == {"24_7": 1, "extended": 1, "rth": 1}
-        assert audit["storage_contract_guess_counts"] == {"ok": 1, "warn": 2}
+        assert audit["adjustment_status_guess_counts"] == {"adjusted": 1, "not_applicable": 1, "raw": 1}
+        assert audit["storage_contract_guess_counts"] == {"ok": 3}
         assert audit["scan_duration_ms_total"] >= 0
         configured = audit["configured_roots"][0]
         assert configured["display_path"] == str(data_root.resolve())
@@ -3006,7 +3011,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert configured["asset_class_guess_counts"] == {"etf": 2}
         assert configured["bar_size_guess_counts"] == {"5min": 2}
         assert configured["storage_session_guess_counts"] == {"extended": 1, "rth": 1}
-        assert configured["storage_contract_guess_counts"] == {"warn": 2}
+        assert configured["adjustment_status_guess_counts"] == {"adjusted": 1, "raw": 1}
+        assert configured["storage_contract_guess_counts"] == {"ok": 2}
         assert configured["unsupported_file_count"] == 1
         assert configured["unsupported_extension_counts"] == {".txt": 1}
         assert configured["sample_unsupported_paths"][0].endswith("notes.txt")
@@ -3017,6 +3023,7 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert suggested["root_scope"] == "local_cache"
         assert suggested["hidden_file_count"] == 1
         assert suggested["storage_session_guess_counts"] == {"24_7": 1}
+        assert suggested["adjustment_status_guess_counts"] == {"not_applicable": 1}
         assert suggested["storage_contract_guess_counts"] == {"ok": 1}
         with request.urlopen(f"{base}/data_storage_audit_export?catalog_limit=1&scan_limit=10", timeout=5) as resp:
             csv_body = resp.read().decode("utf-8")
@@ -3028,6 +3035,7 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
         assert "asset_class_guess_counts" in csv_body.splitlines()[0]
         assert "bar_size_guess_counts" in csv_body.splitlines()[0]
         assert "storage_session_guess_counts" in csv_body.splitlines()[0]
+        assert "adjustment_status_guess_counts" in csv_body.splitlines()[0]
         assert "storage_contract_guess_counts" in csv_body.splitlines()[0]
         assert "configured" in csv_body
         assert "suggested" in csv_body
@@ -3042,7 +3050,7 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", ())
     data_root = tmp_path / "data"
     data_root.mkdir()
-    (data_root / "SPY_rth_true_5min_sample.csv").write_text(
+    (data_root / "SPY_raw_rth_true_5min_sample.csv").write_text(
         "\n".join(
             [
                 "timestamp,open,high,low,close,volume",
@@ -3084,7 +3092,8 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     assert payload["configured_asset_class_guess_counts"] == {"crypto": 1, "etf": 1}
     assert payload["configured_bar_size_guess_counts"] == {"1min": 1, "5min": 1}
     assert payload["configured_storage_session_guess_counts"] == {"24_7": 1, "rth": 1}
-    assert payload["configured_storage_contract_guess_counts"] == {"ok": 1, "warn": 1}
+    assert payload["configured_adjustment_status_guess_counts"] == {"not_applicable": 1, "raw": 1}
+    assert payload["configured_storage_contract_guess_counts"] == {"ok": 2}
     assert payload["scan_duration_ms_total"] >= 0
 
     assert run_storage_audit([
@@ -3101,7 +3110,8 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     assert "Configured files: 2" in report
     assert "Scan time:" in report
     assert "Storage sessions: 24_7:1 rth:1" in report
-    assert "Storage contract: ok:1 warn:1" in report
+    assert "Adjustments: not_applicable:1 raw:1" in report
+    assert "Storage contract: ok:2" in report
     assert "scan_ms=" in report
     assert "Recommended next steps:" in report
 
