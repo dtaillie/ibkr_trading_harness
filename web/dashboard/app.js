@@ -2445,8 +2445,9 @@ function renderConfigBrokerBoundary() {
   if (!$("config-broker-boundary") || !$("config-broker-boundary-note")) return;
   const adapters = (state.configOptions && state.configOptions.broker_adapters) || [];
   const paperReady = adapters.filter((adapter) => (adapter.account_modes || []).includes("paper")).length;
+  const executable = adapters.filter((adapter) => adapter.execution_supported !== false).length;
   $("config-broker-boundary-note").textContent = adapters.length
-    ? `${numberText(adapters.length, 0)} adapters / ${numberText(paperReady, 0)} paper-capable`
+    ? `${numberText(adapters.length, 0)} adapters / ${numberText(executable, 0)} executable / ${numberText(paperReady, 0)} paper-capable`
     : "No broker adapter metadata loaded";
   $("config-broker-boundary").innerHTML = adapters.length
     ? adapters.map((adapter) => {
@@ -2455,11 +2456,15 @@ function renderConfigBrokerBoundary() {
           adapter.requires_static_prices ? "static prices required" : "live/account prices",
           adapter.persists_local_state ? "local state file" : "broker/account state",
         ].join(" / ");
+        const executableNote = adapter.execution_supported === false
+          ? `Unavailable: ${text(adapter.unsupported_reason || "execution is not implemented")}`
+          : "Execution adapter available";
         return `
           <div class="broker-capability-card">
             <span>${statusText(adapter.status)}</span>
             <strong>${escapeHtml(text(adapter.label || adapter.id))}</strong>
             <small>${escapeHtml(text(adapter.description))}</small>
+            <small>${escapeHtml(executableNote)}</small>
             <small>Modes: ${escapeHtml((adapter.account_modes || []).join(", ") || "none")}</small>
             <small>Orders: ${escapeHtml((adapter.order_types || []).join(", ") || "none")} / sizing ${escapeHtml((adapter.order_sizing || []).join(", ") || "none")}</small>
             <small>${escapeHtml(requirements)}</small>

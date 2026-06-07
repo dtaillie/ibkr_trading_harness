@@ -60,7 +60,9 @@ not routine paper trading.
 
 Use `broker.adapter: ibkr` for real IBKR paper execution. Use
 `broker.adapter: file` only for local adapter plumbing tests; it writes a small
-state file and order journal and fills at configured static prices.
+state file and order journal and fills at configured static prices. Metadata-only
+future adapters such as `schwab` may appear in the capability registry, but the
+runner rejects them for paper/live execution until an implementation exists.
 
 For broker-backed paper sessions, set `broker.expected_account_id` in your
 ignored local config so the runner verifies the connected account before it can
@@ -69,9 +71,10 @@ should fail validation if that expected account is missing.
 
 The Workbench Broker Boundary panel and `/config_options` endpoint expose the
 public capability registry for each adapter. Review it before switching to
-paper mode so the configured adapter's Gateway requirement, order sizing,
-account-ID verification support, static-price requirement, local-state
-behavior, and known paper/live ports are visible before the runner connects.
+paper mode so executable versus metadata-only status, Gateway requirement,
+order sizing, account-ID verification support, static-price requirement,
+local-state behavior, and known paper/live ports are visible before the runner
+connects.
 
 Run a continuous shadow monitor when you want the generic runner to keep
 reloading latest bars and evaluating the plugin:

@@ -1014,10 +1014,12 @@ def run_smoke(
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
         broker_adapters = {item.get("id"): item for item in options.get("broker_adapters") or []}
-        if set(broker_adapters) != {"ibkr", "file"}:
+        if not {"ibkr", "file", "schwab"}.issubset(set(broker_adapters)):
             raise RuntimeError("config options broker adapter capabilities are missing")
         if not broker_adapters["ibkr"].get("requires_gateway") or not broker_adapters["file"].get("requires_static_prices"):
             raise RuntimeError("config options broker adapter requirements are incomplete")
+        if broker_adapters["schwab"].get("execution_supported") is not False:
+            raise RuntimeError("metadata-only Schwab adapter boundary is missing")
         if options.get("config_schema_version") != 1 or options.get("form_schema_version") != 4 or options.get("guide_schema_version") != 1:
             raise RuntimeError("config options schema versions are missing")
         guide_step_ids = {step.get("id") for step in options.get("guide_steps") or []}

@@ -1646,7 +1646,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     requirements, account-ID verification support, local-state behavior, and
     known IBKR paper/live ports. The generic runner uses that metadata for
     adapter-aware safety checks, and the Workbench exposes it in a Broker
-    Boundary panel. Schwab/future broker adapters remain open.
+    Boundary panel. Future adapters can now be listed as metadata-only
+    capability records, with Schwab documented that way so validation rejects
+    paper/live execution clearly until a real implementation exists. Full
+    Schwab/future broker execution remains open.
 - Add stronger paper/live gates to prevent accidental live orders.
   - partial; generic paper mode now requires `--confirm-paper-orders`, rejects
     `broker.account_mode: live`, and refuses known live IBKR ports (`4001`,

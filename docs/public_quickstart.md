@@ -122,14 +122,18 @@ without that expected-account check.
 Broker execution is selected with `broker.adapter`. The public runner ships
 with `ibkr` for IBKR paper execution and `file` for local adapter plumbing tests
 that persist cash, positions, and submitted order rows to local files. The
-`file` adapter fills at configured static prices and is not a market simulator
-or a substitute for strategy validation. The file adapter also exposes a local
+public capability registry also lists metadata-only future adapters such as
+`schwab`; those entries document the boundary but fail validation if selected
+for paper/live execution until a real adapter is implemented. The `file`
+adapter fills at configured static prices and is not a market simulator or a
+substitute for strategy validation. The file adapter also exposes a local
 `account_id` so tests and demos can exercise the same expected-account gate
 without connecting to IBKR.
 
 The dashboard exposes public broker capability metadata through `/config_options`
 and the Workbench Broker Boundary panel. Check that panel before paper mode: it
-shows which adapters require Gateway, which order types and sizing styles they
+shows which adapters are executable, which are metadata-only future adapters,
+which adapters require Gateway, which order types and sizing styles they
 advertise, whether they expose account IDs for verification, whether they
 persist local state, and which IBKR ports are treated as paper or live.
 

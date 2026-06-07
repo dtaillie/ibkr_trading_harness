@@ -3410,11 +3410,13 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         ]
         assert options["defaults"]["risk_preset"] == "demo_minimal"
         broker_adapters = {adapter["id"]: adapter for adapter in options["broker_adapters"]}
-        assert set(broker_adapters) == {"ibkr", "file"}
+        assert set(broker_adapters) == {"ibkr", "file", "schwab"}
         assert broker_adapters["ibkr"]["requires_gateway"] is True
         assert broker_adapters["ibkr"]["known_paper_ports"] == [4002, 7497]
         assert broker_adapters["file"]["requires_static_prices"] is True
         assert "not a market simulator" in broker_adapters["file"]["boundary"]
+        assert broker_adapters["schwab"]["execution_supported"] is False
+        assert broker_adapters["schwab"]["account_modes"] == []
 
         preview_req = request.Request(
             f"{base}/config_draft_preview",
@@ -4080,7 +4082,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["data_catalog"]["source_counts"] == {"file": 1}
         assert snapshot["data_catalog"]["datasets"][0]["symbol"] == "SPY"
         assert snapshot["config_options"]["risk_presets"]
-        assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file"}
+        assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file", "schwab"}
         assert snapshot["config_options"]["config_schema_version"] == 1
         assert snapshot["config_options"]["form_schema_version"] == 4
         assert snapshot["config_options"]["guide_schema_version"] == 1

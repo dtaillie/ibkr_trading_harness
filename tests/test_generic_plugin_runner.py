@@ -1268,7 +1268,7 @@ def test_validate_config_file_rejects_required_missing_expected_account(tmp_path
     assert not output_dir.exists()
 
 
-def test_validate_config_file_rejects_unknown_broker_adapter(tmp_path):
+def test_validate_config_file_rejects_metadata_only_broker_adapter(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
     output_dir = tmp_path / "out"
@@ -1284,7 +1284,9 @@ def test_validate_config_file_rejects_unknown_broker_adapter(tmp_path):
     with pytest.raises(ConfigValidationError) as exc:
         validate_config_file(config_path)
 
-    assert "broker.adapter" in str(exc.value)
+    text = str(exc.value)
+    assert "broker.adapter schwab is metadata-only" in text
+    assert "broker.adapter schwab does not support order types" in text
 
 
 def test_validate_config_file_reports_missing_data_file(tmp_path):

@@ -548,6 +548,9 @@ def validate_config(
         capability: dict[str, Any] = {}
     else:
         capability = broker_adapter_capability(adapter)
+        if capability.get("execution_supported") is False:
+            reason = str(capability.get("unsupported_reason") or "execution is not implemented").strip()
+            errors.append(f"broker.adapter {adapter} is metadata-only: {reason}")
         raw_order_types = execution_cfg.get("allowed_order_types")
         configured_order_types = raw_order_types if isinstance(raw_order_types, list) and raw_order_types else ["market"]
         unsupported_order_types = set(str(item).lower() for item in configured_order_types) - set(capability["order_types"])

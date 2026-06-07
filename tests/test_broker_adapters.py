@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from core import Order, Side
 from live.broker_adapters import FileBrokerAdapter, broker_adapter_capabilities, broker_adapter_capability, broker_adapter_ids, create_broker_adapter
 
@@ -10,7 +12,7 @@ def test_broker_adapter_capabilities_are_public_safe_and_actionable():
     ids = broker_adapter_ids()
     capabilities = {item["id"]: item for item in broker_adapter_capabilities()}
 
-    assert ids == {"ibkr", "file"}
+    assert ids == {"ibkr", "file", "schwab"}
     assert set(capabilities) == ids
     assert broker_adapter_capability("ibkr")["known_live_ports"] == [4001, 7496]
     assert capabilities["ibkr"]["requires_gateway"] is True
@@ -22,6 +24,14 @@ def test_broker_adapter_capabilities_are_public_safe_and_actionable():
     assert capabilities["file"]["requires_static_prices"] is True
     assert capabilities["file"]["persists_local_state"] is True
     assert "not a market simulator" in capabilities["file"]["boundary"]
+    assert capabilities["schwab"]["execution_supported"] is False
+    assert capabilities["schwab"]["account_modes"] == []
+    assert "not implemented" in capabilities["schwab"]["unsupported_reason"]
+
+
+def test_create_metadata_only_broker_adapter_fails_clearly():
+    with pytest.raises(ValueError, match="metadata-only"):
+        create_broker_adapter({"adapter": "schwab"})
 
 
 def test_create_file_broker_adapter_executes_and_persists_fill(tmp_path):

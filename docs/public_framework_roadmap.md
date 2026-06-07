@@ -69,8 +69,10 @@ This roadmap is broader context; the queue is the current execution order.
   file-based simulation, or future broker integrations without changing
   strategy plugins. The public runner now has an adapter factory with `ibkr`
   and a local `file` adapter for plumbing tests, plus public capability
-  metadata that the runner and Workbench expose. Richer broker integrations
-  remain future work.
+  metadata that the runner and Workbench expose. Future adapters can also be
+  listed as metadata-only entries, such as `schwab`, so the UI can document the
+  boundary while validation refuses paper/live execution until implementation.
+  Richer broker integrations remain future work.
 
 ## Data and broker harness
 

@@ -57,6 +57,30 @@ BROKER_ADAPTER_CAPABILITIES: dict[str, dict[str, Any]] = {
         "known_live_ports": [],
         "boundary": "Fills at configured static prices and persists local state. It is not a market simulator and is not evidence that a strategy works.",
     },
+    "schwab": {
+        "id": "schwab",
+        "label": "Schwab",
+        "status": "metadata_only",
+        "visibility": "public_future_adapter",
+        "description": "Future adapter placeholder for Schwab API integration. Capability metadata is public; order execution is not implemented.",
+        "account_modes": [],
+        "order_types": [],
+        "order_sizing": [],
+        "supports_cash_balance": False,
+        "supports_positions": False,
+        "supports_account_ids": False,
+        "account_id_source": "Not implemented",
+        "supports_fractional_quantity": False,
+        "supports_short_orders": False,
+        "requires_gateway": False,
+        "requires_static_prices": False,
+        "persists_local_state": False,
+        "known_paper_ports": [],
+        "known_live_ports": [],
+        "execution_supported": False,
+        "unsupported_reason": "Schwab execution is not implemented in the public harness yet.",
+        "boundary": "Metadata-only future adapter. Selecting this adapter for paper/live execution fails validation until a real Schwab broker implementation is added.",
+    },
 }
 
 
@@ -316,6 +340,10 @@ def create_broker_adapter(config: dict[str, Any]) -> BrokerAdapter:
     adapter = str(config.get("adapter", config.get("provider", "ibkr"))).lower().replace("-", "_")
     if adapter not in BROKER_ADAPTER_CAPABILITIES:
         raise ValueError(f"Unsupported broker.adapter {adapter!r}; use {', '.join(sorted(BROKER_ADAPTER_CAPABILITIES))}")
+    capability = BROKER_ADAPTER_CAPABILITIES[adapter]
+    if capability.get("execution_supported") is False:
+        reason = str(capability.get("unsupported_reason") or "execution is not implemented").strip()
+        raise ValueError(f"broker.adapter {adapter!r} is metadata-only: {reason}")
     if adapter == "ibkr":
         return IBKRBrokerAdapter(config)
     if adapter == "file":
