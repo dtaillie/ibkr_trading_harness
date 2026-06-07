@@ -273,7 +273,7 @@ Replay-first sort for large local catalogs. Fetch Detail output rows show the
 same readiness when produced files are Data Library-visible. The Data Library
 also has a Saved History Matrix that groups saved files by asset, source, bar
 size, and session with one-click Browse, Inspect, Compare, Workbench, and CSV
-export actions, and can compare several saved datasets
+export actions plus assistant cards for readiness and next action, and can compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
 configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size

@@ -843,6 +843,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       Compare, and Workbench actions for the grouped asset/source/bar/session
       slice, so users can move from inventory review to charting or simulation
       without reselecting files manually.
+    - partial; Saved History Matrix now starts with assistant cards for the
+      best starting group, readiness mix, compare/workbench availability,
+      active scope, and next action before the detailed matrix rows.
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend

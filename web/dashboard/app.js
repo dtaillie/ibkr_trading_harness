@@ -9961,6 +9961,7 @@ function renderDataHistoryMatrix(filteredRows = []) {
   $("data-history-matrix-note").textContent = rows.length
     ? `${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
     : "No saved history rows are visible; configure data roots, raise the scan limit, or clear filters.";
+  renderDataHistoryMatrixSummary(matrix, rows, activeFilters);
   $("data-history-matrix-body").innerHTML = shown.length
     ? shown.map((group) => row([
         escapeHtml(group.asset),
@@ -9984,6 +9985,78 @@ function renderDataHistoryMatrix(filteredRows = []) {
         </span>`,
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = []) {
+  if (!$("data-history-matrix-summary")) return;
+  if (!matrix.length) {
+    $("data-history-matrix-summary").innerHTML = `
+      <div class="action-card status-bad">
+        <span>Matrix Assistant</span>
+        <strong>No history groups</strong>
+        <small>Configure data roots, raise the catalog scan limit, or clear filters before looking for symbols.</small>
+      </div>
+    `;
+    return;
+  }
+  const readyGroups = matrix.filter((group) => group.status === "ok");
+  const reviewGroups = matrix.filter((group) => group.status === "warn");
+  const blockedGroups = matrix.filter((group) => group.status === "bad");
+  const compareReady = matrix.filter((group) => Number(group.file_count || 0) >= 2);
+  const top = matrix[0];
+  const topLabel = `${text(top.asset)} / ${text(top.source)} / ${text(top.bar)} / ${text(top.session)}`;
+  const totalRows = rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+  const nextTitle = blockedGroups.length
+    ? "Review Blockers"
+    : compareReady.length ? "Compare Top Group" : "Inspect Best File";
+  const nextNote = blockedGroups.length
+    ? `${numberText(blockedGroups.length, 0)} group${blockedGroups.length === 1 ? "" : "s"} have replay-blocking quality or metadata issues.`
+    : compareReady.length
+      ? `${numberText(compareReady.length, 0)} group${compareReady.length === 1 ? "" : "s"} can be compared immediately.`
+      : "Only single-file groups are visible; start with Inspect or broaden the catalog scan.";
+  const cards = [
+    {
+      status: top.status,
+      label: "Best Starting Group",
+      title: topLabel,
+      note: `${numberText(top.symbol_count, 0)} symbols / ${numberText(top.file_count, 0)} files / ${numberText(top.row_count, 0)} rows; ${top.first_label} to ${top.last_label}.`,
+    },
+    {
+      status: blockedGroups.length ? "bad" : reviewGroups.length ? "warn" : "ok",
+      label: "Replay Readiness",
+      title: `${numberText(readyGroups.length, 0)} ready`,
+      note: `${numberText(reviewGroups.length, 0)} review / ${numberText(blockedGroups.length, 0)} blocked groups from ${numberText(matrix.length, 0)} total.`,
+    },
+    {
+      status: compareReady.length ? "ok" : "warn",
+      label: "Compare/Workbench",
+      title: `${numberText(compareReady.length, 0)} multi-file`,
+      note: compareReady.length
+        ? "Use Compare or Workbench on a matrix row to select the top files in that slice."
+        : "Comparison needs at least two files in one source/bar/session group.",
+    },
+    {
+      status: activeFilters.length ? "warn" : "ok",
+      label: "Current Scope",
+      title: `${numberText(rows.length, 0)} files`,
+      note: activeFilters.length
+        ? `Matrix is narrowed by ${activeFilters.join(" / ")}.`
+        : `${numberText(totalRows, 0)} rows are included in the current bounded catalog matrix.`,
+    },
+    {
+      status: blockedGroups.length ? "warn" : "ok",
+      label: "Next Action",
+      title: nextTitle,
+      note: nextNote,
+    },
+  ];
+  $("data-history-matrix-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function dataHistoryMatrixGroupDatasets(target) {
