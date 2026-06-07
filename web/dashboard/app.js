@@ -9747,6 +9747,8 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   const quality = detail.quality || {};
   const viewer = detail.viewer || {};
   const qualityStatus = text(quality.quality_status || "unknown");
+  const contractStatus = text(detail.storage_contract_status || "unknown");
+  const contractWarnings = Array.isArray(detail.storage_contract_warnings) ? detail.storage_contract_warnings : [];
   const warnings = Array.isArray(quality.quality_warnings) ? quality.quality_warnings : [];
   const nullCounts = quality.null_counts || {};
   const nullRows = Object.values(nullCounts).reduce((total, value) => total + (Number(value) || 0), 0);
@@ -9755,10 +9757,12 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   const largestGap = largestDataDetailGap(detail);
   const rows = finiteNumber(detail.rows) ?? finiteNumber(viewer.available_rows) ?? 0;
   const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
-  const blocked = qualityStatus === "bad" || duplicateRows > 0 || rows <= 1 || viewerStatus === "unavailable";
+  const blocked = qualityStatus === "bad" || contractStatus === "bad" || duplicateRows > 0 || rows <= 1 || viewerStatus === "unavailable";
   const needsReview = !blocked && (
     qualityStatus === "warn" ||
+    contractStatus === "warn" ||
     warnings.length > 0 ||
+    contractWarnings.length > 0 ||
     nullRows > 0 ||
     missingIntervals > 0 ||
     viewerStatus === "empty_range"
@@ -9766,9 +9770,9 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   const readinessStatus = blocked ? "bad" : needsReview ? "warn" : "ok";
   const readinessTitle = blocked ? "Blocked" : needsReview ? "Review" : "Ready";
   const readinessNote = blocked
-    ? "Fix bad quality, duplicates, unavailable rows, or a one-row file before replay."
+    ? "Fix bad quality, metadata blockers, duplicates, unavailable rows, or a one-row file before replay."
     : needsReview
-      ? "Replay is possible, but inspect gaps, nulls, warnings, or the selected chart range first."
+      ? "Replay is possible, but inspect gaps, nulls, metadata warnings, or the selected chart range first."
       : "No obvious replay blockers were found in this saved file.";
   const matchingFiles = (state.dataCatalog.datasets || [])
     .filter((dataset) => text(dataset.symbol).toUpperCase() === text(detail.symbol).toUpperCase() && dataset.path);
@@ -9805,6 +9809,12 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
       note: warnings.length ? warnings.slice(0, 2).join("; ") : "No quality warnings reported.",
     },
     {
+      status: contractStatus === "bad" ? "bad" : contractStatus === "warn" ? "warn" : "ok",
+      title: contractStatus,
+      label: "Storage Contract",
+      note: contractWarnings.length ? contractWarnings.slice(0, 2).join("; ") : "Metadata checks passed.",
+    },
+    {
       status: viewerStatus === "empty_range" || viewerStatus === "unavailable" ? "bad" : viewer.sampled ? "warn" : "ok",
       title: viewer.sampled ? "Sampled" : viewerStatus === "empty_range" ? "Empty" : "Full",
       label: "Chart",
@@ -9816,7 +9826,7 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
     : needsReview
       ? largestGap
         ? "Focus the largest gap, then decide whether this range is acceptable."
-        : "Review quality tables before sending the file to Workbench."
+        : "Review quality and metadata tables before sending the file to Workbench."
       : "Use this file in Workbench or compare sibling files for the same symbol.";
   $("data-detail-assistant-title").textContent = `${text(detail.symbol)} ${text(detail.bar_size)} ${readinessTitle}`;
   $("data-detail-assistant-note").textContent = `${text(detail.source)} / ${text(detail.storage_session)} - ${bestAction}`;
@@ -9830,9 +9840,11 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   $("data-detail-assistant-actions").innerHTML = dataDetailAssistantActionsHtml([
     {
       action: "workbench",
-      status: blocked ? "warn" : "ok",
+      status: blocked || contractStatus !== "ok" ? "warn" : "ok",
       title: "Use In Workbench",
-      note: blocked ? "Still selectable, but quality blockers should be fixed first." : "Select this file and range in the Config Builder.",
+      note: blocked
+        ? "Still selectable, but quality or metadata blockers should be fixed first."
+        : contractStatus !== "ok" ? "Selectable after metadata review." : "Select this file and range in the Config Builder.",
       disabled: false,
     },
     {
@@ -10022,6 +10034,8 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
   const missingIntervals = Number(coverage.estimated_missing_intervals || 0);
   const largestGap = Number(coverage.largest_gap_seconds);
   const qualityStatus = text(quality.quality_status || "unknown");
+  const contractStatus = text(detail.storage_contract_status || "unknown");
+  const contractWarnings = Array.isArray(detail.storage_contract_warnings) ? detail.storage_contract_warnings : [];
   const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
   const viewerCardStatus = viewerStatus === "unavailable" || viewerStatus === "empty_range"
     ? "bad"
@@ -10038,16 +10052,16 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
   const viewerNote = viewerStatus === "sampled"
     ? `${numberText(viewer.points_omitted, 0)} rows omitted from ${numberText(viewer.filtered_rows, 0)} filtered rows.`
     : `${text(viewer.status_reason || "All filtered rows are plotted.")} ${numberText(viewer.filtered_rows, 0)} filtered / ${numberText(viewer.available_rows, 0)} available.`;
-  const replayStatus = qualityStatus === "bad" || duplicateRows > 0
+  const replayStatus = qualityStatus === "bad" || contractStatus === "bad" || duplicateRows > 0
     ? "bad"
-    : qualityStatus === "warn" || warnings.length || nullRows > 0 || missingIntervals > 0
+    : qualityStatus === "warn" || contractStatus === "warn" || warnings.length || contractWarnings.length || nullRows > 0 || missingIntervals > 0
       ? "warn"
       : "ok";
   const replayNote = replayStatus === "ok"
-    ? "No obvious quality blockers in this bounded detail view."
+    ? "No obvious quality or metadata blockers in this bounded detail view."
     : replayStatus === "warn"
-      ? "Review warnings or gaps before using this range in a replay."
-      : "Fix bad quality or duplicate timestamps before replaying this file.";
+      ? "Review warnings, metadata, or gaps before using this range in a replay."
+      : "Fix bad quality, metadata, or duplicate timestamps before replaying this file.";
   const gapStatus = missingIntervals > 0 ? "warn" : Number.isFinite(largestGap) && largestGap > 0 ? "ok" : "ok";
   const integrityStatus = duplicateRows > 0 ? "bad" : nullRows > 0 ? "warn" : "ok";
   const cards = [
@@ -10068,6 +10082,12 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
       title: `${numberText(duplicateRows, 0)} dup / ${numberText(nullRows, 0)} null`,
       label: "Integrity",
       note: "Duplicate timestamps are blockers; nulls require review.",
+    },
+    {
+      status: contractStatus === "bad" ? "bad" : contractStatus === "warn" ? "warn" : "ok",
+      title: contractStatus,
+      label: "Storage Contract",
+      note: contractWarnings.length ? contractWarnings.slice(0, 2).join("; ") : "Metadata checks passed.",
     },
     {
       status: viewerCardStatus,

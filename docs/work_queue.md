@@ -844,6 +844,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail now has a Detail Assistant that summarizes
       simulation readiness, coverage, gaps, nulls/duplicates, viewer state, and
       direct next actions before the user reaches the raw charts and tables.
+    - partial; Data Detail Assistant and health cards now include
+      storage-contract status/warnings in replay readiness, so single-file
+      inspection surfaces metadata blockers before Workbench handoff.
     - partial; Data Detail now exposes `/data_detail_export` and an Export
       Range CSV action that downloads the selected date range with normalized
       UTC timestamps and original file columns, bounded by a server row cap.
