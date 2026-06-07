@@ -1788,6 +1788,7 @@ section {
 }
 
 #data-inventory-actions a,
+#workbench-simulation-actions a,
 #help-workbench-quickstart-actions a {
   display: inline-flex;
   align-items: center;
@@ -1802,6 +1803,7 @@ section {
 }
 
 #data-inventory-actions a.secondary,
+#workbench-simulation-actions a.secondary,
 #help-workbench-quickstart-actions a.secondary {
   border-color: var(--line);
   background: #ffffff;
@@ -2044,6 +2046,45 @@ section {
   grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr);
   gap: 12px;
   margin: 14px 0;
+}
+
+.workbench-simulation-plan {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.76fr) minmax(360px, 1.24fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.workbench-simulation-main,
+.workbench-simulation-cards {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: var(--surface-shadow);
+}
+
+.workbench-simulation-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.workbench-simulation-main > span:last-of-type {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.workbench-simulation-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 
 .workbench-result-panel {
@@ -4425,6 +4466,7 @@ footer {
   .help-start-panel,
   .performance-home-panel,
   .workbench-home-panel,
+  .workbench-simulation-plan,
   .workbench-result-panel,
   .workbench-run-command-panel,
   .operations-home-panel,

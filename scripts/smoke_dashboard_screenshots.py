@@ -204,6 +204,11 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".fetch-workflow-grid small",
     ".workbench-workflow-grid strong",
     ".workbench-workflow-grid small",
+    ".workbench-simulation-main strong",
+    ".workbench-simulation-main span",
+    ".workbench-simulation-cards strong",
+    ".workbench-simulation-cards small",
+    "#workbench-simulation-actions a",
     ".runs-workflow-grid strong",
     ".runs-workflow-grid small",
     ".operations-workflow-grid strong",
@@ -289,6 +294,9 @@ LAYOUT_CHECK_SCRIPT = r"""
     "#data-inventory-actions a",
     ".fetch-workflow-grid strong",
     ".workbench-workflow-grid strong",
+    ".workbench-simulation-main strong",
+    ".workbench-simulation-cards strong",
+    "#workbench-simulation-actions a",
     ".runs-workflow-grid strong",
     ".operations-workflow-grid strong",
     ".help-workflow-grid strong",
@@ -356,6 +364,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".data-inventory-cards",
     ".fetch-workflow-grid",
     ".workbench-workflow-grid",
+    ".workbench-simulation-cards",
     ".runs-workflow-grid",
     ".operations-workflow-grid",
     ".help-workflow-grid",
@@ -474,6 +483,7 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
     ],
     "workbench": [
       { selector: "#workbench-home-result" },
+      { selector: "#workbench-simulation-title" },
       { selector: "#workbench-guide-note" }
     ],
     "workbench/builder": [

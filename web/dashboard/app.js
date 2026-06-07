@@ -2821,7 +2821,92 @@ function renderWorkbenchHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderWorkbenchSimulationPlan(stateModel);
   renderWorkbenchWorkflowLauncher();
+}
+
+function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
+  if (!$("workbench-simulation-title") || !$("workbench-simulation-cards") || !$("workbench-simulation-actions")) return;
+  const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const generatedValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const draftReady = Boolean(draft.yaml && generatedValid) || Boolean(savedDraft && validation && validation.valid);
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const plugin = selectedConfigPlugin();
+  const range = configDateRangePayload();
+  const hasRange = Boolean(range.start || range.end);
+  const alignmentReady = Boolean(alignment.dataset_count && Number(alignment.common_timestamp_count || 0) > 0);
+  const runCompleted = Boolean(latestRun && latestRun.status === "completed");
+  const hasDraft = Boolean(draft.yaml || savedDraft);
+  const planStatus = stateModel.tiles.some((tile) => tile.status === "bad")
+    ? "bad"
+    : stateModel.tiles.some((tile) => tile.status === "warn") ? "warn" : "ok";
+  $("workbench-simulation-title").textContent = stateModel.result;
+  $("workbench-simulation-title").className = statusClass(planStatus);
+  $("workbench-simulation-note").textContent = stateModel.note;
+  const steps = [
+    {
+      label: "1. Select Data",
+      title: selected.length ? `${numberText(selected.length, 0)} selected` : "Choose files",
+      status: selected.length ? dataReadiness.status : "bad",
+      note: selected.length ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote : "Start in Data Library or Builder dataset controls.",
+      href: "#data/browse",
+    },
+    {
+      label: "2. Bound Window",
+      title: hasRange ? "Date range set" : "Full history",
+      status: selected.length ? hasRange ? "ok" : "warn" : "bad",
+      note: hasRange ? timeRangeLabel(range.start, range.end) : "Optional, but useful when comparing runs or avoiding stale periods.",
+      href: "#workbench/builder",
+    },
+    {
+      label: "3. Preview Alignment",
+      title: alignment.dataset_count ? `${numberText(alignment.common_timestamp_count, 0)} common` : "Not previewed",
+      status: alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignment.warning_count || 0, 0)} warning${Number(alignment.warning_count || 0) === 1 ? "" : "s"}.` : "Preview shared timestamps before generating YAML.",
+      href: "#workbench/builder",
+    },
+    {
+      label: "4. Pick Plugin",
+      title: plugin.label || plugin.id || "No plugin",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      note: plugin.id ? text(plugin.description || plugin.boundary || "Review public/private boundary before saving.") : "Choose a public example or ignored local plugin.",
+      href: "#workbench/builder",
+    },
+    {
+      label: "5. Validate Draft",
+      title: savedDraftId || (draft.yaml ? "Generated" : "No draft"),
+      status: draftReady ? "ok" : hasDraft ? "warn" : alignmentReady ? "warn" : "bad",
+      note: draftReady ? "Draft validation is clean enough to run." : hasDraft ? "Draft exists, but validation still needs review." : "Generate or preview draft YAML after data/plugin/risk review.",
+      href: "#workbench/run",
+    },
+    {
+      label: "6. Run And Inspect",
+      title: hasArtifacts ? "Artifacts loaded" : latestRun ? text(latestRun.status) : "Not run",
+      status: hasArtifacts ? "ok" : runCompleted ? "warn" : latestRun ? "warn" : draftReady ? "warn" : "bad",
+      note: hasArtifacts ? "Open Performance for charts or Runs for events/logs." : runCompleted ? "Completed run has artifacts available; load them before reading results." : latestRun ? "Review run status before comparing results." : "Run validate/replay/simulated-paper after validation.",
+      href: hasArtifacts ? "#performance" : "#workbench/run",
+    },
+  ];
+  $("workbench-simulation-cards").innerHTML = steps.map((step) => `
+    <a class="action-card workflow-card status-${escapeHtml(step.status)}" href="${escapeHtml(step.href)}">
+      <span>${escapeHtml(step.label)}</span>
+      <strong>${escapeHtml(step.title)}</strong>
+      <small>${escapeHtml(step.note)}</small>
+    </a>
+  `).join("");
+  $("workbench-simulation-actions").innerHTML = [
+    `<a href="#workbench/builder">${selected.length ? "Open Builder" : "Choose Data"}</a>`,
+    `<a class="secondary" href="#workbench/run">Run Draft</a>`,
+    `<a class="secondary" href="${hasArtifacts ? "#performance" : "#workbench/artifacts"}">${hasArtifacts ? "Open Performance" : "Open Artifacts"}</a>`,
+  ].join("");
 }
 
 function workbenchWorkflowCards() {

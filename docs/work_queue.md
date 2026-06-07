@@ -1424,6 +1424,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     data, previewing alignment, building a draft, running a draft, opening
     results, and reviewing plugin/public-private boundaries, giving users a
     job-oriented route before the detailed guide/stepper.
+  - partial; Workbench Home now includes a Simulation Plan panel that compresses
+    data selection, date range, alignment, plugin boundary, draft validation,
+    run state, and artifact inspection into a numbered public-safe checklist
+    with direct Builder, Run, Artifacts, and Performance routes.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.
