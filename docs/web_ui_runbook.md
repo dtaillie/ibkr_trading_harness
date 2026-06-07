@@ -327,8 +327,10 @@ matrix rows offline.
    replay input you intended. The Selected Data Coverage ledger below it
    summarizes replay readiness, source/bar/session mix, ranges, and can export
    the current saved-data handoff as CSV.
-4. Choose a public example plugin or a private local plugin from an ignored
-   registry.
+4. On Workbench Home, read Example Config Gallery. Public examples are no-edge
+   wiring demos; ignored local/private plugins are only summarized there. Use a
+   gallery action to populate plugin/mode fields, then choose a public example
+   plugin or a private local plugin from an ignored registry in Builder.
 5. Preview alignment before generating a draft. The Selected Data Packet
    should move from Not Previewed to an overlap count or a clear no-overlap
    warning.

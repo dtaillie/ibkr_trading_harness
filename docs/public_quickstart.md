@@ -548,7 +548,10 @@ legend showing how many returned gaps are visible in the current chart window.
 The Config Builder section can generate and validate plugin-runner YAML from
 one or more selected saved datasets. Public exports offer generic no-edge
 examples by default; local ignored plugin registries can add private plugin
-metadata for your own machine without publishing strategy logic. The Workbench
+metadata for your own machine without publishing strategy logic. Workbench Home
+includes an Example Config Gallery that lists public examples and ignored local
+plugin availability before the full Builder form. Gallery actions only populate
+plugin/mode fields; they do not save drafts or run simulations. The Workbench
 can render public-safe `strategy_fields` from that plugin metadata and writes
 those allowlisted values into the generated `strategy` section. It rejects
 unknown strategy keys and enforces public-safe field metadata such as required,

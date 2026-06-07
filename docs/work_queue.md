@@ -105,6 +105,9 @@ strategy-private.
     selected data, plugin visibility, alignment, draft validation, save state,
     and run readiness with direct Data, Preview, Generate, and Run actions
     before the dense config form.
+  - partial; Workbench Home now includes an Example Config Gallery that lists
+    public no-edge examples, ignored local/private plugin availability, and the
+    public/private boundary before users enter Builder.
   - partial; Runs now has Home / State / Runs / Events lenses with
     deep-linkable hashes such as `#runs/events`, separating triage, account
     boundary/current order state, run search, and event timelines.

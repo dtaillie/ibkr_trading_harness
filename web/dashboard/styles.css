@@ -2072,6 +2072,19 @@ section {
   margin: 12px 0;
 }
 
+.workbench-example-gallery-panel {
+  margin: 12px 0;
+}
+
+.workbench-example-card {
+  align-content: start;
+}
+
+.workbench-example-card button {
+  width: fit-content;
+  margin-top: 4px;
+}
+
 .performance-report-body {
   display: grid;
   gap: 8px;

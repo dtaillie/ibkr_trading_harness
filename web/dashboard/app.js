@@ -2980,9 +2980,127 @@ function renderWorkbenchHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderWorkbenchExampleGallery();
   renderWorkbenchSimulationPlan(stateModel);
   renderWorkbenchReadinessReview(stateModel);
   renderWorkbenchWorkflowLauncher();
+}
+
+function workbenchExampleGalleryModel() {
+  const options = state.configOptions || {};
+  const plugins = options.plugins || [];
+  const publicExamples = plugins.filter((plugin) => pluginBoundaryStatus(plugin) === "warn");
+  const privatePlugins = plugins.filter((plugin) => pluginVisibilityBucket(plugin) === "private");
+  const modes = (options.modes || ["replay"]).map(text).filter((mode) => mode !== "n/a");
+  const defaultMode = modes.includes("replay") ? "replay" : modes[0] || "";
+  const selected = selectedConfigDatasets();
+  const selectedPlugin = selectedConfigPlugin();
+  const registry = pluginRegistryPathSummary(options.plugin_registry_paths || []);
+  const cards = publicExamples.map((plugin) => {
+    const fieldCount = (plugin.strategy_fields || []).length;
+    const resultCount = (plugin.result_fields || []).length;
+    return {
+      type: "public",
+      status: "warn",
+      pluginId: plugin.id,
+      mode: defaultMode,
+      label: "Public Example",
+      title: text(plugin.label || plugin.id),
+      note: text(plugin.description || "Generic no-edge wiring demo. Use it to learn the Workbench path, not as a viable strategy."),
+      detail: `${numberText(fieldCount, 0)} field${fieldCount === 1 ? "" : "s"} / ${numberText(resultCount, 0)} result label${resultCount === 1 ? "" : "s"}; ${selected.length ? `${numberText(selected.length, 0)} selected file${selected.length === 1 ? "" : "s"}` : "choose saved data first"}.`,
+      action: "select",
+      actionLabel: "Use Example",
+    };
+  });
+  if (privatePlugins.length) {
+    cards.push({
+      type: "private",
+      status: selectedPlugin.id && pluginVisibilityBucket(selectedPlugin) === "private" ? "ok" : "warn",
+      pluginId: privatePlugins[0].id,
+      mode: defaultMode,
+      label: "Ignored Local",
+      title: `${numberText(privatePlugins.length, 0)} private/local plugin${privatePlugins.length === 1 ? "" : "s"}`,
+      note: "Local registry metadata is loaded from ignored config files. Keep real strategy logic, tuned defaults, and private results out of public examples.",
+      detail: registry.localCount ? `${numberText(registry.localCount, 0)} local registry path${registry.localCount === 1 ? "" : "s"} detected.` : "Private plugin metadata is available in this dashboard state.",
+      action: "select-private",
+      actionLabel: "Use Local",
+    });
+  } else {
+    cards.push({
+      type: "private",
+      status: "bad",
+      pluginId: "",
+      mode: defaultMode,
+      label: "Ignored Local",
+      title: "No private registry loaded",
+      note: "Copy the example registry to an ignored local file when you are ready to add private plugin metadata.",
+      detail: `Registry paths: ${registry.label}.`,
+      action: "registry-docs",
+      actionLabel: "Open Docs",
+    });
+  }
+  cards.push({
+    type: "guardrail",
+    status: "ok",
+    pluginId: "",
+    mode: defaultMode,
+    label: "Boundary",
+    title: "Examples are not strategies",
+    note: "Gallery actions only select plugin and mode fields. Preview, validation, local save, and run controls stay in Builder and Run.",
+    detail: modes.length ? `Available modes: ${modes.join(", ")}.` : "Mode options are loaded from the Workbench schema.",
+    action: "builder",
+    actionLabel: "Open Builder",
+  });
+  return {
+    count: publicExamples.length,
+    privateCount: privatePlugins.length,
+    selectedCount: selected.length,
+    cards,
+  };
+}
+
+function renderWorkbenchExampleGallery() {
+  if (!$("workbench-example-gallery-note") || !$("workbench-example-gallery-cards")) return;
+  const model = workbenchExampleGalleryModel();
+  $("workbench-example-gallery-note").textContent = model.count
+    ? `${numberText(model.count, 0)} public no-edge example${model.count === 1 ? "" : "s"}; ${numberText(model.privateCount, 0)} ignored local plugin${model.privateCount === 1 ? "" : "s"}; ${numberText(model.selectedCount, 0)} selected data file${model.selectedCount === 1 ? "" : "s"}.`
+    : "No public example plugins loaded from the Workbench schema.";
+  $("workbench-example-gallery-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)} workbench-example-card">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+      <small>${escapeHtml(card.detail)}</small>
+      <button type="button" class="secondary" data-workbench-example-action="${escapeHtml(card.action)}" data-plugin-id="${escapeHtml(card.pluginId)}" data-mode="${escapeHtml(card.mode)}">${escapeHtml(card.actionLabel)}</button>
+    </div>
+  `).join("");
+}
+
+function handleWorkbenchExampleGalleryAction(target) {
+  const action = target.dataset.workbenchExampleAction || "";
+  if (action === "registry-docs") {
+    window.open("/docs/public_quickstart.md#workbench-config-builder", "_blank", "noreferrer");
+    return;
+  }
+  if (action === "builder") {
+    applyWorkbenchLens("builder");
+    $("config-form").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  const pluginId = target.dataset.pluginId || "";
+  const mode = target.dataset.mode || "";
+  if (pluginId && $("config-plugin")) $("config-plugin").value = pluginId;
+  if (mode && $("config-mode")) $("config-mode").value = mode;
+  renderConfigLivePanels();
+  applyWorkbenchLens("builder");
+  const focusTarget = $("config-plugin") || $("config-form");
+  if (focusTarget) {
+    focusTarget.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (typeof focusTarget.focus === "function") focusTarget.focus({ preventScroll: true });
+  }
+  $("last-refresh").textContent = pluginId
+    ? `Workbench example selected: ${pluginId}`
+    : `Workbench builder opened: ${new Date().toLocaleString()}`;
 }
 
 function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
@@ -22782,6 +22900,11 @@ function init() {
       handleWorkbenchHomeAction(button.dataset.workbenchHomeAction || "");
     });
   }
+  $("workbench-example-gallery-cards").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-example-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchExampleGalleryAction(target);
+  });
   for (const button of document.querySelectorAll("[data-operations-home-action]")) {
     button.addEventListener("click", () => {
       handleOperationsHomeAction(button.dataset.operationsHomeAction || "");

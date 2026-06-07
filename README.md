@@ -295,7 +295,9 @@ metadata can be exported as CSV. The dashboard can generate, save, validate, rep
 simulated-paper-run plugin-runner config drafts from saved data. Public exports
 ship only generic no-edge example plugins, while local ignored plugin registries
 can expose private plugin metadata to the Workbench without publishing strategy
-logic. The workbench path remains limited to file-based data under configured
+logic. Workbench Home includes an Example Config Gallery that explains public
+examples and local plugin boundaries before opening Builder. The workbench path
+remains limited to file-based data under configured
 data roots and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths
 rejected before YAML is written. The Selected Data Packet includes an exportable
