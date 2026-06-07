@@ -220,6 +220,9 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".workbench-simulation-cards strong",
     ".workbench-simulation-cards small",
     "#workbench-simulation-actions a",
+    "#workbench-readiness-cards strong",
+    "#workbench-readiness-cards small",
+    "#workbench-readiness-actions a",
     ".runs-review-main strong",
     ".runs-review-main span",
     ".runs-review-cards strong",
@@ -325,6 +328,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".workbench-simulation-main strong",
     ".workbench-simulation-cards strong",
     "#workbench-simulation-actions a",
+    "#workbench-readiness-cards strong",
+    "#workbench-readiness-actions a",
     ".runs-review-main strong",
     ".runs-review-cards strong",
     "#runs-review-actions a",
@@ -401,6 +406,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".fetch-workflow-grid",
     ".workbench-workflow-grid",
     ".workbench-simulation-cards",
+    "#workbench-readiness-cards",
     ".runs-review-cards",
     ".runs-workflow-grid",
     ".operations-readiness-cards",
@@ -526,6 +532,7 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
     "workbench": [
       { selector: "#workbench-home-result" },
       { selector: "#workbench-simulation-title" },
+      { selector: "#workbench-readiness-note" },
       { selector: "#workbench-guide-note" }
     ],
     "workbench/builder": [

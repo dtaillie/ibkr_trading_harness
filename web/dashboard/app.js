@@ -2822,6 +2822,7 @@ function renderWorkbenchHome() {
     </div>
   `).join("");
   renderWorkbenchSimulationPlan(stateModel);
+  renderWorkbenchReadinessReview(stateModel);
   renderWorkbenchWorkflowLauncher();
 }
 
@@ -2906,6 +2907,142 @@ function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
     `<a href="#workbench/builder">${selected.length ? "Open Builder" : "Choose Data"}</a>`,
     `<a class="secondary" href="#workbench/run">Run Draft</a>`,
     `<a class="secondary" href="${hasArtifacts ? "#performance" : "#workbench/artifacts"}">${hasArtifacts ? "Open Performance" : "Open Artifacts"}</a>`,
+  ].join("");
+}
+
+function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
+  if (!$("workbench-readiness-note") || !$("workbench-readiness-cards") || !$("workbench-readiness-actions")) return;
+  const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const plugin = selectedConfigPlugin();
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const alignmentReady = Boolean(alignment.dataset_count && Number(alignment.common_timestamp_count || 0) > 0);
+  const draftGenerated = Boolean(draft.yaml || savedDraft);
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : Boolean(validation && validation.valid);
+  const draftErrors = normalizeConfigDraftErrors(state.configDraftErrors || []);
+  const runComplete = Boolean(latestRun && latestRun.status === "completed");
+  const runIssue = Boolean(latestRun && latestRun.status && !["completed", "success", "ok"].includes(text(latestRun.status).toLowerCase()));
+  const publicExample = plugin.visibility === "public_example";
+  let status = "bad";
+  let title = "Select Data";
+  let note = "Start with saved historical data, then preview timestamp alignment before generating a replay draft.";
+  let primaryHref = "#data/browse";
+  let primaryLabel = "Select Data";
+  if (selected.length && dataReadiness.issueCount) {
+    status = dataReadiness.status;
+    title = "Review Selected Data";
+    note = dataReadiness.reviewNote;
+    primaryHref = "#workbench/builder";
+    primaryLabel = "Review Data";
+  } else if (selected.length && !alignmentReady) {
+    status = alignment.dataset_count ? "bad" : "warn";
+    title = "Preview Alignment";
+    note = alignment.dataset_count
+      ? "Selected files do not expose a usable common timestamp window for this replay setup."
+      : "Selected files need an alignment preview before draft generation.";
+    primaryHref = "#workbench/builder";
+    primaryLabel = "Preview Alignment";
+  } else if (selected.length && alignmentReady && !plugin.id) {
+    status = "bad";
+    title = "Choose Plugin";
+    note = "Pick a public example plugin or ignored local/private plugin before generating a draft.";
+    primaryHref = "#workbench/builder";
+    primaryLabel = "Choose Plugin";
+  } else if (selected.length && alignmentReady && !draftGenerated) {
+    status = publicExample ? "warn" : "ok";
+    title = "Generate Draft";
+    note = publicExample
+      ? "A public example plugin is selected; generate only as a wiring example, not a viable strategy."
+      : "Data and alignment are ready for draft preview/generation.";
+    primaryHref = "#workbench/builder";
+    primaryLabel = "Generate Draft";
+  } else if (draftGenerated && !draftValid) {
+    status = "bad";
+    title = "Fix Draft";
+    note = draftErrors.length ? draftErrors.join("; ") : "Draft exists but validation is not clean yet.";
+    primaryHref = "#workbench/builder";
+    primaryLabel = "Fix Builder";
+  } else if (draftValid && !latestRun) {
+    status = "warn";
+    title = "Run Draft";
+    note = "A valid saved draft is ready; run validate/replay from the Run lens before reading performance.";
+    primaryHref = "#workbench/run";
+    primaryLabel = "Open Run";
+  } else if (latestRun && !hasArtifacts) {
+    status = runComplete ? "warn" : runIssue ? "bad" : "warn";
+    title = runComplete ? "Load Artifacts" : "Review Run";
+    note = runComplete
+      ? "The latest run completed, but artifacts are not loaded in the dashboard yet."
+      : "The latest run needs review before performance can be trusted.";
+    primaryHref = "#workbench/artifacts";
+    primaryLabel = runComplete ? "Open Artifacts" : "Review Run";
+  } else if (hasArtifacts) {
+    status = "ok";
+    title = "Inspect Results";
+    note = "Artifacts are loaded; use Performance for charts and Runs for decisions, orders, fills, rejects, and logs.";
+    primaryHref = "#performance";
+    primaryLabel = "Open Performance";
+  }
+  $("workbench-readiness-note").textContent = `${title} - ${note}`;
+  const alignmentStatus = alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad";
+  const cards = [
+    {
+      label: "Selected Data",
+      title: selected.length ? `${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"}` : "none",
+      status: selected.length ? dataReadiness.status : "bad",
+      detail: selected.length ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote : "Choose saved files from Data Library.",
+    },
+    {
+      label: "Alignment",
+      title: alignment.dataset_count ? `${numberText(alignment.common_timestamp_count, 0)} common` : "not previewed",
+      status: alignmentStatus,
+      detail: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage / ${numberText(alignment.warning_count || 0, 0)} warnings.` : "Preview shared timestamps before generating.",
+    },
+    {
+      label: "Plugin Boundary",
+      title: plugin.label || plugin.id || "none",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      detail: plugin.id ? text(plugin.visibility || plugin.boundary || "registry metadata loaded") : "Choose a public example or local/private plugin.",
+    },
+    {
+      label: "Draft",
+      title: draftGenerated ? draftValid ? "valid" : "review" : "none",
+      status: draftGenerated ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad",
+      detail: savedDraftId ? `${text(savedDraftId)}${validation ? ` / validation ${text(validation.status || validation.valid)}` : ""}` : draft.yaml ? "Generated YAML is not saved as a selected draft." : "Generate or preview YAML after setup.",
+    },
+    {
+      label: "Latest Run",
+      title: latestRun ? text(latestRun.status || latestRun.action || latestRun.run_id) : "not run",
+      status: latestRun ? runComplete ? "ok" : runIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      detail: latestRun ? `${text(latestRun.action || "run")} / ${text(latestRun.run_id || "no id")}` : "Run validate or replay after the draft is valid.",
+    },
+    {
+      label: "Results",
+      title: hasArtifacts ? "loaded" : latestRun && latestRun.artifact_path ? "available" : "missing",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      detail: hasArtifacts ? "Performance and Runs can inspect loaded artifacts." : "Load run artifacts before interpreting charts or trades.",
+    },
+  ];
+  $("workbench-readiness-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("workbench-readiness-actions").innerHTML = [
+    `<a href="${escapeHtml(primaryHref)}">${escapeHtml(primaryLabel)}</a>`,
+    `<a class="secondary" href="#workbench/builder">Builder</a>`,
+    `<a class="secondary" href="#workbench/run">Run</a>`,
+    `<a class="secondary" href="#workbench/artifacts">Artifacts</a>`,
+    `<a class="secondary" href="#runs">Runs</a>`,
   ].join("");
 }
 
