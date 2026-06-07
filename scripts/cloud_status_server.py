@@ -1123,6 +1123,51 @@ REMOTE_NODE_DETAIL_EXPORT_FIELDS = (
 )
 
 
+REMOTE_RUN_LIMIT = 20
+REMOTE_ALERT_LIMIT = 20
+REMOTE_SUPERVISOR_LIMIT = 20
+REMOTE_RECENT_EVENT_LIMIT = 10
+REMOTE_ARTIFACT_FILE_LIMIT = 25
+REMOTE_MISSING_FILE_LIMIT = 25
+
+
+def remote_detail_boundary_policy(snapshot_limit: int) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "name": "remote_status_sanitized_boundary",
+        "scope": "bounded read-only cloud monitoring detail",
+        "snapshot_limit": snapshot_limit,
+        "latest_run_limit": REMOTE_RUN_LIMIT,
+        "alert_limit": REMOTE_ALERT_LIMIT,
+        "supervisor_limit": REMOTE_SUPERVISOR_LIMIT,
+        "recent_event_limit_per_stream": REMOTE_RECENT_EVENT_LIMIT,
+        "artifact_file_limit_per_run": REMOTE_ARTIFACT_FILE_LIMIT,
+        "missing_file_limit_per_run": REMOTE_MISSING_FILE_LIMIT,
+        "included": [
+            "latest node summary",
+            "bounded status-history summaries",
+            "bounded latest run metrics",
+            "bounded sanitized decision/order/fill rows",
+            "artifact file names, categories, sizes, modified times, and row counts",
+            "alert and supervisor summaries",
+        ],
+        "excluded": [
+            "raw stdout/stderr logs",
+            "raw artifact contents",
+            "local absolute paths",
+            "broker credentials",
+            "account identifiers",
+            "private strategy diagnostics",
+            "unbounded historical archives",
+        ],
+        "retention_note": (
+            "Remote detail is reconstructed from the receiver status-history file; "
+            "off-host retention should be governed by the hosting provider storage policy "
+            "before mirroring full logs or artifact contents."
+        ),
+    }
+
+
 def load_remote_nodes(state_dir: Path, *, limit: int = 100) -> dict[str, Any]:
     path = status_history_path(state_dir)
     if not path.exists():
@@ -1214,6 +1259,14 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
             "latest_account_time": summary.get("latest_account_time"),
             "latest_data_time": summary.get("latest_data_time"),
             "latest_decision_time": summary.get("latest_decision_time"),
+        })
+    boundary = detail.get("boundary_policy") if isinstance(detail.get("boundary_policy"), dict) else {}
+    if boundary:
+        rows.append({
+            "row_type": "boundary_policy",
+            "node_id": node,
+            "status": boundary.get("name"),
+            "detail": compact_csv_value(boundary),
         })
     for item in detail.get("history") or []:
         rows.append({
@@ -1356,7 +1409,7 @@ def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[s
             "row_count": int(item.get("row_count") or 0) if item.get("row_count") is not None else None,
             "modified_at": item.get("modified_at"),
         })
-        if len(files) >= 25:
+        if len(files) >= REMOTE_ARTIFACT_FILE_LIMIT:
             break
     raw_category_counts = evidence.get("category_counts") if isinstance(evidence.get("category_counts"), dict) else category_counts
     category_counts = {
@@ -1369,7 +1422,7 @@ def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[s
         str(name)[:80]
         for name in raw_missing_files
         if str(name).strip() and "/" not in str(name) and "\\" not in str(name)
-    ][:25]
+    ][:REMOTE_MISSING_FILE_LIMIT]
     return {
         "schema_version": evidence.get("schema_version"),
         "available": bool(evidence.get("available")),
@@ -1408,9 +1461,9 @@ def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
         "latest_data_time": metrics.get("latest_data_time"),
         "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
         "last_decision_time": metrics.get("last_decision_time"),
-        "recent_decisions": recent.get("decisions", [])[:10] if isinstance(recent, dict) else [],
-        "recent_orders": recent.get("orders", [])[:10] if isinstance(recent, dict) else [],
-        "recent_fills": recent.get("fills", [])[:10] if isinstance(recent, dict) else [],
+        "recent_decisions": recent.get("decisions", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
+        "recent_orders": recent.get("orders", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
+        "recent_fills": recent.get("fills", [])[:REMOTE_RECENT_EVENT_LIMIT] if isinstance(recent, dict) else [],
         "artifact_evidence": sanitize_remote_artifact_evidence(run.get("artifact_evidence")),
     }
 
@@ -1432,7 +1485,7 @@ def load_remote_node_detail(state_dir: Path, node_id: str, *, limit: int = 20) -
         raise ValueError("node_id is required")
     path = status_history_path(state_dir)
     if not path.exists():
-        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "count": 0, "total": 0, "limit": limit}
+        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "boundary_policy": remote_detail_boundary_policy(limit), "count": 0, "total": 0, "limit": limit}
     rows: deque[dict[str, Any]] = deque(maxlen=limit)
     latest: dict[str, Any] | None = None
     total = 0
@@ -1450,7 +1503,7 @@ def load_remote_node_detail(state_dir: Path, node_id: str, *, limit: int = 20) -
             latest = row
             rows.append(summarize_status_snapshot(row))
     if latest is None:
-        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "count": 0, "total": 0, "limit": limit}
+        return {"node_id": node, "summary": {}, "history": [], "alerts": [], "runs": [], "supervisors": [], "boundary_policy": remote_detail_boundary_policy(limit), "count": 0, "total": 0, "limit": limit}
     alerts = latest.get("alerts") if isinstance(latest.get("alerts"), list) else []
     runs = latest.get("runs") if isinstance(latest.get("runs"), list) else []
     supervisors = latest.get("supervisors") if isinstance(latest.get("supervisors"), list) else []
@@ -1458,6 +1511,7 @@ def load_remote_node_detail(state_dir: Path, node_id: str, *, limit: int = 20) -
         "node_id": node,
         "summary": summarize_remote_node(latest),
         "history": list(reversed(rows)),
+        "boundary_policy": remote_detail_boundary_policy(limit),
         "alerts": [
             {
                 "level": alert.get("level"),
@@ -1466,9 +1520,9 @@ def load_remote_node_detail(state_dir: Path, node_id: str, *, limit: int = 20) -
             }
             for alert in alerts
             if isinstance(alert, dict)
-        ][:20],
-        "runs": [sanitize_remote_run(run) for run in runs if isinstance(run, dict)][:20],
-        "supervisors": [sanitize_remote_supervisor(item) for item in supervisors if isinstance(item, dict)][:20],
+        ][:REMOTE_ALERT_LIMIT],
+        "runs": [sanitize_remote_run(run) for run in runs if isinstance(run, dict)][:REMOTE_RUN_LIMIT],
+        "supervisors": [sanitize_remote_supervisor(item) for item in supervisors if isinstance(item, dict)][:REMOTE_SUPERVISOR_LIMIT],
         "count": len(rows),
         "total": total,
         "limit": limit,

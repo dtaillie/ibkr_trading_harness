@@ -16269,6 +16269,56 @@ function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
   `).join("");
 }
 
+function renderRemoteNodeBoundaryPolicy(detail = {}) {
+  if (!$("remote-node-boundary-note") || !$("remote-node-boundary-cards")) return;
+  const policy = detail.boundary_policy || {};
+  const hasPolicy = Boolean(policy.name);
+  const excluded = policy.excluded || [];
+  const included = policy.included || [];
+  $("remote-node-boundary-note").textContent = hasPolicy
+    ? text(policy.retention_note || "Remote detail is bounded and sanitized before display.")
+    : "Remote detail uses bounded sanitized status summaries.";
+  const cards = [
+    {
+      status: detail.node_id ? "ok" : "warn",
+      label: "Boundary",
+      title: hasPolicy ? "Sanitized" : "Not Loaded",
+      note: hasPolicy ? text(policy.scope) : "Select a node to load the remote detail boundary.",
+    },
+    {
+      status: hasPolicy ? "ok" : "warn",
+      label: "Snapshot Limit",
+      title: numberText(policy.snapshot_limit || detail.limit || 0, 0),
+      note: `${numberText(policy.latest_run_limit || 0, 0)} latest runs / ${numberText(policy.recent_event_limit_per_stream || 0, 0)} events per stream.`,
+    },
+    {
+      status: hasPolicy ? "ok" : "warn",
+      label: "Artifact Evidence",
+      title: `${numberText(policy.artifact_file_limit_per_run || 0, 0)} files`,
+      note: "Names, categories, sizes, modified times, and row counts only.",
+    },
+    {
+      status: "warn",
+      label: "Excluded",
+      title: `${numberText(excluded.length, 0)} classes`,
+      note: excluded.slice(0, 4).join(", ") || "Raw logs, credentials, and private diagnostics stay local.",
+    },
+    {
+      status: hasPolicy ? "ok" : "warn",
+      label: "Included",
+      title: `${numberText(included.length, 0)} classes`,
+      note: included.slice(0, 3).join(", ") || "Bounded summary rows only.",
+    },
+  ];
+  $("remote-node-boundary-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function renderRemoteNodeDetail() {
   if (!$("remote-node-detail-summary") || !$("remote-node-detail-note")) return;
   const detail = state.remoteNodeDetail || {};
@@ -16317,6 +16367,7 @@ function renderRemoteNodeDetail() {
       : detail.node_id ? "No artifact evidence published by latest run summaries" : "No node selected";
   }
   renderRemoteNodeRunHealth(detail, runs, activity);
+  renderRemoteNodeBoundaryPolicy(detail);
   const pairs = detail.node_id
     ? [
         ["Node", text(detail.node_id)],

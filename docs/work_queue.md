@@ -1564,6 +1564,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     summarizes heartbeat freshness, alerts, latest-run health, activity mix,
     artifact evidence, and the sanitized cloud boundary, with direct actions
     for activity filters, CSV export, and command-target selection.
+  - partial; Remote Node Detail now publishes an explicit retention/privacy
+    boundary policy in the API, CSV export, and UI, documenting snapshot/run/
+    event/artifact bounds plus excluded raw logs, credentials, local paths, and
+    private strategy diagnostics before any richer cloud archive browsing.
 - Keep broker credentials and trading authority on the local machine.
 
 ## P2: Generic runner and framework hardening

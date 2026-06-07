@@ -1180,6 +1180,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-nodes-body" in html
         assert "remote-node-detail-note" in html
         assert "remote-node-run-health" in html
+        assert "remote-node-boundary-note" in html
+        assert "remote-node-boundary-cards" in html
         assert "remote-detail-artifact-count" in html
         assert "remote-node-artifacts-note" in html
         assert "remote-node-artifacts-body" in html
@@ -1596,6 +1598,12 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert detail["runs"][0]["artifact_evidence"]["missing_files"] == ["runner_status.json"]
         assert [item["name"] for item in detail["runs"][0]["artifact_evidence"]["files"]] == ["summary.json", "decisions.jsonl"]
         assert detail["runs"][0]["artifact_evidence"]["files"][0]["category"] == "summary"
+        assert detail["boundary_policy"]["name"] == "remote_status_sanitized_boundary"
+        assert detail["boundary_policy"]["snapshot_limit"] == 2
+        assert detail["boundary_policy"]["latest_run_limit"] == 20
+        assert detail["boundary_policy"]["recent_event_limit_per_stream"] == 10
+        assert "raw stdout/stderr logs" in detail["boundary_policy"]["excluded"]
+        assert "broker credentials" in detail["boundary_policy"]["excluded"]
         assert detail["supervisors"][0]["id"] == "sup-a"
         assert [row["status"] for row in detail["history"]] == ["ok", "warn"]
 
@@ -1605,7 +1613,8 @@ def test_cloud_status_server_serves_status_history(tmp_path):
             detail_csv_body = resp.read().decode("utf-8")
         detail_rows = list(csv.DictReader(io.StringIO(detail_csv_body)))
         row_types = {row["row_type"] for row in detail_rows}
-        assert {"summary", "history", "run", "activity", "artifact_evidence", "artifact_file", "supervisor"}.issubset(row_types)
+        assert {"summary", "boundary_policy", "history", "run", "activity", "artifact_evidence", "artifact_file", "supervisor"}.issubset(row_types)
+        assert any(row["row_type"] == "boundary_policy" and "remote_status_sanitized_boundary" in row["detail"] for row in detail_rows)
         assert any(row["row_type"] == "activity" and row["run_id"] == "run-a" and row["status"] == "Submitted" for row in detail_rows)
         assert any(row["row_type"] == "artifact_evidence" and row["run_id"] == "run-a" and row["status"] == "available" and "event_stream_count" in row["detail"] for row in detail_rows)
         assert any(row["row_type"] == "artifact_file" and row["run_id"] == "run-a" and "category" in row["detail"] for row in detail_rows)
