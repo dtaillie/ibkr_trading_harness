@@ -2396,23 +2396,49 @@ function renderPluginResultSectionHelpCard(section, resultFields) {
   `;
 }
 
+function renderPluginResultWidgetHelpCard(widget, resultFields) {
+  const resultByName = new Map((resultFields || []).map((field) => [text(field.name), field]));
+  const fields = (widget.fields || [])
+    .map((name) => resultByName.get(text(name)) || { name, label: name })
+    .filter((field) => field && field.name);
+  const fieldLabels = fields.length
+    ? fields.map((field) => text(field.label || field.name)).join(", ")
+    : "No result fields declared.";
+  const fieldPaths = fields.length
+    ? fields.map((field) => `result.${text(field.name)}`).join(", ")
+    : "n/a";
+  const help = text(widget.description || widget.help || "Public-safe artifact display widget.");
+  const status = fields.length ? "ok" : "warn";
+  return `
+    <article class="plugin-field-help-card status-${escapeHtml(status)}">
+      <span>Result Widget ${escapeHtml(text(widget.kind || "cards"))}</span>
+      <strong>${escapeHtml(text(widget.label || widget.id))}</strong>
+      <small class="mono">${escapeHtml(fieldPaths)}</small>
+      <p>${escapeHtml(help)}</p>
+      <small>${escapeHtml(`${numberText(fields.length, 0)} displayed field${fields.length === 1 ? "" : "s"}: ${fieldLabels}`)}</small>
+    </article>
+  `;
+}
+
 function renderConfigPluginFieldHelp() {
   if (!$("config-plugin-field-help") || !$("config-plugin-field-help-note")) return;
   const plugin = selectedConfigPlugin();
   const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
   const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
   const resultSections = (plugin.result_sections || []).filter((section) => section && section.id);
+  const resultWidgets = (plugin.result_widgets || []).filter((widget) => widget && widget.id);
   $("config-plugin-field-help-note").textContent = plugin.id
-    ? `${numberText(strategyFields.length, 0)} input field${strategyFields.length === 1 ? "" : "s"} / ${numberText(resultFields.length, 0)} result field${resultFields.length === 1 ? "" : "s"} / ${numberText(resultSections.length, 0)} result section${resultSections.length === 1 ? "" : "s"} for ${text(plugin.label || plugin.id)}`
+    ? `${numberText(strategyFields.length, 0)} input field${strategyFields.length === 1 ? "" : "s"} / ${numberText(resultFields.length, 0)} result field${resultFields.length === 1 ? "" : "s"} / ${numberText(resultSections.length, 0)} result section${resultSections.length === 1 ? "" : "s"} / ${numberText(resultWidgets.length, 0)} result widget${resultWidgets.length === 1 ? "" : "s"} for ${text(plugin.label || plugin.id)}`
     : "Choose a plugin to see public-safe field help.";
   const cards = [
     ...strategyFields.map((field) => renderPluginFieldHelpCard(field, "Input")),
     ...resultFields.map((field) => renderPluginFieldHelpCard(field, "Result")),
     ...resultSections.map((section) => renderPluginResultSectionHelpCard(section, resultFields)),
+    ...resultWidgets.map((widget) => renderPluginResultWidgetHelpCard(widget, resultFields)),
   ];
   $("config-plugin-field-help").innerHTML = cards.length
     ? cards.join("")
-    : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields, result_fields, and optional result_sections in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
+    : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields, result_fields, result_sections, and result_widgets in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
 }
 
 function renderConfigBrokerBoundary() {
@@ -13366,6 +13392,7 @@ function renderArtifactPluginCoverage(artifacts) {
   const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
   const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
   renderArtifactPluginResultSections(artifacts, coverageRows, decisionCount);
+  renderArtifactPluginResultWidgets(artifacts, coverageRows, decisionCount);
   renderArtifactPluginResultSnapshot(artifacts, coverageRows, decisionCount);
   renderArtifactPluginDisplayPlan(artifacts, coverageRows, decisionCount);
   $("artifact-plugin-coverage-note").textContent = coverageRows.length
@@ -13421,6 +13448,55 @@ function renderArtifactPluginResultSections(artifacts, coverageRows = [], decisi
         <p>${escapeHtml(pctText(section.field_coverage_pct))}</p>
         <small>${escapeHtml(note)}</small>
         <small>${fields || "No declared fields in this section."}</small>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {
+  if (!$("artifact-plugin-result-widgets")) return;
+  const summary = artifacts.plugin_result_summary || {};
+  const widgets = (summary.widget_coverage || []).filter((widget) => widget && widget.id);
+  if (!widgets.length) {
+    $("artifact-plugin-result-widgets").innerHTML = "";
+    return;
+  }
+  $("artifact-plugin-result-widgets").innerHTML = widgets.slice(0, 8).map((widget) => {
+    const status = widget.status || "waiting";
+    const kind = text(widget.kind || "cards");
+    const fieldRows = (widget.field_summaries || []).slice(0, 8);
+    let body = "";
+    if (kind === "table") {
+      body = `<table class="mini-table"><tbody>${fieldRows.map((field) => `
+        <tr>
+          <td>${escapeHtml(text(field.label || field.name))}</td>
+          <td>${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</td>
+          <td>${escapeHtml(numberText(field.emitted_count, 0))}</td>
+        </tr>
+      `).join("")}</tbody></table>`;
+    } else if (kind === "bar_summary") {
+      body = `<div class="plugin-widget-bars">${fieldRows.map((field) => {
+        const pct = finiteNumber(field.coverage_pct) ?? 0;
+        return `
+          <span><b>${escapeHtml(text(field.label || field.name))}</b><i style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></i><em>${escapeHtml(pctText(field.coverage_pct))}</em></span>
+        `;
+      }).join("")}</div>`;
+    } else {
+      body = `<div class="plugin-widget-card-list">${fieldRows.map((field) => `
+        <span><b>${escapeHtml(text(field.label || field.name))}</b> ${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</span>
+      `).join("")}</div>`;
+    }
+    const note = [
+      `${numberText(widget.emitted_field_count || 0, 0)} / ${numberText(widget.field_count || 0, 0)} fields emitted`,
+      decisionCount ? `${numberText(decisionCount, 0)} loaded decisions` : "no loaded decisions",
+      text(widget.description || widget.help || ""),
+    ].filter((item) => item && item !== "n/a").join("; ");
+    return `
+      <article class="plugin-result-display-card status-${escapeHtml(status)} plugin-result-widget plugin-result-widget-${escapeHtml(kind)}">
+        <span>${statusText(status)} ${escapeHtml(kind)}</span>
+        <strong>${escapeHtml(text(widget.label || widget.id))}</strong>
+        <small>${escapeHtml(note)}</small>
+        ${body || "<small>No widget fields emitted yet.</small>"}
       </article>
     `;
   }).join("");

@@ -3360,6 +3360,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         ]
         assert plugin["result_sections"][0]["id"] == "example_status"
         assert plugin["result_sections"][0]["fields"] == ["reason", "signal_value", "threshold_distance"]
+        assert [widget["id"] for widget in plugin["result_widgets"]] == ["example_cards", "example_summary"]
+        assert plugin["result_widgets"][1]["kind"] == "bar_summary"
+        assert plugin["result_widgets"][1]["fields"] == ["signal_value", "threshold_distance"]
         assert plugin["result_fields"][1]["label"] == "Example Score"
         assert plugin["result_fields"][1]["decimals"] == 2
         assert plugin["result_fields"][2]["suffix"] == "score units"
@@ -3753,13 +3756,19 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["plugin"]["strategy_fields"][0]["name"] == "example_parameter"
         assert run_artifacts["plugin"]["result_fields"][0]["name"] == "reason"
         assert run_artifacts["plugin"]["result_sections"][0]["id"] == "example_status"
+        assert run_artifacts["plugin"]["result_widgets"][0]["id"] == "example_cards"
         assert run_artifacts["plugin_result_summary"]["status"] == "ok"
         assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["declared_section_count"] == 1
+        assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 2
         assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
         assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "example_status"
         assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["emitted_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["id"] == "example_cards"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["emitted_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["kind"] == "bar_summary"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["field_summaries"][0]["name"] == "signal_value"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
         assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
@@ -3817,6 +3826,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["plugin"]["matched"] is True
         assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
         assert artifacts["plugin"]["result_sections"][0]["label"] == "Example Status"
+        assert artifacts["plugin"]["result_widgets"][1]["label"] == "Example Bar Summary"
         assert artifacts["plugin"]["result_fields"][1]["decimals"] == 2
         assert artifacts["plugin"]["result_fields"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["status"] == "ok"
@@ -3824,6 +3834,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["plugin_result_summary"]["field_coverage"][1]["latest_value"] == 0.0
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["suffix"] == "score units"
         assert artifacts["plugin_result_summary"]["section_coverage"][0]["field_coverage_pct"] == 100.0
+        assert artifacts["plugin_result_summary"]["widget_coverage"][1]["field_coverage_pct"] == 100.0
         assert artifacts["plugin_result_summary"]["field_coverage"][2]["coverage_pct"] == 100.0
         assert artifacts["summary"]["mode"] == "replay"
         assert artifacts["counts"] == {
@@ -4881,6 +4892,36 @@ def test_cloud_status_server_validates_plugin_result_sections(tmp_path):
                 "    result_sections:",
                 "      - id: invalid_section",
                 "        label: Invalid Section",
+                "        fields:",
+                "          - public_score",
+                "          - private_missing",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="references undeclared result field private_missing"):
+        status_server.load_config_builder_plugins([registry])
+
+
+def test_cloud_status_server_validates_plugin_result_widgets(tmp_path):
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: widget_demo",
+                "    label: Widget demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    result_fields:",
+                "      - name: public_score",
+                "        label: Public Score",
+                "        kind: number",
+                "    result_widgets:",
+                "      - id: invalid_widget",
+                "        label: Invalid Widget",
+                "        kind: table",
                 "        fields:",
                 "          - public_score",
                 "          - private_missing",

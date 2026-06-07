@@ -192,6 +192,24 @@ CONFIG_BUILDER_PLUGINS = (
                 "order": 10,
             },
         ],
+        "result_widgets": [
+            {
+                "id": "example_cards",
+                "label": "Example Cards",
+                "kind": "cards",
+                "description": "Example-only cards for public-safe result diagnostics.",
+                "fields": ["reason", "signal_value", "threshold_distance"],
+                "order": 10,
+            },
+            {
+                "id": "example_summary",
+                "label": "Example Bar Summary",
+                "kind": "bar_summary",
+                "description": "Example-only emitted-count summary for public diagnostics.",
+                "fields": ["signal_value", "threshold_distance"],
+                "order": 20,
+            },
+        ],
     },
 )
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
@@ -204,6 +222,8 @@ PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "pre
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
+PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary"}
+PLUGIN_RESULT_WIDGET_DISPLAY_KEYS = {"description", "help"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
 CONFIG_BUILDER_RISK_PRESETS = (
     {
@@ -4468,6 +4488,11 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
             plugin_id=plugin_id,
             result_fields=result_fields,
         ),
+        "result_widgets": normalize_plugin_result_widgets(
+            row.get("result_widgets"),
+            plugin_id=plugin_id,
+            result_fields=result_fields,
+        ),
         "source": source,
     }
     if source_path:
@@ -4680,6 +4705,69 @@ def normalize_plugin_result_sections(
     return sorted_sections
 
 
+def normalize_plugin_result_widgets(
+    raw_widgets: Any,
+    *,
+    plugin_id: str,
+    result_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if raw_widgets is None:
+        return []
+    if not isinstance(raw_widgets, list):
+        raise ValueError(f"plugin {plugin_id} result_widgets must be a list")
+    declared_fields = {str(field.get("name")) for field in result_fields if field.get("name")}
+    normalized = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_widgets, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"plugin {plugin_id} result_widgets[{idx}] must be a mapping")
+        widget_id = str(raw.get("id") or raw.get("name") or "").strip()
+        if not widget_id or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", widget_id):
+            raise ValueError(f"plugin {plugin_id} result_widgets[{idx}].id must be a safe identifier")
+        if widget_id in seen:
+            raise ValueError(f"plugin {plugin_id} result_widgets contains duplicate id {widget_id}")
+        seen.add(widget_id)
+        kind = str(raw.get("kind") or "cards").strip().lower()
+        if kind not in PLUGIN_RESULT_WIDGET_KINDS:
+            raise ValueError(
+                f"plugin {plugin_id} result_widgets[{widget_id}].kind must be one of {sorted(PLUGIN_RESULT_WIDGET_KINDS)}"
+            )
+        raw_fields = raw.get("fields")
+        if not isinstance(raw_fields, list) or not raw_fields:
+            raise ValueError(f"plugin {plugin_id} result_widgets[{widget_id}].fields must be a non-empty list")
+        fields: list[str] = []
+        for raw_field in raw_fields:
+            field = str(raw_field or "").strip()
+            if not field or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", field):
+                raise ValueError(f"plugin {plugin_id} result_widgets[{widget_id}].fields contains an invalid field")
+            if field not in declared_fields:
+                raise ValueError(
+                    f"plugin {plugin_id} result_widgets[{widget_id}].fields references undeclared result field {field}"
+                )
+            if field not in fields:
+                fields.append(field)
+        widget = {
+            "id": widget_id,
+            "label": str(raw.get("label") or widget_id.replace("_", " ").title()).strip(),
+            "kind": kind,
+            "fields": fields,
+            "_source_order": idx,
+        }
+        for key in PLUGIN_RESULT_WIDGET_DISPLAY_KEYS:
+            if raw.get(key) is not None:
+                widget[key] = str(raw[key]).strip()
+        if raw.get("order") is not None:
+            try:
+                widget["order"] = float(raw["order"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} result_widgets[{widget_id}].order must be numeric") from exc
+        normalized.append(widget)
+    sorted_widgets = sorted(normalized, key=lambda widget: (float(widget.get("order", widget["_source_order"])), int(widget["_source_order"])))
+    for widget in sorted_widgets:
+        widget.pop("_source_order", None)
+    return sorted_widgets
+
+
 def load_config_builder_plugins(plugin_registry_paths: list[Path] | None = None) -> list[dict[str, Any]]:
     plugins = [normalize_config_plugin(plugin, source="builtin") for plugin in CONFIG_BUILDER_PLUGINS]
     seen = {plugin["id"] for plugin in plugins}
@@ -4726,6 +4814,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
             "strategy_fields": [],
             "result_fields": [],
             "result_sections": [],
+            "result_widgets": [],
         }
     return {
         "id": plugin.get("id"),
@@ -4739,6 +4828,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
         "strategy_fields": plugin.get("strategy_fields") or [],
         "result_fields": plugin.get("result_fields") or [],
         "result_sections": plugin.get("result_sections") or [],
+        "result_widgets": plugin.get("result_widgets") or [],
     }
 
 
@@ -7170,6 +7260,7 @@ def summarize_plugin_result_field_coverage(
         "decision_count": decision_count,
         "declared_field_count": len(fields),
         "declared_section_count": len(plugin.get("result_sections") if isinstance(plugin.get("result_sections"), list) else []),
+        "declared_widget_count": len(plugin.get("result_widgets") if isinstance(plugin.get("result_widgets"), list) else []),
         "emitted_field_count": emitted_field_count,
         "emitted_value_count": emitted_value_count,
         "unlabeled_public_keys": sorted(unlabeled_keys)[:50],
@@ -7177,6 +7268,11 @@ def summarize_plugin_result_field_coverage(
         "field_coverage": field_rows,
         "section_coverage": summarize_plugin_result_section_coverage(
             plugin.get("result_sections") if isinstance(plugin.get("result_sections"), list) else [],
+            coverage_by_name,
+            decision_count=decision_count,
+        ),
+        "widget_coverage": summarize_plugin_result_widget_coverage(
+            plugin.get("result_widgets") if isinstance(plugin.get("result_widgets"), list) else [],
             coverage_by_name,
             decision_count=decision_count,
         ),
@@ -7207,6 +7303,52 @@ def summarize_plugin_result_section_coverage(
             "emitted_value_count": emitted_values,
             "field_coverage_pct": coverage_pct,
             "decision_count": decision_count,
+            "status": "ok" if fields and emitted_fields == len(fields) else "waiting" if not decision_count else "warn",
+        })
+    return rows
+
+
+def summarize_plugin_result_widget_coverage(
+    widgets: list[dict[str, Any]],
+    coverage_by_name: dict[str, dict[str, Any]],
+    *,
+    decision_count: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for widget in widgets:
+        fields = [str(field) for field in (widget.get("fields") if isinstance(widget.get("fields"), list) else [])]
+        field_rows = [coverage_by_name.get(field) for field in fields if coverage_by_name.get(field)]
+        emitted_fields = sum(1 for row in field_rows if int(row.get("emitted_count") or 0) > 0)
+        emitted_values = sum(int(row.get("emitted_count") or 0) for row in field_rows)
+        field_summaries = []
+        for row in field_rows[:12]:
+            field_summaries.append({
+                "name": row.get("name"),
+                "label": row.get("label"),
+                "kind": row.get("kind"),
+                "decimals": row.get("decimals"),
+                "prefix": row.get("prefix"),
+                "suffix": row.get("suffix"),
+                "unit": row.get("unit"),
+                "emitted_count": row.get("emitted_count"),
+                "coverage_pct": row.get("coverage_pct"),
+                "latest_value": row.get("latest_value"),
+                "latest_timestamp": row.get("latest_timestamp"),
+                "status": row.get("status"),
+            })
+        rows.append({
+            "id": widget.get("id"),
+            "label": widget.get("label"),
+            "kind": widget.get("kind"),
+            "description": widget.get("description"),
+            "help": widget.get("help"),
+            "fields": fields,
+            "field_count": len(fields),
+            "emitted_field_count": emitted_fields,
+            "emitted_value_count": emitted_values,
+            "field_coverage_pct": finite_float((emitted_fields / len(fields)) * 100.0) if fields else None,
+            "decision_count": decision_count,
+            "field_summaries": field_summaries,
             "status": "ok" if fields and emitted_fields == len(fields) else "waiting" if not decision_count else "warn",
         })
     return rows

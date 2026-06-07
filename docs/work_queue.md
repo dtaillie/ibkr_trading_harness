@@ -1597,8 +1597,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     `strategy.<field>`. The Workbench form schema is now v4, with
     public-safe plugin display metadata for descriptions, placeholders, units,
     affixes, advanced badges, ordering, select-option descriptions, and grouped
-    plugin result sections. Richer plugin-defined custom chart/table widgets
-    remain open.
+    plugin result sections. Plugin registries can now also declare public-safe
+    result widgets for card, table, and bar-summary artifact displays; deeper
+    plugin-defined chart widgets remain open.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

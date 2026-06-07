@@ -1084,6 +1084,80 @@ button.secondary {
   line-height: 1.35;
 }
 
+.plugin-result-widget {
+  display: grid;
+  gap: 8px;
+}
+
+.plugin-result-widget .mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plugin-result-widget .mini-table td {
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  vertical-align: top;
+}
+
+.plugin-result-widget .mini-table td:nth-child(2),
+.plugin-result-widget .mini-table td:nth-child(3) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.plugin-widget-card-list {
+  display: grid;
+  gap: 5px;
+}
+
+.plugin-widget-card-list span {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.plugin-widget-card-list b,
+.plugin-widget-bars b {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.plugin-widget-bars {
+  display: grid;
+  gap: 7px;
+}
+
+.plugin-widget-bars span {
+  display: grid;
+  grid-template-columns: minmax(88px, 1fr) minmax(72px, 2fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.plugin-widget-bars i {
+  display: block;
+  min-width: 3px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.plugin-widget-bars em {
+  color: var(--muted);
+  font-style: normal;
+  white-space: nowrap;
+}
+
 .wide-field {
   flex: 1 1 320px;
   grid-column: 1 / -1;
