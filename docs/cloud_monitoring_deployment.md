@@ -108,6 +108,17 @@ The compose file starts `scripts/cloud_status_server.py` with
 volume. Put a private VPN or HTTPS reverse proxy in front of it before using it
 away from localhost.
 
+Before copying or modifying the public cloud examples, run the static boundary
+audit:
+
+```bash
+python3 scripts/audit_cloud_examples.py
+```
+
+That audit checks for expected authentication, network-access, dry-run,
+firewall, proxy, and off-host retention markers. It is not a provider/account
+hardening review, but it catches accidental weakening of the example files.
+
 `ops/cloud/nginx-status-receiver.example.conf` is a minimal reverse-proxy
 template. Replace the example domain and certificate paths, then add your
 normal firewall or source-IP controls. The nginx file is intentionally only a

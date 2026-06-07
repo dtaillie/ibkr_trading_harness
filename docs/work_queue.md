@@ -1464,6 +1464,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     a dry-run-first off-host command-audit sync helper. Remaining gap: manual
     hardening review against a real chosen provider/account before any
     internet-facing deployment.
+  - partial; `scripts/audit_cloud_examples.py` now statically checks the public
+    cloud examples for expected auth, network-access, dry-run, proxy,
+    firewall, and off-host retention boundary markers, and CI runs it with the
+    public readiness audit. This catches accidental weakening of the examples;
+    real provider/account hardening review remains open.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity

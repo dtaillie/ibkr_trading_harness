@@ -37,6 +37,7 @@ pushing this working tree.
   - `ops/cloud/fly-status-receiver.example.toml`
   - `ops/cloud/render-status-receiver.example.yaml`
   - `ops/cloud/sync-command-audit.example.sh`
+  - `scripts/audit_cloud_examples.py`
 - Safe remote command prototype:
   - `scripts/command_worker.py`
   - `config/remote_control.example.yaml`
