@@ -3798,6 +3798,38 @@
             <li>Run the public readiness audit before pushing.</li>
           </ul>
         </div>
+        <div id="help-publish-readiness" class="help-card wide-help-card" data-help-lens="boundary">
+          <strong>Publish Readiness</strong>
+          <p id="help-publish-note">Export the sanitized public subset, run the consolidated gate, then manually inspect public examples, docs, dashboard labels, and the blog draft before pushing to GitHub.</p>
+          <div id="help-publish-cards" class="action-card-grid">
+            <div class="action-card status-ok">
+              <span>Public Candidate</span>
+              <strong>Exported Copy</strong>
+              <small>Use the exporter instead of pushing the private source tree directly.</small>
+            </div>
+            <div class="action-card status-ok">
+              <span>Automated Gate</span>
+              <strong>Publish Check</strong>
+              <small>Strict audit, cloud examples, compile, tests, smokes, accessibility, and optional screenshots.</small>
+            </div>
+            <div class="action-card status-warn">
+              <span>Manual Review</span>
+              <strong>Still Required</strong>
+              <small>Read examples, docs, dashboard copy, README, and blog draft for private strategy details.</small>
+            </div>
+            <div class="action-card status-bad">
+              <span>Private Boundary</span>
+              <strong>Never Export</strong>
+              <small>Keep tuned strategy code, account configs, credentials, local logs, and real trading configs ignored.</small>
+            </div>
+          </div>
+          <div id="help-publish-actions" class="hero-actions">
+            <a href="/docs/publication_readiness.md" target="_blank" rel="noreferrer">Publication Guide</a>
+            <a class="secondary" href="/docs/public_quickstart.md" target="_blank" rel="noreferrer">Quickstart</a>
+            <a class="secondary" href="/docs/configuration_privacy.md" target="_blank" rel="noreferrer">Privacy Checklist</a>
+            <a class="secondary" href="/docs/blog_public_ibkr_harness_draft.md" target="_blank" rel="noreferrer">Blog Draft</a>
+          </div>
+        </div>
         <div id="help-public-checklist" class="help-card wide-help-card" data-help-lens="boundary">
           <strong>Public Repo Preflight</strong>
           <p>Use this before pushing a public copy or publishing a walkthrough.</p>

@@ -1945,6 +1945,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     default/seeded/empty dashboard smokes, accessibility, and optional
     screenshot layout checks. Help, README, and publication-readiness docs
     point to it before the manual inspection step.
+  - partial; Help Boundary now includes a Publish Readiness panel that explains
+    the exported public candidate, consolidated publish gate, required manual
+    review, private boundary, and direct links to publication, quickstart,
+    privacy, and blog-draft docs before the command checklist.
 - Finish blog post polish.
   - partial; `docs/blog_public_ibkr_harness_draft.md` has been expanded into a
     public-safe draft covering local-first design, data fetches, manifests,

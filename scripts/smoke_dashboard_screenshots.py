@@ -239,6 +239,9 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".operations-workflow-grid small",
     ".help-workflow-grid strong",
     ".help-workflow-grid small",
+    "#help-publish-cards strong",
+    "#help-publish-cards small",
+    "#help-publish-actions a",
     ".overview-performance-main strong",
     ".overview-performance-main span",
     ".overview-performance-tiles strong",
@@ -339,6 +342,8 @@ LAYOUT_CHECK_SCRIPT = r"""
     "#operations-readiness-actions a",
     ".operations-workflow-grid strong",
     ".help-workflow-grid strong",
+    "#help-publish-cards strong",
+    "#help-publish-actions a",
     ".page-guide-card strong",
     ".page-step strong",
     ".section-head h2",
@@ -412,6 +417,7 @@ LAYOUT_CHECK_SCRIPT = r"""
     ".operations-readiness-cards",
     ".operations-workflow-grid",
     ".help-workflow-grid",
+    "#help-publish-cards",
     ".overview-glance-cards",
     ".overview-performance-tiles",
     ".page-intro-guide",
@@ -568,7 +574,10 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
     "help/pages": [{ selector: ".help-card[data-help-lens='pages']", text: "Page Guide" }],
     "help/workflows": [{ selector: ".help-card[data-help-lens='workflows']", text: "Common Workflows" }],
     "help/data": [{ selector: ".help-card[data-help-lens='data']", text: "Data To Simulation Fast Path" }],
-    "help/boundary": [{ selector: "#help-public-checklist", text: "Public Repo Preflight" }],
+    "help/boundary": [
+      { selector: "#help-publish-readiness", text: "Publish Readiness" },
+      { selector: "#help-public-checklist", text: "Public Repo Preflight" }
+    ],
     "help/docs": [{ selector: ".help-card[data-help-lens='docs']", text: "Useful Local Docs" }]
   };
   const checks = requirements[activePath] || requirements[activePath.split("/")[0]] || [];
