@@ -3027,6 +3027,16 @@ section {
   padding: 10px 12px 0;
 }
 
+.compact-subhead {
+  margin-top: 4px;
+}
+
+.compact-subhead h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .inline-control {
   display: flex;
   align-items: center;

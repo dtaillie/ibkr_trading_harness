@@ -11173,6 +11173,13 @@ function renderFetchResumePanel(detail, resumeCommand = "") {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+  if ($("fetch-resume-state-note")) {
+    $("fetch-resume-state-note").textContent = resumeState && resumeState.summary
+      ? `Manifest-owned state loaded: ${text(resumeState.summary)}`
+      : hasJob
+        ? "This manifest has no normalized resume_state; the resume plan is inferred from symbols, outputs, errors, and plan rows."
+        : "Inspect a fetch manifest to see whether normalized resume_state is available.";
+  }
   if ($("fetch-resume-state-cards")) {
     const stateCards = resumeState && resumeState.summary ? [
       {

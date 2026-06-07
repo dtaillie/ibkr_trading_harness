@@ -1065,6 +1065,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-workflows" in html
         assert "copy-fetch-roots-yaml" in html
         assert "copy-fetch-resume-command" in html
+        assert "fetch-resume-state-note" in html
         assert "show-fetch-outputs-data" in html
         assert "compare-fetch-outputs" in html
         assert "use-fetch-outputs-workbench" in html
