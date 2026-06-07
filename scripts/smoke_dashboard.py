@@ -991,6 +991,8 @@ def run_smoke(
             "syncDashboardJump",
             "jumpToDashboardTarget",
             "dashboard-jump",
+            "routeTaskValue",
+            "syncDashboardTask",
             "dashboardTaskTarget",
             "startDashboardTask",
             "dashboard-task",

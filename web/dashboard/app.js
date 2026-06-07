@@ -1190,6 +1190,28 @@ function jumpToDashboardTarget(value) {
   navigateToViewTarget(targetView, lens);
 }
 
+function routeTaskValue(view = activeView(), lens = currentRouteLens(view)) {
+  const targetView = normalizeView(view);
+  const selectedLens = String(lens || "home");
+  if (targetView === "performance") return "performance";
+  if (targetView === "data") return "data";
+  if (targetView === "fetch") return "fetch";
+  if (targetView === "workbench") return "simulate";
+  if (targetView === "runs") return "runs";
+  if (targetView === "operations") return "operations";
+  if (targetView === "help" && ["boundary", "docs"].includes(selectedLens)) return "publish";
+  return "monitor";
+}
+
+function syncDashboardTask(view = activeView()) {
+  const select = $("dashboard-task");
+  if (!select) return;
+  const value = routeTaskValue(view, currentRouteLens(view));
+  if ([...select.options].some((option) => option.value === value)) {
+    select.value = value;
+  }
+}
+
 function dashboardTaskTarget(value) {
   const payload = state.status || {};
   const runs = payload.runs || [];
@@ -1240,6 +1262,7 @@ function renderRouteBreadcrumb(view = activeView()) {
     copyButton.dataset.routeLink = routeUrl(targetView, lens);
   }
   syncDashboardJump(targetView);
+  syncDashboardTask(targetView);
 }
 
 function handleRouteAction(action) {

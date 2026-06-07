@@ -585,6 +585,9 @@ strategy-private.
     performance, finding saved data, recovering fetches, building simulations,
     checking operations, and publishing safely to the right page/lens using
     current public-safe state.
+  - partial; the "I want to" task selector now also tracks the active route,
+    so sidebar, hash, Quick Jump, and page-intro navigation keep the broad task
+    context visible instead of leaving the selector stale after a page change.
   - modern app-shell layout, restrained cards, clean spacing, readable tables
   - a cleaner top-level hierarchy so users are not forced through dense
     developer tables before seeing performance
