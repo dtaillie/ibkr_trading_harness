@@ -2590,6 +2590,9 @@ def build_data_catalog(
                 for item in (row.get("sample_unsupported_files") or [])[:5]
             ],
         ][:5]
+        status, reason = data_catalog_root_inventory_status(row)
+        row["inventory_status"] = status
+        row["inventory_reason"] = reason
     candidate_count_total = sum(int(row.get("candidate_count") or 0) for row in root_summaries)
     parsed_count_total = sum(int(row.get("parsed_count") or 0) for row in root_summaries)
     parse_error_count_total = sum(int(row.get("parse_error_count") or 0) for row in root_summaries)
@@ -2597,9 +2600,16 @@ def build_data_catalog(
     skipped_candidate_count_total = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
     scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
+    root_inventory = build_data_catalog_root_inventory(
+        root_summaries,
+        dataset_count=len(datasets),
+        symbol_count=len(symbol_summaries),
+        limit=limit,
+    )
     return {
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "root_summaries": root_summaries,
+        "root_inventory": root_inventory,
         "datasets": datasets,
         "symbol_summaries": symbol_summaries,
         "errors": errors,
@@ -2637,6 +2647,102 @@ def build_data_catalog(
         "latest_modified_at": max(modified_values) if modified_values else None,
         "limit": limit,
         "preview_points": preview_points,
+    }
+
+
+def data_catalog_root_inventory_status(row: dict[str, Any]) -> tuple[str, str]:
+    if not row.get("exists"):
+        return "bad", "root missing"
+    if not row.get("is_dir"):
+        return "bad", "root is not a directory"
+    if row.get("not_scanned_reason"):
+        return "warn", str(row.get("not_scanned_reason"))
+    if int(row.get("parse_error_count") or 0):
+        sample = (row.get("sample_errors") or [{}])[0]
+        return "bad", str(sample.get("error") or "parser errors")
+    if row.get("scan_capped"):
+        return "warn", "catalog scan capped"
+    if int(row.get("skipped_candidate_count") or 0):
+        return "warn", "supported candidates skipped"
+    if int(row.get("unsupported_file_count") or 0) and not int(row.get("parsed_count") or 0):
+        return "warn", "only unsupported files found"
+    if int(row.get("unsupported_file_count") or 0):
+        return "warn", "unsupported files skipped"
+    if int(row.get("parsed_count") or 0):
+        return "ok", "supported files parsed"
+    return "warn", "no supported files found"
+
+
+def build_data_catalog_root_inventory(
+    root_summaries: list[dict[str, Any]],
+    *,
+    dataset_count: int,
+    symbol_count: int,
+    limit: int,
+) -> dict[str, Any]:
+    reason_counts = count_values(root_summaries, "inventory_reason")
+    status_counts = count_values(root_summaries, "inventory_status")
+    existing_root_count = sum(1 for row in root_summaries if row.get("exists"))
+    readable_root_count = sum(1 for row in root_summaries if row.get("exists") and row.get("is_dir"))
+    missing_root_count = sum(1 for row in root_summaries if not row.get("exists") or not row.get("is_dir"))
+    parse_error_count = sum(int(row.get("parse_error_count") or 0) for row in root_summaries)
+    unsupported_file_count = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
+    skipped_candidate_count = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
+    capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
+    not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
+    candidate_count = sum(int(row.get("candidate_count") or 0) for row in root_summaries)
+    parsed_count = sum(int(row.get("parsed_count") or 0) for row in root_summaries)
+    issue_rows = [
+        row for row in root_summaries
+        if row.get("inventory_status") in {"bad", "warn"}
+    ]
+    if not root_summaries:
+        status = "bad"
+        primary_issue = "no data roots configured"
+    elif missing_root_count or parse_error_count:
+        status = "bad"
+        primary_issue = "root or parser blocker"
+    elif capped_root_count or not_scanned_root_count or skipped_candidate_count or unsupported_file_count:
+        status = "warn"
+        primary_issue = "scan incomplete or skipped files"
+    elif parsed_count:
+        status = "ok"
+        primary_issue = "all supported candidates parsed"
+    else:
+        status = "warn"
+        primary_issue = "no supported files found"
+    return {
+        "status": status,
+        "primary_issue": primary_issue,
+        "root_count": len(root_summaries),
+        "existing_root_count": existing_root_count,
+        "readable_root_count": readable_root_count,
+        "missing_root_count": missing_root_count,
+        "candidate_count": candidate_count,
+        "parsed_count": parsed_count,
+        "dataset_count": dataset_count,
+        "symbol_count": symbol_count,
+        "parse_error_count": parse_error_count,
+        "unsupported_file_count": unsupported_file_count,
+        "skipped_candidate_count": skipped_candidate_count,
+        "capped_root_count": capped_root_count,
+        "not_scanned_root_count": not_scanned_root_count,
+        "catalog_limit": limit,
+        "status_counts": status_counts,
+        "reason_counts": reason_counts,
+        "sample_issues": [
+            {
+                "path": row.get("display_path") or row.get("path"),
+                "status": row.get("inventory_status"),
+                "reason": row.get("inventory_reason"),
+                "candidate_count": row.get("candidate_count"),
+                "parsed_count": row.get("parsed_count"),
+                "parse_error_count": row.get("parse_error_count"),
+                "unsupported_file_count": row.get("unsupported_file_count"),
+                "scan_capped": row.get("scan_capped"),
+            }
+            for row in issue_rows[:5]
+        ],
     }
 
 
@@ -3031,6 +3137,8 @@ DATA_CATALOG_SCAN_EXPORT_FIELDS = (
     "row_type",
     "path",
     "display_path",
+    "inventory_status",
+    "inventory_reason",
     "exists",
     "is_dir",
     "catalog_limit",

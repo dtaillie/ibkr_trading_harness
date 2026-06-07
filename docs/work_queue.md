@@ -848,6 +848,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality/storage-contract blockers, replay readiness, and fetch
     manifest output visibility so users can see why saved data is hidden,
     missing, outside roots, or ready to use.
+  - partial; `/data_catalog` now publishes a normalized `root_inventory`
+    summary plus per-root `inventory_status`/`inventory_reason` fields, and the
+    Data Library scope/visibility/scan reports use those fields so parser
+    errors, unsupported files, scan caps, not-scanned roots, and readable-root
+    counts agree across the UI and scan CSV.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

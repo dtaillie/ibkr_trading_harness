@@ -10555,10 +10555,11 @@ function catalogScopeIsCapped(catalog = {}) {
   const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
   const count = Number(catalog.count || (catalog.datasets || []).length || 0);
   const rootSummaries = catalog.root_summaries || [];
+  const inventory = catalog.root_inventory || {};
   return Boolean(
     limit
     && count >= limit
-    && rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached")
+    && (Number(inventory.capped_root_count || 0) || rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached"))
   );
 }
 
@@ -10577,6 +10578,7 @@ function renderDataScopeAssistant(filteredRows = []) {
   const datasets = catalog.datasets || [];
   const roots = diagnostics.data_roots || [];
   const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const inventory = catalog.root_inventory || {};
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
   const count = Number(catalog.count || datasets.length || 0);
   const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
@@ -10586,11 +10588,11 @@ function renderDataScopeAssistant(filteredRows = []) {
   const filterLabels = dataFilterSummary();
   const hiddenByFilters = Math.max(0, count - filteredRows.length);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
-  const parserErrors = Number(catalog.error_count || 0);
-  const scanCappedRoots = Number(catalog.scan_capped_root_count || 0);
-  const notScannedRoots = Number(catalog.not_scanned_root_count || 0);
-  const unsupportedFiles = Number(catalog.unsupported_file_count_total || 0);
-  const skippedCandidates = Number(catalog.skipped_candidate_count_total || 0);
+  const parserErrors = Number(inventory.parse_error_count ?? catalog.error_count ?? 0);
+  const scanCappedRoots = Number(inventory.capped_root_count ?? catalog.scan_capped_root_count ?? 0);
+  const notScannedRoots = Number(inventory.not_scanned_root_count ?? catalog.not_scanned_root_count ?? 0);
+  const unsupportedFiles = Number(inventory.unsupported_file_count ?? catalog.unsupported_file_count_total ?? 0);
+  const skippedCandidates = Number(inventory.skipped_candidate_count ?? catalog.skipped_candidate_count_total ?? 0);
   const qualityCounts = catalog.quality_counts || {};
   const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
   const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
@@ -10648,12 +10650,12 @@ function renderDataScopeAssistant(filteredRows = []) {
       note: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} rows hidden by current filters.` : filterLabels.length ? "Filters are active but still show rows." : "No catalog filters are active.",
     },
     {
-      status: suggestedRoots.length ? "warn" : roots.length ? "ok" : "bad",
-      label: "Roots",
-      title: `${numberText(roots.length, 0)} configured`,
+      status: inventory.status || (suggestedRoots.length ? "warn" : roots.length ? "ok" : "bad"),
+      label: "Root Inventory",
+      title: `${numberText(inventory.readable_root_count ?? roots.length, 0)} readable`,
       note: suggestedRoots.length
         ? `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} not scanned.`
-        : `${numberText(totalRootFiles, 0)} root-scanner file${totalRootFiles === 1 ? "" : "s"} visible; ${numberText(notScannedRoots, 0)} root${notScannedRoots === 1 ? "" : "s"} not scanned.`,
+        : `${text(inventory.primary_issue || "root inventory loaded")}; ${numberText(totalRootFiles, 0)} root-scanner file${totalRootFiles === 1 ? "" : "s"} visible; ${numberText(notScannedRoots, 0)} root${notScannedRoots === 1 ? "" : "s"} not scanned.`,
     },
     {
       status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : count ? "ok" : "bad",
@@ -10783,16 +10785,17 @@ function dataVisibilityReportModel(filteredRows = []) {
   const roots = diagnostics.data_roots || [];
   const suggestedRoots = diagnostics.suggested_data_roots || [];
   const rootSummaries = catalog.root_summaries || [];
+  const inventory = catalog.root_inventory || {};
   const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
   const fetchTotals = fetchManifestVisibilityTotals(manifests);
   const catalogRows = Number(catalog.count || datasets.length || 0);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const filterLabels = dataFilterSummary();
   const hiddenByFilters = Math.max(0, catalogRows - filteredRows.length);
-  const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const parserErrors = Number(inventory.parse_error_count ?? catalog.error_count ?? rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
   const unsupportedScanFiles = rootSummaries.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0);
   const unsupportedAuditFiles = Number(audit.unsupported_file_count || auditSummary.unsupported_file_count || 0);
-  const unsupportedFiles = Math.max(unsupportedScanFiles, unsupportedAuditFiles);
+  const unsupportedFiles = Math.max(Number(inventory.unsupported_file_count ?? 0), unsupportedScanFiles, unsupportedAuditFiles);
   const capped = catalogScopeIsCapped(catalog);
   const configuredFiles = Number(audit.configured_file_count || 0);
   const configuredVisible = Number(auditSummary.catalog_visible_configured_file_count ?? audit.configured_visible_count ?? audit.catalog_visible_count ?? catalogRows);
@@ -10834,10 +10837,10 @@ function dataVisibilityReportModel(filteredRows = []) {
       note: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} loaded rows are hidden by filters.` : `${numberText(symbols.size, 0)} symbols visible.`,
     },
     {
-      status: suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad",
+      status: inventory.status || (suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad"),
       label: "Roots",
-      title: `${numberText(roots.length, 0)} configured`,
-      note: `${numberText(hiddenConfigured, 0)} hidden configured / ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested.`,
+      title: `${numberText(inventory.readable_root_count ?? roots.length, 0)} readable`,
+      note: `${text(inventory.primary_issue || "inventory pending")}; ${numberText(hiddenConfigured, 0)} hidden configured / ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested.`,
     },
     {
       status: fetchTotals.issues || fetchTotals.errors ? "warn" : fetchTotals.visible ? "ok" : manifests.length ? "warn" : "bad",
@@ -10863,9 +10866,9 @@ function dataVisibilityReportModel(filteredRows = []) {
       detail: capped ? `Catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows. Raise the scan limit before concluding symbols are missing.` : "No catalog scan cap is visible in root summaries.",
     },
     {
-      status: suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad",
+      status: inventory.status || (suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad"),
       title: "Root Visibility",
-      detail: `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; ${numberText(configuredVisible, 0)} catalog-visible configured files; ${numberText(hiddenConfigured, 0)} hidden configured; ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested outside configured roots.`,
+      detail: `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; inventory ${text(inventory.status || "unknown")} (${text(inventory.primary_issue || "no summary")}); ${numberText(configuredVisible, 0)} catalog-visible configured files; ${numberText(hiddenConfigured, 0)} hidden configured; ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested outside configured roots.`,
     },
     {
       status: parserErrors ? "bad" : unsupportedFiles ? "warn" : catalogRows ? "ok" : "bad",
@@ -12445,6 +12448,7 @@ function renderDataCatalogScanDiagnostics() {
             ? "warn"
             : "ok";
         const reason = item.not_scanned_reason
+          || item.inventory_reason
           || ((item.sample_errors || [])[0] || {}).error
           || (item.scan_capped ? "catalog limit reached" : "none");
         const sample = (item.sample_skipped_files || [])[0] || {};
@@ -12471,16 +12475,16 @@ function catalogScanReportModel() {
   const audit = state.dataStorageAudit || {};
   const auditSummary = audit.visibility_summary || {};
   const rows = catalog.root_summaries || [];
+  const inventory = catalog.root_inventory || {};
   const catalogRows = Number(catalog.count ?? (catalog.datasets || []).length ?? 0);
-  const totalCandidates = rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
-  const totalParsed = rows.reduce((sum, item) => sum + Number(item.parsed_count || 0), 0);
-  const parserErrors = Number(catalog.error_count || 0)
-    || rows.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0);
-  const unsupportedFiles = rows.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0);
+  const totalCandidates = Number(inventory.candidate_count ?? rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0));
+  const totalParsed = Number(inventory.parsed_count ?? rows.reduce((sum, item) => sum + Number(item.parsed_count || 0), 0));
+  const parserErrors = Number(inventory.parse_error_count ?? catalog.error_count ?? rows.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const unsupportedFiles = Number(inventory.unsupported_file_count ?? rows.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0));
   const skippedSamples = rows.reduce((sum, item) => sum + ((item.sample_skipped_files || []).length), 0);
-  const missingRoots = rows.filter((item) => !item.exists || !item.is_dir).length;
-  const cappedRoots = rows.filter((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached").length;
-  const notScannedRoots = rows.filter((item) => item.not_scanned_reason).length;
+  const missingRoots = Number(inventory.missing_root_count ?? rows.filter((item) => !item.exists || !item.is_dir).length);
+  const cappedRoots = Number(inventory.capped_root_count ?? rows.filter((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached").length);
+  const notScannedRoots = Number(inventory.not_scanned_root_count ?? rows.filter((item) => item.not_scanned_reason).length);
   const totalDurationMs = rows.reduce((sum, item) => sum + Number(item.scan_duration_ms || 0), 0);
   const hiddenConfigured = Number(auditSummary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
   const suggestedFiles = Number(auditSummary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
@@ -12523,6 +12527,12 @@ function catalogScanReportModel() {
       note: nextAction,
     },
     {
+      status: inventory.status || status,
+      label: "Inventory",
+      title: text(inventory.status || status),
+      note: text(inventory.primary_issue || "Root inventory summary unavailable."),
+    },
+    {
       status: rows.length ? missingRoots ? "bad" : "ok" : "bad",
       label: "Roots",
       title: numberText(rows.length, 0),
@@ -12556,6 +12566,11 @@ function catalogScanReportModel() {
     },
   ];
   const lines = [
+    {
+      status: inventory.status || status,
+      title: "Inventory Summary",
+      detail: `${numberText(inventory.root_count ?? rows.length, 0)} root${(inventory.root_count ?? rows.length) === 1 ? "" : "s"}; ${numberText(inventory.readable_root_count ?? 0, 0)} readable; status ${text(inventory.status || status)}; issue ${text(inventory.primary_issue || "not available")}.`,
+    },
     {
       status: rows.length ? missingRoots ? "bad" : "ok" : "bad",
       title: "Root Scope",
@@ -12679,16 +12694,16 @@ function renderDataCatalogHealth() {
   const audit = state.dataStorageAudit || {};
   const datasets = catalog.datasets || [];
   const scanRows = catalog.root_summaries || [];
+  const inventory = catalog.root_inventory || {};
   const auditSummary = audit.visibility_summary || {};
   const catalogRows = Number(catalog.count ?? datasets.length ?? 0);
   const totalRows = Number(catalog.total ?? catalogRows);
   const symbolCount = Number(catalog.symbol_count || 0);
-  const parserErrors = Number(catalog.error_count || 0)
-    || scanRows.reduce((sum, rowItem) => sum + Number(rowItem.parse_error_count || 0), 0);
+  const parserErrors = Number(inventory.parse_error_count ?? catalog.error_count ?? scanRows.reduce((sum, rowItem) => sum + Number(rowItem.parse_error_count || 0), 0));
   const unsupportedScanFiles = scanRows.reduce((sum, rowItem) => sum + Number(rowItem.unsupported_file_count || 0), 0);
   const unsupportedAuditFiles = Number(audit.unsupported_file_count || auditSummary.unsupported_file_count || 0);
-  const unsupportedFiles = Math.max(unsupportedScanFiles, unsupportedAuditFiles);
-  const cappedCatalogRoots = scanRows.filter((rowItem) => rowItem.scan_capped).length;
+  const unsupportedFiles = Math.max(Number(inventory.unsupported_file_count ?? 0), unsupportedScanFiles, unsupportedAuditFiles);
+  const cappedCatalogRoots = Number(inventory.capped_root_count ?? scanRows.filter((rowItem) => rowItem.scan_capped).length);
   const cappedAuditRoots = Number(auditSummary.capped_root_count || 0);
   const cappedRoots = Math.max(cappedCatalogRoots, cappedAuditRoots);
   const hiddenConfigured = Number(auditSummary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);

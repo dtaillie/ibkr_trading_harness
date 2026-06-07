@@ -1315,6 +1315,8 @@ def run_smoke(
             raise RuntimeError("data catalog aggregate fields are missing")
         if "symbol_summaries" not in catalog or "symbol_count" not in catalog:
             raise RuntimeError("data catalog symbol summary fields are missing")
+        if "root_inventory" not in catalog or "status" not in catalog["root_inventory"]:
+            raise RuntimeError("data catalog root inventory summary is missing")
         coverage = fetch_json(base_url, f"/data_coverage?limit={catalog_limit}&max_symbols={coverage_symbol_limit}&max_dates=20")
         if "date_bins" not in coverage or "symbols" not in coverage:
             raise RuntimeError("data coverage summary is invalid")
@@ -1344,6 +1346,9 @@ def run_smoke(
             raise RuntimeError("data symbol directory CSV header is missing")
         if "row_type,path,display_path" not in data_catalog_scan_csv:
             raise RuntimeError("data catalog scan CSV header is missing")
+        for field in ("inventory_status", "inventory_reason"):
+            if field not in data_catalog_scan_csv.splitlines()[0]:
+                raise RuntimeError(f"data catalog scan CSV header is missing {field}")
         if not options.get("risk_presets"):
             raise RuntimeError("config options risk presets are missing")
         broker_adapters = {item.get("id"): item for item in options.get("broker_adapters") or []}

@@ -2289,8 +2289,22 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert payload["not_scanned_root_count"] == 0
         assert payload["catalog_complete"] is False
         assert payload["catalog_visibility_status"] == "incomplete"
+        assert payload["root_inventory"]["status"] == "bad"
+        assert payload["root_inventory"]["primary_issue"] == "root or parser blocker"
+        assert payload["root_inventory"]["root_count"] == 1
+        assert payload["root_inventory"]["candidate_count"] == 2
+        assert payload["root_inventory"]["parsed_count"] == 1
+        assert payload["root_inventory"]["dataset_count"] == 1
+        assert payload["root_inventory"]["symbol_count"] == 1
+        assert payload["root_inventory"]["parse_error_count"] == 1
+        assert payload["root_inventory"]["unsupported_file_count"] == 1
+        assert payload["root_inventory"]["status_counts"] == {"bad": 1}
+        assert payload["root_inventory"]["reason_counts"]
+        assert payload["root_inventory"]["sample_issues"][0]["status"] == "bad"
         assert payload["errors"][0]["root"] == str(data_root.resolve())
         scan = payload["root_summaries"][0]
+        assert scan["inventory_status"] == "bad"
+        assert "parquet" in scan["inventory_reason"].lower()
         assert scan["candidate_count"] == 2
         assert scan["parsed_count"] == 1
         assert scan["parse_error_count"] == 1
@@ -2392,6 +2406,8 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert [row["row_type"] for row in scan_exported] == ["root", "skipped_sample", "skipped_sample"]
         root_row = scan_exported[0]
         assert root_row["path"] == str(data_root.resolve())
+        assert root_row["inventory_status"] == "bad"
+        assert "parquet" in root_row["inventory_reason"].lower()
         assert root_row["candidate_count"] == "2"
         assert root_row["parsed_count"] == "1"
         assert root_row["parse_error_count"] == "1"
