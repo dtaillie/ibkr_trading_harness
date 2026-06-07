@@ -1343,8 +1343,10 @@ def run_smoke(
         for field in ("quality_status", "asset_class", "source"):
             if field not in csv_header:
                 raise RuntimeError(f"data catalog CSV header is missing {field}")
-        if "symbol,canonical_symbol,file_count,row_count" not in data_symbol_directory_csv:
-            raise RuntimeError("data symbol directory CSV header is missing")
+        symbol_directory_header = data_symbol_directory_csv.splitlines()[0]
+        for field in ("symbol", "canonical_symbol", "raw_symbols", "raw_symbol_count", "mixed_raw_symbols", "file_count", "row_count"):
+            if field not in symbol_directory_header:
+                raise RuntimeError(f"data symbol directory CSV header is missing {field}")
         if "row_type,path,display_path" not in data_catalog_scan_csv:
             raise RuntimeError("data catalog scan CSV header is missing")
         for field in ("inventory_status", "inventory_reason"):

@@ -2344,6 +2344,9 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         symbol_summary = payload["symbol_summaries"][0]
         assert symbol_summary["symbol"] == "SPY"
         assert symbol_summary["canonical_symbol"] == "SPY"
+        assert symbol_summary["raw_symbols"] == ["SPY"]
+        assert symbol_summary["raw_symbol_count"] == 1
+        assert symbol_summary["mixed_raw_symbols"] is False
         assert symbol_summary["file_count"] == 1
         assert symbol_summary["row_count"] == 3
         assert symbol_summary["asset_classes"] == ["etf"]
@@ -2385,6 +2388,9 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         symbol_exported = list(csv.DictReader(io.StringIO(symbol_csv_body)))
         assert len(symbol_exported) == 1
         assert symbol_exported[0]["symbol"] == "SPY"
+        assert symbol_exported[0]["raw_symbols"] == "SPY"
+        assert symbol_exported[0]["raw_symbol_count"] == "1"
+        assert symbol_exported[0]["mixed_raw_symbols"] == "False"
         assert symbol_exported[0]["file_count"] == "1"
         assert symbol_exported[0]["row_count"] == "3"
         assert symbol_exported[0]["asset_classes"] == "etf"
@@ -2541,6 +2547,61 @@ def test_cloud_status_server_normalizes_bar_size_aliases(tmp_path):
         with request.urlopen(f"{base}/data_storage_audit?catalog_limit=10&scan_limit=10", timeout=5) as resp:
             audit = json.loads(resp.read().decode("utf-8"))
         assert audit["configured_bar_size_guess_counts"] == {"1h": 1, "5min": 1, "unknown": 1}
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_symbol_summaries_group_canonical_crypto_symbols(tmp_path):
+    data_root = tmp_path / "data"
+    crypto_root = data_root / "crypto"
+    crypto_root.mkdir(parents=True)
+    (crypto_root / "BTC_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume",
+                "2026-01-02T14:30:00Z,100,10",
+                "2026-01-02T14:31:00Z,101,11",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (crypto_root / "BTC-USD_1min_sample.csv").write_text(
+        "\n".join(
+            [
+                "timestamp,close,volume",
+                "2026-01-02T14:32:00Z,102,12",
+                "2026-01-02T14:33:00Z,103,13",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=10&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+
+        assert catalog["count"] == 2
+        assert catalog["symbol_count"] == 1
+        summary = catalog["symbol_summaries"][0]
+        assert summary["symbol"] == "BTC-USD"
+        assert summary["canonical_symbol"] == "BTC-USD"
+        assert summary["raw_symbols"] == ["BTC", "BTC-USD"]
+        assert summary["raw_symbol_count"] == 2
+        assert summary["mixed_raw_symbols"] is True
+        assert summary["file_count"] == 2
+        assert summary["row_count"] == 4
+
+        with request.urlopen(f"{base}/data_symbol_directory_export?limit=10", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert exported[0]["symbol"] == "BTC-USD"
+        assert exported[0]["raw_symbols"] == "BTC;BTC-USD"
+        assert exported[0]["mixed_raw_symbols"] == "True"
     finally:
         server.shutdown()
         server.server_close()

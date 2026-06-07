@@ -2838,12 +2838,14 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
         symbol = str(dataset.get("symbol") or "").strip()
         if not symbol:
             continue
-        grouped.setdefault(symbol, []).append(dataset)
+        canonical = str(dataset.get("canonical_symbol") or "").strip() or symbol
+        grouped.setdefault(canonical, []).append(dataset)
 
     summaries: list[dict[str, Any]] = []
     for symbol, rows in sorted(grouped.items()):
         ordered = sorted(rows, key=symbol_summary_sort_key)
         best = ordered[0] if ordered else {}
+        raw_symbols = sorted({str(item.get("symbol")) for item in rows if item.get("symbol")})
         first_values = [str(item.get("first_timestamp")) for item in rows if item.get("first_timestamp")]
         last_values = [str(item.get("last_timestamp")) for item in rows if item.get("last_timestamp")]
         modified_values = [str(item.get("modified_at")) for item in rows if item.get("modified_at")]
@@ -2857,7 +2859,10 @@ def build_symbol_summaries(datasets: list[dict[str, Any]]) -> list[dict[str, Any
         )
         summaries.append({
             "symbol": symbol,
-            "canonical_symbol": best.get("canonical_symbol") or canonical_symbol(symbol, best.get("asset_class")),
+            "canonical_symbol": symbol,
+            "raw_symbols": raw_symbols,
+            "raw_symbol_count": len(raw_symbols),
+            "mixed_raw_symbols": len(raw_symbols) > 1,
             "file_count": len(rows),
             "row_count": sum(int(item.get("rows") or 0) for item in rows),
             "size_bytes": sum(int(item.get("size_bytes") or 0) for item in rows),
@@ -3153,6 +3158,9 @@ DATA_CATALOG_EXPORT_FIELDS = (
 DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS = (
     "symbol",
     "canonical_symbol",
+    "raw_symbols",
+    "raw_symbol_count",
+    "mixed_raw_symbols",
     "file_count",
     "row_count",
     "size_bytes",

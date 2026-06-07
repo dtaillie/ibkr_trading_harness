@@ -1430,6 +1430,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - done for manifest outputs and latest output path
 - Standardize historical storage:
   - consistent symbol naming
+    - partial; symbol-directory summaries now group files by `canonical_symbol`
+      while preserving `raw_symbols`, raw-symbol counts, and mixed-raw-symbol
+      flags in API/CSV output, so crypto aliases such as `BTC` and `BTC-USD`
+      appear as one canonical symbol without hiding the original filenames.
   - consistent bar-size naming
     - partial; Data Catalog now normalizes common column/path bar-size aliases
       such as `5m`, `5 min`, `5-minute`, `1 hour`, and `daily` into canonical
