@@ -1892,6 +1892,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - done in `.github/workflows/ci.yml`; CI runs the public readiness audit,
     Python compile checks, dashboard JavaScript syntax check, pytest, and
     default/empty/seeded/accessibility dashboard smokes.
+  - done; CI now invokes `python scripts/public_publish_check.py
+    --include-screenshots` directly, so export-manifest review, strict
+    readiness, cloud-example audit, compile, dashboard JS syntax, pytest,
+    default/seeded/empty/accessibility smokes, and seeded/empty screenshot
+    layout gates share the same source of truth as the manual pre-publish gate.
 - Do final manual review before pushing to GitHub.
   - partial; `docs/publication_readiness.md` now has a final manual review
     checklist with export, audit, test, dashboard smoke, screenshot, and

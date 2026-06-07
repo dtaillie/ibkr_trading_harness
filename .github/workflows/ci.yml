@@ -23,25 +23,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Public readiness audit
-        run: |
-          python scripts/public_readiness_audit.py --fail-on-review
-          python scripts/audit_cloud_examples.py
-
-      - name: Compile Python files
-        run: find . -name '*.py' -not -path './.git/*' -print0 | xargs -0 python -m py_compile
-
-      - name: Check dashboard JavaScript
-        run: node --check web/dashboard/app.js
-
-      - name: Tests
-        run: PYTHONPATH=. pytest -q
-
-      - name: Dashboard smokes
-        run: |
-          python scripts/smoke_dashboard.py
-          python scripts/smoke_dashboard.py --scenario empty
-          python scripts/smoke_dashboard.py --scenario seeded
-          python scripts/smoke_dashboard_accessibility.py
-          python scripts/smoke_dashboard_screenshots.py --check-layout
-          python scripts/smoke_dashboard_screenshots.py --scenario empty --check-layout
+      - name: Public publish gate
+        run: python scripts/public_publish_check.py --include-screenshots
