@@ -260,20 +260,27 @@ matrix rows offline.
    window are ready to simulate.
 2. Open Workbench and select one or more saved datasets, or use one of the
    direct handoffs from Data Detail, Compare Saved Data, or Fetch Detail.
-3. Choose a public example plugin or a private local plugin from an ignored
+3. Read Selected Data Packet in Workbench Builder before changing plugin
+   settings. It shows the selected files, symbols, bar sizes, sources, chosen
+   date window, alignment overlap state, and quality pressure. Use Inspect,
+   Compare, or Remove on a file row when the packet does not look like the
+   replay input you intended.
+4. Choose a public example plugin or a private local plugin from an ignored
    registry.
-4. Preview alignment before generating a draft.
-5. Read Compatibility Review. It combines schema versions, plugin boundary,
+5. Preview alignment before generating a draft. The Selected Data Packet
+   should move from Not Previewed to an overlap count or a clear no-overlap
+   warning.
+6. Read Compatibility Review. It combines schema versions, plugin boundary,
    selected data quality, alignment coverage, saved-draft validation, and the
    next action in one place. Plugin Field Help shows the selected plugin's
    public-safe strategy inputs, result fields, and result sections, including
    help text, defaults, bounds/options, formatting hints, and
    required/advanced flags.
-6. Use Preview Draft to validate and inspect generated YAML, alignment,
+7. Use Preview Draft to validate and inspect generated YAML, alignment,
    plugin boundary, and local commands without saving.
-7. Use Generate / Save after enabling Save draft locally when the preview is
+8. Use Generate / Save after enabling Save draft locally when the preview is
    acceptable.
-8. In Workbench Run, read Run Readiness before pressing Run. It calls out the
+9. In Workbench Run, read Run Readiness before pressing Run. It calls out the
    selected draft, validation state, run action, latest run, available results,
    blockers, and warnings, and it can jump directly to Validate, Run, or Open
    Results. Use Run Selected to stay in Workbench after completion, or Run +
@@ -281,7 +288,7 @@ matrix rows offline.
    after artifacts load. The Selected Draft Commands panel summarizes the
    chosen draft, validation state, selected action, and execution boundary
    before the raw copyable `live/plugin_runner.py` commands.
-9. After a completed replay or simulated-paper run, the dashboard loads the
+10. After a completed replay or simulated-paper run, the dashboard loads the
    exact archived run artifacts when available and refreshes run comparison and
    performance rollups. If a run fails or only validates, stay in Workbench Run
    and open the log before trusting outputs.
@@ -309,6 +316,10 @@ Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
 artifacts, and the next action. Use its buttons to jump to data selection,
 alignment preview, builder review, the run form, or loaded results.
+In Workbench Builder, start with Builder Assistant and Selected Data Packet
+before the lower form fields. Builder Assistant says which step is next, while
+Selected Data Packet answers whether the current saved-file input is the one
+you meant to simulate.
 The Workbench workflow cards are the quickest route when you know the job:
 Select Data, Preview Alignment, Build Draft, Run Draft, Open Results, or Review
 Boundary. They use the same selected-data, alignment, draft, run, and artifact
