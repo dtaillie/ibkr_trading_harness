@@ -1790,6 +1790,7 @@ section {
 #data-inventory-actions a,
 #workbench-simulation-actions a,
 #runs-review-actions a,
+#operations-readiness-actions a,
 #help-workbench-quickstart-actions a {
   display: inline-flex;
   align-items: center;
@@ -1806,6 +1807,7 @@ section {
 #data-inventory-actions a.secondary,
 #workbench-simulation-actions a.secondary,
 #runs-review-actions a.secondary,
+#operations-readiness-actions a.secondary,
 #help-workbench-quickstart-actions a.secondary {
   border-color: var(--line);
   background: #ffffff;
@@ -2175,6 +2177,45 @@ section {
   grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1.15fr);
   gap: 12px;
   margin: 14px 0;
+}
+
+.operations-readiness-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.76fr) minmax(360px, 1.24fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.operations-readiness-main,
+.operations-readiness-cards {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: var(--surface-shadow);
+}
+
+.operations-readiness-main strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.operations-readiness-main > span:last-of-type {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.operations-readiness-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 
 .overview-performance-panel {
@@ -4512,6 +4553,7 @@ footer {
   .runs-review-panel,
   .workbench-run-command-panel,
   .operations-home-panel,
+  .operations-readiness-panel,
   .overview-lens-bar,
   .overview-command-panel,
   .overview-glance-panel,

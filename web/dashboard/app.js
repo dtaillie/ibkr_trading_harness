@@ -17958,7 +17958,101 @@ function renderOperationsHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderOperationsReadinessPanel(model);
   renderOperationsWorkflowLauncher();
+}
+
+function renderOperationsReadinessPanel(model = operationsHomeState()) {
+  if (!$("operations-readiness-title") || !$("operations-readiness-cards") || !$("operations-readiness-actions")) return;
+  const status = state.status || {};
+  const gateway = status.gateway || {};
+  const alerts = status.alerts || [];
+  const paperItems = paperMonitorItems();
+  const paperBad = paperItems.filter((item) => item.status === "bad").length;
+  const paperWarn = paperItems.filter((item) => item.status === "warn").length;
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const staleRemote = remoteNodes.filter((node) => {
+    const millis = timestampMillis(node.received_at || node.generated_at);
+    return millis === null || ((Date.now() - millis) / 1000) > 900;
+  }).length;
+  const commandAudit = state.commandAudit || {};
+  const auditEvents = commandAudit.events || [];
+  const integrity = commandAudit.integrity || {};
+  const localRemote = status.remote_control || {};
+  const localIntegrity = localRemote.integrity || {};
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failedResults = results.filter((result) => commandStatusIsFailed(result.status));
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const auditStatus = model.tiles.find((tile) => tile.label === "Audit") || {};
+  const overallStatus = model.tiles.some((tile) => tile.status === "bad")
+    ? "bad"
+    : model.tiles.some((tile) => tile.status === "warn") ? "warn" : "ok";
+  const nextAction = model.nextAction || "paper";
+  const routeByAction = {
+    paper: ["#operations/paper", "Paper Monitor"],
+    remote: ["#operations/remote", "Remote Nodes"],
+    audit: ["#operations/control", "Command Audit"],
+    gateway: ["#operations/diagnostics", "Gateway"],
+  };
+  const [primaryHref, primaryLabel] = routeByAction[nextAction] || routeByAction.paper;
+  $("operations-readiness-title").textContent = model.result;
+  $("operations-readiness-title").className = statusClass(overallStatus);
+  $("operations-readiness-note").textContent = model.note;
+  const cards = [
+    {
+      label: "Local Paper",
+      title: paperBad ? `${numberText(paperBad, 0)} blockers` : paperWarn ? `${numberText(paperWarn, 0)} warnings` : "ready",
+      status: paperBad ? "bad" : paperWarn ? "warn" : "ok",
+      detail: `${numberText(paperItems.length, 0)} readiness checks; inspect Gateway, account freshness, mode, data feed, and order context.`,
+    },
+    {
+      label: "Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "reachable" : "down" : "disabled",
+      status: gatewayStatus,
+      detail: gateway.enabled ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === undefined || gateway.latency_ms === null ? "" : `${gateway.latency_ms}ms`}` : "Reachability check disabled.",
+    },
+    {
+      label: "Remote Monitor",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} nodes` : "no nodes",
+      status: remoteNodes.length ? remoteAlerts || staleRemote ? "warn" : "ok" : "warn",
+      detail: `${numberText(remoteAlerts, 0)} alerts / ${numberText(staleRemote, 0)} stale heartbeat${staleRemote === 1 ? "" : "s"}.`,
+    },
+    {
+      label: "Command Audit",
+      title: auditStatus.title || "not loaded",
+      status: auditStatus.status || "warn",
+      detail: `${numberText(auditEvents.length, 0)} sanitized audit event${auditEvents.length === 1 ? "" : "s"}; receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")}.`,
+    },
+    {
+      label: "Control Queue",
+      title: pendingCommands.length ? `${numberText(pendingCommands.length, 0)} pending` : failedResults.length ? `${numberText(failedResults.length, 0)} failed` : "clear",
+      status: failedResults.length ? "bad" : pendingCommands.length ? "warn" : commands.length || results.length ? "ok" : "warn",
+      detail: `${numberText(commands.length, 0)} queued command${commands.length === 1 ? "" : "s"} / ${numberText(results.length, 0)} result${results.length === 1 ? "" : "s"}.`,
+    },
+    {
+      label: "Alerts",
+      title: numberText(alerts.length, 0),
+      status: alerts.length ? "warn" : "ok",
+      detail: alerts.length ? `${text(alerts[0].kind || alerts[0].category || alerts[0].message)} is the latest local alert.` : "No local alerts in current status.",
+    },
+  ];
+  $("operations-readiness-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("operations-readiness-actions").innerHTML = [
+    `<a href="${escapeHtml(primaryHref)}">${escapeHtml(primaryLabel)}</a>`,
+    `<a class="secondary" href="#operations/paper">Paper</a>`,
+    `<a class="secondary" href="#operations/remote">Remote</a>`,
+    `<a class="secondary" href="#operations/control">Control</a>`,
+    `<a class="secondary" href="#operations/diagnostics">Diagnostics</a>`,
+  ].join("");
 }
 
 function operationsWorkflowCards() {

@@ -1627,6 +1627,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, and
     Diagnostics, giving users a job-oriented route into paper readiness,
     cloud monitoring, command review, and local setup checks.
+  - partial; Operations Home now includes an Operations Readiness panel that
+    consolidates local paper checks, Gateway/API reachability, remote-node
+    freshness, command-audit integrity, control queue state, local alerts, and
+    the next operational drilldown before dense paper/remote/control tables.
 
 ## P1: Operations and cloud monitoring
 
