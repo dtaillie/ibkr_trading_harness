@@ -1726,6 +1726,7 @@ function renderHelpSetupGaps() {
   `).join("");
   renderHelpWorkflowLauncher(items);
   renderHelpNextAssistant(items);
+  renderHelpTaskNavigator(items);
   renderHelpWorkbenchQuickstart();
 }
 
@@ -1909,6 +1910,197 @@ function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {
       <b>${escapeHtml(action.cta)}</b>
     </a>
   `).join("");
+}
+
+function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
+  const workflows = helpWorkflowCards(setupItems);
+  const next = helpNextAssistantModel(setupItems);
+  const runs = (state.status && state.status.runs) || [];
+  const events = runEventRows();
+  const openOrders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const commandAudit = state.commandAudit || {};
+  const badSetup = setupItems.filter((item) => item.status === "bad");
+  const warnSetup = setupItems.filter((item) => item.status === "warn");
+  const findWorkflow = (label) => workflows.find((card) => card.label === label) || {};
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const latestAccount = latestAccountRow(accountRows);
+  const overallStatus = badSetup.length || latestReject ? "bad" : warnSetup.length || openOrders.length ? "warn" : "ok";
+  const headline = badSetup.length
+    ? "Fix setup blockers before trusting dashboard output"
+    : latestReject
+      ? "Inspect rejected order evidence before continuing"
+      : warnSetup.length
+        ? "Useable, with setup warnings to review"
+        : "Dashboard route map is ready";
+  const tasks = [
+    {
+      status: findWorkflow("Monitor Today").status || (runs.length ? "ok" : "bad"),
+      title: "Monitor Current Run",
+      route: "overview",
+      cta: "Overview",
+      detail: runs.length
+        ? `${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"} visible; latest decision ${latestDecision ? shortTimestampAgeLabel(latestDecision.timestamp) : "not visible"}.`
+        : "Open Overview and Operations to confirm whether a runner is publishing telemetry.",
+    },
+    {
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      title: "Read Performance",
+      route: "performance",
+      cta: "Performance",
+      detail: accountRows.length
+        ? `${numberText(accountRows.length, 0)} account snapshots; latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "missing"}.`
+        : source.has_data ? `${text(source.label)} has limited performance evidence.` : "Load telemetry or an artifact before return/drawdown views are useful.",
+    },
+    {
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "bad",
+      title: "Inspect Saved Data",
+      route: "data",
+      cta: "Data Library",
+      detail: datasets.length
+        ? `${numberText(datasets.length, 0)} saved dataset${datasets.length === 1 ? "" : "s"} visible; use Browse, Detail, Compare, and diagnostics to inspect history.`
+        : manifests.length ? "Fetch manifests exist; inspect Fetch outputs and Data Library visibility." : "Configure data roots or run a fetch before replay work.",
+    },
+    {
+      status: manifests.length ? "ok" : "warn",
+      title: "Recover Fetch Jobs",
+      route: "fetch",
+      cta: "Fetch Jobs",
+      detail: manifests.length
+        ? `${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"} available for output/error review.`
+        : "Fetch recovery needs manifests; use fetch scripts that write manifest artifacts.",
+    },
+    {
+      status: drafts.length || workbenchRuns.length ? "ok" : datasets.length ? "warn" : "bad",
+      title: "Build Or Replay Simulation",
+      route: "workbench",
+      cta: "Workbench",
+      detail: drafts.length
+        ? `${numberText(drafts.length, 0)} draft${drafts.length === 1 ? "" : "s"} ready for validation or run review.`
+        : datasets.length ? "Visible data can be selected, aligned, and converted into a replay draft." : "Workbench needs saved data first.",
+    },
+    {
+      status: latestReject ? "bad" : openOrders.length ? "warn" : events.length ? "ok" : runs.length ? "warn" : "bad",
+      title: "Inspect Decisions And Orders",
+      route: "runs",
+      cta: "Runs Events",
+      detail: latestReject
+        ? `${text(latestReject.symbol)} ${text(latestReject.status)} needs review.`
+        : latestFill ? `${text(latestFill.symbol)} fill visible; inspect exact event context in Runs.`
+          : events.length ? `${numberText(events.length, 0)} event${events.length === 1 ? "" : "s"} visible for timeline review.` : "Runs needs telemetry or loaded artifacts.",
+    },
+    {
+      status: remoteNodes.length ? worstStatusFrom(remoteNodes) : commandAudit.enabled === false ? "warn" : "ok",
+      title: "Operate Remotely",
+      route: "operations",
+      cta: "Operations",
+      detail: remoteNodes.length
+        ? `${numberText(remoteNodes.length, 0)} remote node${remoteNodes.length === 1 ? "" : "s"} visible; review diagnostics, supervisors, and command audit.`
+        : "Use Operations for Gateway/API state, diagnostics, command boundaries, cleanup, and remote receiver setup.",
+    },
+    {
+      status: "ok",
+      title: "Publish Safely",
+      route: "boundary",
+      cta: "Boundary",
+      detail: "Use Help Boundary for private configs, public examples, export commands, readiness audits, and blog/publication checks.",
+    },
+  ];
+  const cards = [
+    {
+      status: overallStatus,
+      label: "Current Read",
+      title: headline,
+      note: next.note,
+    },
+    {
+      status: next.primary ? next.primary.status : "warn",
+      label: "Recommended",
+      title: next.title,
+      note: next.primary ? `${next.primary.label}: ${next.primary.detail}` : "Choose a route below.",
+    },
+    {
+      status: badSetup.length ? "bad" : warnSetup.length ? "warn" : "ok",
+      label: "Setup",
+      title: badSetup.length ? `${numberText(badSetup.length, 0)} blockers` : warnSetup.length ? `${numberText(warnSetup.length, 0)} warnings` : "Ready",
+      note: badSetup[0] ? text(badSetup[0].title) : warnSetup[0] ? text(warnSetup[0].title) : "No setup blockers in the current dashboard state.",
+    },
+    {
+      status: datasets.length && (runs.length || source.has_data) ? "ok" : datasets.length || runs.length || source.has_data ? "warn" : "bad",
+      label: "Evidence",
+      title: `${numberText(datasets.length, 0)} data / ${numberText(runs.length, 0)} runs`,
+      note: `${numberText(events.length, 0)} events; ${numberText(manifests.length, 0)} fetch manifests; source ${text(source.source_type)}.`,
+    },
+  ];
+  return { headline, next, cards, tasks };
+}
+
+function helpTaskNavigatorText(model) {
+  return [
+    `Help Task Navigator: ${model.headline}`,
+    `Recommended: ${model.next.title} - ${model.next.note}`,
+    ...model.tasks.map((task) => `${task.title} [${task.status}]: ${task.detail}`),
+  ].join("\n");
+}
+
+function renderHelpTaskNavigator(setupItems = helpSetupGapItems()) {
+  if (
+    !$("help-task-navigator-title")
+    || !$("help-task-navigator-note")
+    || !$("help-task-navigator-cards")
+    || !$("help-task-navigator-body")
+    || !$("help-task-navigator-actions")
+  ) return;
+  const model = helpTaskNavigatorModel(setupItems);
+  state.helpTaskNavigatorText = helpTaskNavigatorText(model);
+  $("help-task-navigator-title").textContent = model.headline;
+  $("help-task-navigator-note").textContent = model.next.note;
+  $("help-task-navigator-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-task-navigator-body").innerHTML = model.tasks.map((task) => `
+    <article class="performance-report-line status-${escapeHtml(task.status)}">
+      <strong>${escapeHtml(task.title)}</strong>
+      <span>${escapeHtml(task.detail)}</span>
+    </article>
+  `).join("");
+  $("help-task-navigator-actions").innerHTML = [
+    `<button type="button" data-help-task-navigator-action="copy">Copy Guide</button>`,
+    ...model.tasks.map((task) => `
+      <button type="button" class="secondary" data-help-task-navigator-action="${escapeHtml(task.route)}">${escapeHtml(task.cta)}</button>
+    `),
+  ].join("");
+}
+
+function handleHelpTaskNavigatorAction(action) {
+  if (action === "copy") {
+    copyText(state.helpTaskNavigatorText || "No Help task navigator guide loaded").then(() => {
+      $("last-refresh").textContent = "Help task navigator guide copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Help task navigator copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "overview") return navigateToView("overview");
+  if (action === "performance") return navigateToView("performance");
+  if (action === "data") return navigateToDataLens("browse");
+  if (action === "fetch") return navigateToView("fetch");
+  if (action === "workbench") return navigateToWorkbenchLens("builder");
+  if (action === "runs") return navigateToRunsLens("events");
+  if (action === "operations") return navigateToOperationsLens("diagnostics");
+  if (action === "boundary") return navigateToHelpLens("boundary");
 }
 
 function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
@@ -23301,6 +23493,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-overview-health-report-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleOverviewHealthReportAction(target.dataset.overviewHealthReportAction || "");
+  });
+  $("help-task-navigator-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-task-navigator-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleHelpTaskNavigatorAction(target.dataset.helpTaskNavigatorAction || "");
   });
   $("data-home-shortlist").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;

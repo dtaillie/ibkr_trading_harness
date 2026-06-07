@@ -557,6 +557,10 @@ strategy-private.
       recommends one primary route from setup blockers, telemetry, saved data,
       draft availability, and performance evidence before showing workflow
       cards or reference material.
+    - partial; Help Home now adds a Task Navigator report that converts the
+      current dashboard state into copyable guidance and direct routes for
+      monitoring, performance review, saved-data inspection, fetch recovery,
+      simulation, run events, operations, and publication boundaries.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots

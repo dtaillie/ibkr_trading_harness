@@ -317,6 +317,10 @@ into Overview, Performance, Data Library, Fetch Jobs, Workbench, Runs,
 Operations, and Help views. Overview shows the current high-level state;
 top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
+Use Help Task Navigator when the next action is unclear. It reads the current
+public-safe dashboard state and links directly to monitoring, performance,
+saved data, fetch recovery, simulation, run-event, operations, and publishing
+boundary views.
 Use the "I want to" task selector in the topbar when you know the job but not
 the page, for example monitoring today's run, finding saved data, recovering a
 fetch, building a simulation, checking runtime health, or publishing safely.

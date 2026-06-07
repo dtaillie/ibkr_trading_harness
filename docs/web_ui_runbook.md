@@ -38,6 +38,9 @@ run drilldowns, and operations diagnostics. The Current Setup Gaps panel is
 state-aware: after refresh it points at missing telemetry, disabled or
 unreachable Gateway checks, unreadable data roots, catalog caps, missing fetch
 manifests, and missing Workbench drafts.
+The Help Task Navigator turns the current dashboard state into a copyable route
+map for monitoring, performance, saved data, fetch recovery, simulation, run
+events, operations, and public/private publishing boundaries.
 
 Every top-level page also starts with a compact workflow rail. Read it left to
 right for the common path on that page before opening the deeper tables below.
@@ -125,7 +128,9 @@ public-safe telemetry and saved-data state, then links directly to the focused
 dashboard page for that job.
 When the right page is unclear, open Help Home. The Help workflow cards provide
 state-aware routes for Monitor Today, Read Performance, Inspect Data, Build
-Simulation, Troubleshoot, and Publish Safely.
+Simulation, Troubleshoot, and Publish Safely. The Task Navigator above those
+cards is the compact operational checklist to copy into notes or follow during
+triage.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.

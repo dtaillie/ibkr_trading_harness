@@ -2132,6 +2132,14 @@ section {
   margin: 12px 0;
 }
 
+.help-task-navigator-panel {
+  margin: 12px 0;
+}
+
+.help-task-navigator-panel .performance-report-body {
+  grid-column: 1 / -1;
+}
+
 .workbench-example-card {
   align-content: start;
 }
