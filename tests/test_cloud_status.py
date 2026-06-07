@@ -1398,6 +1398,7 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
         assert "Fetch Recovery Plan" in body
         assert "Workbench Home" in body
         assert "Selected Data Packet" in body
+        assert "Observation Packet" in body
         for name, expected in {
             "ibkr_gateway_runbook.md": "IBKR Gateway Runbook",
             "paper_trading_runbook.md": "Paper Trading Runbook",
