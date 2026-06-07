@@ -2853,6 +2853,24 @@ section {
   padding-left: 18px;
 }
 
+.command-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.command-list code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
 .help-start-panel {
   display: grid;
   grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.4fr);

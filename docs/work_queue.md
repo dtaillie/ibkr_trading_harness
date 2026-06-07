@@ -455,6 +455,9 @@ strategy-private.
     - done on the Help page
   - "What should be private before publishing this repo?" checklist
     - done on the Help page
+    - done; Help Boundary now includes a public-repo preflight with export,
+      strict audit, cloud-example audit, test/smoke commands, and the manual
+      files to inspect before pushing or publishing a walkthrough.
   - glossary: runner, draft, replay, shadow, simulated paper, paper, fill,
     reject, artifact, data root, stale bar
     - done on the Help page

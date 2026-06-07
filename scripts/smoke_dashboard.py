@@ -378,6 +378,8 @@ def run_smoke(
             "help-next-cards",
             "help-next-actions",
             "help-workflows",
+            "help-public-checklist",
+            "help-public-audit-command",
             "help-setup-note",
             "help-setup-gaps",
             "data-symbol-count",
