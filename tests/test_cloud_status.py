@@ -3892,7 +3892,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert plugin_ids == {"no_edge_template"}
         plugin = options["plugins"][0]
         assert options["config_schema_version"] == 1
-        assert options["form_schema_version"] == 4
+        assert options["form_schema_version"] == 5
         assert plugin["visibility"] == "public_example"
         assert "not a viable trading strategy" in plugin["description"]
         assert "private plugins" in plugin["boundary"]
@@ -3950,6 +3950,16 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert "config-session-outside" in field_ids
         assert "config-risk-preset" in field_ids
         assert "config-allow-quality-warnings" in field_ids
+        timezone_field = next(field for field in options["form_schema"] if field["id"] == "config-session-timezone")
+        assert timezone_field["kind"] == "select"
+        assert timezone_field["options"][0]["value"] == "America/New_York"
+        start_field = next(field for field in options["form_schema"] if field["id"] == "config-session-start")
+        assert start_field["kind"] == "time"
+        assert start_field["step"] == 60
+        weekdays_field = next(field for field in options["form_schema"] if field["id"] == "config-session-weekdays")
+        assert weekdays_field["kind"] == "select"
+        assert weekdays_field["multiple"] is True
+        assert [option["value"] for option in weekdays_field["options"]][:2] == ["monday", "tuesday"]
         risk_field = next(field for field in options["form_schema"] if field["id"] == "config-risk-preset")
         assert risk_field["options_source"] == "risk_presets"
         assert [preset["id"] for preset in options["risk_presets"]] == [
@@ -4015,7 +4025,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
                 "session_timezone": "America/New_York",
                 "session_start": "09:30",
                 "session_end": "16:00",
-                "session_weekdays": "monday,tuesday,wednesday,thursday,friday",
+                "session_weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
                 "session_outside": "idle",
                 "risk_preset": "costed_demo",
                 "max_steps": 5,
@@ -4629,7 +4639,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
             snapshot = json.loads(resp.read().decode("utf-8"))
         assert snapshot["schema_version"] == 1
         assert snapshot["config_schema_version"] == 1
-        assert snapshot["form_schema_version"] == 4
+        assert snapshot["form_schema_version"] == 5
         assert snapshot["guide_schema_version"] == 2
         assert snapshot["diagnostics"]["status"] == "ok"
         assert snapshot["data_catalog"]["count"] == 1
@@ -4639,7 +4649,7 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         assert snapshot["config_options"]["risk_presets"]
         assert {adapter["id"] for adapter in snapshot["config_options"]["broker_adapters"]} == {"ibkr", "file", "schwab"}
         assert snapshot["config_options"]["config_schema_version"] == 1
-        assert snapshot["config_options"]["form_schema_version"] == 4
+        assert snapshot["config_options"]["form_schema_version"] == 5
         assert snapshot["config_options"]["guide_schema_version"] == 2
         assert snapshot["config_options"]["guide_steps"][0]["id"] == "data"
         assert snapshot["run_comparison"]["count"] == 0
@@ -5404,7 +5414,7 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
             for field in options["form_schema"]
             if field.get("plugin_id") == "bounded_demo"
         }
-        assert options["form_schema_version"] == 4
+        assert options["form_schema_version"] == 5
         assert fields["threshold"]["description"] == "Public-safe threshold display text."
         assert fields["threshold"]["placeholder"] == "0.50"
         assert fields["threshold"]["unit"] == "score"

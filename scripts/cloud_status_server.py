@@ -256,7 +256,7 @@ CONFIG_BUILDER_PLUGINS = (
 CONFIG_BUILDER_MODES = ("replay", "shadow", "simulated_paper")
 CONFIG_DRAFT_RUN_ACTIONS = ("validate", "replay", "simulated_paper")
 CONFIG_SCHEMA_VERSION = 1
-CONFIG_FORM_SCHEMA_VERSION = 4
+CONFIG_FORM_SCHEMA_VERSION = 5
 CONFIG_GUIDE_SCHEMA_VERSION = 2
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
@@ -326,10 +326,10 @@ CONFIG_BUILDER_FORM_SCHEMA = (
     {"id": "config-history-bars", "name": "history_bars", "label": "History Bars", "kind": "number", "min": 1, "step": 1, "default_key": "history_bars", "section": "account", "help": "Number of prior bars provided to the plugin decision window."},
     {"id": "config-max-steps", "name": "max_steps", "label": "Max Steps", "kind": "number", "min": 1, "step": 1, "default_key": "max_steps", "section": "account", "help": "Optional cap on replay steps for quick tests."},
     {"id": "config-session-enabled", "name": "session_enabled", "label": "Use session window", "kind": "checkbox", "section": "runtime", "help": "When enabled, loop mode can idle outside a configured local session."},
-    {"id": "config-session-timezone", "name": "session_timezone", "label": "Session Timezone", "kind": "text", "default_key": "session_timezone", "section": "runtime", "help": "IANA timezone such as America/New_York or UTC."},
-    {"id": "config-session-start", "name": "session_start", "label": "Session Start", "kind": "text", "default_key": "session_start", "section": "runtime", "help": "Local session start time as HH:MM."},
-    {"id": "config-session-end", "name": "session_end", "label": "Session End", "kind": "text", "default_key": "session_end", "section": "runtime", "help": "Local session end time as HH:MM."},
-    {"id": "config-session-weekdays", "name": "session_weekdays", "label": "Weekdays", "kind": "text", "default_key": "session_weekdays", "section": "runtime", "help": "Comma-separated weekdays, e.g. monday,tuesday,wednesday,thursday,friday."},
+    {"id": "config-session-timezone", "name": "session_timezone", "label": "Session Timezone", "kind": "select", "default_key": "session_timezone", "section": "runtime", "options": [{"value": "America/New_York", "label": "America/New_York", "description": "Typical U.S. equities session timezone."}, {"value": "UTC", "label": "UTC", "description": "Useful for crypto or globally normalized schedules."}, {"value": "America/Chicago", "label": "America/Chicago"}, {"value": "America/Denver", "label": "America/Denver"}, {"value": "America/Los_Angeles", "label": "America/Los_Angeles"}], "help": "Timezone for the local session window."},
+    {"id": "config-session-start", "name": "session_start", "label": "Session Start", "kind": "time", "default_key": "session_start", "section": "runtime", "step": 60, "help": "Local session start time."},
+    {"id": "config-session-end", "name": "session_end", "label": "Session End", "kind": "time", "default_key": "session_end", "section": "runtime", "step": 60, "help": "Local session end time."},
+    {"id": "config-session-weekdays", "name": "session_weekdays", "label": "Weekdays", "kind": "select", "default_key": "session_weekdays", "section": "runtime", "multiple": True, "size": 7, "options": [{"value": "monday", "label": "Monday"}, {"value": "tuesday", "label": "Tuesday"}, {"value": "wednesday", "label": "Wednesday"}, {"value": "thursday", "label": "Thursday"}, {"value": "friday", "label": "Friday"}, {"value": "saturday", "label": "Saturday"}, {"value": "sunday", "label": "Sunday"}], "help": "Weekdays when the session window is active."},
     {"id": "config-session-outside", "name": "session_outside", "label": "Outside Session", "kind": "select", "default_key": "session_outside", "section": "runtime", "options": [{"value": "idle", "label": "idle - record idle decision"}, {"value": "run", "label": "run - evaluate anyway"}], "help": "Idle records a visible no-order decision without calling the plugin."},
     {"id": "config-risk-preset", "name": "risk_preset", "label": "Risk Preset", "kind": "select", "options_source": "risk_presets", "default_key": "risk_preset", "section": "risk", "help": "Public presets are conservative examples, not recommendations."},
     {"id": "config-max-orders", "name": "max_orders_per_run", "label": "Max Orders", "kind": "number", "min": 1, "step": 1, "default_key": "max_orders_per_run", "section": "risk", "help": "Maximum order intents allowed in one run."},
@@ -6790,7 +6790,8 @@ def build_config_draft(
     max_gross_exposure_pct = number_field(payload, "max_gross_exposure_pct", 0.05)
     session_config = None
     if bool(payload.get("session_enabled", False)):
-        weekdays_raw = str(payload.get("session_weekdays") or "").strip()
+        weekdays_value = payload.get("session_weekdays")
+        weekdays_raw = ",".join(str(item) for item in weekdays_value) if isinstance(weekdays_value, list) else str(weekdays_value or "").strip()
         weekdays = [
             item.strip()
             for item in re.split(r"[\s,]+", weekdays_raw)

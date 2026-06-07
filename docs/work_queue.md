@@ -1624,6 +1624,11 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Workbench now uses Home / Builder / Run / Artifacts focus lenses
     so choosing data, editing config, running drafts, and inspecting artifacts
     are reachable as explicit workflow stages instead of one long page.
+  - partial; Workbench form schema v5 now describes runtime session controls
+    with real time inputs, timezone options, and multi-select weekday options.
+    The dashboard renders/serializes those schema controls without hard-coded
+    text fields, and the draft API accepts both comma-separated and array-style
+    weekdays for future clients.
 - Add clearer separation between public example configs and local private
   strategy configs.
   - partial; Workbench plugin options now carry visibility/description/boundary
