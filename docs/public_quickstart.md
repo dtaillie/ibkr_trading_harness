@@ -735,6 +735,10 @@ Operational runbooks:
 - `docs/failed_order_diagnosis_runbook.md`
 - `docs/cloud_monitoring_deployment.md`
 
+Use the service restart runbook for local systemd units, hosted receiver
+containers, Fly/Render redeploys, reverse-proxy reloads, and duplicate-runner
+checks.
+
 Before publishing or sharing your repo, run:
 
 ```bash

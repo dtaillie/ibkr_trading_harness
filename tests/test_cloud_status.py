@@ -1182,6 +1182,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-node-run-health" in html
         assert "remote-node-boundary-note" in html
         assert "remote-node-boundary-cards" in html
+        assert "Restart services safely" in html
         assert "remote-detail-artifact-count" in html
         assert "remote-node-artifacts-note" in html
         assert "remote-node-artifacts-body" in html
@@ -1397,8 +1398,14 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
         }.items():
             with request.urlopen(f"{base}/docs/{name}", timeout=5) as resp:
                 body = resp.read().decode("utf-8")
-                assert resp.headers["Content-Type"].startswith("text/markdown")
+            assert resp.headers["Content-Type"].startswith("text/markdown")
             assert expected in body
+            if name == "service_restart_runbook.md":
+                assert "Restart Public Harness Services" in body
+                assert "Restart Hosted Receiver" in body
+                assert "Fly.io" in body
+                assert "Render deployments" in body
+                assert "Reload Reverse Proxies And Firewalls" in body
 
         for path in ["/docs/../README.md", "/docs/not_allowlisted.md"]:
             try:

@@ -1600,6 +1600,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     service for the generic local supervisor that validates an ignored local
     supervisor config before start. The quickstart and restart runbook document
     the install/start/restart flow.
+  - partial; the service restart runbook now includes provider/service-specific
+    recipes for local user-level systemd units, the generic plugin supervisor,
+    status publisher, command worker, hosted Docker Compose receiver, Fly,
+    Render, reverse-proxy reloads, and firewall dry-run checks. Help and the
+    public docs point users to those recipes before restarting broad process
+    groups.
 - Add versioned config schemas and richer per-plugin validation.
   - partial; public Workbench config options, generated draft metadata, and
     exported workbench snapshots now carry explicit config/form schema version

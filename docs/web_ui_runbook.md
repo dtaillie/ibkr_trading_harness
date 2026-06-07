@@ -394,8 +394,9 @@ runtime logs, and private research outputs out of the public repo.
   supervisor startup, monitoring, and shutdown.
 - `docs/market_data_permissions_runbook.md`: IBKR permission, venue, and
   no-data diagnosis.
-- `docs/service_restart_runbook.md`: service restart order, logs, and duplicate
-  runner checks.
+- `docs/service_restart_runbook.md`: local service restart order,
+  provider/service-specific receiver recipes, proxy reloads, logs, and
+  duplicate runner checks.
 - `docs/failed_order_diagnosis_runbook.md`: rejected, canceled, missing-fill,
   and stale-telemetry troubleshooting.
 - `docs/cloud_monitoring_deployment.md`: conservative local-first remote
