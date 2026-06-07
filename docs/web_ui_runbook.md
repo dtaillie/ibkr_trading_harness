@@ -92,6 +92,8 @@ search, diagnose missing symbols, or copy sample paths; use Export Root Index
 CSV when you want that
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.
+The Root Index root cards show which configured roots were indexed, capped,
+unavailable, or dominated by unsupported files.
 Use Saved History Matrix when you want the concrete bar inventory first: it
 groups visible saved files by asset, source, bar size, and session, then shows
 symbol/file/row counts, coverage range, replay readiness, and a Browse action

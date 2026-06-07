@@ -10180,6 +10180,16 @@ function rootIndexRows() {
   return { rows, filters, shown: rows.slice(0, Math.max(1, filters.limit || 50)) };
 }
 
+function rootIndexRootStatus(root) {
+  if (!root.exists || !root.is_dir) return { status: "bad", title: "Unavailable", note: "Root is missing or not a directory." };
+  if (root.scan_capped) return { status: "warn", title: "Capped", note: text(root.not_scanned_reason || "Global root-index limit reached.") };
+  if (root.not_scanned_reason) return { status: "warn", title: "Not Scanned", note: text(root.not_scanned_reason) };
+  if (Number(root.parse_error_count || 0)) return { status: "bad", title: "Errors", note: `${numberText(root.parse_error_count, 0)} scan error${Number(root.parse_error_count || 0) === 1 ? "" : "s"}.` };
+  if (Number(root.candidate_count || 0)) return { status: "ok", title: "Indexed", note: `${numberText(root.candidate_count, 0)} supported candidate file${Number(root.candidate_count || 0) === 1 ? "" : "s"}.` };
+  if (Number(root.unsupported_file_count || 0)) return { status: "warn", title: "Unsupported Only", note: `${numberText(root.unsupported_file_count, 0)} unsupported file${Number(root.unsupported_file_count || 0) === 1 ? "" : "s"} found.` };
+  return { status: "warn", title: "No Candidates", note: "No supported CSV/parquet files found." };
+}
+
 function renderRootIndexBrowser() {
   if (!$("data-root-index-note") || !$("data-root-index-summary") || !$("data-root-index-body")) return;
   const index = state.dataSymbolIndex || {};
@@ -10237,6 +10247,21 @@ function renderRootIndexBrowser() {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+  if ($("data-root-index-roots")) {
+    const roots = index.root_summaries || [];
+    $("data-root-index-roots").innerHTML = roots.length
+      ? roots.slice(0, 8).map((root) => {
+          const model = rootIndexRootStatus(root);
+          return `
+            <div class="action-card status-${escapeHtml(model.status)}">
+              <span>${escapeHtml(model.title)}</span>
+              <strong>${escapeHtml(text(root.display_path || root.path))}</strong>
+              <small>${escapeHtml(model.note)} Unsupported ${escapeHtml(numberText(root.unsupported_file_count || 0, 0))}; scan ${escapeHtml(numberText(root.scan_duration_ms || 0, 1))}ms.</small>
+            </div>
+          `;
+        }).join("")
+      : `<div class="empty-card"><strong>No root-index root scan</strong><span>Refresh Data Library after configuring data roots.</span></div>`;
+  }
   $("data-root-index-body").innerHTML = shown.length
     ? shown.map((item) => {
         const symbol = text(item.symbol);

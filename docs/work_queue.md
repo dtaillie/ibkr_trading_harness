@@ -240,7 +240,9 @@ strategy-private.
       Data Home/Browse now also include a Root Index Browser with candidate
       symbol search, asset/source/bar/session filters, parsed-catalog search,
       direct sample-file inspection, symbol diagnostics, and sample-path copy
-      actions for filename/path-inferred rows.
+      actions for filename/path-inferred rows. The browser also shows per-root
+      index coverage cards for missing roots, caps, unsupported files, and
+      scan duration.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

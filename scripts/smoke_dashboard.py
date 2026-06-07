@@ -543,6 +543,7 @@ def run_smoke(
             "export-data-symbol-index-csv",
             "data-root-index-filter",
             "data-root-index-summary",
+            "data-root-index-roots",
             "data-root-index-body",
             "data-filter-symbol-options",
             "data-explorer-note",
