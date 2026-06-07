@@ -2067,6 +2067,7 @@ section {
 .performance-trade-assistant,
 .performance-rollup-assistant,
 .workbench-builder-assistant,
+.workbench-plugin-boundary-assistant,
 .workbench-artifacts-assistant,
 .help-next-assistant {
   display: grid;
@@ -2102,6 +2103,8 @@ section {
 .performance-rollup-assistant > div:first-child span,
 .workbench-builder-assistant > div:first-child strong,
 .workbench-builder-assistant > div:first-child span,
+.workbench-plugin-boundary-assistant > div:first-child strong,
+.workbench-plugin-boundary-assistant > div:first-child span,
 .workbench-artifacts-assistant > div:first-child strong,
 .workbench-artifacts-assistant > div:first-child span,
 .help-next-assistant > div:first-child strong,
@@ -2120,6 +2123,7 @@ section {
 .performance-trade-assistant > div:first-child strong,
 .performance-rollup-assistant > div:first-child strong,
 .workbench-builder-assistant > div:first-child strong,
+.workbench-plugin-boundary-assistant > div:first-child strong,
 .workbench-artifacts-assistant > div:first-child strong,
 .help-next-assistant > div:first-child strong {
   margin-top: 8px;
@@ -2138,6 +2142,7 @@ section {
 .performance-trade-assistant > div:first-child > span:last-of-type,
 .performance-rollup-assistant > div:first-child > span:last-of-type,
 .workbench-builder-assistant > div:first-child > span:last-of-type,
+.workbench-plugin-boundary-assistant > div:first-child > span:last-of-type,
 .workbench-artifacts-assistant > div:first-child > span:last-of-type,
 .help-next-assistant > div:first-child > span:last-of-type {
   margin-top: 8px;
@@ -2157,6 +2162,7 @@ section {
 .performance-trade-assistant-cards,
 .performance-rollup-assistant-cards,
 .workbench-builder-assistant-cards,
+.workbench-plugin-boundary-cards,
 .workbench-artifacts-assistant-cards,
 .help-next-cards {
   display: grid;
@@ -2175,6 +2181,7 @@ section {
 .performance-trade-assistant-actions,
 .performance-rollup-assistant-actions,
 .workbench-builder-assistant-actions,
+.workbench-plugin-boundary-actions,
 .workbench-artifacts-assistant-actions,
 .help-next-actions {
   grid-column: 1 / -1;
@@ -2193,6 +2200,7 @@ section {
 .performance-trade-assistant-action,
 .performance-rollup-assistant-action,
 .workbench-builder-assistant-action,
+.workbench-plugin-boundary-action,
 .workbench-artifacts-assistant-action,
 .help-next-action {
   display: grid;
@@ -2236,6 +2244,9 @@ section {
 .workbench-builder-assistant-action strong,
 .workbench-builder-assistant-action span,
 .workbench-builder-assistant-action small,
+.workbench-plugin-boundary-action strong,
+.workbench-plugin-boundary-action span,
+.workbench-plugin-boundary-action small,
 .workbench-artifacts-assistant-action strong,
 .workbench-artifacts-assistant-action span,
 .workbench-artifacts-assistant-action small,
@@ -2266,6 +2277,8 @@ section {
 .performance-rollup-assistant-action small,
 .workbench-builder-assistant-action span,
 .workbench-builder-assistant-action small,
+.workbench-plugin-boundary-action span,
+.workbench-plugin-boundary-action small,
 .workbench-artifacts-assistant-action span,
 .workbench-artifacts-assistant-action small,
 .help-next-action span,
@@ -2315,6 +2328,7 @@ section {
 .data-compare-assistant-action,
 .remote-detail-assistant-action,
 .workbench-builder-assistant-action,
+.workbench-plugin-boundary-action,
 .workbench-artifacts-assistant-action,
 .help-next-action {
   color: var(--text);
@@ -2329,6 +2343,7 @@ section {
 .data-compare-assistant-action span,
 .remote-detail-assistant-action span,
 .workbench-builder-assistant-action span,
+.workbench-plugin-boundary-action span,
 .workbench-artifacts-assistant-action span,
 .help-next-action span {
   min-width: 0;
@@ -2342,6 +2357,7 @@ section {
 .data-compare-assistant-action strong,
 .remote-detail-assistant-action strong,
 .workbench-builder-assistant-action strong,
+.workbench-plugin-boundary-action strong,
 .workbench-artifacts-assistant-action strong,
 .help-next-action strong {
   color: var(--text);
@@ -2356,6 +2372,7 @@ section {
 .data-compare-assistant-action b,
 .remote-detail-assistant-action b,
 .workbench-builder-assistant-action b,
+.workbench-plugin-boundary-action b,
 .workbench-artifacts-assistant-action b,
 .help-next-action b {
   white-space: nowrap;
@@ -4160,6 +4177,10 @@ footer {
   .workbench-builder-assistant-cards,
   .workbench-builder-assistant-actions,
   .workbench-builder-assistant-action,
+  .workbench-plugin-boundary-assistant,
+  .workbench-plugin-boundary-cards,
+  .workbench-plugin-boundary-actions,
+  .workbench-plugin-boundary-action,
   .workbench-selected-data-item,
   .workbench-artifacts-assistant,
   .workbench-artifacts-assistant-cards,

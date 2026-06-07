@@ -2716,6 +2716,167 @@ function selectedConfigPlugin() {
   return ((state.configOptions && state.configOptions.plugins) || []).find((plugin) => plugin.id === pluginId) || {};
 }
 
+function pluginBoundaryStatus(plugin) {
+  if (!plugin || !plugin.id) return "bad";
+  const visibility = text(plugin.visibility || plugin.status).toLowerCase();
+  return visibility === "public_example" || visibility === "example_only" ? "warn" : "ok";
+}
+
+function pluginVisibilityBucket(plugin) {
+  const visibility = text((plugin || {}).visibility || (plugin || {}).status).toLowerCase();
+  if (visibility === "public_example" || visibility === "example_only") return "public";
+  if (visibility === "private_local" || visibility.includes("private") || visibility.includes("local")) return "private";
+  return "other";
+}
+
+function pluginRegistryPathSummary(paths) {
+  const visible = (paths || []).map((path) => text(path)).filter((path) => path !== "n/a");
+  const localCount = visible.filter((path) => /(^|\/)plugin_registry_local\.ya?ml$|(^|\/)local/i.test(path)).length;
+  return {
+    count: visible.length,
+    localCount,
+    label: visible.length ? visible.slice(0, 2).join("; ") : "none configured",
+  };
+}
+
+function renderWorkbenchPluginBoundary() {
+  if (!$("workbench-plugin-boundary-title") || !$("workbench-plugin-boundary-cards") || !$("workbench-plugin-boundary-actions")) return;
+  const options = state.configOptions || {};
+  const plugins = options.plugins || [];
+  const selected = selectedConfigPlugin();
+  const selectedStatus = pluginBoundaryStatus(selected);
+  const selectedBucket = pluginVisibilityBucket(selected);
+  const publicCount = plugins.filter((plugin) => pluginVisibilityBucket(plugin) === "public").length;
+  const privateCount = plugins.filter((plugin) => pluginVisibilityBucket(plugin) === "private").length;
+  const otherCount = Math.max(0, plugins.length - publicCount - privateCount);
+  const strategyFields = (selected.strategy_fields || []).filter((field) => field && field.name);
+  const resultFields = (selected.result_fields || []).filter((field) => field && field.name);
+  const registry = pluginRegistryPathSummary(options.plugin_registry_paths || []);
+  const selectedTitle = selected.id
+    ? text(selected.label || selected.id)
+    : "Choose A Plugin";
+  const title = selected.id
+    ? selectedBucket === "public"
+      ? "Example Plugin Selected"
+      : selectedBucket === "private"
+        ? "Local Plugin Selected"
+        : "Plugin Selected"
+    : "No Plugin Selected";
+  const note = selected.id
+    ? selectedBucket === "public"
+      ? "This public example demonstrates the framework only; do not treat it as a viable strategy."
+      : text(selected.boundary || "Local private plugin metadata is loaded from ignored registry files.")
+    : "Choose a public example or ignored local plugin before generating a draft.";
+  $("workbench-plugin-boundary-title").textContent = title;
+  $("workbench-plugin-boundary-note").textContent = note;
+  const cards = [
+    {
+      status: selectedStatus,
+      label: "Selected",
+      title: selectedTitle,
+      note: selected.id ? `${text(selected.visibility || selected.status)} - ${text(selected.spec)}` : "No selected plugin metadata.",
+    },
+    {
+      status: publicCount ? "warn" : "bad",
+      label: "Public Examples",
+      title: numberText(publicCount, 0),
+      note: otherCount
+        ? `${numberText(otherCount, 0)} uncategorized plugin${otherCount === 1 ? "" : "s"} also loaded.`
+        : "Generic examples should document wiring, not real strategy edge.",
+    },
+    {
+      status: privateCount ? "ok" : "warn",
+      label: "Local Private",
+      title: numberText(privateCount, 0),
+      note: privateCount
+        ? "Ignored local registry entries can point at private strategy implementations."
+        : "No private/local plugin metadata is loaded in this dashboard session.",
+    },
+    {
+      status: registry.count ? registry.localCount ? "ok" : "warn" : "bad",
+      label: "Registry Paths",
+      title: numberText(registry.count, 0),
+      note: registry.count ? registry.label : "No plugin registry paths reported by config_options.",
+    },
+    {
+      status: strategyFields.length || resultFields.length ? "ok" : selected.id ? "warn" : "bad",
+      label: "Exposed Fields",
+      title: `${numberText(strategyFields.length, 0)} in / ${numberText(resultFields.length, 0)} out`,
+      note: selected.id
+        ? "Only declared public-safe fields appear in forms and artifact summaries."
+        : "Select a plugin to see declared public-safe fields.",
+    },
+    {
+      status: options.config_schema_version && options.form_schema_version ? "ok" : "warn",
+      label: "Schema",
+      title: `v${text(options.config_schema_version)} / form v${text(options.form_schema_version)}`,
+      note: `Guide v${text(options.guide_schema_version)}; ${numberText((options.form_schema || []).length, 0)} rendered fields.`,
+    },
+  ];
+  $("workbench-plugin-boundary-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  const actions = [
+    {
+      action: "select-plugin",
+      title: "Choose Plugin",
+      note: "Jump to the plugin field in the generated builder form.",
+      label: "Select",
+      disabled: false,
+    },
+    {
+      action: "boundary-detail",
+      title: "Open Boundary Detail",
+      note: "Review selected plugin visibility, registry paths, and description.",
+      label: "Detail",
+      disabled: !selected.id,
+    },
+    {
+      action: "field-help",
+      title: "Review Public Fields",
+      note: "Inspect public-safe inputs, outputs, result sections, and widgets.",
+      label: "Fields",
+      disabled: !selected.id,
+    },
+    {
+      action: "help-boundary",
+      title: "Open Boundary Guide",
+      note: "Read the Help view notes on public examples versus private local config.",
+      label: "Help",
+      disabled: false,
+    },
+  ];
+  $("workbench-plugin-boundary-actions").innerHTML = actions.map((action) => `
+    <button type="button" class="workbench-plugin-boundary-action ${action.disabled ? "secondary" : ""}" data-workbench-plugin-boundary-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleWorkbenchPluginBoundaryAction(action) {
+  if (action === "help-boundary") {
+    navigateToHelpLens("boundary");
+    return;
+  }
+  const targets = {
+    "select-plugin": "config-plugin",
+    "boundary-detail": "config-plugin-boundary",
+    "field-help": "config-plugin-field-help",
+  };
+  const element = $(targets[action] || "");
+  if (!element) return;
+  element.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof element.focus === "function") element.focus({ preventScroll: true });
+}
+
 function renderConfigPluginBoundary() {
   if (!$("config-plugin-boundary") || !$("config-plugin-boundary-note")) return;
   const plugin = selectedConfigPlugin();
@@ -12604,6 +12765,7 @@ function renderConfigBuilder() {
   updatePluginStrategyFields();
   renderWorkbenchHome();
   renderWorkbenchGuide();
+  renderWorkbenchPluginBoundary();
   renderConfigPluginBoundary();
   renderConfigPluginFieldHelp();
   renderConfigBrokerBoundary();
@@ -13179,6 +13341,7 @@ function renderConfigCompatibility() {
 function renderConfigLivePanels() {
   renderConfigDataQuality();
   updatePluginStrategyFields();
+  renderWorkbenchPluginBoundary();
   renderConfigPluginBoundary();
   renderConfigPluginFieldHelp();
   renderWorkbenchBuilderAssistant();
@@ -19761,6 +19924,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-builder-action]") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleWorkbenchBuilderAssistantAction(target.dataset.workbenchBuilderAction || "");
+  });
+  $("workbench-plugin-boundary-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-plugin-boundary-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleWorkbenchPluginBoundaryAction(target.dataset.workbenchPluginBoundaryAction || "");
   });
   $("workbench-result-open-performance").addEventListener("click", () => {
     openWorkbenchResultPerformance().catch((err) => {

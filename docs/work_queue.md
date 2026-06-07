@@ -1404,6 +1404,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     such as `config/plugin_registry_local.yaml`, merging private-local plugin
     metadata into Workbench options while keeping the public repo on sanitized
     example defaults.
+  - partial; Workbench Builder now starts with a Public / Private Boundary
+    summary that counts public-example versus local/private plugins, shows
+    selected plugin visibility/spec/schema/registry paths, explains exposed
+    public-safe fields, and provides direct actions to choose a plugin, inspect
+    boundary detail, review field help, or open the boundary guide.
 - Add schema-driven form rendering after config schemas are reliable.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those
