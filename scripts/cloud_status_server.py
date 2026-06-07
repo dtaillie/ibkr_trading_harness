@@ -2565,6 +2565,13 @@ def build_data_catalog(
                 for item in (row.get("sample_unsupported_files") or [])[:5]
             ],
         ][:5]
+    candidate_count_total = sum(int(row.get("candidate_count") or 0) for row in root_summaries)
+    parsed_count_total = sum(int(row.get("parsed_count") or 0) for row in root_summaries)
+    parse_error_count_total = sum(int(row.get("parse_error_count") or 0) for row in root_summaries)
+    unsupported_file_count_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
+    skipped_candidate_count_total = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
+    scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
+    not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
     return {
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "root_summaries": root_summaries,
@@ -2574,6 +2581,25 @@ def build_data_catalog(
         "count": len(datasets),
         "symbol_count": len(symbol_summaries),
         "error_count": len(errors),
+        "candidate_count_total": candidate_count_total,
+        "parsed_count_total": parsed_count_total,
+        "parse_error_count_total": parse_error_count_total,
+        "unsupported_file_count_total": unsupported_file_count_total,
+        "skipped_candidate_count_total": skipped_candidate_count_total,
+        "scan_capped_root_count": scan_capped_root_count,
+        "not_scanned_root_count": not_scanned_root_count,
+        "catalog_complete": (
+            not scan_capped_root_count
+            and not not_scanned_root_count
+            and not parse_error_count_total
+            and not skipped_candidate_count_total
+            and parsed_count_total == len(datasets)
+        ),
+        "catalog_visibility_status": (
+            "capped" if scan_capped_root_count
+            else "incomplete" if not_scanned_root_count or skipped_candidate_count_total or parse_error_count_total
+            else "ok"
+        ),
         "quality_counts": count_values(datasets, "quality_status"),
         "bar_size_counts": count_values(datasets, "bar_size"),
         "asset_class_counts": count_values(datasets, "asset_class"),

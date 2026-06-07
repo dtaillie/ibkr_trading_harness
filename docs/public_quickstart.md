@@ -568,8 +568,9 @@ Use Symbol Profile when you want a ticker-first view: it summarizes the
 selected symbol's saved files, coverage, quality, best file, compact best-file
 preview chart, and direct Inspect, Workbench, Compare, Filter, and Diagnose
 actions before the dense catalog table.
-The catalog header summarizes quality counts, bar-size counts, total rows, and
-total local file size. Use the search, quality, and bar-size filters to narrow
+The catalog header summarizes quality counts, bar-size counts, catalog scope
+status, capped-root count, total rows, and total local file size. Use the
+search, quality, and bar-size filters to narrow
 larger local data roots. Use Export CSV to download the saved-data coverage and
 quality summary without exporting full bar data. From Data Detail, Export
 Range CSV downloads the selected date range as bounded bar data, while Export

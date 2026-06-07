@@ -825,6 +825,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     active filters, blocked by unconfigured suggested roots, or ready to
     browse, with direct actions for max-row scanning, diagnostics, root YAML,
     filter clearing, symbol browsing, and refresh.
+  - partial; `/data_catalog` now exposes top-level catalog scope totals for
+    supported candidates, parsed files, parser errors, unsupported files,
+    skipped candidates, capped roots, not-scanned roots, completeness, and
+    `catalog_visibility_status`; Data Library surfaces those fields in Catalog
+    Scope and the catalog header so missing symbols are easier to diagnose.
   - partial; Data Home now includes a Data Inventory panel that consolidates
     the saved universe, configured/suggested root scope, coverage range,
     quality/storage-contract readiness, visible filtered rows, and direct
@@ -1244,6 +1249,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; the Data Home Catalog Scope Assistant now surfaces scan-cap and
       hidden-filter states as first-screen actions before users conclude a
       symbol is missing.
+    - partial; the top-level catalog payload and Browse header now explicitly
+      report capped-root count and catalog visibility status instead of relying
+      only on per-root diagnostics.
 - Add saved fetch manifests:
   - Progress: stock and crypto fetchers write dashboard-readable JSON manifests
     under `paper_logs/fetch_manifests` by default; the dashboard has Fetch Jobs

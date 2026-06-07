@@ -10253,6 +10253,8 @@ function renderDataCatalog() {
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
+    `scope ${text(catalog.catalog_visibility_status || "unknown")}`,
+    `capped roots ${numberText(catalog.scan_capped_root_count || 0, 0)}`,
     `quality ${countSummary(catalog.quality_counts)}`,
     `bars ${countSummary(catalog.bar_size_counts)}`,
     `assets ${countSummary(catalog.asset_class_counts)}`,
@@ -10573,6 +10575,10 @@ function renderDataScopeAssistant(filteredRows = []) {
   const hiddenByFilters = Math.max(0, count - filteredRows.length);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const parserErrors = Number(catalog.error_count || 0);
+  const scanCappedRoots = Number(catalog.scan_capped_root_count || 0);
+  const notScannedRoots = Number(catalog.not_scanned_root_count || 0);
+  const unsupportedFiles = Number(catalog.unsupported_file_count_total || 0);
+  const skippedCandidates = Number(catalog.skipped_candidate_count_total || 0);
   const qualityCounts = catalog.quality_counts || {};
   const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
   const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
@@ -10589,7 +10595,7 @@ function renderDataScopeAssistant(filteredRows = []) {
   } else if (capped) {
     status = "warn";
     title = "Catalog May Be Capped";
-    note = `Loaded ${numberText(count, 0)} rows at the ${numberText(limit, 0)} row limit. Raise the scan limit before concluding symbols are missing.`;
+    note = `Loaded ${numberText(count, 0)} rows at the ${numberText(limit, 0)} row limit; ${numberText(scanCappedRoots, 0)} root${scanCappedRoots === 1 ? "" : "s"} hit the cap. Raise the scan limit before concluding symbols are missing.`;
   } else if (hiddenByFilters === count && count) {
     status = "warn";
     title = "Filters Hide Everything";
@@ -10615,13 +10621,13 @@ function renderDataScopeAssistant(filteredRows = []) {
       status: loading ? "warn" : capped ? "warn" : count ? "ok" : "bad",
       label: "Loaded Files",
       title: count ? `${numberText(count, 0)} / ${limit ? numberText(limit, 0) : "n/a"}` : loading ? "Loading" : "None",
-      note: capped ? "The scan hit its row cap." : count ? "Rows currently available to Browse, Inspect, Compare, and Workbench." : "No catalog rows are loaded.",
+      note: capped ? "The scan hit its row cap." : count ? `Rows available to Browse, Inspect, Compare, and Workbench; scope ${text(catalog.catalog_visibility_status || "unknown")}.` : "No catalog rows are loaded.",
     },
     {
       status: symbols.size ? "ok" : count ? "warn" : "bad",
       label: "Symbols",
       title: numberText(symbols.size, 0),
-      note: symbols.size ? "Use Browse or the Symbol Directory to search the scanned universe." : "No symbols could be inferred from loaded files.",
+      note: symbols.size ? `${numberText(skippedCandidates, 0)} supported candidate${skippedCandidates === 1 ? "" : "s"} skipped in this bounded scan.` : "No symbols could be inferred from loaded files.",
     },
     {
       status: hiddenByFilters ? hiddenByFilters === count ? "bad" : "warn" : count ? "ok" : "bad",
@@ -10635,13 +10641,13 @@ function renderDataScopeAssistant(filteredRows = []) {
       title: `${numberText(roots.length, 0)} configured`,
       note: suggestedRoots.length
         ? `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} not scanned.`
-        : `${numberText(totalRootFiles, 0)} root-scanner file${totalRootFiles === 1 ? "" : "s"} visible.`,
+        : `${numberText(totalRootFiles, 0)} root-scanner file${totalRootFiles === 1 ? "" : "s"} visible; ${numberText(notScannedRoots, 0)} root${notScannedRoots === 1 ? "" : "s"} not scanned.`,
     },
     {
       status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : count ? "ok" : "bad",
       label: "Readiness",
       title: qualityIssues || contractIssues || parserErrors ? `${numberText(qualityIssues + contractIssues + parserErrors, 0)} review` : count ? "Clean Enough" : "Unknown",
-      note: `quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}`,
+      note: `quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"} / unsupported ${numberText(unsupportedFiles, 0)}`,
     },
   ];
   $("data-scope-assistant-cards").innerHTML = cards.map((card) => `

@@ -101,7 +101,8 @@ readiness before using Show Outputs In Data Library or Use Outputs In
 Workbench.
 Use Catalog Scope before browsing a large local universe. It summarizes loaded
 files, scanned symbols, active filters, configured/suggested roots, data
-readiness, and whether the current Rows to scan limit may be hiding history.
+readiness, top-level catalog scope status, capped/not-scanned root counts, and
+whether the current Rows to scan limit may be hiding history.
 Its actions can raise the scan to the configured maximum, clear filters, open
 Browse or Diagnostics, copy root YAML, or refresh the catalog.
 Large local caches can take tens of seconds to scan. The dashboard now renders

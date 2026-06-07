@@ -2280,6 +2280,15 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert payload["datasets"][0]["size_bytes"] > 0
         assert payload["datasets"][0]["modified_at"]
         assert payload["error_count"] == 1
+        assert payload["candidate_count_total"] == 2
+        assert payload["parsed_count_total"] == 1
+        assert payload["parse_error_count_total"] == 1
+        assert payload["unsupported_file_count_total"] == 1
+        assert payload["skipped_candidate_count_total"] == 0
+        assert payload["scan_capped_root_count"] == 0
+        assert payload["not_scanned_root_count"] == 0
+        assert payload["catalog_complete"] is False
+        assert payload["catalog_visibility_status"] == "incomplete"
         assert payload["errors"][0]["root"] == str(data_root.resolve())
         scan = payload["root_summaries"][0]
         assert scan["candidate_count"] == 2
@@ -2664,6 +2673,9 @@ def test_cloud_status_server_uses_configured_data_catalog_limits(tmp_path):
         assert default_payload["max_limit"] == 6
         assert default_payload["count"] == 3
         assert default_payload["root_summaries"][0]["scan_capped"] is True
+        assert default_payload["scan_capped_root_count"] == 1
+        assert default_payload["catalog_complete"] is False
+        assert default_payload["catalog_visibility_status"] == "capped"
 
         with request.urlopen(f"{base}/data_catalog_export?limit=6", timeout=5) as resp:
             exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))

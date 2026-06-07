@@ -318,7 +318,7 @@ Workbench handoff and CSV export, and can compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
 configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size
-counts, total rows, and local file size. Saved-data coverage and quality
+counts, catalog scope status, capped-root count, total rows, and local file size. Saved-data coverage and quality
 metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and
 simulated-paper-run plugin-runner config drafts from saved data. Public exports
 ship only generic no-edge example plugins, while local ignored plugin registries
