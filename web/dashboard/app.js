@@ -12252,6 +12252,214 @@ function renderDataCatalogScanDiagnostics() {
         ]);
       }).join("")
     : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", "", ""]);
+  renderDataCatalogScanReport();
+}
+
+function catalogScanReportModel() {
+  const catalog = state.dataCatalog || {};
+  const audit = state.dataStorageAudit || {};
+  const auditSummary = audit.visibility_summary || {};
+  const rows = catalog.root_summaries || [];
+  const catalogRows = Number(catalog.count ?? (catalog.datasets || []).length ?? 0);
+  const totalCandidates = rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
+  const totalParsed = rows.reduce((sum, item) => sum + Number(item.parsed_count || 0), 0);
+  const parserErrors = Number(catalog.error_count || 0)
+    || rows.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0);
+  const unsupportedFiles = rows.reduce((sum, item) => sum + Number(item.unsupported_file_count || 0), 0);
+  const skippedSamples = rows.reduce((sum, item) => sum + ((item.sample_skipped_files || []).length), 0);
+  const missingRoots = rows.filter((item) => !item.exists || !item.is_dir).length;
+  const cappedRoots = rows.filter((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached").length;
+  const notScannedRoots = rows.filter((item) => item.not_scanned_reason).length;
+  const totalDurationMs = rows.reduce((sum, item) => sum + Number(item.scan_duration_ms || 0), 0);
+  const hiddenConfigured = Number(auditSummary.hidden_configured_file_count ?? audit.hidden_configured_file_count ?? 0);
+  const suggestedFiles = Number(auditSummary.suggested_unconfigured_file_count ?? audit.suggested_file_count ?? 0);
+  const topIssueRoot = rows.find((item) => (
+    !item.exists
+    || !item.is_dir
+    || Number(item.parse_error_count || 0)
+    || item.scan_capped
+    || item.not_scanned_reason
+    || Number(item.unsupported_file_count || 0)
+  ));
+  const status = !rows.length || missingRoots || parserErrors
+    ? "bad"
+    : cappedRoots || notScannedRoots || unsupportedFiles || hiddenConfigured || suggestedFiles
+      ? "warn"
+      : "ok";
+  const headline = status === "bad"
+    ? "Catalog scan has blockers"
+    : status === "warn"
+      ? "Catalog scan needs review"
+      : "Catalog scan looks usable";
+  const nextAction = missingRoots
+    ? "Fix missing or unreadable data roots before increasing scan limits."
+    : parserErrors
+      ? "Review parser-error samples in Catalog Scan Diagnostics."
+      : cappedRoots || notScannedRoots
+        ? "Raise the catalog row limit and refresh Data Library diagnostics."
+        : hiddenConfigured || suggestedFiles
+          ? "Run Storage Audit and copy data_roots YAML for suggested roots."
+          : unsupportedFiles
+            ? "Review unsupported samples before assuming files are missing."
+            : catalogRows
+              ? "Browse or inspect saved symbols; scan evidence is clean enough."
+              : "Configure saved-data roots or run a fetch job.";
+  const cards = [
+    {
+      status,
+      label: "Current Read",
+      title: headline,
+      note: nextAction,
+    },
+    {
+      status: rows.length ? missingRoots ? "bad" : "ok" : "bad",
+      label: "Roots",
+      title: numberText(rows.length, 0),
+      note: `${numberText(missingRoots, 0)} missing/unreadable; ${numberText(notScannedRoots, 0)} not scanned.`,
+    },
+    {
+      status: parserErrors ? "bad" : totalCandidates ? "ok" : "bad",
+      label: "Parsed",
+      title: `${numberText(totalParsed, 0)} / ${numberText(totalCandidates, 0)}`,
+      note: `${numberText(parserErrors, 0)} parser error${parserErrors === 1 ? "" : "s"}.`,
+    },
+    {
+      status: cappedRoots ? "warn" : "ok",
+      label: "Caps",
+      title: numberText(cappedRoots, 0),
+      note: `Catalog limit ${numberText(catalog.limit || 0, 0)}; scan time ${numberText(totalDurationMs, 3)} ms.`,
+    },
+    {
+      status: unsupportedFiles || skippedSamples ? "warn" : "ok",
+      label: "Skips",
+      title: `${numberText(unsupportedFiles, 0)} unsupported`,
+      note: `${numberText(skippedSamples, 0)} bounded skipped sample${skippedSamples === 1 ? "" : "s"} in scan evidence.`,
+    },
+    {
+      status: hiddenConfigured || suggestedFiles ? "warn" : audit.generated_at ? "ok" : "waiting",
+      label: "Audit",
+      title: audit.generated_at ? `${numberText(hiddenConfigured + suggestedFiles, 0)} hidden/suggested` : "not run",
+      note: audit.generated_at
+        ? `${numberText(hiddenConfigured, 0)} hidden configured; ${numberText(suggestedFiles, 0)} suggested-root files.`
+        : "Open diagnostics to run Storage Audit for disk-vs-catalog visibility.",
+    },
+  ];
+  const lines = [
+    {
+      status: rows.length ? missingRoots ? "bad" : "ok" : "bad",
+      title: "Root Scope",
+      detail: rows.length
+        ? `${numberText(rows.length, 0)} root${rows.length === 1 ? "" : "s"} scanned; ${numberText(missingRoots, 0)} missing/unreadable; ${numberText(notScannedRoots, 0)} not scanned.`
+        : "No root scan summaries were returned by the catalog endpoint.",
+    },
+    {
+      status: parserErrors ? "bad" : totalCandidates ? "ok" : "bad",
+      title: "Parsing",
+      detail: `${numberText(totalCandidates, 0)} candidate file${totalCandidates === 1 ? "" : "s"}; ${numberText(totalParsed, 0)} parsed; ${numberText(parserErrors, 0)} parser error${parserErrors === 1 ? "" : "s"}.`,
+    },
+    {
+      status: unsupportedFiles || skippedSamples ? "warn" : "ok",
+      title: "Skipped Files",
+      detail: `${numberText(unsupportedFiles, 0)} unsupported file${unsupportedFiles === 1 ? "" : "s"}; ${numberText(skippedSamples, 0)} bounded skipped sample${skippedSamples === 1 ? "" : "s"} exposed.`,
+    },
+    {
+      status: cappedRoots ? "warn" : "ok",
+      title: "Scan Limits",
+      detail: `${numberText(cappedRoots, 0)} capped root${cappedRoots === 1 ? "" : "s"}; catalog limit ${numberText(catalog.limit || 0, 0)}; total scan time ${numberText(totalDurationMs, 3)} ms.`,
+    },
+    {
+      status: hiddenConfigured || suggestedFiles ? "warn" : audit.generated_at ? "ok" : "waiting",
+      title: "Storage Audit",
+      detail: audit.generated_at
+        ? `${numberText(hiddenConfigured, 0)} hidden configured file${hiddenConfigured === 1 ? "" : "s"}; ${numberText(suggestedFiles, 0)} suggested-root file${suggestedFiles === 1 ? "" : "s"}.`
+        : "Storage Audit has not published disk-vs-catalog visibility evidence yet.",
+    },
+    {
+      status: topIssueRoot ? topIssueRoot.parse_error_count || !topIssueRoot.exists || !topIssueRoot.is_dir ? "bad" : "warn" : "ok",
+      title: "Top Issue Root",
+      detail: topIssueRoot
+        ? `${text(topIssueRoot.display_path || topIssueRoot.path)} - ${text(topIssueRoot.not_scanned_reason || ((topIssueRoot.sample_errors || [])[0] || {}).error || ((topIssueRoot.sample_skipped_files || [])[0] || {}).reason || "review scan row")}`
+        : "No root-level issue sample found.",
+    },
+    {
+      status,
+      title: "Next Action",
+      detail: nextAction,
+    },
+  ];
+  return { status, headline, nextAction, cards, lines };
+}
+
+function catalogScanReportText(model) {
+  return [
+    `Catalog Scan Report: ${model.headline}`,
+    ...model.lines.map((line) => `${line.title}: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderDataCatalogScanReport() {
+  if (
+    !$("data-catalog-scan-report-note")
+    || !$("data-catalog-scan-report-cards")
+    || !$("data-catalog-scan-report-body")
+    || !$("data-catalog-scan-report-actions")
+  ) return;
+  const model = catalogScanReportModel();
+  state.catalogScanReportText = catalogScanReportText(model);
+  $("data-catalog-scan-report-note").textContent = model.nextAction;
+  $("data-catalog-scan-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-catalog-scan-report-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("data-catalog-scan-report-actions").innerHTML = [
+    `<button type="button" data-catalog-scan-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-catalog-scan-report-action="export">Export Scan CSV</button>`,
+    `<button type="button" class="secondary" data-catalog-scan-report-action="raise">Raise Rows</button>`,
+    `<button type="button" class="secondary" data-catalog-scan-report-action="storage">Storage Audit</button>`,
+    `<button type="button" class="secondary" data-catalog-scan-report-action="roots">Copy Roots YAML</button>`,
+  ].join("");
+}
+
+function handleDataCatalogScanReportAction(action) {
+  if (action === "copy") {
+    copyText(state.catalogScanReportText || "No catalog scan report loaded").then(() => {
+      $("last-refresh").textContent = "Catalog scan report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Catalog scan report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "export") {
+    downloadDataCatalogScanCsv().catch((err) => {
+      $("last-refresh").textContent = `Catalog scan CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "raise") {
+    setDataCatalogLimitToMax();
+    refreshDataLibrary({ includeDiagnostics: true, force: true }).catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "storage") {
+    const element = $("data-storage-audit-list") || $("data-storage-audit-body");
+    if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Review Storage Audit for disk-vs-catalog visibility";
+    return;
+  }
+  if (action === "roots") {
+    copyDataRootsYaml();
+  }
 }
 
 function renderDataCatalogHealth() {
@@ -23626,6 +23834,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-data-visibility-report-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleDataVisibilityReportAction(target.dataset.dataVisibilityReportAction || "");
+  });
+  $("data-catalog-scan-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-catalog-scan-report-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleDataCatalogScanReportAction(target.dataset.catalogScanReportAction || "");
   });
   $("data-storage-assistant-actions").addEventListener("click", (event) => {
     const target = event.target;

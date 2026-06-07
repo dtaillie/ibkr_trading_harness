@@ -47,6 +47,10 @@ events, operations, and public/private publishing boundaries.
 Every top-level page also starts with a compact workflow rail. Read it left to
 right for the common path on that page before opening the deeper tables below.
 
+In Data Library Diagnostics, read Catalog Scan Report before the raw scan
+table. It summarizes root scope, parser errors, unsupported/skipped files,
+catalog caps, Storage Audit visibility, and the next recovery action.
+
 ## Configure Data Roots
 
 The dashboard only scans paths listed in `dashboard.data_roots`. Public example

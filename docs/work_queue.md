@@ -1215,6 +1215,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library now exposes `/data_catalog_scan_export` and an
       Export Scan CSV button for configured-root parser errors, unsupported
       files, catalog caps, scan timings, and skipped-file samples.
+    - partial; Data Diagnostics now includes a copyable Catalog Scan Report
+      before the raw scan table, summarizing root scope, candidates/parsed
+      files, parser errors, unsupported/skipped samples, scan caps, Storage
+      Audit hidden/suggested files, top issue root, and next actions.
   - root-by-root scan duration, file count, skipped count, and parser error
     count
     - partial; Data Library now shows catalog scan diagnostics with per-root

@@ -156,6 +156,9 @@ saved-data count, and alerts visible while you move between pages. The route
 strip above each page intro shows the current page/lens, Page Home returns that
 page to its home lens, and Copy Link copies the exact dashboard URL for notes
 or another browser tab.
+Use Data Library Diagnostics > Catalog Scan Report when saved files or symbols
+are missing; it summarizes root scan scope, parser/skipped-file evidence,
+catalog caps, Storage Audit visibility, and the next recovery action.
 
 Smoke-test dashboard assets and core endpoints:
 

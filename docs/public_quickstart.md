@@ -319,6 +319,9 @@ top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
 The sticky topbar keeps mode, equity, status freshness, Gateway/API, visible
 runs, saved-data count, and alerts in view while you move between pages.
+Use Data Library Diagnostics > Catalog Scan Report when a saved symbol is
+missing. It summarizes parser errors, unsupported/skipped files, scan caps,
+Storage Audit visibility, and the next recovery action before the raw table.
 Use Help Task Navigator when the next action is unclear. It reads the current
 public-safe dashboard state and links directly to monitoring, performance,
 saved data, fetch recovery, simulation, run-event, operations, and publishing
