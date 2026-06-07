@@ -2279,24 +2279,54 @@ def adjustment_status_from_path(path: Path) -> str | None:
     return None
 
 
+def normalize_storage_session_metadata(value: Any, *, asset_class: str | None = None) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    lowered = re.sub(r"[\s_/-]+", "_", raw.lower()).strip("_")
+    rth = {"true", "1", "rth", "regular", "regular_hours", "regular_trading_hours", "market_hours"}
+    extended = {"false", "0", "extended", "extended_hours", "all", "all_hours", "eth"}
+    always_on = {"24_7", "24x7", "24", "crypto"}
+    if lowered in rth:
+        return "rth"
+    if lowered in extended:
+        return "extended"
+    if lowered in always_on:
+        return "24_7"
+    if asset_class == "crypto":
+        return "24_7"
+    return raw
+
+
+def storage_session_from_path(path: Path, *, asset_class: str | None = None) -> str | None:
+    lowered_path = "/".join(part.lower() for part in path.parts)
+    normalized_path = re.sub(r"[\s_/-]+", "_", lowered_path)
+    if asset_class == "crypto":
+        return "24_7"
+    if any(token in normalized_path for token in ("24_7", "24x7", "24_7_crypto")):
+        return "24_7"
+    if any(token in normalized_path for token in ("rthtrue", "rth_true", "regular_hours", "regular_trading_hours", "market_hours")):
+        return "rth"
+    if any(token in normalized_path for token in ("rthfalse", "rth_false", "extended_hours", "all_hours")):
+        return "extended"
+    tokens = {token for token in re.split(r"[^a-z0-9]+", path.stem.lower()) if token}
+    if tokens & {"rth", "regular"}:
+        return "rth"
+    if tokens & {"extended", "eth"}:
+        return "extended"
+    return None
+
+
 def infer_storage_session(path: Path, df: pd.DataFrame, asset_class: str) -> str:
     explicit = single_metadata_value(df, "session", "trading_session", "rth")
     if explicit is not None:
-        lowered = explicit.lower()
-        if lowered in {"true", "1", "rth", "regular", "regular_hours"}:
-            return "rth"
-        if lowered in {"false", "0", "extended", "all", "all_hours", "eth"}:
-            return "extended"
-        if lowered in {"24_7", "24/7", "crypto"}:
-            return "24_7"
-        return explicit
+        normalized = normalize_storage_session_metadata(explicit, asset_class=asset_class)
+        return normalized or explicit
     if asset_class == "crypto":
         return "24_7"
-    lowered_path = "/".join(part.lower() for part in path.parts)
-    if "rthtrue" in lowered_path or "rth_true" in lowered_path:
-        return "rth"
-    if "rthfalse" in lowered_path or "rth_false" in lowered_path:
-        return "extended"
+    path_status = storage_session_from_path(path, asset_class=asset_class)
+    if path_status:
+        return path_status
     return "unknown"
 
 

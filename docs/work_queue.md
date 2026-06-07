@@ -1459,6 +1459,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       symbol, storage session (`rth`, extended, `24_7`, unknown), and
       adjustment status metadata, with catalog CSV export fields for the same
       values.
+    - partial; storage-session inference now normalizes common explicit and
+      filename conventions including `regular_hours`, `regular_trading_hours`,
+      `market_hours`, `extended_hours`, `all_hours`, `eth`, `24_7`, and `24x7`,
+      so Storage Audit and catalog flows can separate RTH, extended-hours, and
+      always-on crypto files without depending on the older `rth_true` naming.
     - partial; Data Catalog, Data Detail, Storage Audit, catalog/directory CSV
       exports, and the storage-audit CLI now expose a storage-contract status
       that flags missing/ambiguous symbol, bar-size, session, stock adjustment,

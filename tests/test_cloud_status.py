@@ -2957,8 +2957,8 @@ def test_cloud_status_server_serves_data_storage_audit(tmp_path, monkeypatch):
     suggested_root = tmp_path / "cache"
     suggested_root.mkdir()
     for root, filename_symbol, session in [
-        (data_root, "SPY_adjusted_rth_true", "rth"),
-        (data_root, "QQQ_raw_rth_false", "extended"),
+        (data_root, "SPY_adjusted_regular_hours", "rth"),
+        (data_root, "QQQ_raw_extended_hours", "extended"),
         (suggested_root, "BTC-USD", "24_7"),
     ]:
         (root / f"{filename_symbol}_5min_sample.csv").write_text(
@@ -3050,7 +3050,7 @@ def test_data_storage_audit_cli_reports_json_and_human(tmp_path, monkeypatch, ca
     monkeypatch.setattr(status_server, "SUGGESTED_DATA_ROOTS", ())
     data_root = tmp_path / "data"
     data_root.mkdir()
-    (data_root / "SPY_raw_rth_true_5min_sample.csv").write_text(
+    (data_root / "SPY_raw_regular_hours_5min_sample.csv").write_text(
         "\n".join(
             [
                 "timestamp,open,high,low,close,volume",
