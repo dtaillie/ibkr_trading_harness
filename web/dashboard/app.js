@@ -21079,6 +21079,58 @@ async function downloadDataSymbolDirectoryCsv() {
   $("last-refresh").textContent = `Symbol directory CSV exported: ${new Date().toLocaleString()}`;
 }
 
+function downloadDataHistoryMatrixCsv() {
+  const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const activeFilters = dataFilterSummary();
+  const rows = activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
+  const matrix = dataHistoryMatrixRows(rows);
+  const header = [
+    "asset_class",
+    "source",
+    "bar_size",
+    "storage_session",
+    "symbol_count",
+    "file_count",
+    "row_count",
+    "first_date",
+    "last_date",
+    "latest_modified_age",
+    "replay_status",
+    "replay_counts",
+    "quality_counts",
+    "storage_contract_counts",
+  ];
+  const lines = [
+    csvLine(header),
+    ...matrix.map((group) => csvLine([
+      group.asset,
+      group.source,
+      group.bar,
+      group.session,
+      group.symbol_count,
+      group.file_count,
+      group.row_count,
+      group.first_label,
+      group.last_label,
+      group.latest_label,
+      group.status,
+      countSummary(group.replay_counts),
+      countSummary(group.quality_counts),
+      countSummary(group.contract_counts),
+    ])),
+  ];
+  const blob = new Blob([`${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "saved_history_matrix.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Saved history matrix CSV exported: ${new Date().toLocaleString()}`;
+}
+
 async function downloadFetchManifestsCsv() {
   const body = await fetchText("/fetch_manifests_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -21922,6 +21974,7 @@ function init() {
       $("last-refresh").textContent = `Symbol directory CSV export failed: ${err.message}`;
     });
   });
+  $("export-data-history-matrix-csv").addEventListener("click", downloadDataHistoryMatrixCsv);
   $("export-data-catalog-scan-csv").addEventListener("click", () => {
     downloadDataCatalogScanCsv().catch((err) => {
       $("last-refresh").textContent = `Catalog scan CSV export failed: ${err.message}`;
