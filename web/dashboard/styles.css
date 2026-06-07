@@ -198,6 +198,65 @@ body {
   text-align: right;
 }
 
+.page-intro-status .status-badge {
+  justify-content: flex-end;
+  max-width: 100%;
+  text-align: right;
+}
+
+.page-intro-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.evidence-chip {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--soft-panel);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.evidence-chip b {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.evidence-chip em {
+  overflow: hidden;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-chip.status-ok {
+  border-color: rgba(4, 120, 87, 0.2);
+  background: var(--status-ok-bg);
+}
+
+.evidence-chip.status-warn {
+  border-color: rgba(180, 83, 9, 0.22);
+  background: var(--status-warn-bg);
+}
+
+.evidence-chip.status-bad {
+  border-color: rgba(185, 28, 28, 0.2);
+  background: var(--status-bad-bg);
+}
+
 .page-intro-next {
   display: grid;
   justify-items: end;
@@ -4092,6 +4151,15 @@ footer {
 
   .page-intro-status {
     text-align: left;
+  }
+
+  .page-intro-status .status-badge {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .page-intro-evidence {
+    justify-content: flex-start;
   }
 
   .page-intro-next {

@@ -1133,6 +1133,87 @@ function pageIntroAction(id, action) {
   else button.removeAttribute("data-view-lens");
 }
 
+function pageIntroEvidence(view) {
+  const payload = state.status || {};
+  const statusGenerated = payload.generated_at || "";
+  const dataCatalog = state.dataCatalog || {};
+  const fetchManifests = state.fetchManifests || {};
+  const performanceSource = latestArtifactPerformance();
+  const latestAccount = latestAccountRow(performanceSource.account || []);
+  const runComparison = state.runComparison || {};
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const newestRemote = remoteNodes.slice().sort((left, right) => (
+    (timestampMillis(right.received_at || right.generated_at) || 0)
+    - (timestampMillis(left.received_at || left.generated_at) || 0)
+  ))[0] || {};
+  const generatedValue = (value) => (value ? shortTimestampAgeLabel(value) : "missing");
+  const sourceValue = (label, value, status = value ? "ok" : "warn") => ({ label, value: text(value), status });
+  const freshnessValue = (label, value) => ({ label, value: generatedValue(value), status: value ? "ok" : "bad" });
+  const countValue = (label, value, noun) => {
+    const number = Number(value || 0);
+    return {
+      label,
+      value: `${numberText(number, 0)} ${noun}${number === 1 ? "" : "s"}`,
+      status: number ? "ok" : "warn",
+    };
+  };
+  const commonStatus = freshnessValue("Status", statusGenerated);
+  const evidence = {
+    overview: [
+      commonStatus,
+      sourceValue("Account", latestAccount.timestamp ? `snapshot ${shortTimestampAgeLabel(latestAccount.timestamp)}` : "no snapshot", latestAccount.timestamp ? "ok" : "warn"),
+      countValue("Alerts", (payload.alerts || []).length, "alert"),
+    ],
+    performance: [
+      sourceValue("Source", performanceSource.label || "none", performanceSource.has_data ? "ok" : "warn"),
+      sourceValue("Account", latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "missing", latestAccount.timestamp ? "ok" : "warn"),
+      countValue("Rollups", ((state.statusEquityRollups || {}).rollups || []).length, "day"),
+    ],
+    data: [
+      freshnessValue("Catalog", dataCatalog.generated_at),
+      countValue("Visible", (dataCatalog.datasets || []).length, "file"),
+      countValue("Roots", ((dataCatalog.root_summaries || dataCatalog.roots || [])).length, "root"),
+    ],
+    fetch: [
+      freshnessValue("Manifests", fetchManifests.generated_at),
+      countValue("Loaded", (fetchManifests.manifests || []).length, "job"),
+      countValue("Roots", ((fetchManifests.root_summaries || fetchManifests.roots || [])).length, "root"),
+    ],
+    workbench: [
+      freshnessValue("Options", (state.configOptions || {}).generated_at),
+      countValue("Drafts", ((state.configDrafts || {}).drafts || []).length, "draft"),
+      countValue("Runs", ((state.configRuns || {}).runs || []).length, "run"),
+    ],
+    runs: [
+      commonStatus,
+      freshnessValue("Comparison", runComparison.generated_at),
+      countValue("Runs", (runComparison.runs || []).length, "row"),
+    ],
+    operations: [
+      commonStatus,
+      sourceValue("Gateway", (payload.gateway || {}).enabled ? ((payload.gateway || {}).reachable ? "reachable" : "not reachable") : "disabled", (payload.gateway || {}).enabled ? ((payload.gateway || {}).reachable ? "ok" : "bad") : "warn"),
+      sourceValue("Remote", newestRemote.node_id ? `${text(newestRemote.node_id)} ${generatedValue(newestRemote.received_at || newestRemote.generated_at)}` : "no nodes", newestRemote.node_id ? "ok" : "warn"),
+    ],
+    help: [
+      sourceValue("Docs", "allowlisted local docs", "ok"),
+      sourceValue("Boundary", "public-safe examples", "ok"),
+      commonStatus,
+    ],
+  };
+  return evidence[normalizeView(view)] || evidence.overview;
+}
+
+function renderPageIntroEvidence(view) {
+  const container = $("page-intro-evidence");
+  if (!container) return;
+  container.innerHTML = pageIntroEvidence(view).map((item) => `
+    <span class="evidence-chip status-${escapeHtml(item.status)}">
+      <b>${escapeHtml(item.label)}</b>
+      <em>${escapeHtml(item.value)}</em>
+    </span>
+  `).join("");
+}
+
 function pageIntroContent(view) {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
@@ -1153,6 +1234,7 @@ function pageIntroContent(view) {
       title: "Current strategy status",
       note: "Confirm telemetry, account state, Gateway reachability, current positions, and the latest strategy activity before drilling into detail.",
       status: `${generatedLabel}; ${visibleRuns} run${visibleRuns === 1 ? "" : "s"} visible; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
+      statusState: payload.generated_at ? alerts.length ? "warn" : "ok" : "bad",
       primary: { label: "Open Performance", target: "performance", lens: "home" },
       secondary: { label: "Inspect Data", target: "data", lens: "browse" },
       next: {
@@ -1171,6 +1253,7 @@ function pageIntroContent(view) {
       title: "Strategy results and account curves",
       note: "Use current status-history rollups first, then load archived artifacts when you need drawdown, fills, trade ledger, and benchmark comparisons.",
       status: `${statusRollups.length} status day${statusRollups.length === 1 ? "" : "s"}; ${runRows.length} saved run${runRows.length === 1 ? "" : "s"}; ${gatewayLabel}`,
+      statusState: statusRollups.length || runRows.length ? "ok" : "warn",
       primary: { label: "Review Runs", target: "runs", lens: "runs" },
       secondary: { label: "Check Operations", target: "operations", lens: "paper" },
       next: {
@@ -1189,6 +1272,7 @@ function pageIntroContent(view) {
       title: "Saved historical data",
       note: "Search scanned symbols, inspect saved files offline, diagnose hidden roots, and compare normalized close paths before using data in a replay.",
       status: `${datasets.length} visible dataset${datasets.length === 1 ? "" : "s"}; ${numberText((state.dataCatalog && state.dataCatalog.total) || datasets.length, 0)} catalog row${((state.dataCatalog && state.dataCatalog.total) || datasets.length) === 1 ? "" : "s"}`,
+      statusState: datasets.length ? "ok" : "warn",
       primary: { label: "Open Workbench", target: "workbench", lens: "builder" },
       secondary: { label: "Review Fetches", target: "fetch", lens: "jobs" },
       next: {
@@ -1207,6 +1291,7 @@ function pageIntroContent(view) {
       title: "Historical-data pulls and recovery",
       note: "Review completed and failed fetch manifests, copy resume commands, inspect outputs, and connect produced files back to the Data Library.",
       status: `${manifests.length} manifest${manifests.length === 1 ? "" : "s"} loaded; ${numberText((state.fetchManifests && state.fetchManifests.total) || manifests.length, 0)} total`,
+      statusState: manifests.length ? "ok" : "warn",
       primary: { label: "Show Data Library", target: "data", lens: "browse" },
       secondary: { label: "Simulate From Data", target: "workbench", lens: "builder" },
       next: {
@@ -1225,6 +1310,7 @@ function pageIntroContent(view) {
       title: "Build and validate example configs",
       note: "Generate public-safe replay or paper config drafts from saved data, preview alignment, validate drafts, and run local simulations.",
       status: `${drafts.length} draft${drafts.length === 1 ? "" : "s"}; ${((state.configRuns && state.configRuns.runs) || []).length} recent draft run${((state.configRuns && state.configRuns.runs) || []).length === 1 ? "" : "s"}`,
+      statusState: drafts.length ? "ok" : "warn",
       primary: { label: "Inspect Data", target: "data", lens: "browse" },
       secondary: { label: "Open Runs", target: "runs", lens: "runs" },
       next: {
@@ -1243,6 +1329,7 @@ function pageIntroContent(view) {
       title: "Decisions, orders, fills, and artifacts",
       note: "Search saved runs, inspect current managed positions, open non-terminal orders, combined timelines, logs, and archived artifact detail.",
       status: `${runRows.length} saved comparison row${runRows.length === 1 ? "" : "s"}; ${visibleRuns} current/saved run${visibleRuns === 1 ? "" : "s"}`,
+      statusState: runRows.length || visibleRuns ? "ok" : "warn",
       primary: { label: "View Performance", target: "performance", lens: "home" },
       secondary: { label: "Check Operations", target: "operations", lens: "paper" },
       next: {
@@ -1261,6 +1348,7 @@ function pageIntroContent(view) {
       title: "Runtime, receiver, and remote-control health",
       note: "Check Gateway, supervisors, remote nodes, command queue, command audit, cleanup, diagnostics, and public endpoint health.",
       status: `${gatewayLabel}; ${remoteNodes.length} remote node${remoteNodes.length === 1 ? "" : "s"}; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
+      statusState: gateway.enabled && !gateway.reachable ? "bad" : alerts.length ? "warn" : "ok",
       primary: { label: "Open Help", target: "help", lens: "home" },
       secondary: { label: "Back To Overview", target: "overview" },
       next: {
@@ -1279,6 +1367,7 @@ function pageIntroContent(view) {
       title: "How to operate the workbench",
       note: "Use the page guide, first-run checklist, data workflows, glossary, and linked runbooks when the next local step is unclear.",
       status: "Public-safe docs are served locally from the allowlisted docs folder.",
+      statusState: "ok",
       primary: { label: "Start Overview", target: "overview" },
       secondary: { label: "Open Data Library", target: "data", lens: "browse" },
       next: {
@@ -1302,7 +1391,8 @@ function renderPageIntro(view = activeView()) {
   $("page-intro-eyebrow").textContent = content.eyebrow;
   $("page-intro-title").textContent = content.title;
   $("page-intro-note").textContent = content.note;
-  $("page-intro-status").textContent = content.status;
+  $("page-intro-status").innerHTML = statusBadge(content.statusState || "ok", content.status);
+  renderPageIntroEvidence(normalizeView(view));
   const next = content.next || {};
   if ($("page-intro-next-title")) {
     $("page-intro-next-title").textContent = next.title || (content.primary && content.primary.label) || "Continue";

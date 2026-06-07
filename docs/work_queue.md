@@ -618,6 +618,11 @@ strategy-private.
     - partial; Overview and Performance cards now show compact source/freshness
       metadata for live telemetry, run summaries, account snapshots, selected
       windows, and fills-derived trade metrics
+    - partial; the shared page intro now renders a per-page evidence strip with
+      source/freshness/count chips for status telemetry, account snapshots,
+      performance sources, data catalogs, fetch manifests, Workbench drafts,
+      run comparisons, remote nodes, and public docs, so every top-level page
+      starts with visible evidence before dense tables.
 - Add UI quality gates:
   - screenshot-smoke every top-level page at desktop and mobile widths
     - partial; `scripts/smoke_dashboard_screenshots.py` now starts the
