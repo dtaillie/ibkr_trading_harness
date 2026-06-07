@@ -268,7 +268,8 @@ close-price paths, volume bars, null counts, gap rows, price/return stats,
 volume stats, and a compact ok/warn/bad quality summary before they are used
 in a replay config. The saved-data table also has a Replay column that combines
 quality, storage-contract metadata, missing intervals, timezone, and adjustment
-metadata into one per-file readiness read. The Data Library can also compare several saved datasets
+metadata into one per-file readiness read, with a matching Replay filter and
+Replay-first sort for large local catalogs. The Data Library can also compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
 configured local files. The saved-data table can be filtered by search text,
 quality status, and bar size, and its header summarizes quality counts, bar-size

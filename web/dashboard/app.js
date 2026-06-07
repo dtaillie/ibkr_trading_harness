@@ -7630,8 +7630,36 @@ function dataCatalogFilters() {
     source: $("data-filter-source").value || "",
     session: $("data-filter-session").value || "",
     contract: $("data-filter-contract").value || "",
+    replay: $("data-filter-replay").value || "",
     sort: $("data-filter-sort").value || "modified_desc",
   };
+}
+
+function dataReplayReadinessModel(dataset) {
+  const quality = text(dataset.quality_status).toLowerCase();
+  const contract = text(dataset.storage_contract_status).toLowerCase();
+  const adjustment = text(dataset.adjustment_status).toLowerCase();
+  const timezone = text(dataset.source_timezone).toLowerCase();
+  const missing = finiteNumber(dataset.estimated_missing_intervals) || 0;
+  const warnings = [
+    ...(Array.isArray(dataset.quality_warnings) ? dataset.quality_warnings : []),
+    ...(Array.isArray(dataset.storage_contract_warnings) ? dataset.storage_contract_warnings : []),
+  ].map(text).filter((item) => item && item !== "n/a");
+  const reviewReasons = [];
+  if (missing > 0) reviewReasons.push(`${numberText(missing, 0)} missing interval${missing === 1 ? "" : "s"}`);
+  if (!timezone || timezone === "unknown" || timezone === "n/a") reviewReasons.push("unknown source timezone");
+  if (adjustment === "unknown") reviewReasons.push("unknown adjustment metadata");
+  if (warnings.length) reviewReasons.push(warnings[0]);
+  const status = quality === "bad" || contract === "bad"
+    ? "bad"
+    : quality === "warn" || contract === "warn" || reviewReasons.length
+      ? "warn"
+      : "ok";
+  const title = status === "ok" ? "Replay Ready" : status === "bad" ? "Blocked" : "Review";
+  const detail = status === "ok"
+    ? "No catalog quality or storage-contract warnings."
+    : reviewReasons.slice(0, 2).join("; ") || "Review quality and storage-contract metadata.";
+  return { status, title, detail };
 }
 
 function dataCatalogSortValue(dataset, key) {
@@ -7646,6 +7674,10 @@ function dataCatalogSortValue(dataset, key) {
   if (key === "contract") {
     const rank = { ok: 0, warn: 1, bad: 2 };
     return rank[String(dataset.storage_contract_status || "").toLowerCase()] ?? 3;
+  }
+  if (key === "replay") {
+    const rank = { ok: 0, warn: 1, bad: 2 };
+    return rank[dataReplayReadinessModel(dataset).status] ?? 3;
   }
   return String(dataset.symbol || dataset.path || "").toLowerCase();
 }
@@ -7676,7 +7708,9 @@ function filteredDataCatalog(datasets) {
     if (filters.source && text(dataset.source) !== filters.source) return false;
     if (filters.session && text(dataset.storage_session) !== filters.session) return false;
     if (filters.contract && text(dataset.storage_contract_status) !== filters.contract) return false;
+    if (filters.replay && dataReplayReadinessModel(dataset).status !== filters.replay) return false;
     if (filters.text) {
+      const replay = dataReplayReadinessModel(dataset);
       const haystack = [
         dataset.symbol,
         dataset.asset_class,
@@ -7685,6 +7719,8 @@ function filteredDataCatalog(datasets) {
         dataset.storage_session,
         dataset.storage_contract_status,
         dataset.storage_contract_label,
+        replay.title,
+        replay.status,
         dataset.path,
         dataset.root,
         dataset.source_timezone,
@@ -8991,33 +9027,11 @@ function replayStarterCommand(detail) {
 }
 
 function dataReplayReadiness(dataset) {
-  const quality = text(dataset.quality_status).toLowerCase();
-  const contract = text(dataset.storage_contract_status).toLowerCase();
-  const adjustment = text(dataset.adjustment_status).toLowerCase();
-  const timezone = text(dataset.source_timezone).toLowerCase();
-  const missing = finiteNumber(dataset.estimated_missing_intervals) || 0;
-  const warnings = [
-    ...(Array.isArray(dataset.quality_warnings) ? dataset.quality_warnings : []),
-    ...(Array.isArray(dataset.storage_contract_warnings) ? dataset.storage_contract_warnings : []),
-  ].map(text).filter((item) => item && item !== "n/a");
-  const reviewReasons = [];
-  if (missing > 0) reviewReasons.push(`${numberText(missing, 0)} missing interval${missing === 1 ? "" : "s"}`);
-  if (!timezone || timezone === "unknown" || timezone === "n/a") reviewReasons.push("unknown source timezone");
-  if (adjustment === "unknown") reviewReasons.push("unknown adjustment metadata");
-  if (warnings.length) reviewReasons.push(warnings[0]);
-  const status = quality === "bad" || contract === "bad"
-    ? "bad"
-    : quality === "warn" || contract === "warn" || reviewReasons.length
-      ? "warn"
-      : "ok";
-  const title = status === "ok" ? "Replay Ready" : status === "bad" ? "Blocked" : "Review";
-  const detail = status === "ok"
-    ? "No catalog quality or storage-contract warnings."
-    : reviewReasons.slice(0, 2).join("; ") || "Review quality and storage-contract metadata.";
+  const model = dataReplayReadinessModel(dataset);
   return `
-    <div class="data-readiness-cell ${escapeHtml(statusClass(status))}">
-      <strong>${escapeHtml(title)}</strong>
-      <span>${escapeHtml(detail)}</span>
+    <div class="data-readiness-cell ${escapeHtml(statusClass(model.status))}">
+      <strong>${escapeHtml(model.title)}</strong>
+      <span>${escapeHtml(model.detail)}</span>
       <small>${escapeHtml(`tz ${text(dataset.source_timezone)} / adjust ${text(dataset.adjustment_status)}`)}</small>
     </div>
   `;
@@ -9102,6 +9116,7 @@ function dataFilterSummary() {
   if (filters.source) labels.push(`source ${filters.source}`);
   if (filters.session) labels.push(`session ${filters.session}`);
   if (filters.contract) labels.push(`contract ${filters.contract}`);
+  if (filters.replay) labels.push(`replay ${filters.replay}`);
   if (state.manifestPathFilter && (state.manifestPathFilter.paths || []).length) {
     labels.push(`fetch outputs ${numberText((state.manifestPathFilter.paths || []).length, 0)}`);
   }
@@ -9121,6 +9136,11 @@ function renderDataFacetSummary(datasets = [], filteredRows = []) {
   const sessionCounts = countBy(filteredRows, "storage_session");
   const qualityCounts = countBy(filteredRows, "quality_status");
   const contractCounts = countBy(filteredRows, "storage_contract_status");
+  const replayCounts = {};
+  for (const dataset of filteredRows) {
+    const replayStatus = dataReplayReadinessModel(dataset).status;
+    replayCounts[replayStatus] = (replayCounts[replayStatus] || 0) + 1;
+  }
   const newest = filteredRows
     .map((dataset) => timestampMillis(dataset.modified_at))
     .filter((value) => value !== null)
@@ -9167,11 +9187,11 @@ function renderDataFacetSummary(datasets = [], filteredRows = []) {
     },
     {
       label: "Readiness",
-      status: Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0)
+      status: Number(replayCounts.bad || 0)
         ? "bad"
-        : Number(qualityCounts.warn || 0) || Number(contractCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
-      title: `Q ${countSummary(qualityCounts) || "n/a"}`,
-      note: `Contract ${countSummary(contractCounts) || "n/a"}; newest ${newest ? shortTimestampAgeLabel(new Date(newest).toISOString()) : "n/a"}.`,
+        : Number(replayCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      title: `Replay ${countSummary(replayCounts) || "n/a"}`,
+      note: `Q ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}; newest ${newest ? shortTimestampAgeLabel(new Date(newest).toISOString()) : "n/a"}.`,
     },
   ];
   $("data-facet-summary-cards").innerHTML = cards.map((card) => `
@@ -9191,13 +9211,14 @@ function dataExplorerDimensions() {
     { key: "storage_session", label: "Session", filter: "session", control: "data-filter-session" },
     { key: "quality_status", label: "Quality", filter: "quality", control: "data-filter-quality" },
     { key: "storage_contract_status", label: "Contract", filter: "contract", control: "data-filter-contract" },
+    { key: "replay_readiness", label: "Replay", filter: "replay", control: "data-filter-replay", value: (dataset) => dataReplayReadinessModel(dataset).status },
   ];
 }
 
 function dataExplorerGroupRows(datasets, dimension) {
   const groups = new Map();
   for (const dataset of datasets || []) {
-    const value = text(dataset[dimension.key]);
+    const value = text(dimension.value ? dimension.value(dataset) : dataset[dimension.key]);
     if (!value || value === "n/a") continue;
     if (!groups.has(value)) {
       groups.set(value, {
@@ -9312,6 +9333,7 @@ function setDataCatalogFacetFilter(filter, value) {
     session: "data-filter-session",
     quality: "data-filter-quality",
     contract: "data-filter-contract",
+    replay: "data-filter-replay",
   };
   const id = mapping[filter] || "";
   if (id && $(id)) $(id).value = value;
@@ -9337,6 +9359,7 @@ function clearDataCatalogFilters() {
   $("data-filter-source").value = "";
   $("data-filter-session").value = "";
   $("data-filter-contract").value = "";
+  $("data-filter-replay").value = "";
   $("data-filter-sort").value = "modified_desc";
   state.manifestPathFilter = null;
 }
@@ -13784,6 +13807,7 @@ function applyFetchOutputDataFilter() {
   $("data-filter-source").value = "";
   $("data-filter-session").value = "";
   $("data-filter-contract").value = "";
+  $("data-filter-replay").value = "";
   $("data-filter-sort").value = "modified_desc";
   navigateToDataLens("browse");
   renderDataCatalog();
@@ -21306,6 +21330,7 @@ function init() {
   $("data-filter-source").addEventListener("change", renderDataCatalog);
   $("data-filter-session").addEventListener("change", renderDataCatalog);
   $("data-filter-contract").addEventListener("change", renderDataCatalog);
+  $("data-filter-replay").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-home-clear-filters").addEventListener("click", () => {
     clearDataCatalogFilters();

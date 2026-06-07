@@ -1646,6 +1646,15 @@
           </select>
         </label>
         <label>
+          <span>Replay</span>
+          <select id="data-filter-replay">
+            <option value="">All</option>
+            <option value="ok">Replay Ready</option>
+            <option value="warn">Review</option>
+            <option value="bad">Blocked</option>
+          </select>
+        </label>
+        <label>
           <span>Sort</span>
           <select id="data-filter-sort">
             <option value="modified_desc" selected>Newest file</option>
@@ -1655,6 +1664,7 @@
             <option value="range_desc">Latest bar</option>
             <option value="quality_asc">Quality first</option>
             <option value="contract_asc">Contract first</option>
+            <option value="replay_asc">Replay first</option>
           </select>
         </label>
       </div>

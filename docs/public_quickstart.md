@@ -349,7 +349,8 @@ coverage/gap/storage diagnostics are lazy until the Data Diagnostics lens is
 opened. In the Saved Data table, the Replay column is the quickest per-file
 screen: it synthesizes quality, storage-contract metadata, missing intervals,
 source timezone, and adjustment metadata before you inspect or simulate that
-file. Use Storage Audit to compare CSV/parquet files on disk
+file. Use the Replay filter or Replay-first sort to screen large catalogs by
+ready/review/blocked state. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
@@ -484,7 +485,8 @@ coverage, gap rows, null counts, price/return stats, volume stats, and a
 compact ok/warn/bad quality summary.
 Use the row's Replay cell first when scanning many files; it combines the
 catalog's quality, storage-contract, missing-interval, timezone, and adjustment
-metadata into one readiness callout.
+metadata into one readiness callout. The same readiness state is available as a
+Browse filter, a Replay-first sort, and a Saved Data Explorer group.
 Use Saved Data Explorer before choosing a row when you do not yet know which
 symbol or source matters; it shows whether the local catalog is mostly stocks,
 crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or warning-heavy

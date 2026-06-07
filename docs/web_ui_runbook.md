@@ -74,7 +74,9 @@ the current Browse filters and jump to the matching table rows.
 In the Saved Data table, use the Replay column as the first per-file screen.
 It combines data quality, storage-contract metadata, missing-interval pressure,
 source timezone, and adjustment metadata into one ok/warn/bad read before you
-open Data Detail or send the file to Workbench.
+open Data Detail or send the file to Workbench. Use the Replay filter or
+Replay-first sort when a large catalog needs to be reduced to ready, review,
+or blocked files quickly.
 Use Catalog Scope before browsing a large local universe. It summarizes loaded
 files, scanned symbols, active filters, configured/suggested roots, data
 readiness, and whether the current Rows to scan limit may be hiding history.

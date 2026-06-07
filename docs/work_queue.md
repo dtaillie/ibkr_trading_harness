@@ -851,6 +851,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       that combines quality, storage-contract status, missing-interval pressure,
       source timezone, and adjustment metadata, so per-file replay screening no
       longer requires mentally joining several dense columns.
+    - partial; Saved Data Browse can now filter and sort by synthesized Replay
+      readiness, and Saved Data Explorer exposes Replay as a one-click group
+      alongside asset, source, bar size, session, quality, and contract facets.
     - partial; Saved Data filters now include storage session, so users can
       narrow detailed rows to RTH, extended-hours, 24/7 crypto, or unknown
       files without relying on text search.
