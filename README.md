@@ -324,8 +324,9 @@ from configured-root filenames/paths without parsing every CSV/parquet file, so
 users can tell when the quality catalog is only a bounded parsed sample of a
 larger on-disk universe. Root Index Browser searches those candidate symbols
 inside the dashboard, routes them into parsed-catalog search or diagnostics,
-and copies sample paths; Export Root Index CSV downloads that candidate
-universe for offline review. Saved-data coverage and quality
+opens supported sample files in Data Detail, and copies sample paths; Export
+Root Index CSV downloads that candidate universe for offline review.
+Saved-data coverage and quality
 metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and
 simulated-paper-run plugin-runner config drafts from saved data. Public exports
 ship only generic no-edge example plugins, while local ignored plugin registries

@@ -1146,6 +1146,7 @@ def run_smoke(
             "downloadDataHistoryMatrixCsv",
             "renderRootIndexBrowser",
             "handleRootIndexBrowserAction",
+            "root-index-inspect-sample",
             "data-history-matrix-body",
             "data-history-matrix-summary",
             "export-data-history-matrix-csv",

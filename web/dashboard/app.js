@@ -10253,7 +10253,7 @@ function renderRootIndexBrowser() {
           samplePaths.length
             ? jsonDrilldown(samplePaths, samplePaths.slice(0, 2).join(" | "))
             : `<span class="muted">none</span>`,
-          `<span class="button-pair"><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-inspect-sample" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(samplePaths[0] || "")}"${samplePaths.length ? "" : " disabled"}>Inspect Sample</button><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
         ]);
       }).join("")
     : row([symbols.length ? `<span class="muted">No root-index symbols match the current filters.</span>` : `<span class="muted">No root-index symbols loaded.</span>`, "", "", "", "", "", "", "", ""]);
@@ -10262,6 +10262,16 @@ function renderRootIndexBrowser() {
 async function handleRootIndexBrowserAction(target) {
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (!symbol) return;
+  if (target.classList.contains("root-index-inspect-sample")) {
+    const path = target.dataset.path || "";
+    if (!path) {
+      $("data-root-index-note").innerHTML = `<span class="status-bad">No sample path available for ${escapeHtml(symbol)}</span>`;
+      return;
+    }
+    await loadDataDetail(path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded root-index sample for ${symbol}`;
+    return;
+  }
   if (target.classList.contains("root-index-search-catalog")) {
     $("data-filter-text").value = symbol;
     $("data-symbol-browser-input").value = symbol;
@@ -25342,7 +25352,7 @@ function init() {
   });
   $("data-root-index-body").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement
-      ? event.target.closest(".root-index-search-catalog, .root-index-diagnose, .root-index-copy-paths")
+      ? event.target.closest(".root-index-inspect-sample, .root-index-search-catalog, .root-index-diagnose, .root-index-copy-paths")
       : null;
     if (!(target instanceof HTMLElement)) return;
     handleRootIndexBrowserAction(target).catch((err) => {

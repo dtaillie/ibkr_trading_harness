@@ -239,8 +239,8 @@ strategy-private.
       action now let users review that broader candidate universe offline.
       Data Home/Browse now also include a Root Index Browser with candidate
       symbol search, asset/source/bar/session filters, parsed-catalog search,
-      symbol diagnostics, and sample-path copy actions for filename/path-
-      inferred rows.
+      direct sample-file inspection, symbol diagnostics, and sample-path copy
+      actions for filename/path-inferred rows.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.
