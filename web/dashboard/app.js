@@ -1761,6 +1761,7 @@ function renderConfigDataQuality() {
       "",
       "",
       "",
+      "",
     ]);
     return;
   }
@@ -1773,6 +1774,7 @@ function renderConfigDataQuality() {
   $("config-data-quality-body").innerHTML = selected.map((dataset) => row([
     escapeHtml(text(dataset.symbol)),
     qualityBadge(dataset.quality_status, dataset.quality_warnings),
+    qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings),
     escapeHtml(text(dataset.bar_size)),
     escapeHtml(numberText(dataset.rows, 0)),
     escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp)),
@@ -1781,9 +1783,10 @@ function renderConfigDataQuality() {
   ])).join("");
 }
 
-function selectedDataPacketStatus(selected, alignment, qualityIssues) {
+function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues) {
   if (!selected.length) return { status: "bad", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
   if (qualityIssues.length) return { status: "warn", title: "Review Quality", note: `${numberText(qualityIssues.length, 0)} selected file${qualityIssues.length === 1 ? "" : "s"} need review before replay.` };
+  if (contractIssues.length) return { status: "warn", title: "Review Metadata", note: `${numberText(contractIssues.length, 0)} selected file${contractIssues.length === 1 ? "" : "s"} have storage-contract warnings.` };
   if (!alignment.dataset_count) return { status: "warn", title: "Preview Alignment", note: "Selected files are clean enough to review; preview timestamp overlap next." };
   if (Number(alignment.common_timestamp_count || 0) <= 0) return { status: "bad", title: "No Overlap", note: "Selected files do not share timestamps in the current date range." };
   if (Number(alignment.warning_count || 0)) return { status: "warn", title: "Alignment Warnings", note: `${numberText(alignment.warning_count, 0)} alignment warning${Number(alignment.warning_count || 0) === 1 ? "" : "s"} need review.` };
@@ -1795,10 +1798,11 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const range = configDateRangePayload();
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
   const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
   const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
-  const status = selectedDataPacketStatus(selected, alignment, qualityIssues);
+  const status = selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues);
   $("workbench-selected-data-note").textContent = selected.length
     ? `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected for ${text($("config-mode") && $("config-mode").value)}`
     : "No saved datasets selected";
@@ -1820,6 +1824,14 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
       title: bars.length ? bars.join(", ") : "n/a",
       label: "Bars",
       note: sources.length ? `Sources: ${sources.slice(0, 4).join(", ")}` : "No source metadata loaded.",
+    },
+    {
+      status: contractIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      title: selected.length ? contractIssues.length ? `${numberText(contractIssues.length, 0)} review` : "Clear" : "n/a",
+      label: "Contract",
+      note: contractIssues.length
+        ? "Review timestamp/session/bar-size/adjustment metadata before replay."
+        : selected.length ? "Selected files pass current storage-contract checks." : "No selected files.",
     },
     {
       status: range.start || range.end ? "ok" : selected.length ? "warn" : "bad",
@@ -1844,14 +1856,18 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
   $("workbench-selected-data-list").innerHTML = selected.length
     ? selected.map((dataset, index) => {
         const quality = text(dataset.quality_status).toLowerCase();
-        const statusClass = quality === "bad" ? "bad" : quality === "warn" ? "warn" : "ok";
-        const warnings = (dataset.quality_warnings || []).join("; ") || "No quality warnings reported.";
+        const contract = text(dataset.storage_contract_status).toLowerCase();
+        const statusClass = quality === "bad" || contract === "bad" ? "bad" : quality === "warn" || contract === "warn" ? "warn" : "ok";
+        const warnings = [
+          ...(dataset.quality_warnings || []),
+          ...(dataset.storage_contract_warnings || []),
+        ].join("; ") || "No quality or storage-contract warnings reported.";
         return `
           <article class="workbench-selected-data-item status-${escapeHtml(statusClass)}">
             <div>
               <span>${escapeHtml(text(dataset.symbol))} / ${escapeHtml(text(dataset.bar_size))} / ${escapeHtml(text(dataset.source))}</span>
               <strong>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</strong>
-              <small>${escapeHtml(numberText(dataset.rows, 0))} rows - ${escapeHtml(text(dataset.storage_session))} - ${escapeHtml(warnings)}</small>
+              <small>${escapeHtml(numberText(dataset.rows, 0))} rows - ${escapeHtml(text(dataset.storage_session))} - contract ${escapeHtml(text(dataset.storage_contract_status))} - ${escapeHtml(warnings)}</small>
               <code>${escapeHtml(dataset.path)}</code>
             </div>
             <div>

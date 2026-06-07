@@ -1170,6 +1170,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library Browse now includes a storage-contract filter,
       contract-first sort, and contract-aware text search so review-status
       files can be isolated without reading the full catalog table.
+    - partial; Workbench selected-data quality and Selected Data Packet panels
+      now carry storage-contract status/warnings so metadata ambiguity is
+      visible before draft generation.
 - Add resumability:
   - skip chunks already present
   - retry failed chunks
