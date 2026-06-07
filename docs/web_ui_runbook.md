@@ -420,6 +420,10 @@ account/data freshness, and alert summaries by node.
 Read Remote Monitor Report before the dense node table. It gives copyable rows
 for node coverage, heartbeat freshness, Gateway/API state, alerts, open orders,
 stale data/account timestamps, and the next operational action.
+Open Operations Diagnostics before exposing a receiver beyond localhost. Cloud
+Deployment Readiness summarizes remote monitoring evidence, command-audit
+integrity, local-only trading authority, authentication, network boundary,
+retention, current alerts, and the remaining manual provider hardening review.
 
 Click Detail on a node when you need bounded per-node history, recent
 decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote

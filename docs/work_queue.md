@@ -1738,6 +1738,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     firewall, and off-host retention boundary markers, and CI runs it with the
     public readiness audit. This catches accidental weakening of the examples;
     real provider/account hardening review remains open.
+  - partial; Operations Diagnostics now includes a Cloud Deployment Readiness
+    report that summarizes remote monitoring evidence, command-audit integrity,
+    local-only trading authority, authentication, network boundary, retention,
+    and current alerts in copyable rows while clearly marking provider/network
+    hardening as manual review.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity

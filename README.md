@@ -235,6 +235,9 @@ publish runner summaries, supervisor status, remote-control audit summaries,
 and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
 stores the latest status and serves a small workbench dashboard from
 `web/dashboard/`. It does not execute commands or store broker credentials. The
+Operations Diagnostics view includes a Cloud Deployment Readiness report for
+remote-monitor evidence, command-audit integrity, local-only trading authority,
+auth, network boundary, retention, alerts, and manual provider hardening. The
 dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
 Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,

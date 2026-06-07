@@ -18916,6 +18916,160 @@ function renderGateway() {
   $("gateway-list").innerHTML = pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
 }
 
+function cloudDeploymentReadinessModel() {
+  const status = state.status || {};
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const staleRemote = staleRemoteNodes(remoteNodes);
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const remoteGatewayDown = remoteNodes.filter((node) => node.gateway_reachable === false).length;
+  const localRemote = status.remote_control || {};
+  const commandAudit = state.commandAudit || {};
+  const integrity = commandAudit.integrity || {};
+  const localIntegrity = localRemote.integrity || {};
+  const localIntegrityStatus = text(localIntegrity.status || "").toLowerCase();
+  const localSignatureStatus = text(localIntegrity.signature_status || "").toLowerCase();
+  const receiverIntegrityStatus = text(integrity.status || "").toLowerCase();
+  const receiverSignatureStatus = text(integrity.signature_status || "").toLowerCase();
+  const localAuditBad = ["broken", "error"].includes(localIntegrityStatus)
+    || ["bad", "missing_key", "invalid", "failed"].includes(localSignatureStatus);
+  const receiverAuditBad = ["broken", "invalid", "error"].includes(receiverIntegrityStatus)
+    || ["bad", "missing_key", "invalid", "failed"].includes(receiverSignatureStatus);
+  const auditEvents = commandAudit.events || [];
+  const auditWarn = !localAuditBad && !receiverAuditBad && (
+    !auditEvents.length
+    || ["legacy", "unchecked", "missing", "unknown", "empty"].includes(localIntegrityStatus)
+    || ["legacy", "unchecked", "missing", "unknown", "empty"].includes(receiverIntegrityStatus)
+    || ["legacy", "unsigned", "disabled", "mixed", "empty"].includes(localSignatureStatus)
+    || ["legacy", "unsigned", "disabled", "mixed", "empty"].includes(receiverSignatureStatus)
+  );
+  const alerts = status.alerts || [];
+  const remoteStatus = !remoteNodes.length ? "warn" : staleRemote.length || remoteGatewayDown ? "bad" : remoteAlerts ? "warn" : "ok";
+  const auditStatus = localAuditBad || receiverAuditBad ? "bad" : auditWarn ? "warn" : "ok";
+  const cards = [
+    {
+      status: remoteStatus,
+      label: "Remote Monitor",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} nodes` : "No Nodes",
+      note: remoteNodes.length
+        ? `${numberText(staleRemote.length, 0)} stale / ${numberText(remoteGatewayDown, 0)} Gateway down / ${numberText(remoteAlerts, 0)} alerts.`
+        : "No hosted/local status snapshots are visible yet.",
+    },
+    {
+      status: auditStatus,
+      label: "Command Audit",
+      title: auditStatus === "bad" ? "Broken" : auditStatus === "warn" ? "Review" : "OK",
+      note: `receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")} / signatures ${text(integrity.signature_status || "n/a")}/${text(localIntegrity.signature_status || "n/a")}.`,
+    },
+    {
+      status: "warn",
+      label: "Network Boundary",
+      title: "Manual Review",
+      note: "Confirm VPN/proxy/firewall allowlists and do not expose unauthenticated receiver ports.",
+    },
+    {
+      status: "warn",
+      label: "Provider Hardening",
+      title: "Manual Review",
+      note: "Run the cloud-example audit and inspect provider firewall, proxy, TLS, and retention settings.",
+    },
+  ];
+  const lines = [
+    {
+      status: "ok",
+      title: "Local Authority",
+      detail: "Broker credentials, Gateway login, strategy configs, raw logs, and order authority stay on the trading machine; the hosted receiver should get sanitized status only.",
+    },
+    {
+      status: remoteStatus,
+      title: "Remote Monitoring",
+      detail: remoteNodes.length
+        ? `${numberText(remoteNodes.length, 0)} monitored node${remoteNodes.length === 1 ? "" : "s"}; ${numberText(staleRemote.length, 0)} stale heartbeat${staleRemote.length === 1 ? "" : "s"}; ${numberText(remoteAlerts, 0)} remote alert${remoteAlerts === 1 ? "" : "s"}.`
+        : "Publish sanitized status snapshots before relying on cloud checking.",
+    },
+    {
+      status: auditStatus,
+      title: "Command Audit",
+      detail: `${numberText(auditEvents.length, 0)} receiver audit event${auditEvents.length === 1 ? "" : "s"}; receiver integrity ${text(integrity.status || "n/a")}; local integrity ${text(localIntegrity.status || "n/a")}; local signature ${text(localIntegrity.signature_status || "n/a")}.`,
+    },
+    {
+      status: "warn",
+      title: "Authentication",
+      detail: "Use token-authenticated status publishing and command polling. Rotate tokens outside the public repo and avoid logging secrets in status payloads.",
+    },
+    {
+      status: "warn",
+      title: "Network Boundary",
+      detail: "Put the receiver behind private networking, VPN, reverse proxy allowlists, cloud firewalls, or host firewall rules. Treat internet exposure as unapproved until manually hardened.",
+    },
+    {
+      status: "warn",
+      title: "Retention",
+      detail: "Keep hosted history bounded and sanitized. Sync command-audit evidence off-host only with a dry-run-first helper and provider retention controls.",
+    },
+    {
+      status: alerts.length ? "warn" : "ok",
+      title: "Current Alerts",
+      detail: alerts.length ? `${numberText(alerts.length, 0)} local alert${alerts.length === 1 ? "" : "s"} visible; latest ${text(alerts[0].kind || alerts[0].category || alerts[0].message)}.` : "No local alerts are visible in the current status payload.",
+    },
+  ];
+  const blockers = cards.filter((card) => card.status === "bad").length;
+  const warnings = cards.filter((card) => card.status === "warn").length + lines.filter((line) => line.status === "warn").length;
+  const headline = blockers
+    ? "Cloud deployment has blockers"
+    : "Cloud deployment needs manual review";
+  return {
+    status: blockers ? "bad" : "warn",
+    headline,
+    note: `${numberText(blockers, 0)} blocker${blockers === 1 ? "" : "s"} / ${numberText(warnings, 0)} review item${warnings === 1 ? "" : "s"} before hosted exposure`,
+    cards,
+    lines,
+  };
+}
+
+function cloudDeploymentReadinessText(model) {
+  return [
+    `Cloud Deployment Readiness: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderCloudDeploymentReadiness() {
+  if (!$("cloud-readiness-note") || !$("cloud-readiness-cards") || !$("cloud-readiness-body") || !$("cloud-readiness-actions")) return;
+  const model = cloudDeploymentReadinessModel();
+  state.cloudDeploymentReadinessText = cloudDeploymentReadinessText(model);
+  $("cloud-readiness-note").textContent = model.note;
+  $("cloud-readiness-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("cloud-readiness-body").innerHTML = model.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("cloud-readiness-actions").innerHTML = [
+    `<button type="button" data-cloud-readiness-action="copy">Copy Readiness</button>`,
+    `<a class="secondary" href="/docs/cloud_monitoring_deployment.md" target="_blank" rel="noreferrer">Cloud Runbook</a>`,
+    `<a class="secondary" href="/docs/service_restart_runbook.md" target="_blank" rel="noreferrer">Restart Runbook</a>`,
+    `<a class="secondary" href="#operations/remote">Remote Nodes</a>`,
+    `<a class="secondary" href="#operations/control">Command Audit</a>`,
+  ].join("");
+}
+
+function handleCloudReadinessAction(action) {
+  if (action !== "copy") return;
+  copyText(state.cloudDeploymentReadinessText || "No cloud deployment readiness loaded").then(() => {
+    $("last-refresh").textContent = "Cloud deployment readiness copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Cloud readiness copy failed: ${err.message}`;
+  });
+}
+
 function renderPaperMonitor() {
   if (!$("paper-monitor-guide") || !$("paper-monitor-note")) return;
   const items = paperMonitorItems();
@@ -20890,6 +21044,7 @@ function renderAll() {
   renderPaperMonitor();
   renderRemoteNodes();
   renderRemoteNodeDetail();
+  renderCloudDeploymentReadiness();
   renderHistory();
   renderCommands();
   renderResults();
@@ -22452,6 +22607,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-report-action]") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleRemoteReportAction(target.dataset.remoteReportAction || "");
+  });
+  $("cloud-readiness-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-cloud-readiness-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleCloudReadinessAction(target.dataset.cloudReadinessAction || "");
   });
   $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
   $("remote-detail-assistant-actions").addEventListener("click", (event) => {

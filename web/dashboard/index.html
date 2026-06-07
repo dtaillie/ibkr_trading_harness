@@ -3598,6 +3598,18 @@
       </div>
     </section>
 
+    <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
+      <section class="nested-section cloud-readiness-panel">
+        <div class="section-head">
+          <h2>Cloud Deployment Readiness</h2>
+          <span id="cloud-readiness-note" class="section-note">Review cloud monitoring boundaries before exposing a receiver.</span>
+        </div>
+        <div id="cloud-readiness-cards" class="action-card-grid"></div>
+        <div id="cloud-readiness-body" class="performance-report-body"></div>
+        <div id="cloud-readiness-actions" class="hero-actions"></div>
+      </section>
+    </section>
+
     <section class="split dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <div>
         <div class="section-head">
@@ -3924,6 +3936,19 @@
             <li>Publish example configs only when they are no-edge and operationally illustrative.</li>
             <li>Run the public readiness audit before pushing.</li>
           </ul>
+        </div>
+        <div id="help-cloud-boundary" class="help-card" data-help-lens="boundary">
+          <strong>Cloud Deployment Boundary</strong>
+          <ul class="check-list">
+            <li>Keep broker credentials, Gateway login, raw logs, and order authority local.</li>
+            <li>Publish only sanitized status snapshots to hosted receivers.</li>
+            <li>Use token auth, private networking or proxy/firewall allowlists, and bounded retention.</li>
+            <li>Open Operations Diagnostics and read Cloud Deployment Readiness before hosted exposure.</li>
+          </ul>
+          <div class="hero-actions">
+            <a href="#operations/diagnostics">Cloud Readiness</a>
+            <a class="secondary" href="/docs/cloud_monitoring_deployment.md" target="_blank" rel="noreferrer">Cloud Runbook</a>
+          </div>
         </div>
         <div id="help-publish-readiness" class="help-card wide-help-card" data-help-lens="boundary">
           <strong>Publish Readiness</strong>

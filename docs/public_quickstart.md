@@ -303,6 +303,12 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
+Before hosting a receiver beyond localhost, open Operations Diagnostics and
+read Cloud Deployment Readiness. It summarizes remote-monitor evidence,
+command-audit integrity, local-only trading authority, authentication, network
+boundary, retention, current alerts, and the remaining manual provider
+hardening review.
+
 Open `http://127.0.0.1:8765/` to view the dashboard. The Help page has a Start
 Here panel that maps common questions to pages and links to allowlisted local
 Markdown docs, including `docs/web_ui_runbook.md`, so the operating runbook is

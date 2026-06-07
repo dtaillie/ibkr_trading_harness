@@ -2064,6 +2064,10 @@ section {
   margin: 12px 0;
 }
 
+.cloud-readiness-panel {
+  margin: 12px 0;
+}
+
 .performance-report-body {
   display: grid;
   gap: 8px;
