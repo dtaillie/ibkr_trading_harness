@@ -1664,6 +1664,14 @@ section {
   gap: 12px;
 }
 
+.compact-change-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.compact-change-grid .empty-card {
+  grid-column: 1 / -1;
+}
+
 .status-tile,
 .runtime-status-card,
 .data-library-card,

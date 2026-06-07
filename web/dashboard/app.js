@@ -15713,13 +15713,8 @@ function activityChanges(before, after) {
   return { initial: false, items: items.slice(0, 12) };
 }
 
-function renderOverviewChanges() {
-  const changes = state.activityChanges || { items: [], initial: true };
-  const items = changes.items || [];
-  $("overview-changes-note").textContent = changes.initial
-    ? "Current refresh baseline"
-    : items.length ? `${numberText(items.length, 0)} change${items.length === 1 ? "" : "s"} since prior refresh` : "No new activity since prior refresh";
-  $("overview-change-cards").innerHTML = items.length
+function overviewChangeCardsHtml(items, emptyText) {
+  return items.length
     ? items.map((item) => `
         <div class="change-card">
           <span>${statusText(item.status)}</span>
@@ -15727,7 +15722,34 @@ function renderOverviewChanges() {
           <small>${escapeHtml(item.detail)}</small>
         </div>
       `).join("")
-    : `<div class="empty-card"><strong>No new activity</strong><span>No new recent signals, orders, fills, alerts, or completed fetch jobs since the previous refresh.</span></div>`;
+    : `<div class="empty-card"><strong>No new activity</strong><span>${escapeHtml(emptyText)}</span></div>`;
+}
+
+function renderOverviewChanges() {
+  const changes = state.activityChanges || { items: [], initial: true };
+  const items = changes.items || [];
+  const detailNote = changes.initial
+    ? "Current refresh baseline"
+    : items.length ? `${numberText(items.length, 0)} change${items.length === 1 ? "" : "s"} since prior refresh` : "No new activity since prior refresh";
+  const summaryItems = changes.initial ? items : items.slice(0, 3);
+  if ($("overview-changes-note")) $("overview-changes-note").textContent = detailNote;
+  if ($("overview-change-cards")) {
+    $("overview-change-cards").innerHTML = overviewChangeCardsHtml(
+      items,
+      "No new recent signals, orders, fills, alerts, or completed fetch jobs since the previous refresh.",
+    );
+  }
+  if ($("overview-change-summary-note")) {
+    $("overview-change-summary-note").textContent = changes.initial
+      ? "Current refresh baseline"
+      : items.length ? `${numberText(items.length, 0)} new activity item${items.length === 1 ? "" : "s"}` : "No new activity since prior refresh";
+  }
+  if ($("overview-change-summary-cards")) {
+    $("overview-change-summary-cards").innerHTML = overviewChangeCardsHtml(
+      summaryItems,
+      "No new signals, orders, fills, alerts, or completed fetches since the prior refresh.",
+    );
+  }
 }
 
 function renderRunEvents() {

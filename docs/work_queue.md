@@ -210,6 +210,10 @@ strategy-private.
   - add "what changed since last refresh" cues for new signals, fills, rejects,
     and fetch completions
     - done for recent run events, new alerts, and terminal fetch-job changes
+    - partial; Overview Home now includes a compact Since Last Refresh panel
+      that reuses the existing activity-change detector for new decisions,
+      orders, fills, alerts, and completed fetch jobs, while the Activity lens
+      keeps the full detailed change list.
 - Build a clean Overview page for the current running strategy state:
   - mode badge: replay, shadow, simulated paper, paper, or live
     - partial; mode is shown from latest artifact or telemetry summary
