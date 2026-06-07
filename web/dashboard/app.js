@@ -3309,6 +3309,23 @@ function sourceMetaLabel(source, accountRow = {}) {
   return timestamp ? `${sourceLabel} / updated ${shortTimestampAgeLabel(timestamp)}` : sourceLabel;
 }
 
+function openOverviewSourceDetail() {
+  const source = latestArtifactPerformance();
+  if (source.source_type === "archived_artifact" && source.has_data) {
+    navigateToWorkbenchLens("artifacts");
+    return;
+  }
+  if (source.source_type === "live_telemetry" && source.has_data) {
+    navigateToRunsLens("state");
+    return;
+  }
+  if (source.source_type === "run_summary" && source.has_data) {
+    navigateToRunsLens("runs");
+    return;
+  }
+  navigateToOperationsLens("diagnostics");
+}
+
 function firstPresent(...values) {
   for (const value of values) {
     if (value !== null && value !== undefined && value !== "") return value;
@@ -4452,8 +4469,14 @@ function renderOverview() {
   const mode = perf.mode ?? summary.mode ?? runMetrics.mode;
   const todayWindow = performancePeriodWindow(accountRows, "today");
   const weekWindow = performancePeriodWindow(accountRows, "week");
+  const monthWindow = performancePeriodWindow(accountRows, "month");
   const todayPerf = performanceFromAccountRows(rowsInWindow(accountRows, todayWindow));
   const weekPerf = performanceFromAccountRows(rowsInWindow(accountRows, weekWindow));
+  const monthPerf = performanceFromAccountRows(rowsInWindow(accountRows, monthWindow));
+  const latestStatusMonth = (((state.statusEquityRollups || {}).period_rollups || {}).month || [])[0] || null;
+  const monthReturn = latestStatusMonth && finiteNumber(latestStatusMonth.total_return_pct) !== null
+    ? latestStatusMonth.total_return_pct
+    : monthPerf.total_return_pct;
   const exposurePct = perf.max_gross_exposure_pct ?? summary.max_gross_exposure_pct ?? runMetrics.max_gross_exposure_pct;
   const nextCheck = firstPresent(
     runMetrics.next_decision_time,
@@ -4479,8 +4502,12 @@ function renderOverview() {
     : sourceMeta;
   const todayRows = rowsInWindow(accountRows, todayWindow);
   const weekRows = rowsInWindow(accountRows, weekWindow);
+  const monthRows = rowsInWindow(accountRows, monthWindow);
   const todayMeta = todayRows.length ? `${todayWindow.label} / ${numberText(todayRows.length, 0)} account snapshots` : `${todayWindow.label} / no account snapshots`;
   const weekMeta = weekRows.length ? `${weekWindow.label} / ${numberText(weekRows.length, 0)} account snapshots` : `${weekWindow.label} / no account snapshots`;
+  const monthMeta = latestStatusMonth && finiteNumber(latestStatusMonth.total_return_pct) !== null
+    ? `${text(latestStatusMonth.label)} status rollup / ${numberText(latestStatusMonth.day_count, 0)} days`
+    : monthRows.length ? `${monthWindow.label} / ${numberText(monthRows.length, 0)} account snapshots` : `${monthWindow.label} / no account snapshots`;
 
   $("overview-equity").textContent = money(equity);
   $("overview-equity").className = "value-equity";
@@ -4526,6 +4553,10 @@ function renderOverview() {
   setMetricValue("overview-week-return", pctText(weekPerf.total_return_pct), {
     className: signedValueClass(weekPerf.total_return_pct),
     meta: weekMeta,
+  });
+  setMetricValue("overview-month-return", pctText(monthReturn), {
+    className: signedValueClass(monthReturn),
+    meta: monthMeta,
   });
   setMetricValue("overview-exposure", pctText(exposurePct), {
     className: statusClass(exposurePct == null ? "" : exposurePct ? "warn" : "ok"),
@@ -19673,6 +19704,7 @@ function init() {
   });
   $("data-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
+  $("overview-open-source").addEventListener("click", openOverviewSourceDetail);
   $("data-home-shortlist").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
     if (!(target instanceof HTMLElement)) return;

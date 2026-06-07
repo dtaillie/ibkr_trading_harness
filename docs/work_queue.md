@@ -153,6 +153,10 @@ strategy-private.
       actions.
   - open positions and pending orders before archived run tables
   - one-click drilldown into the source run/session/artifacts
+    - partial; Overview now has a Source Detail action that routes the current
+      evidence source to Workbench Artifacts for loaded artifacts, Runs State for
+      current telemetry, Runs Search for saved summaries, or Operations
+      Diagnostics when no performance evidence is loaded.
   - partial; the Overview hero now shows equity first plus mode, Gateway,
     latest signal/fill, cash, today return, week return, gross exposure, and
     next expected check when those generic telemetry/artifact fields are
@@ -241,6 +245,9 @@ strategy-private.
       Performance Home now also shows live/paper latest-day, trailing 7-day,
       month, trailing 3-month, year, all-available, and drawdown summaries from
       persisted status-history rollups.
+    - partial; Overview's first-viewport strategy tiles now include Month return
+      beside Today and Week, preferring persisted status-history month rollups and
+      falling back to selected account/artifact snapshots when rollups are absent.
   - latest bar time, latest signal time, latest order/fill/rejection
     - partial; latest signal and fill are shown from recent events, latest bar
       and rejection need dedicated telemetry fields
