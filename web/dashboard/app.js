@@ -4181,18 +4181,47 @@ function renderPluginResultWidgetHelpCard(widget, resultFields) {
   `;
 }
 
+function pluginValidationRuleDetail(rule) {
+  const type = text(rule.type);
+  if (type === "required") return `strategy.${text(rule.field)} is required.`;
+  if (type === "require_any") {
+    const fields = (rule.fields || []).map((field) => `strategy.${text(field)}`).join(", ");
+    return `At least ${numberText(rule.min_count || 1, 0)} of ${fields || "declared fields"} must be set.`;
+  }
+  if (type === "comparison") {
+    const right = rule.other_field ? `strategy.${text(rule.other_field)}` : numberText(rule.value, 4);
+    return `strategy.${text(rule.field)} ${text(rule.operator)} ${right}.`;
+  }
+  return "Public-safe plugin validation rule.";
+}
+
+function renderPluginValidationRuleHelpCard(rule) {
+  const help = text(rule.help || rule.description || rule.error || "Public-safe plugin-authored validation metadata.");
+  return `
+    <article class="plugin-field-help-card status-warn">
+      <span>Validation Rule</span>
+      <strong>${escapeHtml(text(rule.label || rule.id))}</strong>
+      <small class="mono">${escapeHtml(pluginValidationRuleDetail(rule))}</small>
+      <p>${escapeHtml(help)}</p>
+      <small>${escapeHtml(text(rule.error || "Server validation enforces this rule before a draft can run."))}</small>
+    </article>
+  `;
+}
+
 function renderConfigPluginFieldHelp() {
   if (!$("config-plugin-field-help") || !$("config-plugin-field-help-note")) return;
   const plugin = selectedConfigPlugin();
   const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
+  const validationRules = (plugin.validation_rules || []).filter((rule) => rule && rule.id);
   const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
   const resultSections = (plugin.result_sections || []).filter((section) => section && section.id);
   const resultWidgets = (plugin.result_widgets || []).filter((widget) => widget && widget.id);
   $("config-plugin-field-help-note").textContent = plugin.id
-    ? `${numberText(strategyFields.length, 0)} input field${strategyFields.length === 1 ? "" : "s"} / ${numberText(resultFields.length, 0)} result field${resultFields.length === 1 ? "" : "s"} / ${numberText(resultSections.length, 0)} result section${resultSections.length === 1 ? "" : "s"} / ${numberText(resultWidgets.length, 0)} result widget${resultWidgets.length === 1 ? "" : "s"} for ${text(plugin.label || plugin.id)}`
+    ? `${numberText(strategyFields.length, 0)} input field${strategyFields.length === 1 ? "" : "s"} / ${numberText(validationRules.length, 0)} validation rule${validationRules.length === 1 ? "" : "s"} / ${numberText(resultFields.length, 0)} result field${resultFields.length === 1 ? "" : "s"} / ${numberText(resultSections.length, 0)} result section${resultSections.length === 1 ? "" : "s"} / ${numberText(resultWidgets.length, 0)} result widget${resultWidgets.length === 1 ? "" : "s"} for ${text(plugin.label || plugin.id)}`
     : "Choose a plugin to see public-safe field help.";
   const cards = [
     ...strategyFields.map((field) => renderPluginFieldHelpCard(field, "Input")),
+    ...validationRules.map((rule) => renderPluginValidationRuleHelpCard(rule)),
     ...resultFields.map((field) => renderPluginFieldHelpCard(field, "Result")),
     ...resultSections.map((section) => renderPluginResultSectionHelpCard(section, resultFields)),
     ...resultWidgets.map((widget) => renderPluginResultWidgetHelpCard(widget, resultFields)),

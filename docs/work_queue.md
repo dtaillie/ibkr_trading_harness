@@ -1594,6 +1594,13 @@ QQQ show up, treat that as a bug until proven otherwise.
     controls from schema while preserving existing draft/alignment behavior.
     Versioned schemas are now explicit; richer plugin-authored validation hooks
     remain future work.
+    - partial; Workbench plugin registries can now declare non-executable
+      public-safe `validation_rules` for required fields, require-any field
+      groups, and numeric comparisons. The server normalizes and enforces those
+      rules during draft preview/save/run validation, `/config_options` exposes
+      them, and Plugin Field Help renders the constraints before users generate
+      YAML. Arbitrary executable validation logic remains private-runner-only
+      through plugin Python hooks and is not exposed in public metadata.
   - partial; the generated Config Builder form now groups schema fields into
     guided Setup, Data, Account, Risk Limits, Simulated Costs, and Output
     sections so the Workbench flow is easier to scan without hard-coding fields

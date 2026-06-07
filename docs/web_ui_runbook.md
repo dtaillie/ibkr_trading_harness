@@ -369,9 +369,9 @@ matrix rows offline.
 6. Read Compatibility Review. It combines schema versions, plugin boundary,
    selected data quality, alignment coverage, saved-draft validation, and the
    next action in one place. Plugin Field Help shows the selected plugin's
-   public-safe strategy inputs, result fields, and result sections, including
-   help text, defaults, bounds/options, formatting hints, and
-   required/advanced flags.
+   public-safe strategy inputs, declarative validation rules, result fields, and
+   result sections, including help text, defaults, bounds/options, formatting
+   hints, and required/advanced flags.
 7. Use Preview Draft to validate and inspect generated YAML, alignment,
    plugin boundary, and local commands without saving.
 8. Use Generate / Save after enabling Save draft locally when the preview is

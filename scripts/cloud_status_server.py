@@ -241,6 +241,8 @@ CONFIG_FORM_SCHEMA_VERSION = 4
 CONFIG_GUIDE_SCHEMA_VERSION = 2
 PLUGIN_STRATEGY_FIELD_KINDS = {"text", "number", "checkbox", "select"}
 PLUGIN_STRATEGY_FIELD_DISPLAY_KEYS = {"description", "placeholder", "unit", "prefix", "suffix"}
+PLUGIN_VALIDATION_RULE_TYPES = {"required", "require_any", "comparison"}
+PLUGIN_VALIDATION_OPERATORS = {">", ">=", "<", "<=", "==", "!="}
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
@@ -4843,6 +4845,11 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         )
     strategy_fields = normalize_plugin_strategy_fields(row.get("strategy_fields"), plugin_id=plugin_id)
     result_fields = normalize_plugin_result_fields(row.get("result_fields"), plugin_id=plugin_id)
+    validation_rules = normalize_plugin_validation_rules(
+        row.get("validation_rules"),
+        plugin_id=plugin_id,
+        strategy_fields=strategy_fields,
+    )
     plugin: dict[str, Any] = {
         "id": plugin_id,
         "label": label,
@@ -4852,6 +4859,7 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         "description": description,
         "boundary": boundary,
         "strategy_fields": strategy_fields,
+        "validation_rules": validation_rules,
         "result_fields": result_fields,
         "result_sections": normalize_plugin_result_sections(
             row.get("result_sections"),
@@ -4964,6 +4972,89 @@ def normalize_plugin_strategy_fields(raw_fields: Any, *, plugin_id: str) -> list
     for field in sorted_fields:
         field.pop("_source_order", None)
     return sorted_fields
+
+
+def normalize_plugin_validation_rules(
+    raw_rules: Any,
+    *,
+    plugin_id: str,
+    strategy_fields: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if raw_rules is None:
+        return []
+    if not isinstance(raw_rules, list):
+        raise ValueError(f"plugin {plugin_id} validation_rules must be a list")
+    field_names = {str(field.get("name")) for field in strategy_fields if field.get("name")}
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_rules, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"plugin {plugin_id} validation_rules[{idx}] must be a mapping")
+        rule_type = str(raw.get("type") or "").strip().lower()
+        if rule_type not in PLUGIN_VALIDATION_RULE_TYPES:
+            raise ValueError(
+                f"plugin {plugin_id} validation_rules[{idx}].type must be one of {sorted(PLUGIN_VALIDATION_RULE_TYPES)}"
+            )
+        rule_id = str(raw.get("id") or f"{rule_type}_{idx}").strip()
+        if not rule_id or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", rule_id):
+            raise ValueError(f"plugin {plugin_id} validation_rules[{idx}].id must be a safe identifier")
+        if rule_id in seen:
+            raise ValueError(f"plugin {plugin_id} validation_rules contains duplicate rule {rule_id}")
+        seen.add(rule_id)
+        rule: dict[str, Any] = {
+            "id": rule_id,
+            "type": rule_type,
+            "label": str(raw.get("label") or rule_id.replace("_", " ").title()).strip(),
+        }
+        for key in ("help", "description", "error"):
+            if raw.get(key) is not None:
+                rule[key] = str(raw[key]).strip()
+        if rule_type == "required":
+            field = str(raw.get("field") or "").strip()
+            if field not in field_names:
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].field must reference strategy_fields")
+            rule["field"] = field
+        elif rule_type == "require_any":
+            fields = raw.get("fields")
+            if not isinstance(fields, list) or not fields:
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].fields must be a non-empty list")
+            normalized_fields = []
+            for field in fields:
+                field_name = str(field or "").strip()
+                if field_name not in field_names:
+                    raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].fields must reference strategy_fields")
+                normalized_fields.append(field_name)
+            min_count = int(raw.get("min_count", 1) or 1)
+            if min_count <= 0 or min_count > len(normalized_fields):
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].min_count must be between 1 and field count")
+            rule["fields"] = normalized_fields
+            rule["min_count"] = min_count
+        elif rule_type == "comparison":
+            field = str(raw.get("field") or raw.get("left") or "").strip()
+            if field not in field_names:
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].field must reference strategy_fields")
+            operator = str(raw.get("operator") or "").strip()
+            if operator not in PLUGIN_VALIDATION_OPERATORS:
+                raise ValueError(
+                    f"plugin {plugin_id} validation_rules[{rule_id}].operator must be one of {sorted(PLUGIN_VALIDATION_OPERATORS)}"
+                )
+            other_field = str(raw.get("other_field") or raw.get("right_field") or "").strip()
+            has_value = "value" in raw
+            if other_field and other_field not in field_names:
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].other_field must reference strategy_fields")
+            if bool(other_field) == bool(has_value):
+                raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}] must define exactly one of value or other_field")
+            rule["field"] = field
+            rule["operator"] = operator
+            if other_field:
+                rule["other_field"] = other_field
+            else:
+                try:
+                    rule["value"] = float(raw["value"])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"plugin {plugin_id} validation_rules[{rule_id}].value must be numeric") from exc
+        normalized.append(rule)
+    return normalized
 
 
 def normalize_plugin_result_fields(raw_fields: Any, *, plugin_id: str) -> list[dict[str, Any]]:
@@ -5182,6 +5273,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
             "status": str(metadata.get("status") or "").strip() or None,
             "visibility": None,
             "strategy_fields": [],
+            "validation_rules": [],
             "result_fields": [],
             "result_sections": [],
             "result_widgets": [],
@@ -5196,6 +5288,7 @@ def artifact_plugin_metadata(config: dict[str, Any] | None, plugins: list[dict[s
         "description": plugin.get("description"),
         "boundary": plugin.get("boundary"),
         "strategy_fields": plugin.get("strategy_fields") or [],
+        "validation_rules": plugin.get("validation_rules") or [],
         "result_fields": plugin.get("result_fields") or [],
         "result_sections": plugin.get("result_sections") or [],
         "result_widgets": plugin.get("result_widgets") or [],
@@ -6102,13 +6195,96 @@ def plugin_strategy_config(payload: dict[str, Any], plugin: dict[str, Any]) -> d
     return strategy
 
 
+def plugin_rule_value_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def plugin_validation_rule_error(rule: dict[str, Any], fallback: str) -> str:
+    message = str(rule.get("error") or "").strip()
+    return message or fallback
+
+
+def compare_plugin_values(left: float, operator: str, right: float) -> bool:
+    if operator == ">":
+        return left > right
+    if operator == ">=":
+        return left >= right
+    if operator == "<":
+        return left < right
+    if operator == "<=":
+        return left <= right
+    if operator == "==":
+        return left == right
+    if operator == "!=":
+        return left != right
+    return False
+
+
+def validate_plugin_validation_rules(strategy: dict[str, Any], plugin: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for rule in plugin.get("validation_rules") or []:
+        rule_type = str(rule.get("type") or "")
+        if rule_type == "required":
+            field = str(rule.get("field") or "")
+            if not plugin_rule_value_present(strategy.get(field)):
+                errors.append(plugin_validation_rule_error(rule, f"strategy.{field} is required by plugin validation rule {rule.get('id')}"))
+        elif rule_type == "require_any":
+            fields = [str(field) for field in rule.get("fields") or []]
+            min_count = int(rule.get("min_count") or 1)
+            present = sum(1 for field in fields if plugin_rule_value_present(strategy.get(field)))
+            if present < min_count:
+                errors.append(
+                    plugin_validation_rule_error(
+                        rule,
+                        f"at least {min_count} of {', '.join(f'strategy.{field}' for field in fields)} must be set",
+                    )
+                )
+        elif rule_type == "comparison":
+            field = str(rule.get("field") or "")
+            left_raw = strategy.get(field)
+            if not plugin_rule_value_present(left_raw):
+                continue
+            try:
+                left = float(left_raw)
+            except (TypeError, ValueError):
+                errors.append(plugin_validation_rule_error(rule, f"strategy.{field} must be numeric for plugin validation rule {rule.get('id')}"))
+                continue
+            if rule.get("other_field"):
+                right_field = str(rule.get("other_field") or "")
+                right_raw = strategy.get(right_field)
+                if not plugin_rule_value_present(right_raw):
+                    continue
+                try:
+                    right = float(right_raw)
+                except (TypeError, ValueError):
+                    errors.append(plugin_validation_rule_error(rule, f"strategy.{right_field} must be numeric for plugin validation rule {rule.get('id')}"))
+                    continue
+                right_label = f"strategy.{right_field}"
+            else:
+                right = float(rule.get("value"))
+                right_label = f"{right:g}"
+            operator = str(rule.get("operator") or "")
+            if not compare_plugin_values(left, operator, right):
+                errors.append(
+                    plugin_validation_rule_error(
+                        rule,
+                        f"strategy.{field} must be {operator} {right_label}",
+                    )
+                )
+    return errors
+
+
 def validate_plugin_strategy_config(strategy: Any, plugin: dict[str, Any]) -> list[str]:
     payload = {"strategy": strategy if isinstance(strategy, dict) else {}}
     try:
-        plugin_strategy_config(payload, plugin)
+        normalized = plugin_strategy_config(payload, plugin)
     except ValueError as exc:
         return [str(exc)]
-    return []
+    return validate_plugin_validation_rules(normalized, plugin)
 
 
 def build_config_draft(

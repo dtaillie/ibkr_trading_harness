@@ -5113,6 +5113,15 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
                 "          - value: active",
                 "            label: Active",
                 "            description: Higher example activity.",
+                "    validation_rules:",
+                "      - id: threshold_floor",
+                "        type: comparison",
+                "        label: Threshold Floor",
+                "        field: threshold",
+                "        operator: '>='",
+                "        value: 0.25",
+                "        help: Public-safe declarative threshold guard.",
+                "        error: strategy.threshold must be >= declarative floor 0.25",
             ]
         )
         + "\n",
@@ -5144,6 +5153,9 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
         assert fields["threshold"]["suffix"] == "normalized"
         assert fields["threshold"]["advanced"] is True
         assert fields["mode"]["options"][0]["description"] == "Lower example activity."
+        plugins = {plugin["id"]: plugin for plugin in options["plugins"]}
+        assert plugins["bounded_demo"]["validation_rules"][0]["id"] == "threshold_floor"
+        assert plugins["bounded_demo"]["validation_rules"][0]["operator"] == ">="
 
         def post_draft(strategy: dict, *, name: str = "Bounded Draft", save: bool = False):
             return request.Request(
@@ -5177,6 +5189,14 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
         assert payload["error"] == "strategy.threshold must be <= 1.0"
 
         try:
+            request.urlopen(post_draft({"threshold": 0.2, "mode": "active"}), timeout=5)
+            raise AssertionError("expected declarative validation rule response")
+        except error.HTTPError as exc:
+            assert exc.code == 400
+            payload = json.loads(exc.read().decode("utf-8"))
+        assert payload["error"] == "strategy.threshold must be >= declarative floor 0.25"
+
+        try:
             request.urlopen(post_draft({"threshold": 0.5, "mode": "active", "secret": "x"}), timeout=5)
             raise AssertionError("expected unsupported strategy field response")
         except error.HTTPError as exc:
@@ -5204,6 +5224,70 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_cloud_status_server_validates_declarative_plugin_rules(tmp_path):
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: rule_demo",
+                "    label: Rule demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    strategy_fields:",
+                "      - name: symbol",
+                "        kind: text",
+                "      - name: fallback_symbol",
+                "        kind: text",
+                "      - name: stop",
+                "        kind: number",
+                "        default: 99",
+                "      - name: target",
+                "        kind: number",
+                "        default: 101",
+                "    validation_rules:",
+                "      - id: symbol_required",
+                "        type: required",
+                "        field: symbol",
+                "        error: strategy.symbol must be set",
+                "      - id: any_symbol",
+                "        type: require_any",
+                "        fields: [symbol, fallback_symbol]",
+                "        error: at least one symbol field must be set",
+                "      - id: target_above_stop",
+                "        type: comparison",
+                "        field: target",
+                "        operator: '>'",
+                "        other_field: stop",
+                "        error: strategy.target must be greater than strategy.stop",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    plugin = next(item for item in status_server.load_config_builder_plugins([registry]) if item["id"] == "rule_demo")
+
+    assert [rule["id"] for rule in plugin["validation_rules"]] == [
+        "symbol_required",
+        "any_symbol",
+        "target_above_stop",
+    ]
+    assert status_server.validate_plugin_strategy_config(
+        {"symbol": "", "fallback_symbol": "", "stop": 99, "target": 101},
+        plugin,
+    ) == [
+        "strategy.symbol must be set",
+        "at least one symbol field must be set",
+    ]
+    assert status_server.validate_plugin_strategy_config(
+        {"symbol": "SPY", "fallback_symbol": "", "stop": 101, "target": 100},
+        plugin,
+    ) == ["strategy.target must be greater than strategy.stop"]
+    assert status_server.validate_plugin_strategy_config(
+        {"symbol": "SPY", "fallback_symbol": "", "stop": 99, "target": 101},
+        plugin,
+    ) == []
 
 
 def test_cloud_status_server_validates_plugin_result_sections(tmp_path):

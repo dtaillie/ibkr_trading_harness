@@ -19,6 +19,13 @@ plugins:
         description: Example-only toggle that proves plugin field rendering.
         help: Public-safe wiring example only; do not publish tuned values.
         advanced: false
+    validation_rules:
+      - id: example_parameter_required
+        type: required
+        label: Example Parameter Required
+        field: example_parameter
+        help: Example-only declarative validation metadata.
+        error: strategy.example_parameter must be set for this example wiring check
     result_fields:
       - name: example_score
         label: Example Score

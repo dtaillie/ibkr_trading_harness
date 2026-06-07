@@ -355,9 +355,10 @@ not returned by the public artifact view. Plugins can opt into public-safe
 dashboard drilldowns by placing
 sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
 diagnostics remain hidden. Plugin registries can declare `result_fields`,
-`result_sections`, and `result_widgets` so Run Artifacts can label, group, and
-render public-safe card/table/bar/sparkline/line-chart summaries with coverage
-checks before dense result tables. For open-position cards, the generic runner also
+`result_sections`, `result_widgets`, and non-executable `validation_rules` so
+Workbench can explain/enforce public-safe plugin constraints and Run Artifacts
+can label, group, and render public-safe card/table/bar/sparkline/line-chart
+summaries with coverage checks before dense result tables. For open-position cards, the generic runner also
 accepts allowlisted per-symbol `position_details` / `position_metadata` under
 that dashboard diagnostics block and writes only public-safe fields for
 currently open symbols. Successful non-validate draft runs also archive a local per-run

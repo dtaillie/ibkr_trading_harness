@@ -217,7 +217,10 @@ Private strategy modules or factory functions can also expose
 `validate_config(config, *, full_config=None)` or
 `validate_strategy_config(config, *, full_config=None)` to reject missing or
 mistyped strategy-specific settings before the runner loads data or connects to
-a broker.
+a broker. Workbench plugin registries can also declare public-safe
+`validation_rules` metadata for non-executable checks such as required fields,
+at-least-one-of fields, and numeric comparisons; these rules are shown in
+Plugin Field Help and enforced before saving or running a draft.
 After a run, `scripts/summarize_plugin_run.py <run-dir>` prints decisions,
 orders, fills, rejection reasons, final cash/equity, positions, return, max
 drawdown, and the public-safe plugin contract from the generic JSONL artifacts.
@@ -640,6 +643,7 @@ strategy drilldowns in the dashboard, publish only sanitized fields under
 such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
 `near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,
 `stop_state`, `mae_pct`, and `mfe_pct`. Plugin registry rows can also declare
+`validation_rules` for public-safe required/require-any/comparison checks, and
 `result_fields` for public-safe `diagnostics.dashboard` keys so Run Artifacts
 can label and format those values without exposing private strategy logic.
 Result fields support public-safe `kind`, `decimals`, `prefix`, `suffix`, and
