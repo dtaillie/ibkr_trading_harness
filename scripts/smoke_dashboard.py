@@ -284,6 +284,7 @@ def run_smoke(
             "performance-trade-filter-state",
             "performance-trade-filter-side",
             "performance-trade-filter-symbol",
+            "table-toolbar",
             "performance-trade-assistant-title",
             "performance-trade-assistant-note",
             "performance-trade-assistant-cards",

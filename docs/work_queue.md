@@ -557,6 +557,11 @@ strategy-private.
       intraday, daily-return, calendar, status-rollup, price-preview, and
       comparison charts instead of returning unframed muted text.
   - reusable table toolbar patterns for search, filters, and export/copy actions
+    - partial; the main saved-data, fetch, run-comparison, run-search,
+      run-events, remote-node, and remote-activity filter rows now share a
+      `table-toolbar` class and raised control-surface styling, while the CSS
+      remains backward-compatible with existing `filter-row` and
+      `symbol-directory-toolbar` selectors.
     - partial; Saved Data now includes an explicit sort control for newest file,
       symbol, row count, file size, latest bar, and quality-first ordering.
   - mobile navigation behavior that keeps the main action visible
