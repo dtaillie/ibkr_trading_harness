@@ -266,6 +266,26 @@ def write_fetch_manifest(
                         "message": "post historical data request: waited 0.350s",
                     },
                 ],
+                "resume_state": {
+                    "schema_version": 1,
+                    "updated_at": "2026-01-02T14:31:00+00:00",
+                    "resume_modes": ["symbol"],
+                    "done_symbols": ["SPY"],
+                    "failed_symbols": ["QQQ"],
+                    "pending_symbols": ["QQQ"],
+                    "completed_output_paths": [output_path],
+                    "completed_chunks": [
+                        {
+                            "symbol": "SPY",
+                            "day": "2026-01-02",
+                            "status": "ok",
+                            "path": output_path,
+                        }
+                    ],
+                    "failed_days_by_symbol": {"QQQ": ["2026-01-02"]},
+                    "permission_symbols": ["QQQ"],
+                    "retryable_symbols": [],
+                },
                 "counts": {
                     "requested_symbols": 2,
                     "tracked_symbols": 2,
@@ -1936,6 +1956,11 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert manifest["resume_retry_count"] == 1
         assert manifest["resume_review_count"] == 0
         assert manifest["resume_pending_estimate"] == 1
+        assert manifest["resume_state_summary"].startswith("1 completed symbols; 1 pending; 1 failed")
+        assert manifest["resume_state_done_symbol_count"] == 1
+        assert manifest["resume_state_pending_symbol_count"] == 1
+        assert manifest["resume_state_completed_output_path_count"] == 1
+        assert manifest["resume_state_failed_day_count"] == 1
         assert manifest["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
         assert manifest["resume_command"].endswith("stock_history_20260102.json'")
         assert manifest["permission_error_count"] == 1
@@ -1977,6 +2002,8 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert rows[0]["resume_skip_count"] == "1"
         assert rows[0]["resume_retry_count"] == "1"
         assert rows[0]["resume_pending_estimate"] == "1"
+        assert rows[0]["resume_state_done_symbol_count"] == "1"
+        assert rows[0]["resume_state_failed_day_count"] == "1"
         assert rows[0]["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
         assert rows[0]["permission_error_count"] == "1"
         assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
@@ -2014,6 +2041,13 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert detail["resume_plan"]["skip_completed_count"] == 1
         assert detail["resume_plan"]["retry_failed_count"] == 1
         assert detail["resume_plan"]["retry_symbols_sample"] == ["QQQ"]
+        assert detail["resume_state"]["resume_modes"] == ["symbol"]
+        assert detail["resume_state"]["done_symbol_count"] == 1
+        assert detail["resume_state"]["pending_symbol_count"] == 1
+        assert detail["resume_state"]["permission_symbol_count"] == 1
+        assert detail["resume_state"]["failed_day_count"] == 1
+        assert detail["resume_state"]["completed_output_paths_sample"] == [str(data_file)]
+        assert detail["resume_state"]["failed_days_by_symbol_sample"] == {"QQQ": ["2026-01-02"]}
         assert detail["resume_command"] == manifest["resume_command"]
         assert detail["errors"][0]["kind"] == "permission"
         assert detail["errors"][0]["attempt_count"] == 2
@@ -2025,7 +2059,7 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
             assert resp.headers["Content-Disposition"] == 'attachment; filename="stock_history_20260102_fetch_detail.csv"'
             csv_body = resp.read().decode("utf-8")
         rows = list(csv.DictReader(io.StringIO(csv_body)))
-        assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event", "resume_plan"}
+        assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event", "resume_plan", "resume_state"}
         output_rows = [row for row in rows if row["row_type"] == "output"]
         assert len(output_rows) == 3
         assert output_rows[0]["symbol"] == "SPY"
@@ -2044,6 +2078,11 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert resume_rows[0]["resume_skip_count"] == "1"
         assert resume_rows[0]["resume_retry_count"] == "1"
         assert resume_rows[0]["resume_command"] == detail["resume_command"]
+        resume_state_rows = [row for row in rows if row["row_type"] == "resume_state"]
+        assert resume_state_rows[0]["resume_state_resume_modes"] == "symbol"
+        assert resume_state_rows[0]["resume_state_done_symbol_count"] == "1"
+        assert resume_state_rows[0]["resume_state_failed_day_count"] == "1"
+        assert "QQQ" in resume_state_rows[0]["resume_state_samples"]
     finally:
         server.shutdown()
         server.server_close()

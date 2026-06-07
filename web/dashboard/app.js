@@ -11122,6 +11122,7 @@ function fetchOutputVisibilityLabel(item) {
 function renderFetchResumePanel(detail, resumeCommand = "") {
   if (!$("fetch-resume-note") || !$("fetch-resume-cards") || !$("fetch-resume-command")) return;
   const resumePlan = (detail && detail.resume_plan) || {};
+  const resumeState = (detail && detail.resume_state) || {};
   const hasJob = Boolean(detail && detail.job_id);
   const supported = Boolean(resumeCommand);
   const retryCount = Number(resumePlan.retry_failed_count || (detail && detail.resume_retry_count) || 0);
@@ -11172,6 +11173,49 @@ function renderFetchResumePanel(detail, resumeCommand = "") {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+  if ($("fetch-resume-state-cards")) {
+    const stateCards = resumeState && resumeState.summary ? [
+      {
+        status: Number(resumeState.pending_symbol_count || resumeState.failed_day_count || 0) ? "warn" : "ok",
+        label: "State",
+        title: text((resumeState.resume_modes || []).join(", ") || "normalized"),
+        note: text(resumeState.summary),
+      },
+      {
+        status: Number(resumeState.done_symbol_count || resumeState.completed_output_path_count || 0) ? "ok" : "waiting",
+        label: "Completed",
+        title: `${numberText(resumeState.done_symbol_count, 0)} sym / ${numberText(resumeState.completed_output_path_count, 0)} paths`,
+        note: `Sample: ${text((resumeState.done_symbols_sample || resumeState.completed_output_paths_sample || []).slice(0, 5).join(", ") || "none")}`,
+      },
+      {
+        status: Number(resumeState.pending_symbol_count || resumeState.failed_symbol_count || resumeState.failed_day_count || 0) ? "warn" : "ok",
+        label: "Pending",
+        title: `${numberText(resumeState.pending_symbol_count, 0)} sym / ${numberText(resumeState.failed_day_count, 0)} days`,
+        note: `Sample: ${text((resumeState.pending_symbols_sample || resumeState.failed_symbols_sample || Object.keys(resumeState.failed_days_by_symbol_sample || {})).slice(0, 5).join(", ") || "none")}`,
+      },
+      {
+        status: Number(resumeState.no_data_symbol_count || resumeState.no_data_day_count || 0) ? "warn" : "ok",
+        label: "No Data",
+        title: `${numberText(resumeState.no_data_symbol_count, 0)} sym / ${numberText(resumeState.no_data_day_count, 0)} days`,
+        note: `Sample: ${text((resumeState.no_data_symbols_sample || Object.keys(resumeState.no_data_days_by_symbol_sample || {})).slice(0, 5).join(", ") || "none")}`,
+      },
+      {
+        status: Number(resumeState.permission_symbol_count || resumeState.contract_symbol_count || 0) ? "bad" : "ok",
+        label: "Blocked",
+        title: `${numberText(resumeState.permission_symbol_count, 0)} perm / ${numberText(resumeState.contract_symbol_count, 0)} contract`,
+        note: `Retryable sample: ${text((resumeState.retryable_symbols_sample || []).slice(0, 5).join(", ") || "none")}`,
+      },
+    ] : [];
+    $("fetch-resume-state-cards").innerHTML = stateCards.length
+      ? stateCards.map((card) => `
+        <div class="action-card status-${escapeHtml(card.status)}">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.title)}</strong>
+          <small>${escapeHtml(card.note)}</small>
+        </div>
+      `).join("")
+      : "";
+  }
   $("fetch-resume-command").innerHTML = supported
     ? `<span class="mono">${escapeHtml(resumeCommand)}</span><button type="button" class="secondary copy-fetch-resume-inline" data-command="${escapeHtml(resumeCommand)}">Copy</button>`
     : `<span class="muted">${hasJob ? "No built-in resume command for this manifest kind." : "Inspect a stock or crypto history manifest first."}</span>`;

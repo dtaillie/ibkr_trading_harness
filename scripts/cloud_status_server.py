@@ -2947,6 +2947,15 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "resume_review_count",
     "resume_pending_estimate",
     "resume_command",
+    "resume_state_summary",
+    "resume_state_done_symbol_count",
+    "resume_state_failed_symbol_count",
+    "resume_state_pending_symbol_count",
+    "resume_state_retryable_symbol_count",
+    "resume_state_completed_output_path_count",
+    "resume_state_completed_chunk_count",
+    "resume_state_failed_day_count",
+    "resume_state_no_data_day_count",
     "permission_error_count",
     "no_data_error_count",
     "retryable_error_count",
@@ -3012,6 +3021,17 @@ FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
     "resume_review_count",
     "resume_pending_estimate",
     "resume_command",
+    "resume_state_summary",
+    "resume_state_resume_modes",
+    "resume_state_done_symbol_count",
+    "resume_state_failed_symbol_count",
+    "resume_state_pending_symbol_count",
+    "resume_state_retryable_symbol_count",
+    "resume_state_completed_output_path_count",
+    "resume_state_completed_chunk_count",
+    "resume_state_failed_day_count",
+    "resume_state_no_data_day_count",
+    "resume_state_samples",
     "message",
 )
 
@@ -4131,6 +4151,100 @@ def fetch_manifest_resume_command(kind: str | None, path: Path | str) -> str | N
     return f"{command} --resume-manifest {shell_quote(display_path(Path(path)))}"
 
 
+def string_list_values(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted(str(item) for item in value if str(item).strip())
+
+
+def string_list_sample(value: Any, *, limit: int = 20) -> list[str]:
+    return string_list_values(value)[:limit]
+
+
+def dict_list_values(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def dict_list_sample(value: Any, *, limit: int = 20) -> list[dict[str, Any]]:
+    return dict_list_values(value)[:limit]
+
+
+def days_by_symbol_summary(value: Any, *, limit: int = 20) -> tuple[int, dict[str, list[str]]]:
+    if not isinstance(value, dict):
+        return 0, {}
+    normalized = {
+        str(symbol).upper(): sorted(str(day) for day in days if str(day).strip())
+        for symbol, days in value.items()
+        if str(symbol).strip() and isinstance(days, list)
+    }
+    count = sum(len(days) for days in normalized.values())
+    sample = {
+        symbol: days[:limit]
+        for symbol, days in sorted(normalized.items())[:limit]
+    }
+    return count, sample
+
+
+def fetch_resume_state_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    resume_state = payload.get("resume_state") if isinstance(payload.get("resume_state"), dict) else {}
+    if not resume_state:
+        return {}
+    done_symbols = string_list_values(resume_state.get("done_symbols"))
+    failed_symbols = string_list_values(resume_state.get("failed_symbols"))
+    pending_symbols = string_list_values(resume_state.get("pending_symbols"))
+    no_data_symbols = string_list_values(resume_state.get("no_data_symbols"))
+    permission_symbols = string_list_values(resume_state.get("permission_symbols"))
+    contract_symbols = string_list_values(resume_state.get("contract_symbols"))
+    retryable_symbols = string_list_values(resume_state.get("retryable_symbols"))
+    empty_symbols = string_list_values(resume_state.get("empty_symbols"))
+    skipped_symbols = string_list_values(resume_state.get("skipped_symbols"))
+    completed_output_paths = string_list_values(resume_state.get("completed_output_paths"))
+    completed_chunks = dict_list_values(resume_state.get("completed_chunks"))
+    no_data_chunks = dict_list_values(resume_state.get("no_data_chunks"))
+    failed_day_count, failed_days_sample = days_by_symbol_summary(resume_state.get("failed_days_by_symbol"))
+    no_data_day_count, no_data_days_sample = days_by_symbol_summary(resume_state.get("no_data_days_by_symbol"))
+    summary = (
+        f"{len(done_symbols)} completed symbols; {len(pending_symbols)} pending; "
+        f"{len(failed_symbols)} failed; {len(retryable_symbols)} retryable; "
+        f"{len(completed_output_paths)} completed output paths; "
+        f"{failed_day_count} failed days; {no_data_day_count} no-data days."
+    )
+    return {
+        "schema_version": resume_state.get("schema_version"),
+        "updated_at": resume_state.get("updated_at"),
+        "resume_modes": string_list_sample(resume_state.get("resume_modes"), limit=20),
+        "summary": summary,
+        "done_symbol_count": len(done_symbols),
+        "failed_symbol_count": len(failed_symbols),
+        "pending_symbol_count": len(pending_symbols),
+        "empty_symbol_count": len(empty_symbols),
+        "skipped_symbol_count": len(skipped_symbols),
+        "no_data_symbol_count": len(no_data_symbols),
+        "permission_symbol_count": len(permission_symbols),
+        "contract_symbol_count": len(contract_symbols),
+        "retryable_symbol_count": len(retryable_symbols),
+        "completed_output_path_count": len(completed_output_paths),
+        "completed_chunk_count": len(completed_chunks),
+        "no_data_chunk_count": len(no_data_chunks),
+        "failed_day_count": failed_day_count,
+        "no_data_day_count": no_data_day_count,
+        "done_symbols_sample": done_symbols[:20],
+        "failed_symbols_sample": failed_symbols[:20],
+        "pending_symbols_sample": pending_symbols[:20],
+        "no_data_symbols_sample": no_data_symbols[:20],
+        "permission_symbols_sample": permission_symbols[:20],
+        "contract_symbols_sample": contract_symbols[:20],
+        "retryable_symbols_sample": retryable_symbols[:20],
+        "completed_output_paths_sample": completed_output_paths[:20],
+        "completed_chunks_sample": completed_chunks[:20],
+        "no_data_chunks_sample": no_data_chunks[:20],
+        "failed_days_by_symbol_sample": failed_days_sample,
+        "no_data_days_by_symbol_sample": no_data_days_sample,
+    }
+
+
 def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
@@ -4159,6 +4273,7 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         output_visibility_counts=output_visibility_counts,
     )
     resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(recovery.get("resume_supported")))
+    resume_state = fetch_resume_state_summary(payload)
     resume_command = fetch_manifest_resume_command(payload.get("kind"), path) if recovery.get("resume_supported") else None
     return {
         "job_id": payload.get("job_id") or path.stem,
@@ -4201,6 +4316,15 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         "resume_retry_count": resume_plan.get("retry_failed_count"),
         "resume_review_count": resume_plan.get("review_no_data_count"),
         "resume_pending_estimate": resume_plan.get("pending_estimate"),
+        "resume_state_summary": resume_state.get("summary"),
+        "resume_state_done_symbol_count": resume_state.get("done_symbol_count"),
+        "resume_state_failed_symbol_count": resume_state.get("failed_symbol_count"),
+        "resume_state_pending_symbol_count": resume_state.get("pending_symbol_count"),
+        "resume_state_retryable_symbol_count": resume_state.get("retryable_symbol_count"),
+        "resume_state_completed_output_path_count": resume_state.get("completed_output_path_count"),
+        "resume_state_completed_chunk_count": resume_state.get("completed_chunk_count"),
+        "resume_state_failed_day_count": resume_state.get("failed_day_count"),
+        "resume_state_no_data_day_count": resume_state.get("no_data_day_count"),
         "resume_command": resume_command,
         "error_kind_counts": counts.get("error_kind_counts") or {},
         "status_counts": counts.get("status_counts") or {},
@@ -4380,6 +4504,35 @@ def build_fetch_manifest_detail_csv(
                 "message": resume_plan.get("resume_summary"),
             }
         )
+    resume_state = detail.get("resume_state") if isinstance(detail.get("resume_state"), dict) else {}
+    if resume_state:
+        rows.append(
+            {
+                **base,
+                "row_type": "resume_state",
+                "resume_mode": ";".join(resume_state.get("resume_modes") or []),
+                "resume_state_summary": resume_state.get("summary"),
+                "resume_state_resume_modes": resume_state.get("resume_modes"),
+                "resume_state_done_symbol_count": resume_state.get("done_symbol_count"),
+                "resume_state_failed_symbol_count": resume_state.get("failed_symbol_count"),
+                "resume_state_pending_symbol_count": resume_state.get("pending_symbol_count"),
+                "resume_state_retryable_symbol_count": resume_state.get("retryable_symbol_count"),
+                "resume_state_completed_output_path_count": resume_state.get("completed_output_path_count"),
+                "resume_state_completed_chunk_count": resume_state.get("completed_chunk_count"),
+                "resume_state_failed_day_count": resume_state.get("failed_day_count"),
+                "resume_state_no_data_day_count": resume_state.get("no_data_day_count"),
+                "resume_state_samples": {
+                    "done_symbols": resume_state.get("done_symbols_sample"),
+                    "failed_symbols": resume_state.get("failed_symbols_sample"),
+                    "pending_symbols": resume_state.get("pending_symbols_sample"),
+                    "retryable_symbols": resume_state.get("retryable_symbols_sample"),
+                    "completed_output_paths": resume_state.get("completed_output_paths_sample"),
+                    "failed_days_by_symbol": resume_state.get("failed_days_by_symbol_sample"),
+                    "no_data_days_by_symbol": resume_state.get("no_data_days_by_symbol_sample"),
+                },
+                "message": resume_state.get("summary"),
+            }
+        )
 
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=FETCH_MANIFEST_DETAIL_EXPORT_FIELDS, extrasaction="ignore")
@@ -4456,6 +4609,7 @@ def load_fetch_manifest_detail(
     symbols = list(symbols_map.values())
     summary = summarize_fetch_manifest(path, root=root, data_roots=data_roots)
     resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(summary.get("resume_supported")))
+    resume_state = fetch_resume_state_summary(payload)
     annotated_all_outputs = [
         annotate_fetch_output(row, data_roots or [])
         for row in outputs
@@ -4470,6 +4624,7 @@ def load_fetch_manifest_detail(
         "plan": payload.get("plan") if isinstance(payload.get("plan"), dict) else {},
         "counts": payload.get("counts") if isinstance(payload.get("counts"), dict) else {},
         "resume_plan": resume_plan,
+        "resume_state": resume_state,
         "symbols_requested": payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else [],
         "symbols": symbols,
         "outputs": annotated_outputs,
