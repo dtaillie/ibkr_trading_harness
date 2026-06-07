@@ -16649,6 +16649,212 @@ function remoteArtifactCategorySummary(evidence) {
   return top || `${numberText(metadata, 0)} metadata / ${numberText(streams, 0)} streams`;
 }
 
+function staleRemoteNodes(nodes = [], maxAgeSeconds = 900) {
+  return (nodes || []).filter((node) => {
+    const millis = timestampMillis(node.received_at || node.generated_at);
+    if (millis === null) return true;
+    return ((Date.now() - millis) / 1000) > maxAgeSeconds;
+  });
+}
+
+function newestRemoteNode(nodes = []) {
+  return (nodes || []).slice().sort((left, right) => (
+    (timestampMillis(right.received_at || right.generated_at) || 0)
+    - (timestampMillis(left.received_at || left.generated_at) || 0)
+  ))[0] || null;
+}
+
+function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
+  if (!$("remote-nodes-assistant-title") || !$("remote-nodes-assistant-cards") || !$("remote-nodes-assistant-actions")) return;
+  const staleNodes = staleRemoteNodes(nodes);
+  const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
+  const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
+  const gatewayDown = (nodes || []).filter((node) => node.gateway_reachable === false);
+  const newest = newestRemoteNode(nodes);
+  const activeFilters = [
+    $("remote-filter-text").value ? `search ${$("remote-filter-text").value}` : "",
+    $("remote-filter-status").value ? `status ${$("remote-filter-status").value}` : "",
+    $("remote-filter-mode").value ? `mode ${$("remote-filter-mode").value}` : "",
+  ].filter(Boolean);
+  let status = "bad";
+  let title = "No Remote Nodes";
+  let note = "No authenticated status snapshots are loaded for remote monitoring.";
+  if (nodes.length) {
+    status = staleNodes.length || gatewayDown.length ? "bad" : alertNodes.length || orderNodes.length ? "warn" : "ok";
+    title = staleNodes.length
+      ? "Stale Heartbeats"
+      : gatewayDown.length
+        ? "Gateway Issues"
+        : alertNodes.length
+          ? "Alerts Present"
+          : orderNodes.length
+            ? "Open Orders Visible"
+            : "Remote Nodes Ready";
+    note = activeFilters.length
+      ? `${activeFilters.join(" / ")}; ${numberText(filteredNodes.length, 0)} of ${numberText(nodes.length, 0)} nodes shown.`
+      : status === "ok"
+        ? "Remote snapshots have fresh heartbeats and no visible alert/order blockers."
+        : "Use the actions below to sort toward the risky nodes, open detail, or prepare a read-only status request.";
+  }
+  $("remote-nodes-assistant-title").textContent = title;
+  $("remote-nodes-assistant-title").className = statusClass(status);
+  $("remote-nodes-assistant-note").textContent = note;
+  const cards = [
+    {
+      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "bad",
+      title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
+      label: "Heartbeat",
+      note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No remote heartbeat loaded.",
+    },
+    {
+      status: alertNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      title: numberText(alertNodes.length, 0),
+      label: "Alert Nodes",
+      note: alertNodes.length ? alertNodes.slice(0, 3).map((node) => text(node.node_id)).join(", ") : "No remote node alerts visible.",
+    },
+    {
+      status: orderNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      title: numberText(orderNodes.length, 0),
+      label: "Open-Order Nodes",
+      note: orderNodes.length ? "Verify broker state locally before issuing controls." : "No non-terminal remote order events visible.",
+    },
+    {
+      status: gatewayDown.length ? "bad" : nodes.length ? "ok" : "bad",
+      title: gatewayDown.length ? `${numberText(gatewayDown.length, 0)} down` : nodes.length ? "Reachable" : "Unknown",
+      label: "Gateway/API",
+      note: gatewayDown.length ? gatewayDown.slice(0, 3).map((node) => text(node.node_id)).join(", ") : "No remote Gateway/API blockers in latest snapshots.",
+    },
+    {
+      status: filteredNodes.length ? "ok" : nodes.length ? "warn" : "bad",
+      title: `${numberText(filteredNodes.length, 0)} / ${numberText(nodes.length, 0)}`,
+      label: "Shown",
+      note: activeFilters.length ? "Current filters are hiding some nodes." : "No remote filters are active.",
+    },
+  ];
+  $("remote-nodes-assistant-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("remote-nodes-assistant-actions").innerHTML = [
+    {
+      action: "alerts",
+      status: alertNodes.length ? "warn" : "ok",
+      title: "Sort Alerts First",
+      note: alertNodes.length ? "Show nodes with the most alerts at the top." : "No alerting nodes to prioritize.",
+      disabled: !alertNodes.length,
+    },
+    {
+      action: "stale",
+      status: staleNodes.length ? "bad" : "ok",
+      title: "Sort Stale First",
+      note: staleNodes.length ? "Show oldest heartbeat first." : "No stale heartbeat detected.",
+      disabled: !staleNodes.length,
+    },
+    {
+      action: "orders",
+      status: orderNodes.length ? "warn" : "ok",
+      title: "Sort Open Orders",
+      note: orderNodes.length ? "Show nodes with the most non-terminal order events." : "No open-order nodes to prioritize.",
+      disabled: !orderNodes.length,
+    },
+    {
+      action: "newest-detail",
+      status: newest ? "ok" : "bad",
+      title: "Open Newest Detail",
+      note: newest ? `Load bounded detail for ${text(newest.node_id)}.` : "No node detail can be loaded yet.",
+      disabled: !newest,
+    },
+    {
+      action: "request-status",
+      status: newest ? "warn" : "bad",
+      title: "Prepare Status Check",
+      note: newest ? `Prepare read-only request_status for ${text(newest.node_id)}.` : "No node is available as a target.",
+      disabled: !newest,
+    },
+    {
+      action: "clear",
+      status: activeFilters.length ? "ok" : "warn",
+      title: "Clear Filters",
+      note: activeFilters.length ? "Return to all remote nodes." : "No remote filters are active.",
+      disabled: !activeFilters.length,
+    },
+    {
+      action: "export",
+      status: nodes.length ? "ok" : "bad",
+      title: "Export Nodes CSV",
+      note: "Download sanitized remote-node summaries.",
+      disabled: !nodes.length,
+    },
+  ].map((item) => `
+    <button class="remote-detail-assistant-action status-${escapeHtml(item.status)}" data-remote-nodes-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.note)}</small>
+      </span>
+      <span>${statusText(item.status)}</span>
+    </button>
+  `).join("");
+}
+
+function handleRemoteNodesAssistantAction(action) {
+  const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const newest = newestRemoteNode(nodes);
+  if (action === "alerts") {
+    $("remote-filter-text").value = "";
+    $("remote-filter-status").value = "";
+    $("remote-filter-mode").value = "";
+    $("remote-filter-sort").value = "alerts_desc";
+    renderRemoteNodes();
+    $("last-refresh").textContent = "Remote nodes sorted by alert count";
+    return;
+  }
+  if (action === "stale") {
+    $("remote-filter-text").value = "";
+    $("remote-filter-status").value = "";
+    $("remote-filter-mode").value = "";
+    $("remote-filter-sort").value = "heartbeat_asc";
+    renderRemoteNodes();
+    $("last-refresh").textContent = "Remote nodes sorted by oldest heartbeat";
+    return;
+  }
+  if (action === "orders") {
+    $("remote-filter-text").value = "";
+    $("remote-filter-status").value = "";
+    $("remote-filter-mode").value = "";
+    $("remote-filter-sort").value = "orders_desc";
+    renderRemoteNodes();
+    $("last-refresh").textContent = "Remote nodes sorted by open-order count";
+    return;
+  }
+  if (action === "newest-detail") {
+    loadRemoteNodeDetail(text((newest || {}).node_id)).catch((err) => {
+      $("last-refresh").textContent = `Remote node detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "request-status") {
+    prepareRequestStatusCommand(text((newest || {}).node_id));
+    return;
+  }
+  if (action === "clear") {
+    $("remote-filter-text").value = "";
+    $("remote-filter-status").value = "";
+    $("remote-filter-mode").value = "";
+    $("remote-filter-sort").value = "heartbeat_desc";
+    renderRemoteNodes();
+    $("last-refresh").textContent = "Remote node filters cleared";
+    return;
+  }
+  if (action === "export") {
+    downloadRemoteNodesCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
+    });
+  }
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
@@ -16669,6 +16875,7 @@ function renderRemoteNodes() {
   $("remote-open-order-count").className = statusClass(openOrderTotal ? "warn" : nodes.length ? "ok" : "unknown");
   $("remote-open-order-note").textContent = nodes.length ? `${numberText(openOrderTotal, 0)} non-terminal order event${openOrderTotal === 1 ? "" : "s"}` : "Sanitized order telemetry only";
   renderRemoteNodesHealth(nodes, filteredNodes);
+  renderRemoteNodesAssistant(nodes, filteredNodes);
   $("remote-nodes-body").innerHTML = filteredNodes.length
     ? filteredNodes.map((node) => row([
         escapeHtml(node.node_id),
@@ -18542,6 +18749,11 @@ function init() {
   $("remote-filter-status").addEventListener("change", renderRemoteNodes);
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
   $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
+  $("remote-nodes-assistant-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-nodes-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleRemoteNodesAssistantAction(target.dataset.remoteNodesAction || "");
+  });
   $("remote-detail-activity-filter").addEventListener("change", renderRemoteNodeDetail);
   $("remote-detail-assistant-actions").addEventListener("click", (event) => {
     const target = event.target;

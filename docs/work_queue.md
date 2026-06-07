@@ -1557,6 +1557,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     Gateway reachability, alert pressure, open-order pressure, stale
     data/account timestamps, and active filter coverage before the dense node
     table.
+  - partial; Remote Nodes now has a Remote Nodes Assistant that summarizes
+    heartbeat, alerting nodes, open-order nodes, Gateway/API issues, and active
+    filters, with direct actions to sort risky nodes first, open newest detail,
+    prepare a read-only status check, clear filters, or export CSV.
   - partial; Operations now exposes `/remote_nodes_export` and an Export Nodes
     CSV button for offline review of sanitized heartbeat, Gateway, mode,
     equity, positions, open orders, activity counts, freshness, and alerts by
