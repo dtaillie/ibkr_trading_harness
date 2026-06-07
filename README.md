@@ -271,8 +271,12 @@ read-only workbench state for saved drafts, recorded runs, archived run
 artifacts, searchable run history, recent open-order telemetry, managed
 positions, and local disk usage. Operations Remote includes a copyable Remote
 Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
-alerts, open orders, stale data/account timestamps, and next actions. It can
-also inspect configured local
+alerts, open orders, stale data/account timestamps, and next actions.
+Operations Control includes Command Safety Review before the raw command form,
+summarizing target-node state, read-only/control/launcher action classes,
+confirmation requirements, pending/failed command pressure, audit integrity,
+retention state, selected-action boundary copy, and fail-closed high-risk
+live-control actions. The dashboard can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small
 downsampled price previews. It also includes a recent date-bin coverage view

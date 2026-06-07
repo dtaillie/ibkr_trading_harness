@@ -21354,6 +21354,190 @@ function handleControlAssistantAction(action) {
   $("command-audit-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
+function commandSafetyReviewModel() {
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const audit = state.commandAudit || {};
+  const events = audit.events || [];
+  const integrity = audit.integrity || {};
+  const retention = audit.retention_policy || {};
+  const pending = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failed = results.filter((result) => commandStatusIsFailed(result.status));
+  const actions = Object.entries(commandBoundaries);
+  const byClass = actions.reduce((acc, [, boundary]) => {
+    const key = boundary.klass || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const confirmCount = actions.filter(([, boundary]) => boundary.confirm).length;
+  const selectedAction = ($("command-action") && $("command-action").value) || "request_status";
+  const selectedBoundary = commandBoundaries[selectedAction] || {};
+  const node = ($("command-node") && $("command-node").value.trim()) || newestRemoteNodeId();
+  const integrityStatus = String(integrity.status || "").toLowerCase();
+  const signatureStatus = String(integrity.signature_status || "").toLowerCase();
+  const auditBad = ["broken", "invalid", "error"].includes(integrityStatus) || ["invalid", "failed", "missing_key"].includes(signatureStatus);
+  const auditWarn = !auditBad && (!events.length || ["legacy", "unchecked", "missing"].includes(integrityStatus) || ["disabled", "unsigned", "mixed"].includes(signatureStatus));
+  const highRiskActions = ["flatten_live_positions", "change_strategy_config", "enable_live_orders"];
+  const headline = auditBad
+    ? "Command audit integrity must be fixed before trusting remote controls"
+    : failed.length
+      ? "Review failed command results before queueing more controls"
+      : pending.length
+        ? "A command is pending; avoid stacking controls until the worker responds"
+        : "Command surface is bounded; start with read-only checks";
+  const nextAction = auditBad
+    ? "Open Command Audit, export CSV, and inspect local/server audit-chain configuration."
+    : failed.length
+      ? "Review Command Results and the audit row for the failed action."
+      : pending.length
+        ? "Wait for or cancel the pending command before adding another control."
+        : node
+          ? "Prepare request_status first, then queue control/launcher actions only after reading the boundary copy."
+          : "Load or type a remote node before queueing any command.";
+  const cards = [
+    {
+      status: node ? "ok" : "warn",
+      label: "Target",
+      title: node || "No node",
+      note: node ? "A target node is available for command review." : "Remote commands need an explicit node target.",
+    },
+    {
+      status: "ok",
+      label: "Read-only",
+      title: numberText(byClass["read-only"] || 0, 0),
+      note: "Validation, status, and summary commands should be the first remote checks.",
+    },
+    {
+      status: confirmCount ? "warn" : "ok",
+      label: "Controls",
+      title: `${numberText(confirmCount, 0)} confirm`,
+      note: `${numberText(byClass.control || 0, 0)} control and ${numberText(byClass.launcher || 0, 0)} launcher actions require local-boundary review.`,
+    },
+    {
+      status: pending.length ? "warn" : failed.length ? "bad" : "ok",
+      label: "Queue",
+      title: pending.length ? `${numberText(pending.length, 0)} pending` : failed.length ? `${numberText(failed.length, 0)} failed` : "Clear",
+      note: pending[0] ? `${text(pending[0].action)} waiting since ${text(pending[0].created_at)}.` : failed[0] ? `${text(failed[0].action || failed[0].command_id)} failed/rejected.` : "No blocking command queue state.",
+    },
+    {
+      status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
+      label: "Audit",
+      title: text(integrity.status || "not loaded"),
+      note: `${numberText(events.length, 0)} event rows; signature ${text(integrity.signature_status || "n/a")}.`,
+    },
+    {
+      status: retention.off_host_verified ? "ok" : "warn",
+      label: "Retention",
+      title: retention.off_host_verified ? "Verified" : text(retention.status || "local only"),
+      note: retention.summary || "Off-host immutable retention remains a deployment review item.",
+    },
+    {
+      status: "bad",
+      label: "Reserved High Risk",
+      title: numberText(highRiskActions.length, 0),
+      note: `${highRiskActions.join(", ")} stay fail-closed in the public command surface.`,
+    },
+    {
+      status: selectedBoundary.confirm ? "warn" : selectedBoundary.klass === "read-only" ? "ok" : "neutral",
+      label: "Selected Action",
+      title: selectedAction,
+      note: selectedBoundary.note || "Select an action to see boundary metadata.",
+    },
+  ];
+  const lines = [
+    {
+      status: node ? "ok" : "warn",
+      title: "1. Choose the command target deliberately",
+      detail: node ? `Current/newest target is ${node}. Verify it is the intended local trading machine before queueing.` : "Remote snapshots or an explicit typed node ID are required before queueing.",
+    },
+    {
+      status: "ok",
+      title: "2. Prefer read-only commands first",
+      detail: "Use request_status, validations, supervisor_status, or summarize_run before control and launcher actions.",
+    },
+    {
+      status: confirmCount ? "warn" : "ok",
+      title: "3. Treat control and launcher commands as local operations",
+      detail: "Pause/resume, simulated flattening, one-shot supervisor runs, and restarts rely on local markers, allowlists, and worker configuration.",
+    },
+    {
+      status: auditBad ? "bad" : auditWarn ? "warn" : "ok",
+      title: "4. Verify audit integrity and signatures",
+      detail: `Audit status ${text(integrity.status || "not loaded")}; signature ${text(integrity.signature_status || "not loaded")}; retention ${text(retention.status || "not loaded")}.`,
+    },
+    {
+      status: "bad",
+      title: "5. Keep live-control actions outside this public surface",
+      detail: "Live flattening, strategy-config changes, and enabling live orders require a separate stronger design and remain rejected here.",
+    },
+  ];
+  return { headline, nextAction, cards, lines };
+}
+
+function commandSafetyReviewText(model) {
+  return [
+    `Command Safety Review: ${model.headline}`,
+    `Next action: ${model.nextAction}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderCommandSafetyReview() {
+  if (
+    !$("command-safety-review-title")
+    || !$("command-safety-review-note")
+    || !$("command-safety-review-cards")
+    || !$("command-safety-review-body")
+    || !$("command-safety-review-actions")
+  ) return;
+  const model = commandSafetyReviewModel();
+  state.commandSafetyReviewText = commandSafetyReviewText(model);
+  $("command-safety-review-title").textContent = model.headline;
+  $("command-safety-review-note").textContent = model.nextAction;
+  $("command-safety-review-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("command-safety-review-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("command-safety-review-actions").innerHTML = [
+    `<button type="button" data-command-safety-action="copy">Copy Review</button>`,
+    `<button type="button" class="secondary" data-command-safety-action="request-status">Prepare Status Check</button>`,
+    `<button type="button" class="secondary" data-command-safety-action="audit">Command Audit</button>`,
+    `<button type="button" class="secondary" data-command-safety-action="remote">Remote Nodes</button>`,
+    `<button type="button" class="secondary" data-command-safety-action="cloud">Cloud Boundary</button>`,
+  ].join("");
+}
+
+function handleCommandSafetyAction(action) {
+  if (action === "copy") {
+    copyText(state.commandSafetyReviewText || "No command safety review loaded").then(() => {
+      $("last-refresh").textContent = "Command safety review copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Command safety review copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "request-status") {
+    prepareRequestStatusCommand(newestRemoteNodeId() || ($("command-node") && $("command-node").value.trim()) || "");
+    return;
+  }
+  if (action === "audit") {
+    $("command-audit-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "remote") return applyOperationsLens("remote");
+  if (action === "cloud") return applyOperationsLens("diagnostics");
+}
+
 function prepareRequestStatusCommand(nodeId = "") {
   const cleanNode = text(nodeId);
   if (cleanNode && cleanNode !== "n/a") $("command-node").value = cleanNode;
@@ -22567,6 +22751,7 @@ function renderAll() {
   renderResults();
   renderCommandAudit();
   renderControlAssistant();
+  renderCommandSafetyReview();
   renderOperationsHome();
   renderHelpSetupGaps();
   renderPageIntro();
@@ -23904,6 +24089,7 @@ function updateCommandFields() {
     <strong>${escapeHtml(boundary.title || action)}</strong>
     <small>${escapeHtml(boundary.note || "No boundary metadata is available for this action.")}</small>
   `;
+  renderCommandSafetyReview();
 }
 
 function initToken() {
@@ -24131,6 +24317,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-control-assistant-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleControlAssistantAction(target.dataset.controlAssistantAction || "");
+  });
+  $("command-safety-review-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-command-safety-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleCommandSafetyAction(target.dataset.commandSafetyAction || "");
   });
   $("copy-data-roots-yaml").addEventListener("click", copyDataRootsYaml);
   $("fetch-filter-text").addEventListener("input", renderFetchJobs);

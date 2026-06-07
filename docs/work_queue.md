@@ -2123,6 +2123,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     status separately from hash/signature health, and audit CSV exports include
     retention status, summary, off-host verification state, and the dry-run
     sync helper path.
+  - partial; Operations Control now includes a Command Safety Review that
+    summarizes target-node state, read-only/control/launcher action classes,
+    confirmation requirements, pending/failed command pressure, command-audit
+    integrity, retention status, selected action boundary, and fail-closed
+    high-risk live-control actions before the raw command form.
   - partial; public cloud examples now include
     `ops/cloud/sync-command-audit.example.sh` for dry-run-first upload of the
     server-side command audit JSONL to separate object storage. Actual

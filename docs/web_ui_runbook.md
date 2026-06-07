@@ -451,6 +451,11 @@ Open Operations Diagnostics before exposing a receiver beyond localhost. Cloud
 Deployment Readiness summarizes remote monitoring evidence, command-audit
 integrity, local-only trading authority, authentication, network boundary,
 retention, current alerts, and the remaining manual provider hardening review.
+Open Operations Control before queueing any command. Command Safety Review
+summarizes the target node, read-only/control/launcher action classes,
+confirmation requirements, pending and failed command pressure, audit
+integrity, retention state, selected-action boundary copy, and the high-risk
+live-control actions that remain fail-closed in the public command surface.
 
 Click Detail on a node when you need bounded per-node history, recent
 decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote
