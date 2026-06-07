@@ -1653,8 +1653,8 @@ QQQ show up, treat that as a bug until proven otherwise.
     before the snapshot and dense coverage tables.
   - partial; Run Artifacts now summarizes declared `result_widgets` before
     rendering them, showing widget kinds, emitted-field coverage, sparkline/
-    line-chart point availability, incomplete widgets, and the next action for
-    missing public-safe diagnostics.
+    line-chart/custom-chart point availability, incomplete widgets, and the next
+    action for missing public-safe diagnostics.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and
@@ -1964,8 +1964,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     public-safe plugin display metadata for descriptions, placeholders, units,
     affixes, advanced badges, ordering, select-option descriptions, and grouped
     plugin result sections. Plugin registries can now also declare public-safe
-    result widgets for card, table, bar-summary, sparkline, and multi-series
-    line-chart artifact displays; arbitrary custom chart plugins remain open.
+    result widgets for card, table, bar-summary, sparkline, multi-series
+    line-chart, and allowlisted declarative custom-chart artifact displays.
+    Arbitrary executable chart plugins remain intentionally outside the public
+    metadata boundary.
 - Add optional order previews and manual approval hooks for paper/live mode.
   - partial; generic plugin-runner configs can set
     `execution.require_order_approval: true`, which writes

@@ -4170,9 +4170,12 @@ function renderPluginResultWidgetHelpCard(widget, resultFields) {
     : "n/a";
   const help = text(widget.description || widget.help || "Public-safe artifact display widget.");
   const status = fields.length ? "ok" : "warn";
+  const chartDetail = text(widget.kind) === "custom_chart"
+    ? ` / ${text(widget.chart_kind || "line_chart")} / ${numberText(widget.point_limit || 80, 0)} pts`
+    : widget.point_limit ? ` / ${numberText(widget.point_limit, 0)} pts` : "";
   return `
     <article class="plugin-field-help-card status-${escapeHtml(status)}">
-      <span>Result Widget ${escapeHtml(text(widget.kind || "cards"))}</span>
+      <span>Result Widget ${escapeHtml(text(widget.kind || "cards"))}${escapeHtml(chartDetail)}</span>
       <strong>${escapeHtml(text(widget.label || widget.id))}</strong>
       <small class="mono">${escapeHtml(fieldPaths)}</small>
       <p>${escapeHtml(help)}</p>
@@ -18617,6 +18620,8 @@ function renderArtifactPluginBoundary(artifacts) {
       id: widget.id,
       label: widget.label,
       kind: widget.kind,
+      chart_kind: widget.chart_kind,
+      point_limit: widget.point_limit,
       fields: widget.fields,
     })), resultWidgets.length ? resultWidgets.map((widget) => `${text(widget.label || widget.id)} (${text(widget.kind)})`).join(", ") : "none"), true],
     ["Result Coverage", `${coverage}; ${numberText(decisionCount, 0)} decision${decisionCount === 1 ? "" : "s"} loaded`],
@@ -18781,13 +18786,13 @@ function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
       <div class="empty-card">
         <span>Result Widgets</span>
         <strong>No Widgets Declared</strong>
-        <small>Declare public-safe result_widgets in the plugin registry to render card, table, bar, sparkline, or line-chart artifact summaries.</small>
+        <small>Declare public-safe result_widgets in the plugin registry to render card, table, bar, sparkline, line-chart, or custom-chart artifact summaries.</small>
       </div>
     `;
     return;
   }
   const emittedWidgets = widgets.filter((widget) => Number(widget.emitted_field_count || 0) > 0).length;
-  const chartWidgets = widgets.filter((widget) => ["sparkline", "line_chart"].includes(text(widget.kind))).length;
+  const chartWidgets = widgets.filter((widget) => ["sparkline", "line_chart", "custom_chart"].includes(text(widget.kind))).length;
   const totalFields = widgets.reduce((sum, widget) => sum + Number(widget.field_count || 0), 0);
   const emittedFields = widgets.reduce((sum, widget) => sum + Number(widget.emitted_field_count || 0), 0);
   const pointCount = widgets.reduce((sum, widget) => (
@@ -18833,8 +18838,8 @@ function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
       label: "Chart Widgets",
       title: numberText(chartWidgets, 0),
       note: chartWidgets
-        ? `${numberText(pointCount, 0)} bounded point${pointCount === 1 ? "" : "s"} available for sparkline/line-chart widgets.`
-        : "No sparkline or line-chart widgets declared.",
+        ? `${numberText(pointCount, 0)} bounded point${pointCount === 1 ? "" : "s"} available for sparkline/line/custom-chart widgets.`
+        : "No sparkline, line-chart, or custom-chart widgets declared.",
     },
     {
       status: nextStatus,
@@ -18880,14 +18885,14 @@ function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisio
           <span><b>${escapeHtml(text(field.label || field.name))}</b><i style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></i><em>${escapeHtml(pctText(field.coverage_pct))}</em></span>
         `;
       }).join("")}</div>`;
-    } else if (kind === "sparkline") {
+    } else if (kind === "sparkline" || (kind === "custom_chart" && text(widget.chart_kind || "line_chart") === "sparkline")) {
       body = `<div class="plugin-widget-sparklines">${fieldRows.map((field) => `
         <div>
           <span><b>${escapeHtml(text(field.label || field.name))}</b><em>${escapeHtml(pluginResultFieldValue(field, field.latest_value))}</em></span>
           ${pluginResultSparkline(field.points || [], field.label || field.name)}
         </div>
       `).join("")}</div>`;
-    } else if (kind === "line_chart") {
+    } else if (kind === "line_chart" || kind === "custom_chart") {
       body = `<div class="plugin-widget-line-chart-wrap">${pluginResultLineChart(fieldRows, widget.label || widget.id)}</div>`;
     } else {
       body = `<div class="plugin-widget-card-list">${fieldRows.map((field) => `

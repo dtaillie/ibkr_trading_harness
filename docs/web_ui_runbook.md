@@ -408,8 +408,8 @@ Result Coverage panels show the matched registry plugin, declared public
 inputs/results, emitted result counts, latest declared values, the runner-owned
 `plugin_contract.json` summary, and sanitized
 dashboard keys that are still unlabeled. Add optional `result_widgets` for
-card, table, bar-summary, sparkline, or line-chart artifact displays. Run
-Artifacts summarizes widget coverage before rendering those widgets, so missing
+card, table, bar-summary, sparkline, line-chart, or allowlisted declarative
+custom-chart artifact displays. Run Artifacts summarizes widget coverage before rendering those widgets, so missing
 public-safe diagnostic fields are visible before dense result tables. Plugin
 Result Display Plan shows how each declared result field is presented: field
 path, order, kind, formatting hints, latest formatted value, emitted coverage,

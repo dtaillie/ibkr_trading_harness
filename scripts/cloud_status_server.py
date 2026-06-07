@@ -231,6 +231,16 @@ CONFIG_BUILDER_PLUGINS = (
                 "fields": ["signal_value", "threshold_distance"],
                 "order": 40,
             },
+            {
+                "id": "example_custom_chart",
+                "label": "Example Custom Chart",
+                "kind": "custom_chart",
+                "chart_kind": "line_chart",
+                "point_limit": 40,
+                "description": "Example-only declarative custom chart using an allowlisted public renderer.",
+                "fields": ["signal_value", "threshold_distance"],
+                "order": 50,
+            },
         ],
     },
 )
@@ -246,7 +256,9 @@ PLUGIN_VALIDATION_OPERATORS = {">", ">=", "<", "<=", "==", "!="}
 PLUGIN_RESULT_FIELD_KINDS = {"text", "number", "percent", "currency", "boolean", "duration_minutes"}
 PLUGIN_RESULT_FIELD_DISPLAY_KEYS = {"description", "unit", "prefix", "suffix"}
 PLUGIN_RESULT_SECTION_DISPLAY_KEYS = {"description", "help"}
-PLUGIN_RESULT_CHART_WIDGET_KINDS = {"sparkline", "line_chart"}
+PLUGIN_RESULT_DIRECT_CHART_WIDGET_KINDS = {"sparkline", "line_chart"}
+PLUGIN_RESULT_CUSTOM_CHART_KINDS = {"sparkline", "line_chart"}
+PLUGIN_RESULT_CHART_WIDGET_KINDS = PLUGIN_RESULT_DIRECT_CHART_WIDGET_KINDS | {"custom_chart"}
 PLUGIN_RESULT_WIDGET_KINDS = {"cards", "table", "bar_summary"} | PLUGIN_RESULT_CHART_WIDGET_KINDS
 PLUGIN_RESULT_WIDGET_DISPLAY_KEYS = {"description", "help"}
 WORKBENCH_SNAPSHOT_SCHEMA_VERSION = 1
@@ -5214,6 +5226,21 @@ def normalize_plugin_result_widgets(
             "fields": fields,
             "_source_order": idx,
         }
+        if kind == "custom_chart":
+            chart_kind = str(raw.get("chart_kind") or raw.get("chart") or "").strip().lower()
+            if chart_kind not in PLUGIN_RESULT_CUSTOM_CHART_KINDS:
+                raise ValueError(
+                    f"plugin {plugin_id} result_widgets[{widget_id}].chart_kind must be one of {sorted(PLUGIN_RESULT_CUSTOM_CHART_KINDS)}"
+                )
+            widget["chart_kind"] = chart_kind
+        if kind in PLUGIN_RESULT_CHART_WIDGET_KINDS and raw.get("point_limit") is not None:
+            try:
+                point_limit = int(raw["point_limit"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"plugin {plugin_id} result_widgets[{widget_id}].point_limit must be an integer") from exc
+            if point_limit < 2 or point_limit > 500:
+                raise ValueError(f"plugin {plugin_id} result_widgets[{widget_id}].point_limit must be between 2 and 500")
+            widget["point_limit"] = point_limit
         for key in PLUGIN_RESULT_WIDGET_DISPLAY_KEYS:
             if raw.get(key) is not None:
                 widget[key] = str(raw[key]).strip()
@@ -7883,15 +7910,24 @@ def summarize_plugin_result_widget_coverage(
     rows: list[dict[str, Any]] = []
     for widget in widgets:
         fields = [str(field) for field in (widget.get("fields") if isinstance(widget.get("fields"), list) else [])]
+        kind = str(widget.get("kind") or "cards")
+        if kind in PLUGIN_RESULT_DIRECT_CHART_WIDGET_KINDS:
+            chart_kind = str(widget.get("chart_kind") or kind)
+        else:
+            chart_kind = str(widget.get("chart_kind") or "")
+        if kind == "custom_chart" and chart_kind not in PLUGIN_RESULT_CUSTOM_CHART_KINDS:
+            chart_kind = "line_chart"
+        point_limit = int(widget.get("point_limit") or 80) if kind in PLUGIN_RESULT_CHART_WIDGET_KINDS else 0
+        point_limit = max(2, min(500, point_limit)) if point_limit else 0
         field_rows = [coverage_by_name.get(field) for field in fields if coverage_by_name.get(field)]
         emitted_fields = sum(1 for row in field_rows if int(row.get("emitted_count") or 0) > 0)
         emitted_values = sum(int(row.get("emitted_count") or 0) for row in field_rows)
         field_summaries = []
         for row in field_rows[:12]:
             points: list[dict[str, Any]] = []
-            if widget.get("kind") in PLUGIN_RESULT_CHART_WIDGET_KINDS:
+            if kind in PLUGIN_RESULT_CHART_WIDGET_KINDS:
                 field_name = str(row.get("name") or "")
-                for decision in decisions[-80:]:
+                for decision in decisions[-point_limit:]:
                     drilldown = decision.get("drilldown") if isinstance(decision.get("drilldown"), dict) else {}
                     value = finite_float(drilldown.get(field_name)) if field_name in drilldown else None
                     if value is None:
@@ -7918,7 +7954,9 @@ def summarize_plugin_result_widget_coverage(
         rows.append({
             "id": widget.get("id"),
             "label": widget.get("label"),
-            "kind": widget.get("kind"),
+            "kind": kind,
+            "chart_kind": chart_kind or None,
+            "point_limit": point_limit or None,
             "description": widget.get("description"),
             "help": widget.get("help"),
             "fields": fields,

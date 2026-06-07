@@ -44,3 +44,12 @@ plugins:
         fields:
           - example_score
           - example_reason
+    result_widgets:
+      - id: example_custom_chart
+        label: Example Custom Chart
+        kind: custom_chart
+        chart_kind: line_chart
+        point_limit: 40
+        description: Example-only declarative chart wiring using an allowlisted renderer.
+        fields:
+          - example_score

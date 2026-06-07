@@ -650,7 +650,8 @@ Result fields support public-safe `kind`, `decimals`, `prefix`, `suffix`, and
 `unit` hints for artifact display. Registry rows can also declare
 `result_sections` to group declared result fields into public-safe artifact
 cards without exposing private signal logic, and `result_widgets` to request
-card, table, bar-summary, sparkline, or line-chart artifact displays. The
+card, table, bar-summary, sparkline, line-chart, or allowlisted declarative
+custom-chart artifact displays. The
 artifact view also summarizes declared result-field, section, and widget
 coverage and flags sanitized dashboard keys that were emitted without registry
 labels, helping you see whether a private plugin is publishing the public

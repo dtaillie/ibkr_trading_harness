@@ -3659,11 +3659,15 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             "example_summary",
             "example_trend",
             "example_line_chart",
+            "example_custom_chart",
         ]
         assert plugin["result_widgets"][1]["kind"] == "bar_summary"
         assert plugin["result_widgets"][1]["fields"] == ["signal_value", "threshold_distance"]
         assert plugin["result_widgets"][2]["kind"] == "sparkline"
         assert plugin["result_widgets"][3]["kind"] == "line_chart"
+        assert plugin["result_widgets"][4]["kind"] == "custom_chart"
+        assert plugin["result_widgets"][4]["chart_kind"] == "line_chart"
+        assert plugin["result_widgets"][4]["point_limit"] == 40
         assert plugin["result_fields"][1]["label"] == "Example Score"
         assert plugin["result_fields"][1]["decimals"] == 2
         assert plugin["result_fields"][2]["suffix"] == "score units"
@@ -4065,7 +4069,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["plugin_result_summary"]["status"] == "ok"
         assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["declared_section_count"] == 1
-        assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 4
+        assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 5
         assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
         assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
         assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "example_status"
@@ -4078,6 +4082,10 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert len(run_artifacts["plugin_result_summary"]["widget_coverage"][2]["field_summaries"][0]["points"]) == 2
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][3]["kind"] == "line_chart"
         assert len(run_artifacts["plugin_result_summary"]["widget_coverage"][3]["field_summaries"][1]["points"]) == 2
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][4]["kind"] == "custom_chart"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][4]["chart_kind"] == "line_chart"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][4]["point_limit"] == 40
+        assert len(run_artifacts["plugin_result_summary"]["widget_coverage"][4]["field_summaries"][0]["points"]) == 2
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
         assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
@@ -5346,6 +5354,74 @@ def test_cloud_status_server_validates_plugin_result_widgets(tmp_path):
     )
 
     with pytest.raises(ValueError, match="references undeclared result field private_missing"):
+        status_server.load_config_builder_plugins([registry])
+
+
+def test_cloud_status_server_validates_declarative_custom_chart_widgets(tmp_path):
+    registry = tmp_path / "plugin_registry.yaml"
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: custom_chart_demo",
+                "    label: Custom chart demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    result_fields:",
+                "      - name: public_score",
+                "        label: Public Score",
+                "        kind: number",
+                "      - name: public_threshold",
+                "        label: Public Threshold",
+                "        kind: number",
+                "    result_widgets:",
+                "      - id: score_chart",
+                "        label: Score Chart",
+                "        kind: custom_chart",
+                "        chart_kind: line_chart",
+                "        point_limit: 24",
+                "        fields:",
+                "          - public_score",
+                "          - public_threshold",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    plugin = next(
+        plugin
+        for plugin in status_server.load_config_builder_plugins([registry])
+        if plugin["id"] == "custom_chart_demo"
+    )
+    widget = plugin["result_widgets"][0]
+    assert widget["kind"] == "custom_chart"
+    assert widget["chart_kind"] == "line_chart"
+    assert widget["point_limit"] == 24
+
+    registry.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  - id: bad_custom_chart_demo",
+                "    label: Bad custom chart demo",
+                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    result_fields:",
+                "      - name: public_score",
+                "        label: Public Score",
+                "        kind: number",
+                "    result_widgets:",
+                "      - id: score_chart",
+                "        label: Score Chart",
+                "        kind: custom_chart",
+                "        chart_kind: javascript",
+                "        fields:",
+                "          - public_score",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="chart_kind must be one of"):
         status_server.load_config_builder_plugins([registry])
 
 
