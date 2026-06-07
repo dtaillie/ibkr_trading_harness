@@ -268,7 +268,8 @@ catalog-visible rows. The symbol diagnostic answers why a ticker is visible,
 scan-limited, in an unconfigured root, malformed, fetch-failed, or absent. Data
 Home includes a Data Visibility Report that summarizes filters, catalog caps,
 root visibility, parser skips, replay readiness, and fetch-output visibility
-before users open dense tables. The Fetch Jobs view
+before users open dense tables, plus a Saved Data Preview Wall with sparklines
+and direct Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
 reads JSON manifests from configured manifest roots, summarizing historical-data
 pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.
 When an output file is inside a configured data root, its row includes an Inspect

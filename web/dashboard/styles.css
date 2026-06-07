@@ -964,6 +964,54 @@ button.secondary:hover {
   width: 100%;
 }
 
+.data-preview-wall-panel {
+  margin: 12px 0;
+}
+
+.data-preview-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.data-preview-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.data-preview-card-head strong,
+.data-preview-card-head small,
+.data-preview-card-meta span {
+  display: block;
+}
+
+.data-preview-card-head strong {
+  margin-top: 4px;
+  font-size: 19px;
+}
+
+.data-preview-card-head small,
+.data-preview-card-meta {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.data-preview-spark {
+  min-height: 50px;
+}
+
+.data-preview-spark .sparkline {
+  width: 100%;
+  max-width: none;
+}
+
 .data-shortlist-card {
   display: grid;
   gap: 9px;

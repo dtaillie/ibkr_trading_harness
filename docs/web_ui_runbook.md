@@ -232,9 +232,11 @@ works offline from saved CSV/parquet files and shows:
 - gap/null/duplicate warnings
 - sampled or bounded full-in-range views
 
-Start with the Data Home shortlist when the catalog is large. It ranks the
-currently visible saved files by quality, rows, and recency, then gives direct
-Inspect, Filter, and Compare actions before you need to use the dense table.
+Start with Data Home when the catalog is large. Saved Data Preview Wall shows
+sampled close-path sparklines for the top visible files with direct Inspect,
+Compare, and Workbench actions. The shortlist ranks the currently visible saved
+files by quality, rows, and recency, then gives direct Inspect, Filter, and
+Compare actions before you need to use the dense table.
 Use Saved Data Explorer when you do not know the symbol yet. It answers which
 asset classes, sources, bar sizes, sessions, quality states, and storage
 contracts are present, with one-click filters for each group.

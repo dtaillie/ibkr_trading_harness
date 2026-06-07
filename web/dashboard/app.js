@@ -10351,6 +10351,7 @@ function renderDataHome(filteredRows = []) {
   renderDataVisibilityReport(filteredRows);
   renderDataHistoryMatrix(filteredRows);
   renderDataUniversePanel();
+  renderDataPreviewWall(filteredRows);
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
 }
@@ -10996,6 +10997,47 @@ function renderDataHomeShortlist(filteredRows = []) {
   }).join("");
 }
 
+function renderDataPreviewWall(filteredRows = []) {
+  const container = $("data-preview-wall");
+  if (!container || !$("data-preview-wall-note")) return;
+  const rows = recommendedDataRows(filteredRows).slice(0, 8);
+  const total = (filteredRows.length ? filteredRows : (state.dataCatalog.datasets || [])).length;
+  $("data-preview-wall-note").textContent = rows.length
+    ? `${numberText(rows.length, 0)} preview${rows.length === 1 ? "" : "s"} from ${numberText(total, 0)} visible saved file${total === 1 ? "" : "s"}`
+    : "No saved files are currently visible for preview";
+  if (!rows.length) {
+    container.innerHTML = `<div class="empty-card"><strong>No saved-data previews</strong><span>Configure data roots, clear filters, or fetch historical data to populate this wall.</span></div>`;
+    return;
+  }
+  container.innerHTML = rows.map((dataset) => {
+    const symbol = text(dataset.symbol);
+    const exactMatches = (symbolBrowserGroups().get(symbol) || []).filter((item) => item.path);
+    const compareDisabled = exactMatches.length < 2 ? " disabled" : "";
+    const previewReturn = previewCloseReturn(dataset.preview || []);
+    const returnLabel = Number.isFinite(previewReturn) ? pctText(previewReturn) : "n/a";
+    return `
+      <div class="data-preview-card">
+        <div class="data-preview-card-head">
+          <span class="eyebrow">${escapeHtml(text(dataset.asset_class))} / ${escapeHtml(text(dataset.source))}</span>
+          <strong>${escapeHtml(symbol)}</strong>
+          <small>${escapeHtml(text(dataset.bar_size))} / ${escapeHtml(text(dataset.storage_session))} / ${escapeHtml(numberText(dataset.rows, 0))} rows</small>
+        </div>
+        <div class="data-preview-spark">${miniChart(dataset.preview || [])}</div>
+        <div class="data-preview-card-meta">
+          <span>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</span>
+          <span>preview return ${escapeHtml(returnLabel)}</span>
+          <span>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings)}</span>
+        </div>
+        <div class="data-shortlist-actions">
+          <button type="button" data-home-action="inspect" data-path="${escapeHtml(dataset.path)}" data-symbol="${escapeHtml(symbol)}">Inspect</button>
+          <button type="button" class="secondary" data-home-action="workbench" data-path="${escapeHtml(dataset.path)}" data-symbol="${escapeHtml(symbol)}">Workbench</button>
+          <button type="button" class="secondary" data-home-action="compare" data-symbol="${escapeHtml(symbol)}"${compareDisabled}>Compare</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
   const rootPath = text(root.display_path || root.path);
   const rootPathLower = rootPath.toLowerCase();
@@ -11371,6 +11413,15 @@ async function handleDataHomeShortlistAction(target) {
   }
   if (action === "compare") {
     await compareSelectedSymbolDatasets();
+  }
+  if (action === "workbench") {
+    const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
+    const dataset = (state.dataCatalog.datasets || []).find((item) => item.path === path) || bestCatalogDatasetForSymbol(symbol);
+    if (!dataset || !dataset.path) {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">No Workbench-ready file for ${escapeHtml(symbol || "selected symbol")}</span>`;
+      return;
+    }
+    selectCatalogDatasetInWorkbench(dataset);
   }
   if (action === "diagnose") {
     if (!symbol) {
@@ -22832,6 +22883,13 @@ function init() {
   $("data-home-open-fetch").addEventListener("click", () => navigateToView("fetch"));
   $("overview-open-source").addEventListener("click", openOverviewSourceDetail);
   $("data-home-shortlist").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataHomeShortlistAction(target).catch((err) => {
+      $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-preview-wall").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataHomeShortlistAction(target).catch((err) => {

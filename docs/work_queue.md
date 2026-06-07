@@ -1086,6 +1086,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Home now shows a ranked shortlist of currently visible
       saved files with direct Inspect, Filter, and Compare actions, so users can
       start from recommended catalog rows before using dense tables.
+    - partial; Data Home now includes a Saved Data Preview Wall with sampled
+      close-path sparklines, range/source/bar/readiness context, and direct
+      Inspect/Compare/Workbench actions for the top visible saved files.
     - partial; Data Home now includes a Universe Coverage panel summarizing the
       scanned symbol universe by file/row count, latest saved timestamp,
       sources, assets, bar sizes, storage sessions, replay-readiness, and
