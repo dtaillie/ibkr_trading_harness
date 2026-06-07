@@ -482,6 +482,10 @@ translations, not stable performance estimates.
 Open Operations Home first. It summarizes local paper-monitor readiness,
 Gateway/API reachability, remote-node freshness, command-audit integrity and
 signature state, and current alerts before the detailed tables.
+Read Operations Evidence beside it when you need the proof chain rather than
+just the route. It states whether current state is backed by local runner/paper
+telemetry, Gateway/API checks, remote-node snapshots, command-audit integrity,
+control queue rows, and alerts, then points to the next Operations lens.
 
 Then open Remote Nodes to inspect sanitized latest status snapshots from local
 or hosted status publishers. Use Export Nodes CSV for an offline table of

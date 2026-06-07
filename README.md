@@ -281,6 +281,10 @@ draft state, latest runs, and next action before the dense draft/run tables.
 Operations Remote includes a copyable Remote
 Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
 alerts, open orders, stale data/account timestamps, and next actions.
+Operations Home includes an Operations Evidence panel that separates local
+runner/paper proof, Gateway/API proof, remote snapshots, command-audit state,
+control queue pressure, alerts, and the next operational drilldown before
+users open the lower tables.
 Operations Control includes Command Safety Review before the raw command form,
 summarizing target-node state, read-only/control/launcher action classes,
 confirmation requirements, pending/failed command pressure, audit integrity,

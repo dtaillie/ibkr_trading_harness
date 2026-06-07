@@ -317,6 +317,10 @@ read Cloud Deployment Readiness. It summarizes remote-monitor evidence,
 command-audit integrity, local-only trading authority, authentication, network
 boundary, retention, current alerts, and the remaining manual provider
 hardening review.
+On Operations Home, read Operations Evidence when the question is what proof is
+available right now. It separates local runner/paper observation, Gateway/API
+reachability, remote snapshots, command-audit integrity, control queue state,
+alerts, and the next route to inspect.
 Before queueing any command, open Operations Control and read Command Safety
 Review. It summarizes target-node state, command risk classes, confirmation
 requirements, pending/failed commands, audit integrity, retention, selected

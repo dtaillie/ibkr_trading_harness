@@ -50,6 +50,7 @@ const state = {
   performanceBenchmarkDetail: null,
   workbenchEvidenceText: "",
   fetchEvidenceText: "",
+  operationsEvidenceText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -22921,6 +22922,7 @@ function renderOperationsHome() {
     </div>
   `).join("");
   renderOperationsReadinessPanel(model);
+  renderOperationsEvidence(model);
   renderOperationsWorkflowLauncher();
 }
 
@@ -23015,6 +23017,197 @@ function renderOperationsReadinessPanel(model = operationsHomeState()) {
     `<a class="secondary" href="#operations/control">Control</a>`,
     `<a class="secondary" href="#operations/diagnostics">Diagnostics</a>`,
   ].join("");
+}
+
+function operationsEvidenceModel(model = operationsHomeState()) {
+  const status = state.status || {};
+  const gateway = status.gateway || {};
+  const alerts = status.alerts || [];
+  const paperItems = paperMonitorItems();
+  const paperBad = paperItems.filter((item) => item.status === "bad");
+  const paperWarn = paperItems.filter((item) => item.status === "warn");
+  const paperObservation = paperObservationPacketModel();
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const staleRemote = staleRemoteNodes(remoteNodes);
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const remoteGatewayDown = remoteNodes.filter((node) => node.gateway_reachable === false);
+  const commandAudit = state.commandAudit || {};
+  const auditEvents = commandAudit.events || [];
+  const integrity = commandAudit.integrity || {};
+  const localRemote = status.remote_control || {};
+  const localIntegrity = localRemote.integrity || {};
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failedResults = results.filter((result) => commandStatusIsFailed(result.status));
+  const latestRun = latestTelemetryRun();
+  const supervisor = latestSupervisor();
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const auditStatus = (model.tiles.find((tile) => tile.label === "Audit") || {}).status || "warn";
+  const remoteStatus = remoteNodes.length
+    ? staleRemote.length || remoteGatewayDown.length ? "bad" : remoteAlerts ? "warn" : "ok"
+    : "warn";
+  const queueStatus = failedResults.length ? "bad" : pendingCommands.length ? "warn" : commands.length || results.length ? "ok" : "warn";
+  const cards = [
+    {
+      status: paperBad.length ? "bad" : paperWarn.length ? "warn" : "ok",
+      label: "Paper Proof",
+      title: paperBad.length ? `${numberText(paperBad.length, 0)} blockers` : paperWarn.length ? `${numberText(paperWarn.length, 0)} warnings` : "Ready",
+      note: `${numberText(paperItems.length, 0)} checks; ${paperObservation.title}.`,
+    },
+    {
+      status: gatewayStatus,
+      label: "Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      note: gateway.enabled
+        ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "" : `${gateway.latency_ms}ms`}`
+        : "Reachability check is disabled.",
+    },
+    {
+      status: remoteStatus,
+      label: "Remote Proof",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} nodes` : "No Nodes",
+      note: remoteNodes.length
+        ? `${numberText(staleRemote.length, 0)} stale / ${numberText(remoteGatewayDown.length, 0)} Gateway down / ${numberText(remoteAlerts, 0)} alerts.`
+        : "No sanitized remote status snapshots loaded.",
+    },
+    {
+      status: auditStatus,
+      label: "Audit Chain",
+      title: auditStatus === "bad" ? "Broken" : auditStatus === "warn" ? "Review" : "OK",
+      note: `${numberText(auditEvents.length, 0)} events; receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")}.`,
+    },
+    {
+      status: queueStatus,
+      label: "Control Queue",
+      title: pendingCommands.length ? `${numberText(pendingCommands.length, 0)} pending` : failedResults.length ? `${numberText(failedResults.length, 0)} failed` : commands.length || results.length ? "Visible" : "Empty",
+      note: `${numberText(commands.length, 0)} queued / ${numberText(results.length, 0)} results.`,
+    },
+    {
+      status: alerts.length ? "warn" : "ok",
+      label: "Alerts",
+      title: numberText(alerts.length, 0),
+      note: alerts.length ? text(alerts[0].kind || alerts[0].category || alerts[0].message) : "No current local alerts.",
+    },
+  ];
+  const lines = [
+    {
+      status: latestRun ? paperObservation.status : "bad",
+      title: "Local Runner Evidence",
+      detail: latestRun
+        ? `Run ${text(latestRun.id)} status=${text(latestRun.status)}; paper observer ${text(paperObservation.title)}; supervisor ${supervisor ? `${text(supervisor.id)} ${timestampAgeLabel(supervisor.generated_at)}` : "not visible"}.`
+        : "No current runner telemetry is publishing into the dashboard.",
+    },
+    {
+      status: gatewayStatus,
+      title: "Gateway/API Evidence",
+      detail: gateway.enabled
+        ? gateway.reachable
+          ? `Gateway reachable at ${text(gateway.host)}:${text(gateway.port)} with latency ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "n/a" : `${gateway.latency_ms} ms`}.`
+          : `Gateway check failed: ${text(gateway.error || "not reachable")}.`
+        : "Gateway reachability is disabled; this is acceptable for offline replay but not enough for paper/live monitoring.",
+    },
+    {
+      status: paperBad.length ? "bad" : paperWarn.length ? "warn" : "ok",
+      title: "Paper Readiness Evidence",
+      detail: paperBad.length
+        ? `${numberText(paperBad.length, 0)} blocker${paperBad.length === 1 ? "" : "s"}: ${paperBad.slice(0, 3).map((item) => text(item.label)).join(", ")}.`
+        : paperWarn.length
+          ? `${numberText(paperWarn.length, 0)} warning${paperWarn.length === 1 ? "" : "s"}: ${paperWarn.slice(0, 3).map((item) => text(item.label)).join(", ")}.`
+          : "Paper readiness checks have no visible blockers.",
+    },
+    {
+      status: remoteStatus,
+      title: "Remote Monitoring Evidence",
+      detail: remoteNodes.length
+        ? `${numberText(remoteNodes.length, 0)} node${remoteNodes.length === 1 ? "" : "s"}; ${numberText(staleRemote.length, 0)} stale heartbeat${staleRemote.length === 1 ? "" : "s"}; ${numberText(remoteGatewayDown.length, 0)} remote Gateway blocker${remoteGatewayDown.length === 1 ? "" : "s"}; ${numberText(remoteAlerts, 0)} remote alert${remoteAlerts === 1 ? "" : "s"}.`
+        : "No remote monitoring snapshots have been posted; publish sanitized status before relying on cloud checking.",
+    },
+    {
+      status: auditStatus,
+      title: "Command Audit Evidence",
+      detail: `${numberText(auditEvents.length, 0)} receiver event${auditEvents.length === 1 ? "" : "s"}; receiver integrity ${text(integrity.status || "n/a")}; receiver signature ${text(integrity.signature_status || "n/a")}; local integrity ${text(localIntegrity.status || "n/a")}; local signature ${text(localIntegrity.signature_status || "n/a")}.`,
+    },
+    {
+      status: queueStatus,
+      title: "Control Queue Evidence",
+      detail: `${numberText(pendingCommands.length, 0)} pending command${pendingCommands.length === 1 ? "" : "s"}; ${numberText(failedResults.length, 0)} failed result${failedResults.length === 1 ? "" : "s"}; ${numberText(commands.length, 0)} total queued command${commands.length === 1 ? "" : "s"}.`,
+    },
+    {
+      status: alerts.length ? "warn" : "ok",
+      title: "Alert Evidence",
+      detail: alerts.length
+        ? `${numberText(alerts.length, 0)} local alert${alerts.length === 1 ? "" : "s"} visible; latest ${text(alerts[0].kind || alerts[0].category || alerts[0].message)}.`
+        : "No local alerts are visible in the current status payload.",
+    },
+  ];
+  const blockers = cards.filter((card) => card.status === "bad").length;
+  const warnings = cards.filter((card) => card.status === "warn").length + lines.filter((line) => line.status === "warn").length;
+  const actionLabels = {
+    paper: "Review Paper",
+    remote: "Review Remote",
+    audit: "Review Audit",
+    gateway: "Review Gateway",
+  };
+  return {
+    status: blockers ? "bad" : warnings ? "warn" : "ok",
+    headline: model.result,
+    note: `${model.note} Evidence: ${numberText(blockers, 0)} blocker${blockers === 1 ? "" : "s"} / ${numberText(warnings, 0)} review item${warnings === 1 ? "" : "s"}.`,
+    cards,
+    lines,
+    next: {
+      action: model.nextAction || "paper",
+      label: actionLabels[model.nextAction] || "Review Paper",
+    },
+  };
+}
+
+function operationsEvidenceText(model) {
+  return [
+    `Operations Evidence: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((item) => `${item.title}: ${item.detail}`),
+  ].join("\n");
+}
+
+function renderOperationsEvidence(model = operationsHomeState()) {
+  if (!$("operations-evidence-note") || !$("operations-evidence-cards") || !$("operations-evidence-body") || !$("operations-evidence-actions")) return;
+  const evidence = operationsEvidenceModel(model);
+  state.operationsEvidenceText = operationsEvidenceText(evidence);
+  $("operations-evidence-note").textContent = evidence.note;
+  $("operations-evidence-cards").innerHTML = evidence.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("operations-evidence-body").innerHTML = evidence.lines.map((item) => `
+    <article class="performance-report-line status-${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </article>
+  `).join("");
+  $("operations-evidence-actions").innerHTML = [
+    `<button type="button" data-operations-evidence-action="copy">Copy Evidence</button>`,
+    `<button type="button" class="secondary" data-operations-evidence-action="${escapeHtml(evidence.next.action)}">${escapeHtml(evidence.next.label)}</button>`,
+    `<button type="button" class="secondary" data-operations-evidence-action="paper">Paper</button>`,
+    `<button type="button" class="secondary" data-operations-evidence-action="remote">Remote</button>`,
+    `<button type="button" class="secondary" data-operations-evidence-action="audit">Audit</button>`,
+    `<button type="button" class="secondary" data-operations-evidence-action="gateway">Gateway</button>`,
+  ].join("");
+}
+
+function handleOperationsEvidenceAction(action) {
+  if (action === "copy") {
+    copyText(state.operationsEvidenceText || "No operations evidence loaded").then(() => {
+      $("last-refresh").textContent = "Operations evidence copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Operations evidence copy failed: ${err.message}`;
+    });
+    return;
+  }
+  handleOperationsHomeAction(action || "paper");
 }
 
 function operationsWorkflowCards() {
@@ -26361,6 +26554,11 @@ function init() {
       handleOperationsHomeAction(button.dataset.operationsHomeAction || "");
     });
   }
+  $("operations-evidence-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-operations-evidence-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleOperationsEvidenceAction(target.dataset.operationsEvidenceAction || "");
+  });
   $("control-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-control-assistant-action]") : null;
     if (!(target instanceof HTMLElement)) return;
