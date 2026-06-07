@@ -3343,6 +3343,49 @@ section {
   text-align: right;
 }
 
+.data-readiness-cell {
+  min-width: 170px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--soft-panel);
+}
+
+.data-readiness-cell strong,
+.data-readiness-cell span,
+.data-readiness-cell small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.data-readiness-cell strong {
+  font-size: 12px;
+}
+
+.data-readiness-cell span,
+.data-readiness-cell small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.data-readiness-cell.status-ok {
+  border-left-color: var(--gain);
+  background: var(--status-ok-bg);
+}
+
+.data-readiness-cell.status-warn {
+  border-left-color: var(--warning);
+  background: var(--status-warn-bg);
+}
+
+.data-readiness-cell.status-bad {
+  border-left-color: var(--loss);
+  background: var(--status-bad-bg);
+}
+
 .checklist {
   display: grid;
   gap: 8px;

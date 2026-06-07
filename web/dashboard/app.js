@@ -8990,6 +8990,39 @@ function replayStarterCommand(detail) {
   ].join("\n");
 }
 
+function dataReplayReadiness(dataset) {
+  const quality = text(dataset.quality_status).toLowerCase();
+  const contract = text(dataset.storage_contract_status).toLowerCase();
+  const adjustment = text(dataset.adjustment_status).toLowerCase();
+  const timezone = text(dataset.source_timezone).toLowerCase();
+  const missing = finiteNumber(dataset.estimated_missing_intervals) || 0;
+  const warnings = [
+    ...(Array.isArray(dataset.quality_warnings) ? dataset.quality_warnings : []),
+    ...(Array.isArray(dataset.storage_contract_warnings) ? dataset.storage_contract_warnings : []),
+  ].map(text).filter((item) => item && item !== "n/a");
+  const reviewReasons = [];
+  if (missing > 0) reviewReasons.push(`${numberText(missing, 0)} missing interval${missing === 1 ? "" : "s"}`);
+  if (!timezone || timezone === "unknown" || timezone === "n/a") reviewReasons.push("unknown source timezone");
+  if (adjustment === "unknown") reviewReasons.push("unknown adjustment metadata");
+  if (warnings.length) reviewReasons.push(warnings[0]);
+  const status = quality === "bad" || contract === "bad"
+    ? "bad"
+    : quality === "warn" || contract === "warn" || reviewReasons.length
+      ? "warn"
+      : "ok";
+  const title = status === "ok" ? "Replay Ready" : status === "bad" ? "Blocked" : "Review";
+  const detail = status === "ok"
+    ? "No catalog quality or storage-contract warnings."
+    : reviewReasons.slice(0, 2).join("; ") || "Review quality and storage-contract metadata.";
+  return `
+    <div class="data-readiness-cell ${escapeHtml(statusClass(status))}">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(detail)}</span>
+      <small>${escapeHtml(`tz ${text(dataset.source_timezone)} / adjust ${text(dataset.adjustment_status)}`)}</small>
+    </div>
+  `;
+}
+
 function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -9019,6 +9052,7 @@ function renderDataCatalog() {
         escapeHtml(dataset.estimated_missing_intervals),
         qualityBadge(dataset.quality_status, dataset.quality_warnings),
         qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings),
+        dataReplayReadiness(dataset),
         escapeHtml(dataset.source_timezone),
         miniChart(dataset.preview || []),
         escapeHtml(bytes(dataset.size_bytes)),
@@ -9027,8 +9061,8 @@ function renderDataCatalog() {
         `<span class="button-pair"><button type="button" class="secondary inspect-data" data-path="${escapeHtml(dataset.path)}">Inspect</button><button type="button" class="secondary copy-data-path-row" data-path="${escapeHtml(dataset.path)}">Copy Path</button></span>`,
       ])).join("")
     : firstCatalogLoad
-      ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
-      : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+      ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+      : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,

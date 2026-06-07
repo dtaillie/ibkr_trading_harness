@@ -847,6 +847,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
     - partial; Data Library rows now expose inferred storage session and
       adjustment metadata alongside source timezone.
+    - partial; Saved Data rows now include a synthesized Replay readiness cell
+      that combines quality, storage-contract status, missing-interval pressure,
+      source timezone, and adjustment metadata, so per-file replay screening no
+      longer requires mentally joining several dense columns.
     - partial; Saved Data filters now include storage session, so users can
       narrow detailed rows to RTH, extended-hours, 24/7 crypto, or unknown
       files without relying on text search.
