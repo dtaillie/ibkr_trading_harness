@@ -346,7 +346,10 @@ Max Rows, Clear Filters, Browse Symbols, Diagnostics, Copy Root YAML, and
 Refresh Catalog actions. Core dashboard status renders before expensive
 saved-data scans finish; the catalog loads in the background and heavier
 coverage/gap/storage diagnostics are lazy until the Data Diagnostics lens is
-opened. Use Storage Audit to compare CSV/parquet files on disk
+opened. In the Saved Data table, the Replay column is the quickest per-file
+screen: it synthesizes quality, storage-contract metadata, missing intervals,
+source timezone, and adjustment metadata before you inspect or simulate that
+file. Use Storage Audit to compare CSV/parquet files on disk
 against the catalog-visible rows, including suggested roots that are not
 currently configured. Use Export Audit CSV to download that root-by-root
 comparison for offline review; the audit includes per-root scan duration so
@@ -479,6 +482,9 @@ Use Inspect on a saved dataset row to load a local-only detail view with a
 range-filtered sampled or full-in-range price path, volume bars, timestamp
 coverage, gap rows, null counts, price/return stats, volume stats, and a
 compact ok/warn/bad quality summary.
+Use the row's Replay cell first when scanning many files; it combines the
+catalog's quality, storage-contract, missing-interval, timezone, and adjustment
+metadata into one readiness callout.
 Use Saved Data Explorer before choosing a row when you do not yet know which
 symbol or source matters; it shows whether the local catalog is mostly stocks,
 crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or warning-heavy
