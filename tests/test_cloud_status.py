@@ -1407,6 +1407,10 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
                 assert "Fly.io" in body
                 assert "Render deployments" in body
                 assert "Reload Reverse Proxies And Firewalls" in body
+            if name == "cloud_monitoring_deployment.md":
+                assert "retention_policy" in body
+                assert "Off-host cards" in body
+                assert "not_verified" in body
 
         for path in ["/docs/../README.md", "/docs/not_allowlisted.md"]:
             try:
@@ -5241,6 +5245,9 @@ def test_cloud_status_server_command_queue(tmp_path):
         assert audit["integrity"]["status"] == "ok"
         assert audit["integrity"]["checked_records"] == 2
         assert audit["integrity"]["signature_status"] == "disabled"
+        assert audit["retention_policy"]["status"] == "local_hash_chain"
+        assert audit["retention_policy"]["off_host_retention_verified"] is False
+        assert audit["retention_policy"]["off_host_sync_helper"] == "ops/cloud/sync-command-audit.example.sh"
         assert audit["events"][0]["record_hash"]
         assert audit["events"][1]["prev_hash"] == audit["events"][0]["record_hash"]
     finally:
@@ -5332,6 +5339,10 @@ def test_cloud_status_server_command_audit_endpoint_reports_signed_rows(tmp_path
         assert audit["integrity"]["status"] == "ok"
         assert audit["integrity"]["signature_status"] == "ok"
         assert audit["integrity"]["signed_records"] == 1
+        assert audit["retention_policy"]["status"] == "signed_local"
+        assert audit["retention_policy"]["signature_configured"] is True
+        assert audit["retention_policy"]["off_host_status"] == "not_verified"
+        assert "aws-s3-command-audit-retention.example.tf" in " ".join(audit["retention_policy"]["provider_retention_examples"])
         assert audit["events"][0]["row_signature"]
 
         with request.urlopen(f"{base}/command_audit_export?node_id=test-node&limit=10", timeout=5) as resp:
@@ -5344,6 +5355,9 @@ def test_cloud_status_server_command_audit_endpoint_reports_signed_rows(tmp_path
         assert rows[0]["integrity_status"] == "ok"
         assert rows[0]["signature_status"] == "ok"
         assert rows[0]["signed_records"] == "1"
+        assert rows[0]["retention_status"] == "signed_local"
+        assert rows[0]["off_host_retention_verified"] == "False"
+        assert rows[0]["off_host_sync_helper"] == "ops/cloud/sync-command-audit.example.sh"
         assert rows[0]["row_signature"]
     finally:
         server.shutdown()

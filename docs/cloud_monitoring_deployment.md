@@ -319,6 +319,13 @@ outside the repo and rotate it like any other service secret.
 Use the Operations Export Audit CSV action when you need the bounded sanitized
 audit rows and the current integrity/signature summary in one offline file.
 
+`/command_audit` also returns a `retention_policy` payload. It separates local
+hash-chain evidence from HMAC-signed local rows and from off-host immutable
+retention, which remains `not_verified` until a provider retention setup is
+applied and checked in a real account. The Operations dashboard renders this as
+separate Retention and Off-host cards, and `/command_audit_export` includes the
+retention status and dry-run sync helper path in the CSV.
+
 This is tamper-evident for local file edits after the fact. It is still not a
 substitute for off-host immutable storage or provider-level retention controls;
 ship or back up the audit file to storage whose write permissions are separate

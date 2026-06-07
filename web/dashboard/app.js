@@ -16505,16 +16505,20 @@ function renderResults() {
 function renderCommandAudit() {
   const events = (state.commandAudit && state.commandAudit.events) || [];
   const integrity = (state.commandAudit && state.commandAudit.integrity) || {};
+  const retention = (state.commandAudit && state.commandAudit.retention_policy) || {};
   const signatureText = integrity.signature_status
     ? `signature ${integrity.signature_status}${integrity.signature_key_env ? ` via ${integrity.signature_key_env}` : ""}; signed ${numberText(integrity.signed_records, 0)} / unsigned ${numberText(integrity.unsigned_records, 0)}`
     : "signature not loaded";
   const integrityText = integrity.status
     ? `Integrity ${integrity.status}; checked ${numberText(integrity.checked_records, 0)} hashed records; ${signatureText}`
     : "Integrity not loaded";
+  const retentionText = retention.status
+    ? ` Retention ${text(retention.status)}: ${text(retention.summary)}`
+    : "";
   $("command-audit-note").textContent = events.length
-    ? `${events.length} latest sanitized command audit events. ${integrityText}`
-    : `No command audit events have been recorded yet. ${integrityText}`;
-  renderCommandAuditHealth(events, integrity);
+    ? `${events.length} latest sanitized command audit events. ${integrityText}${retentionText}`
+    : `No command audit events have been recorded yet. ${integrityText}${retentionText}`;
+  renderCommandAuditHealth(events, integrity, retention);
   $("command-audit-body").innerHTML = events.length
     ? events.slice(-30).reverse().map((event) => row([
         escapeHtml(event.audited_at),
@@ -16530,7 +16534,7 @@ function renderCommandAudit() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function renderCommandAuditHealth(events = [], integrity = {}) {
+function renderCommandAuditHealth(events = [], integrity = {}, retention = {}) {
   if (!$("command-audit-health")) return;
   const latest = events.slice().reverse()[0] || events[0] || null;
   const status = text(integrity.status || "unknown");
@@ -16540,6 +16544,7 @@ function renderCommandAuditHealth(events = [], integrity = {}) {
   const unsigned = Number(integrity.unsigned_records || 0);
   const legacy = Number(integrity.legacy_records || 0);
   const signatureTotal = signed + unsigned;
+  const retentionStatus = text(retention.status || "not_loaded");
   const cards = [
     {
       status: status === "ok" ? "ok" : checked ? "bad" : "warn",
@@ -16564,10 +16569,18 @@ function renderCommandAuditHealth(events = [], integrity = {}) {
         : "No sanitized command audit rows are loaded.",
     },
     {
-      status: integrity.off_host_retention === true ? "ok" : "warn",
+      status: retentionStatus === "blocked" ? "bad" : "warn",
       label: "Retention",
-      title: integrity.off_host_retention === true ? "Off-host" : "Local",
-      note: "Export CSV or use ops/cloud/sync-command-audit.example.sh for dry-run-first off-host retention.",
+      title: retentionStatus,
+      note: retention.summary || "Export CSV or use ops/cloud/sync-command-audit.example.sh for dry-run-first off-host retention.",
+    },
+    {
+      status: retention.off_host_retention_verified ? "ok" : "warn",
+      label: "Off-host",
+      title: retention.off_host_retention_verified ? "Verified" : text(retention.off_host_status || "not_verified"),
+      note: retention.off_host_sync_helper
+        ? `Use ${text(retention.off_host_sync_helper)}; provider retention examples must be verified in a real account.`
+        : "No off-host retention policy is loaded.",
     },
   ];
   $("command-audit-health").innerHTML = cards.map((card) => `

@@ -1794,6 +1794,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     `/command_audit_export`, so bounded sanitized queue/cancel/result audit rows
     can be reviewed offline with the current hash-chain and signature status
     columns.
+  - progress; `/command_audit` now returns an explicit retention policy that
+    distinguishes local hash-chain evidence, HMAC-signed local rows, and
+    unverified off-host immutable retention. Operations renders that retention
+    status separately from hash/signature health, and audit CSV exports include
+    retention status, summary, off-host verification state, and the dry-run
+    sync helper path.
   - partial; public cloud examples now include
     `ops/cloud/sync-command-audit.example.sh` for dry-run-first upload of the
     server-side command audit JSONL to separate object storage. Actual

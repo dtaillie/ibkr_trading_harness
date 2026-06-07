@@ -8993,12 +8993,79 @@ COMMAND_AUDIT_EXPORT_FIELDS = (
     "signed_records",
     "unsigned_records",
     "signature_key_env",
+    "retention_status",
+    "retention_summary",
+    "off_host_retention_verified",
+    "off_host_sync_helper",
     "hash_algorithm",
     "prev_hash",
     "record_hash",
     "signature_algorithm",
     "row_signature",
 )
+
+
+def command_audit_retention_policy(
+    state_dir: Path,
+    *,
+    integrity: dict[str, Any] | None = None,
+    signature_env: str | None = None,
+) -> dict[str, Any]:
+    integrity = integrity or verify_command_audit(state_dir, signature_env=signature_env)
+    signature_status = str(integrity.get("signature_status") or "disabled")
+    hash_status = str(integrity.get("status") or "unknown")
+    checked = int(integrity.get("checked_records") or 0)
+    signature_configured = bool(signature_env)
+    off_host_verified = False
+    if hash_status == "bad" or signature_status in {"bad", "missing_key"}:
+        status = "blocked"
+    elif checked <= 0:
+        status = "not_started"
+    elif signature_configured and signature_status == "ok":
+        status = "signed_local"
+    else:
+        status = "local_hash_chain"
+    summary_by_status = {
+        "blocked": "Audit integrity or signature verification has a blocker; fix it before relying on retention.",
+        "not_started": "No command-audit rows have been hash-checked yet.",
+        "signed_local": "Rows are locally hash-chained and HMAC-signed; off-host immutable retention is still unverified.",
+        "local_hash_chain": "Rows are locally hash-chained; configure HMAC signing and off-host retention for stronger evidence.",
+    }
+    return {
+        "schema_version": 1,
+        "status": status,
+        "summary": summary_by_status[status],
+        "local_path": display_path(command_audit_path(state_dir)),
+        "local_hash_chain_status": hash_status,
+        "checked_records": checked,
+        "signature_status": signature_status,
+        "signature_configured": signature_configured,
+        "signature_key_env": integrity.get("signature_key_env") or signature_env,
+        "off_host_retention_verified": off_host_verified,
+        "off_host_status": "not_verified",
+        "off_host_sync_helper": "ops/cloud/sync-command-audit.example.sh",
+        "provider_retention_examples": [
+            "ops/cloud/aws-s3-command-audit-retention.example.tf",
+            "ops/cloud/gcp-gcs-command-audit-retention.example.tf",
+            "ops/cloud/azure-blob-command-audit-retention.example.tf",
+        ],
+        "included": [
+            "sanitized queue/cancel/result audit rows",
+            "hash-chain metadata",
+            "optional HMAC row signatures",
+            "bounded dashboard/API/CSV audit views",
+        ],
+        "not_proven": [
+            "provider object-lock or retention policy has been applied",
+            "off-host sync has completed",
+            "local administrator tamper resistance",
+        ],
+        "next_steps": [
+            "Set dashboard.command_audit_signature_env and keep the HMAC secret in the environment.",
+            "Run ops/cloud/sync-command-audit.example.sh in dry-run mode.",
+            "Apply a provider retention example in a real account and verify object lock/versioning.",
+        ],
+    }
 
 
 def build_command_audit_csv(
@@ -9009,6 +9076,7 @@ def build_command_audit_csv(
     signature_env: str | None = None,
 ) -> str:
     integrity = verify_command_audit(state_dir, signature_env=signature_env)
+    retention = command_audit_retention_policy(state_dir, integrity=integrity, signature_env=signature_env)
     rows = load_command_audit(state_dir, node_id=node_id or None, limit=limit)
     shared = {
         "integrity_status": integrity.get("status"),
@@ -9018,6 +9086,10 @@ def build_command_audit_csv(
         "signed_records": integrity.get("signed_records"),
         "unsigned_records": integrity.get("unsigned_records"),
         "signature_key_env": integrity.get("signature_key_env"),
+        "retention_status": retention.get("status"),
+        "retention_summary": retention.get("summary"),
+        "off_host_retention_verified": retention.get("off_host_retention_verified"),
+        "off_host_sync_helper": retention.get("off_host_sync_helper"),
     }
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=COMMAND_AUDIT_EXPORT_FIELDS, extrasaction="ignore")
@@ -9807,6 +9879,10 @@ class StatusHandler(BaseHTTPRequestHandler):
                 {
                     "events": load_command_audit(self.state_dir, node_id=node_id, limit=limit),
                     "integrity": verify_command_audit(self.state_dir, signature_env=self.command_audit_signature_env),
+                    "retention_policy": command_audit_retention_policy(
+                        self.state_dir,
+                        signature_env=self.command_audit_signature_env,
+                    ),
                 },
             )
             return
