@@ -17904,6 +17904,8 @@ function renderArtifactPluginBoundary(artifacts) {
   const contractObserved = (contract.observed || {});
   const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
   const resultFields = (plugin.result_fields || []).filter((field) => field && field.name);
+  const resultSections = (plugin.result_sections || []).filter((section) => section && section.id);
+  const resultWidgets = (plugin.result_widgets || []).filter((widget) => widget && widget.id);
   const declared = Number(summary.declared_field_count ?? resultFields.length);
   const emittedFields = Number(summary.emitted_field_count || 0);
   const emittedValues = Number(summary.emitted_value_count || 0);
@@ -18003,6 +18005,12 @@ function renderArtifactPluginBoundary(artifacts) {
       label: section.label,
       fields: section.fields,
     })), resultSections.length ? resultSections.map((section) => text(section.label || section.id)).join(", ") : "none"), true],
+    ["Result Widgets", jsonDrilldown(resultWidgets.map((widget) => ({
+      id: widget.id,
+      label: widget.label,
+      kind: widget.kind,
+      fields: widget.fields,
+    })), resultWidgets.length ? resultWidgets.map((widget) => `${text(widget.label || widget.id)} (${text(widget.kind)})`).join(", ") : "none"), true],
     ["Result Coverage", `${coverage}; ${numberText(decisionCount, 0)} decision${decisionCount === 1 ? "" : "s"} loaded`],
     ["Observed Dashboard Keys", jsonDrilldown(contractKeys, contractKeys.length ? contractKeys.join(", ") : "none"), true],
     ["Unlabeled Keys", jsonDrilldown(unlabeledKeys, unlabeledKeys.length ? unlabeledKeys.join(", ") : "none"), true],
@@ -18016,6 +18024,7 @@ function renderArtifactPluginCoverage(artifacts) {
   const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
   const decisionCount = Number(summary.decision_count ?? (artifacts.decisions || []).length);
   renderArtifactPluginResultSections(artifacts, coverageRows, decisionCount);
+  renderArtifactPluginWidgetSummary(artifacts, decisionCount);
   renderArtifactPluginResultWidgets(artifacts, coverageRows, decisionCount);
   renderArtifactPluginResultSnapshot(artifacts, coverageRows, decisionCount);
   renderArtifactPluginDisplayPlan(artifacts, coverageRows, decisionCount);
@@ -18152,6 +18161,87 @@ function pluginResultLineChart(fieldRows = [], label = "plugin result chart") {
     <div class="plugin-widget-line-legend">${legend}</div>
     <small>${escapeHtml(caption)}</small>
   `;
+}
+
+function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
+  if (!$("artifact-plugin-widget-summary")) return;
+  const summary = artifacts.plugin_result_summary || {};
+  const widgets = (summary.widget_coverage || []).filter((widget) => widget && widget.id);
+  const declaredWidgets = ((artifacts.plugin || {}).result_widgets || []).filter((widget) => widget && widget.id);
+  if (!widgets.length && !declaredWidgets.length) {
+    $("artifact-plugin-widget-summary").innerHTML = `
+      <div class="empty-card">
+        <span>Result Widgets</span>
+        <strong>No Widgets Declared</strong>
+        <small>Declare public-safe result_widgets in the plugin registry to render card, table, bar, sparkline, or line-chart artifact summaries.</small>
+      </div>
+    `;
+    return;
+  }
+  const emittedWidgets = widgets.filter((widget) => Number(widget.emitted_field_count || 0) > 0).length;
+  const chartWidgets = widgets.filter((widget) => ["sparkline", "line_chart"].includes(text(widget.kind))).length;
+  const totalFields = widgets.reduce((sum, widget) => sum + Number(widget.field_count || 0), 0);
+  const emittedFields = widgets.reduce((sum, widget) => sum + Number(widget.emitted_field_count || 0), 0);
+  const pointCount = widgets.reduce((sum, widget) => (
+    sum + (widget.field_summaries || []).reduce((inner, field) => inner + (field.points || []).length, 0)
+  ), 0);
+  const incompleteWidgets = widgets.filter((widget) => text(widget.status) !== "ok" || Number(widget.emitted_field_count || 0) < Number(widget.field_count || 0));
+  const kindCounts = widgets.reduce((counts, widget) => {
+    const kind = text(widget.kind || "cards");
+    counts[kind] = (counts[kind] || 0) + 1;
+    return counts;
+  }, {});
+  const coveragePct = totalFields ? (emittedFields / totalFields) * 100 : null;
+  const nextStatus = !decisionCount ? "waiting" : incompleteWidgets.length ? "warn" : emittedWidgets ? "ok" : "bad";
+  const nextTitle = !decisionCount
+    ? "Load Decisions"
+    : incompleteWidgets.length
+      ? "Review Missing Widget Fields"
+      : emittedWidgets
+        ? "Widgets Ready"
+        : "No Widget Values";
+  const nextNote = !decisionCount
+    ? "Widget coverage appears after artifact decisions with matching diagnostics.dashboard fields are loaded."
+    : incompleteWidgets.length
+      ? `${numberText(incompleteWidgets.length, 0)} widget${incompleteWidgets.length === 1 ? "" : "s"} have missing declared fields or non-ok coverage.`
+      : emittedWidgets
+        ? "Declared widgets have emitted public-safe result values."
+        : "Declared widgets exist, but no fields were emitted by loaded decisions.";
+  const cards = [
+    {
+      status: widgets.length ? "ok" : "warn",
+      label: "Declared Widgets",
+      title: numberText(widgets.length || declaredWidgets.length, 0),
+      note: countSummary(kindCounts) || "Widget metadata is declared, but coverage has not been summarized yet.",
+    },
+    {
+      status: emittedWidgets ? "ok" : decisionCount ? "bad" : "waiting",
+      label: "Emitted Widgets",
+      title: `${numberText(emittedWidgets, 0)} / ${numberText(widgets.length || declaredWidgets.length, 0)}`,
+      note: `${numberText(emittedFields, 0)} / ${numberText(totalFields, 0)} declared widget field${totalFields === 1 ? "" : "s"} emitted (${pctText(coveragePct)}).`,
+    },
+    {
+      status: chartWidgets ? pointCount ? "ok" : "warn" : "waiting",
+      label: "Chart Widgets",
+      title: numberText(chartWidgets, 0),
+      note: chartWidgets
+        ? `${numberText(pointCount, 0)} bounded point${pointCount === 1 ? "" : "s"} available for sparkline/line-chart widgets.`
+        : "No sparkline or line-chart widgets declared.",
+    },
+    {
+      status: nextStatus,
+      label: "Next Action",
+      title: nextTitle,
+      note: nextNote,
+    },
+  ];
+  $("artifact-plugin-widget-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${statusText(card.status)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {

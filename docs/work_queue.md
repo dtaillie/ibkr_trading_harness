@@ -1627,6 +1627,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     rejects sections that reference undeclared fields, artifact payloads include
     section-level coverage, and Run Artifacts renders grouped result cards
     before the snapshot and dense coverage tables.
+  - partial; Run Artifacts now summarizes declared `result_widgets` before
+    rendering them, showing widget kinds, emitted-field coverage, sparkline/
+    line-chart point availability, incomplete widgets, and the next action for
+    missing public-safe diagnostics.
 - Add saved draft folders/tags/status labels.
   - done for the Workbench saved-drafts table; draft records now expose folder,
     status label, and tags derived from mode/status/plugin/symbol count, and

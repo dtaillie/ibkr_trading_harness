@@ -392,9 +392,13 @@ should be grouped into public-safe artifact cards. The Plugin Boundary and
 Result Coverage panels show the matched registry plugin, declared public
 inputs/results, emitted result counts, latest declared values, the runner-owned
 `plugin_contract.json` summary, and sanitized
-dashboard keys that are still unlabeled. Plugin Result Display Plan shows how
-each declared result field is presented: field path, order, kind, formatting
-hints, latest formatted value, emitted coverage, and help text.
+dashboard keys that are still unlabeled. Add optional `result_widgets` for
+card, table, bar-summary, sparkline, or line-chart artifact displays. Run
+Artifacts summarizes widget coverage before rendering those widgets, so missing
+public-safe diagnostic fields are visible before dense result tables. Plugin
+Result Display Plan shows how each declared result field is presented: field
+path, order, kind, formatting hints, latest formatted value, emitted coverage,
+and help text.
 
 Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
