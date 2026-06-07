@@ -1516,6 +1516,7 @@ function renderHelpSetupGaps() {
   `).join("");
   renderHelpWorkflowLauncher(items);
   renderHelpNextAssistant(items);
+  renderHelpWorkbenchQuickstart();
 }
 
 function helpWorkflowCards(setupItems = helpSetupGapItems()) {
@@ -1714,6 +1715,117 @@ function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
         <b>${escapeHtml(card.cta)}</b>
       </div>
     </a>
+  `).join("");
+}
+
+function helpWorkbenchQuickstartModel() {
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const selectedDraft = selectedRunDraft();
+  const selectedDraftId = selectedDraft ? selectedDraft.draft_id : draft.name || "";
+  const validation = selectedDraftId ? draftValidationById()[selectedDraftId] : null;
+  const draftValid = draft.validation ? Boolean(draft.validation.valid) : Boolean(validation && validation.valid);
+  const latestRun = latestWorkbenchRunForDraft(selectedDraftId) || ((state.configRuns && state.configRuns.runs) || [])[0] || null;
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const alignmentStatus = alignment.dataset_count
+    ? Number(alignment.common_timestamp_count || 0) > 0
+      ? Number(alignment.warning_count || 0) ? "warn" : "ok"
+      : "bad"
+    : selected.length ? "warn" : "bad";
+  const cards = [
+    {
+      status: datasets.length ? "ok" : "bad",
+      step: "1",
+      title: "Find Saved Data",
+      note: datasets.length
+        ? `${numberText(datasets.length, 0)} catalog-visible files. Start in Data Library and inspect files before simulation.`
+        : "Configure or scan data roots before Workbench can build a useful replay.",
+      href: workflowHref("data", datasets.length ? "browse" : "diagnostics"),
+      cta: "Data",
+    },
+    {
+      status: selected.length ? dataReadiness.status : datasets.length ? "warn" : "bad",
+      step: "2",
+      title: "Select Data Packet",
+      note: selected.length
+        ? `${numberText(selected.length, 0)} selected; ${dataReadiness.summary}.`
+        : "Send files from Data Detail, Data Compare, Fetch Outputs, or the Builder dataset field.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Builder",
+    },
+    {
+      status: alignmentStatus,
+      step: "3",
+      title: "Preview Alignment",
+      note: alignment.dataset_count
+        ? `${numberText(alignment.common_timestamp_count, 0)} common timestamps / ${pctText(alignment.common_coverage_pct)} common coverage.`
+        : "Preview alignment after selecting files and a date range.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Preview",
+    },
+    {
+      status: draft.yaml || drafts.length ? draftValid ? "ok" : "warn" : selected.length ? "warn" : "bad",
+      step: "4",
+      title: "Generate Draft",
+      note: draft.yaml
+        ? draftValid ? "Current generated draft validates cleanly." : "Generated draft needs validation review."
+        : drafts.length ? `${numberText(drafts.length, 0)} saved draft${drafts.length === 1 ? "" : "s"} available.` : "Generate a public-safe draft from selected data, plugin, risk, and cost fields.",
+      href: workflowHref("workbench", "builder"),
+      cta: "Draft",
+    },
+    {
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "bad",
+      step: "5",
+      title: "Run Replay",
+      note: latestRun
+        ? `${text(latestRun.action)} ${text(latestRun.status)} for ${text(latestRun.draft_id || selectedDraftId)}.`
+        : draftValid ? "A valid draft is ready to run from the Run lens." : "Validate a saved draft before running replay or simulated paper.",
+      href: workflowHref("workbench", "run"),
+      cta: "Run",
+    },
+    {
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      step: "6",
+      title: "Open Results",
+      note: hasArtifacts
+        ? "Loaded artifacts are visible in Performance, Runs, and Workbench Artifacts."
+        : latestRun && latestRun.artifact_path ? "A completed run has artifacts; load them before reading performance." : "Results appear after a completed replay/simulated-paper run.",
+      href: workflowHref(hasArtifacts ? "performance" : "workbench", hasArtifacts ? "home" : "artifacts"),
+      cta: hasArtifacts ? "Performance" : "Artifacts",
+    },
+  ];
+  const firstBad = cards.find((card) => card.status === "bad");
+  const firstWarn = cards.find((card) => card.status === "warn");
+  const next = firstBad || firstWarn || cards[cards.length - 1];
+  const note = `${cards.filter((card) => card.status === "ok").length} of ${cards.length} steps ready; next: ${next.title}`;
+  const actions = [
+    next,
+    cards[0],
+    cards[1],
+    cards[4],
+    cards[5],
+  ].filter((card, index, array) => card && array.findIndex((item) => item.title === card.title) === index);
+  return { note, cards, actions };
+}
+
+function renderHelpWorkbenchQuickstart() {
+  if (!$("help-workbench-quickstart-note") || !$("help-workbench-quickstart-cards") || !$("help-workbench-quickstart-actions")) return;
+  const model = helpWorkbenchQuickstartModel();
+  $("help-workbench-quickstart-note").textContent = model.note;
+  $("help-workbench-quickstart-cards").innerHTML = model.cards.map((card) => `
+    <a class="action-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
+      <span>Step ${escapeHtml(card.step)} - ${escapeHtml(statusText(card.status))}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </a>
+  `).join("");
+  $("help-workbench-quickstart-actions").innerHTML = model.actions.map((action, index) => `
+    <a class="${index === 0 ? "" : "secondary"}" href="${escapeHtml(action.href)}">${escapeHtml(index === 0 ? `Next: ${action.cta}` : action.cta)}</a>
   `).join("");
 }
 
@@ -13348,6 +13460,7 @@ function renderConfigLivePanels() {
   renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchGuide();
+  renderHelpWorkbenchQuickstart();
 }
 
 function configPluginStrategyPayload() {
@@ -19502,6 +19615,7 @@ function init() {
     renderWorkbenchRunResult();
     renderWorkbenchRunCommands();
     renderConfigCompatibility();
+    renderHelpWorkbenchQuickstart();
   });
   onOptional("config-plugin", "change", () => {
     renderConfigLivePanels();

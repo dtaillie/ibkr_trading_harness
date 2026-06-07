@@ -1531,6 +1531,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     loaded run identity, return/drawdown evidence, execution counts, plugin
     result-field coverage, rollups, held order previews, and direct
     Performance/Runs/Log/Export actions before dense artifact tables.
+  - partial; Help > Workflows now includes a state-aware Workbench Quickstart
+    that turns saved-data discovery, selected data, alignment, draft generation,
+    run execution, and artifact loading into six status cards with direct jumps
+    to Data Library, Builder, Run, Artifacts, and Performance.
   - partial; before generating a draft, Workbench Selected Data Actions now
     let users re-open the selected file in Data Detail or compare the selected
     files over the configured Workbench date range, closing the loop between
