@@ -519,6 +519,10 @@ strategy-private.
 - Improve visual design:
   - brokerage-app visual rhythm: portfolio value first, concise stats, light
     surfaces, clear green/red performance language, and calm typography
+    - partial; the app shell now has a lighter raised-surface treatment,
+      clearer active navigation, sticky desktop topbar, softened cards/tables,
+      and mobile-safe nav/topbar behavior to make the dashboard feel less like
+      a raw status dump while preserving the existing public-safe layout.
   - modern app-shell layout, restrained cards, clean spacing, readable tables
   - a cleaner top-level hierarchy so users are not forced through dense
     developer tables before seeing performance
