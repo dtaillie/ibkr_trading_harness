@@ -426,6 +426,10 @@ suggested roots; paste the copied `dashboard.data_roots` block into an ignored
 local config and remove any paths you do not want scanned. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
 chunks, errors, produced output files, per-symbol progress, and output paths.
+Start with Fetch Progress Review when a pull is running, partial, or failed:
+it summarizes active jobs, partial/failed manifests, symbol/chunk progress,
+ETA, rolling pace, retry/pacing pressure, output visibility, recovery state,
+and the focus job before the dense table.
 Use Compare from Symbol Browser to preselect matching saved files for a ticker
 and immediately load the normalized saved-data comparison chart.
 The Fetch Workflow checklist turns that manifest state into next actions:

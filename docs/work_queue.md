@@ -1359,6 +1359,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       status/action guidance, distinguishing permission blockers, contract
       fixes, retryable failures, no-data review, and data-root visibility
       fixes.
+    - partial; Fetch Home now includes a Fetch Progress Review that summarizes
+      active, partial, and failed manifests, symbol/chunk progress, ETA and
+      rolling pace, retries, pacing waits, output visibility, recovery state,
+      and a focus job before users open the dense Jobs table.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

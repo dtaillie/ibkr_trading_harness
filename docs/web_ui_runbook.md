@@ -470,6 +470,10 @@ diagnostics.
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
 to inspect completed and active fetches, failed symbols, no-data chunks, output
 files, and generated data-detail links for files under configured data roots.
+Start with Fetch Progress Review when a pull is active, partial, failed, or
+otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
+ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,
+and next action before the dense Jobs table.
 The Fetch Workflow checklist summarizes whether manifest roots are readable,
 whether jobs were found, whether filters are hiding them, whether selected
 outputs are visible in Data Library, and whether the selected job can be

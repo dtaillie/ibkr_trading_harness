@@ -14922,6 +14922,7 @@ function renderFetchJobs() {
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
   renderFetchHealthPanel({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
+  renderFetchProgressReview({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchTriageCards({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchWorkflowLauncher({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchJobsGuide({ manifests, filteredManifests, roots, rootConfigPaths });
@@ -15109,6 +15110,237 @@ function fetchManifestOutputIssueCount(item) {
 
 function fetchManifestLabel(item) {
   return text(item.job_id || item.path || "fetch job");
+}
+
+function fetchProgressJob(manifests = []) {
+  const sorted = (manifests || []).slice().sort((left, right) => {
+    const leftActive = !fetchJobTerminal(left.status);
+    const rightActive = !fetchJobTerminal(right.status);
+    if (leftActive !== rightActive) return rightActive ? 1 : -1;
+    const leftIssue = fetchManifestIssueCount(left) + fetchManifestOutputIssueCount(left);
+    const rightIssue = fetchManifestIssueCount(right) + fetchManifestOutputIssueCount(right);
+    if (leftIssue !== rightIssue) return rightIssue - leftIssue;
+    const leftTime = timestampMillis(left.finished_at || left.started_at) || 0;
+    const rightTime = timestampMillis(right.finished_at || right.started_at) || 0;
+    return rightTime - leftTime;
+  });
+  return sorted[0] || null;
+}
+
+function fetchProgressPair(done, total) {
+  const doneValue = Number(done || 0);
+  const totalValue = Number(total || 0);
+  if (!totalValue) return doneValue ? numberText(doneValue, 0) : "n/a";
+  return `${numberText(doneValue, 0)} / ${numberText(totalValue, 0)}`;
+}
+
+function fetchProgressReviewModel(context = {}) {
+  const manifests = context.manifests || [];
+  const filteredManifests = context.filteredManifests || manifests;
+  const roots = context.roots || [];
+  const rootConfigPaths = context.rootConfigPaths || [];
+  const activeJobs = manifests.filter((item) => !fetchJobTerminal(item.status));
+  const partialJobs = manifests.filter((item) => text(item.status).toLowerCase() === "partial");
+  const failedJobs = manifests.filter((item) => text(item.status).toLowerCase() === "failed");
+  const reviewJobs = manifests.filter((item) => fetchManifestIssueCount(item) > 0 || fetchManifestOutputIssueCount(item) > 0);
+  const visibleOutputs = manifests.reduce((sum, item) => sum + Number(item.output_visible_count || item.visible_output_count || 0), 0);
+  const outputIssues = manifests.reduce((sum, item) => sum + fetchManifestOutputIssueCount(item), 0);
+  const retryEvents = manifests.reduce((sum, item) => sum + Number(item.retry_events || 0), 0);
+  const pacingWaits = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_events || 0), 0);
+  const pacingSeconds = manifests.reduce((sum, item) => sum + Number(item.pacing_wait_seconds || 0), 0);
+  const selectedJob = fetchProgressJob(filteredManifests.length ? filteredManifests : manifests);
+  const selectedIssueCount = selectedJob ? fetchManifestIssueCount(selectedJob) + fetchManifestOutputIssueCount(selectedJob) : 0;
+  const selectedActive = selectedJob ? !fetchJobTerminal(selectedJob.status) : false;
+  const symbolDone = selectedJob
+    ? selectedJob.latest_completed_symbols !== undefined && selectedJob.latest_completed_symbols !== null
+      ? Number(selectedJob.latest_completed_symbols || 0)
+      : Number(selectedJob.success_symbols || 0) + Number(selectedJob.empty_symbols || 0) + Number(selectedJob.failed_symbols || 0) + Number(selectedJob.skipped_symbols || 0)
+    : 0;
+  const symbolTotal = selectedJob ? Number(selectedJob.latest_total_symbols || selectedJob.symbols_requested || selectedJob.symbol_count || 0) : 0;
+  const chunkDone = selectedJob
+    ? selectedJob.latest_completed_chunks !== undefined && selectedJob.latest_completed_chunks !== null
+      ? Number(selectedJob.latest_completed_chunks || 0)
+      : Number(selectedJob.success_chunks || 0) + Number(selectedJob.empty_chunks || 0) + Number(selectedJob.failed_chunks || 0)
+    : 0;
+  const chunkTotal = selectedJob ? Number(selectedJob.latest_total_chunks || selectedJob.pending_chunks || selectedJob.chunk_count || 0) : 0;
+  const eta = selectedJob && selectedJob.latest_eta_seconds !== undefined && selectedJob.latest_eta_seconds !== null
+    ? interval(selectedJob.latest_eta_seconds)
+    : "";
+  const avgChunk = selectedJob && selectedJob.latest_avg_chunk_seconds !== undefined && selectedJob.latest_avg_chunk_seconds !== null
+    ? interval(selectedJob.latest_avg_chunk_seconds)
+    : "";
+  const avgSymbol = selectedJob && selectedJob.latest_avg_symbol_seconds !== undefined && selectedJob.latest_avg_symbol_seconds !== null
+    ? interval(selectedJob.latest_avg_symbol_seconds)
+    : "";
+  let headline = "No fetch manifests loaded";
+  let note = "Configure manifest roots or run a fetcher that writes dashboard-readable JSON manifests.";
+  if (activeJobs.length) {
+    headline = "Active fetch manifests need attention";
+    note = `${numberText(activeJobs.length, 0)} non-terminal job${activeJobs.length === 1 ? "" : "s"} are visible. Use progress and pacing evidence before starting another pull.`;
+  } else if (reviewJobs.length) {
+    headline = "Fetch recovery or output review is needed";
+    note = `${numberText(reviewJobs.length, 0)} job${reviewJobs.length === 1 ? "" : "s"} have failures, no-data/retry pressure, or output visibility issues.`;
+  } else if (manifests.length) {
+    headline = "Fetch manifests are loaded";
+    note = visibleOutputs
+      ? `${numberText(visibleOutputs, 0)} output file${visibleOutputs === 1 ? "" : "s"} are visible to Data Library.`
+      : "Jobs are loaded, but visible output paths are not summarized yet.";
+  } else if (roots.length || rootConfigPaths.length) {
+    headline = "Manifest roots are configured";
+    note = "Roots are known, but no fetch job manifests are loaded from the current scan.";
+  }
+  const cards = [
+    {
+      status: manifests.length ? "ok" : roots.length || rootConfigPaths.length ? "warn" : "bad",
+      label: "Loaded Jobs",
+      title: `${numberText(filteredManifests.length, 0)} / ${numberText(manifests.length, 0)}`,
+      note: filteredManifests.length === manifests.length ? "No Fetch Jobs filters are hiding manifests." : `${numberText(Math.max(0, manifests.length - filteredManifests.length), 0)} hidden by filters.`,
+    },
+    {
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      label: "Active",
+      title: numberText(activeJobs.length, 0),
+      note: activeJobs.length ? "Non-terminal manifests are still updating or incomplete." : "No active/non-terminal manifests loaded.",
+    },
+    {
+      status: partialJobs.length || failedJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      label: "Terminal Review",
+      title: `${numberText(partialJobs.length, 0)} partial / ${numberText(failedJobs.length, 0)} failed`,
+      note: "Partial/failed manifests should be inspected before broad retry.",
+    },
+    {
+      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "bad",
+      label: "Retry / Pace",
+      title: `${numberText(retryEvents, 0)}R / ${numberText(pacingWaits, 0)}W`,
+      note: pacingWaits ? `${interval(pacingSeconds)} total pacing wait time.` : "No retry or pacing pressure reported.",
+    },
+    {
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      label: "Outputs",
+      title: `${numberText(visibleOutputs, 0)} visible`,
+      note: outputIssues ? `${numberText(outputIssues, 0)} output visibility issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can be reviewed in Data Library.",
+    },
+    {
+      status: selectedJob ? selectedIssueCount ? "warn" : selectedActive ? "warn" : "ok" : "bad",
+      label: "Review Job",
+      title: selectedJob ? fetchManifestLabel(selectedJob) : "none",
+      note: selectedJob
+        ? `${text(selectedJob.status)} / ${text(selectedJob.kind)} / ${text(selectedJob.bar_size)}.`
+        : "No manifest is available to inspect.",
+    },
+  ];
+  const lines = [
+    {
+      status: selectedJob ? selectedActive ? "warn" : selectedIssueCount ? "warn" : "ok" : "bad",
+      title: selectedJob ? `Focus job: ${fetchManifestLabel(selectedJob)}` : "No focus job",
+      detail: selectedJob
+        ? `${rangeLabel(selectedJob.range_start, selectedJob.range_end || selectedJob.duration || selectedJob.months)}; rows ${numberText(selectedJob.rows, 0)}; status ${text(selectedJob.status)}.`
+        : "No fetch manifest is loaded; configure roots or run a fetcher that writes JSON manifests.",
+    },
+    {
+      status: selectedJob && (symbolTotal || symbolDone) ? "ok" : selectedJob ? "warn" : "bad",
+      title: "Symbol progress",
+      detail: selectedJob
+        ? `${fetchProgressPair(symbolDone, symbolTotal)} symbols; ok ${numberText(selectedJob.success_symbols, 0)}, empty ${numberText(selectedJob.empty_symbols, 0)}, failed ${numberText(selectedJob.failed_symbols, 0)}, skipped ${numberText(selectedJob.skipped_symbols, 0)}.`
+        : "No symbol progress available.",
+    },
+    {
+      status: selectedJob && (chunkTotal || chunkDone) ? "ok" : selectedJob ? "warn" : "bad",
+      title: "Chunk progress",
+      detail: selectedJob
+        ? `${fetchProgressPair(chunkDone, chunkTotal)} chunks; ok ${numberText(selectedJob.success_chunks, 0)}, empty ${numberText(selectedJob.empty_chunks, 0)}, failed ${numberText(selectedJob.failed_chunks, 0)}.`
+        : "No chunk progress available.",
+    },
+    {
+      status: selectedJob && (eta || avgChunk || avgSymbol) ? "ok" : selectedJob ? "warn" : "bad",
+      title: "ETA and pace",
+      detail: selectedJob
+        ? [eta ? `ETA ${eta}` : "", avgChunk ? `avg chunk ${avgChunk}` : "", avgSymbol ? `avg symbol ${avgSymbol}` : "", selectedJob.pacing_wait_events ? `${numberText(selectedJob.pacing_wait_events, 0)} waits` : "", selectedJob.retry_events ? `${numberText(selectedJob.retry_events, 0)} retries` : ""].filter(Boolean).join("; ") || "This manifest has no latest ETA or rolling average fields."
+        : "No pacing evidence available.",
+    },
+    {
+      status: selectedJob ? selectedIssueCount ? "warn" : "ok" : "bad",
+      title: "Recovery and visibility",
+      detail: selectedJob
+        ? `Recovery ${text(selectedJob.recovery_status || "n/a")} / ${text(selectedJob.recovery_action || "n/a")}; visible outputs ${numberText(selectedJob.output_visible_count || selectedJob.visible_output_count, 0)}; output issues ${numberText(fetchManifestOutputIssueCount(selectedJob), 0)}.`
+        : "No recovery plan or output visibility is available.",
+    },
+  ];
+  return { headline, note, cards, lines, selectedJob };
+}
+
+function fetchProgressReviewText(model) {
+  return [
+    `Fetch Progress Review: ${model.headline}`,
+    `Next action: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderFetchProgressReview(context = {}) {
+  if (
+    !$("fetch-progress-review-title")
+    || !$("fetch-progress-review-note")
+    || !$("fetch-progress-review-cards")
+    || !$("fetch-progress-review-body")
+    || !$("fetch-progress-review-actions")
+  ) return;
+  const model = fetchProgressReviewModel(context);
+  state.fetchProgressReviewText = fetchProgressReviewText(model);
+  $("fetch-progress-review-title").textContent = model.headline;
+  $("fetch-progress-review-note").textContent = model.note;
+  $("fetch-progress-review-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("fetch-progress-review-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("fetch-progress-review-actions").innerHTML = [
+    `<button type="button" data-fetch-progress-action="copy">Copy Review</button>`,
+    `<button type="button" class="secondary" data-fetch-progress-action="inspect"${model.selectedJob ? "" : " disabled"}>Inspect Focus Job</button>`,
+    `<button type="button" class="secondary" data-fetch-progress-action="jobs">Jobs Table</button>`,
+    `<button type="button" class="secondary" data-fetch-progress-action="export">Export Jobs CSV</button>`,
+    `<button type="button" class="secondary" data-fetch-progress-action="roots">Copy Roots YAML</button>`,
+  ].join("");
+  $("fetch-progress-review-actions").dataset.focusJobId = model.selectedJob ? text(model.selectedJob.job_id) : "";
+}
+
+function handleFetchProgressAction(action) {
+  if (action === "copy") {
+    copyText(state.fetchProgressReviewText || "No fetch progress review loaded").then(() => {
+      $("last-refresh").textContent = "Fetch progress review copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Fetch progress review copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "inspect") {
+    const jobId = $("fetch-progress-review-actions").dataset.focusJobId || "";
+    if (!jobId) {
+      $("last-refresh").textContent = "No fetch job is available to inspect";
+      return;
+    }
+    loadFetchManifestDetail(jobId).catch((err) => {
+      $("last-refresh").textContent = `Fetch manifest detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "jobs") return navigateToFetchLens("jobs");
+  if (action === "export") {
+    downloadFetchManifestsCsv().catch((err) => {
+      $("last-refresh").textContent = `Fetch jobs CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "roots") return copyFetchManifestRootsYaml();
 }
 
 function recommendedFetchManifests(filteredManifests = []) {
@@ -24332,6 +24564,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-fetch-search-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleFetchSearchAction(target);
+  });
+  $("fetch-progress-review-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-fetch-progress-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleFetchProgressAction(target.dataset.fetchProgressAction || "");
   });
   $("copy-fetch-roots-yaml").addEventListener("click", copyFetchManifestRootsYaml);
   $("export-fetch-manifests-csv").addEventListener("click", () => {

@@ -289,6 +289,10 @@ before users open dense tables, plus a Saved Data Preview Wall with sparklines
 and direct Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
 reads JSON manifests from configured manifest roots, summarizing historical-data
 pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.
+Fetch Progress Review gives a first-screen read on active, partial, and failed
+manifests, including symbol/chunk progress, ETA, rolling pace, retries, pacing
+waits, output visibility, recovery status, and the focus job before the dense
+table.
 When an output file is inside a configured data root, its row includes an Inspect
 Data action that opens the same offline Data Detail view used by the Data
 Library. Individual datasets can be
