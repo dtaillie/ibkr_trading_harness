@@ -10105,6 +10105,7 @@ function renderDataCompareControls() {
     bar: $("data-compare-bar").value || "",
     session: $("data-compare-session").value || "",
     quality: $("data-compare-quality").value || "",
+    contract: $("data-compare-contract").value || "",
   };
   const allDatasets = state.dataCatalog.datasets || [];
   renderDataCompareFilterOptions(allDatasets);
@@ -10115,6 +10116,7 @@ function renderDataCompareControls() {
     if (facets.bar && text(dataset.bar_size) !== facets.bar) return false;
     if (facets.session && text(dataset.storage_session) !== facets.session) return false;
     if (facets.quality && text(dataset.quality_status) !== facets.quality) return false;
+    if (facets.contract && text(dataset.storage_contract_status) !== facets.contract) return false;
     if (!filter) return true;
     const haystack = [
       dataset.symbol,
@@ -10123,13 +10125,15 @@ function renderDataCompareControls() {
       dataset.bar_size,
       dataset.storage_session,
       dataset.quality_status,
+      dataset.storage_contract_status,
+      dataset.storage_contract_label,
       dataset.path,
     ].map(text).join(" ").toLowerCase();
     return haystack.includes(filter);
   });
   const datasets = visibleDatasets.map((dataset) => ({
     value: dataset.path,
-    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`,
+    label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`,
   }));
   replaceOptions(select, datasets);
   for (const option of select.options) {
@@ -10150,6 +10154,7 @@ function renderDataCompareControls() {
     facets.bar,
     facets.session,
     facets.quality,
+    facets.contract,
   ].filter(Boolean);
   $("data-compare-filter-note").textContent = activeFilters.length
     ? `${numberText(visibleDatasets.length, 0)} shown / ${numberText(allDatasets.length, 0)} total matching ${activeFilters.join(", ")}; ${numberText(selectedCount, 0)} selected, max ${MAX_DATA_COMPARE_DATASETS}`
@@ -10174,6 +10179,7 @@ function renderDataCompareFilterOptions(datasets) {
   makeOptions("data-compare-bar", datasets.map((item) => item.bar_size));
   makeOptions("data-compare-session", datasets.map((item) => item.storage_session));
   makeOptions("data-compare-quality", datasets.map((item) => item.quality_status));
+  makeOptions("data-compare-contract", datasets.map((item) => item.storage_contract_status));
 }
 
 function selectShownCompareDatasets() {
@@ -10226,6 +10232,7 @@ function clearCompareSelection() {
   $("data-compare-bar").value = "";
   $("data-compare-session").value = "";
   $("data-compare-quality").value = "";
+  $("data-compare-contract").value = "";
   $("data-compare-range-preset").value = "custom";
   for (const option of $("data-compare-datasets").options) {
     option.selected = false;
@@ -10251,7 +10258,7 @@ function useDataCompareInWorkbench() {
     if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
     const option = document.createElement("option");
     option.value = dataset.path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}] - ${dataset.path}`;
+    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
     option.selected = true;
     datasetSelect.appendChild(option);
   }
@@ -10292,6 +10299,8 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
   const readyTitle = readyStatus === "ok" ? "Ready" : readyStatus === "warn" ? "Review" : "Blocked";
   const selectedSymbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
   const selectedBars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
+  const selectedContractCounts = countBy(selected, "storage_contract_status");
+  const selectedContractIssues = Number(selectedContractCounts.bad || 0) + Number(selectedContractCounts.warn || 0);
   const returnRows = series.map((item) => ({
     symbol: text(item.symbol),
     value: finiteNumber(item.total_return_pct),
@@ -10306,6 +10315,8 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
     nextAction = "Run Compare or apply the common-overlap preset before reading the chart.";
   } else if (comparisonLoaded && common <= 0) {
     nextAction = "Use the overlap preset or choose files that share timestamps.";
+  } else if (selectedContractIssues > 0) {
+    nextAction = "Review selected file storage metadata before sending the comparison to Workbench.";
   } else if (warningCount > 0) {
     nextAction = "Review comparison warnings before sending selected files to Workbench.";
   } else if (comparisonLoaded) {
@@ -10335,6 +10346,14 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
       note: comparisonLoaded
         ? `${overlapPct === null ? "n/a" : pctText(overlapPct)} of ${numberText(union, 0)} union timestamps.`
         : "Run Compare to measure actual normalized overlap.",
+    },
+    {
+      status: selectedContractIssues ? "warn" : selectedCount ? "ok" : "bad",
+      title: selectedCount ? countSummary(selectedContractCounts) : "n/a",
+      label: "Contract",
+      note: selectedContractIssues
+        ? "Selected files have storage-contract warnings."
+        : selectedCount ? "Selected files satisfy current storage-contract checks." : "No selected files.",
     },
     {
       status: warningCount > 0 ? "warn" : comparisonLoaded ? "ok" : "warn",
@@ -10373,9 +10392,11 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
     },
     {
       action: "workbench",
-      status: selectedCount ? warningCount ? "warn" : "ok" : "bad",
+      status: selectedCount ? (warningCount || selectedContractIssues) ? "warn" : "ok" : "bad",
       title: "Use In Workbench",
-      note: selectedCount ? "Send selected datasets and date window to the Config Builder." : "Select at least one saved dataset first.",
+      note: selectedContractIssues
+        ? "Send selected datasets only after reviewing storage-contract warnings."
+        : selectedCount ? "Send selected datasets and date window to the Config Builder." : "Select at least one saved dataset first.",
       disabled: selectedCount < 1,
     },
     {
@@ -10530,8 +10551,14 @@ function renderDataCompareStats(comparison = {}, timezoneMode = "utc") {
 }
 
 function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
+  const selected = selectedCompareDatasets();
+  const contractCounts = countBy(selected, "storage_contract_status");
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
   if (!comparison || !comparison.generated_at) {
-    return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Datasets</strong><small>Choose at least two saved files to check timestamp overlap.</small></div>`;
+    const contractCard = selected.length
+      ? `<div class="health-card data-compare-card"><span>${statusText(contractIssues ? "warn" : "ok")}</span><strong>${escapeHtml(countSummary(contractCounts))}</strong><small>Storage Contract - ${escapeHtml(contractIssues ? "Review selected file metadata before replay." : "Selected files pass current metadata checks.")}</small></div>`
+      : "";
+    return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Datasets</strong><small>Choose at least two saved files to check timestamp overlap.</small></div>${contractCard}`;
   }
   const common = Number(comparison.common_timestamp_count || 0);
   const union = Number(comparison.union_timestamp_count || 0);
@@ -10562,6 +10589,12 @@ function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
       title: text(comparison.sample_mode),
       label: "Sampling",
       note: `${numberText(comparison.preview_points, 0)} requested points; chart uses sampled paths unless full mode fits.`,
+    },
+    {
+      status: contractIssues ? "warn" : selected.length ? "ok" : "bad",
+      title: selected.length ? countSummary(contractCounts) : "n/a",
+      label: "Storage Contract",
+      note: contractIssues ? "Review selected file metadata before replay." : "Selected files pass current metadata checks.",
     },
     {
       status: readiness,
@@ -11329,6 +11362,7 @@ async function compareFetchOutputs() {
   $("data-compare-bar").value = "";
   $("data-compare-session").value = "";
   $("data-compare-quality").value = "";
+  $("data-compare-contract").value = "";
   $("data-compare-range-preset").value = "custom";
   const plan = detail.plan || {};
   const parameters = detail.parameters || {};
@@ -18529,6 +18563,7 @@ function init() {
   $("data-compare-bar").addEventListener("change", renderDataCompareControls);
   $("data-compare-session").addEventListener("change", renderDataCompareControls);
   $("data-compare-quality").addEventListener("change", renderDataCompareControls);
+  $("data-compare-contract").addEventListener("change", renderDataCompareControls);
   $("data-compare-datasets").addEventListener("change", () => updateCompareSelectionFromSelect(true));
   $("data-compare-range-preset").addEventListener("change", () => {
     applyDataCompareRangePreset().catch((err) => {

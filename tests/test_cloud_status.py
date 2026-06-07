@@ -1031,6 +1031,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-compare-bar" in html
         assert "data-compare-session" in html
         assert "data-compare-quality" in html
+        assert "data-compare-contract" in html
         assert "data-compare-select-symbol" in html
         assert "data-compare-select-shown" in html
         assert "data-compare-clear" in html
