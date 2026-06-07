@@ -3986,36 +3986,46 @@ def fetch_manifest_resume_plan(payload: dict[str, Any], *, resume_supported: boo
     errors = payload.get("errors") if isinstance(payload.get("errors"), list) else []
     counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    resume_state = payload.get("resume_state") if isinstance(payload.get("resume_state"), dict) else {}
     supported = (kind in {"stock_history", "crypto_history"}) if resume_supported is None else bool(resume_supported)
 
     if kind == "stock_history":
-        done_symbols = sorted({
-            str(row.get("symbol") or "").upper()
-            for row in symbol_rows
-            if str(row.get("symbol") or "").strip() and row.get("status") in {"ok", "empty", "skipped"}
-        })
-        failed_or_partial_symbols = {
-            str(row.get("symbol") or "").upper()
-            for row in symbol_rows
-            if str(row.get("symbol") or "").strip() and row.get("status") in {"failed", "partial"}
-        }
-        error_symbols = {
-            str(row.get("symbol") or "").upper()
-            for row in errors
-            if isinstance(row, dict) and str(row.get("symbol") or "").strip()
-        }
-        tracked_symbols = {
-            str(row.get("symbol") or "").upper()
-            for row in symbol_rows
-            if str(row.get("symbol") or "").strip()
-        }
-        untracked_symbols = set(symbols_requested) - tracked_symbols
-        no_data_symbols = {
-            str(row.get("symbol") or "").upper()
-            for row in errors
-            if isinstance(row, dict) and row.get("kind") == "no_data" and str(row.get("symbol") or "").strip()
-        }
-        retry_symbols = sorted((failed_or_partial_symbols | error_symbols | untracked_symbols) - set(done_symbols))
+        if resume_state:
+            done_symbols = sorted(str(symbol).upper() for symbol in resume_state.get("done_symbols") or [])
+            retry_symbols = sorted(
+                {str(symbol).upper() for symbol in resume_state.get("pending_symbols") or []}
+                | {str(symbol).upper() for symbol in resume_state.get("failed_symbols") or []}
+            )
+            no_data_symbols = {str(symbol).upper() for symbol in resume_state.get("no_data_symbols") or []}
+            untracked_symbols = set(retry_symbols) - set(symbols_requested)
+        else:
+            done_symbols = sorted({
+                str(row.get("symbol") or "").upper()
+                for row in symbol_rows
+                if str(row.get("symbol") or "").strip() and row.get("status") in {"ok", "empty", "skipped"}
+            })
+            failed_or_partial_symbols = {
+                str(row.get("symbol") or "").upper()
+                for row in symbol_rows
+                if str(row.get("symbol") or "").strip() and row.get("status") in {"failed", "partial"}
+            }
+            error_symbols = {
+                str(row.get("symbol") or "").upper()
+                for row in errors
+                if isinstance(row, dict) and str(row.get("symbol") or "").strip()
+            }
+            tracked_symbols = {
+                str(row.get("symbol") or "").upper()
+                for row in symbol_rows
+                if str(row.get("symbol") or "").strip()
+            }
+            untracked_symbols = set(symbols_requested) - tracked_symbols
+            no_data_symbols = {
+                str(row.get("symbol") or "").upper()
+                for row in errors
+                if isinstance(row, dict) and row.get("kind") == "no_data" and str(row.get("symbol") or "").strip()
+            }
+            retry_symbols = sorted((failed_or_partial_symbols | error_symbols | untracked_symbols) - set(done_symbols))
         pending_estimate = len(retry_symbols)
         return {
             "resume_supported": supported,
@@ -4035,23 +4045,36 @@ def fetch_manifest_resume_plan(payload: dict[str, Any], *, resume_supported: boo
         }
 
     if kind == "crypto_history":
-        done_paths = sorted({
-            str(row.get("path") or "")
-            for row in outputs
-            if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
-        })
-        failed_days_by_symbol: dict[str, set[str]] = {}
-        no_data_days_by_symbol: dict[str, set[str]] = {}
-        for row in errors:
-            if not isinstance(row, dict):
-                continue
-            symbol = str(row.get("symbol") or "").upper()
-            day = str(row.get("day") or "")
-            if not symbol or not day:
-                continue
-            failed_days_by_symbol.setdefault(symbol, set()).add(day)
-            if row.get("kind") == "no_data":
-                no_data_days_by_symbol.setdefault(symbol, set()).add(day)
+        if resume_state:
+            done_paths = sorted(str(path) for path in resume_state.get("completed_output_paths") or [])
+            failed_days_by_symbol = {
+                str(symbol).upper(): {str(day) for day in days}
+                for symbol, days in (resume_state.get("failed_days_by_symbol") or {}).items()
+                if isinstance(days, list)
+            }
+            no_data_days_by_symbol = {
+                str(symbol).upper(): {str(day) for day in days}
+                for symbol, days in (resume_state.get("no_data_days_by_symbol") or {}).items()
+                if isinstance(days, list)
+            }
+        else:
+            done_paths = sorted({
+                str(row.get("path") or "")
+                for row in outputs
+                if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
+            })
+            failed_days_by_symbol: dict[str, set[str]] = {}
+            no_data_days_by_symbol: dict[str, set[str]] = {}
+            for row in errors:
+                if not isinstance(row, dict):
+                    continue
+                symbol = str(row.get("symbol") or "").upper()
+                day = str(row.get("day") or "")
+                if not symbol or not day:
+                    continue
+                failed_days_by_symbol.setdefault(symbol, set()).add(day)
+                if row.get("kind") == "no_data":
+                    no_data_days_by_symbol.setdefault(symbol, set()).add(day)
         failed_day_count = sum(len(days) for days in failed_days_by_symbol.values())
         no_data_day_count = sum(len(days) for days in no_data_days_by_symbol.values())
         pending_estimate = max(

@@ -247,6 +247,109 @@ class FetchManifest:
         self.recompute_counts()
         self.write()
 
+    def build_resume_state(
+        self,
+        symbols: list[dict[str, Any]],
+        outputs: list[dict[str, Any]],
+        errors: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        requested = [
+            str(symbol).upper()
+            for symbol in (self.data.get("symbols_requested") or [])
+            if str(symbol).strip()
+        ]
+        tracked = {
+            str(row.get("symbol") or "").upper()
+            for row in symbols
+            if str(row.get("symbol") or "").strip()
+        }
+        done_statuses = {"ok", "empty", "skipped"}
+        done_symbols = sorted({
+            str(row.get("symbol") or "").upper()
+            for row in symbols
+            if str(row.get("symbol") or "").strip() and row.get("status") in done_statuses
+        })
+        failed_symbols = {
+            str(row.get("symbol") or "").upper()
+            for row in symbols
+            if str(row.get("symbol") or "").strip() and row.get("status") in {"failed", "partial"}
+        }
+        empty_symbols = sorted({
+            str(row.get("symbol") or "").upper()
+            for row in symbols
+            if str(row.get("symbol") or "").strip() and row.get("status") == "empty"
+        })
+        skipped_symbols = sorted({
+            str(row.get("symbol") or "").upper()
+            for row in symbols
+            if str(row.get("symbol") or "").strip() and row.get("status") == "skipped"
+        })
+        error_symbols_by_kind: dict[str, set[str]] = {}
+        failed_days_by_symbol: dict[str, set[str]] = {}
+        no_data_days_by_symbol: dict[str, set[str]] = {}
+        for row in errors:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").upper()
+            if not symbol:
+                continue
+            kind = str(row.get("kind") or "error")
+            error_symbols_by_kind.setdefault(kind, set()).add(symbol)
+            day = str(row.get("day") or "")
+            if day:
+                failed_days_by_symbol.setdefault(symbol, set()).add(day)
+                if kind == "no_data":
+                    no_data_days_by_symbol.setdefault(symbol, set()).add(day)
+
+        done_paths = sorted({
+            str(row.get("path") or "")
+            for row in outputs
+            if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
+        })
+        completed_chunks: list[dict[str, Any]] = []
+        no_data_chunks: list[dict[str, Any]] = []
+        for row in outputs:
+            if not isinstance(row, dict) or row.get("status") not in {"ok", "empty"}:
+                continue
+            chunk = {
+                "symbol": str(row.get("symbol") or "").upper(),
+                "day": row.get("day"),
+                "status": row.get("status"),
+                "path": row.get("path"),
+            }
+            completed_chunks.append(chunk)
+            if row.get("status") == "empty":
+                no_data_chunks.append(chunk)
+
+        error_symbols = set().union(*error_symbols_by_kind.values()) if error_symbols_by_kind else set()
+        pending_symbols = sorted((set(requested) - tracked) | (error_symbols - set(done_symbols)))
+        retryable_symbols = sorted(error_symbols_by_kind.get("connection", set()) | error_symbols_by_kind.get("error", set()))
+        return {
+            "schema_version": 1,
+            "updated_at": utc_now(),
+            "resume_modes": ["symbol"] if self.kind == "stock_history" else ["chunk_path"] if self.kind == "crypto_history" else [],
+            "done_symbols": done_symbols,
+            "failed_symbols": sorted(failed_symbols | error_symbols),
+            "empty_symbols": empty_symbols,
+            "skipped_symbols": skipped_symbols,
+            "pending_symbols": pending_symbols,
+            "completed_output_paths": done_paths,
+            "completed_chunks": completed_chunks,
+            "no_data_chunks": no_data_chunks,
+            "failed_days_by_symbol": {
+                symbol: sorted(days)
+                for symbol, days in sorted(failed_days_by_symbol.items())
+            },
+            "no_data_days_by_symbol": {
+                symbol: sorted(days)
+                for symbol, days in sorted(no_data_days_by_symbol.items())
+            },
+            "no_data_symbols": sorted(error_symbols_by_kind.get("no_data", set())),
+            "permission_symbols": sorted(error_symbols_by_kind.get("permission", set())),
+            "contract_symbols": sorted(error_symbols_by_kind.get("contract", set())),
+            "retryable_symbols": retryable_symbols,
+        }
+
     def recompute_counts(self) -> None:
         symbols = list((self.data.get("symbols") or {}).values())
         outputs = self.data.get("outputs") or []
@@ -305,6 +408,7 @@ class FetchManifest:
             "latest_avg_chunk_seconds": progress.get("rolling_avg_chunk_seconds"),
             "latest_avg_symbol_seconds": progress.get("rolling_avg_symbol_seconds"),
         }
+        self.data["resume_state"] = self.build_resume_state(symbols, outputs, errors)
 
     def finish(self, status: str | None = None) -> None:
         if not self.enabled:

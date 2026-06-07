@@ -114,18 +114,31 @@ def load_json_resume_manifest(path: Path) -> dict:
         raise ValueError("resume manifest must be a JSON object")
     parameters = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    resume_state = payload.get("resume_state") if isinstance(payload.get("resume_state"), dict) else {}
     outputs = payload.get("outputs") if isinstance(payload.get("outputs"), list) else []
     symbols = payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else []
-    done_paths = {
-        str(row.get("path"))
-        for row in outputs
-        if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
-    }
-    failed_days_by_symbol: dict[str, set[str]] = {}
-    for row in payload.get("errors") or []:
-        if not isinstance(row, dict) or not row.get("symbol") or not row.get("day"):
-            continue
-        failed_days_by_symbol.setdefault(str(row["symbol"]).upper(), set()).add(str(row["day"]))
+    if resume_state:
+        done_paths = {
+            str(path)
+            for path in resume_state.get("completed_output_paths") or []
+            if str(path).strip()
+        }
+        failed_days_by_symbol = {
+            str(symbol).upper(): {str(day) for day in days}
+            for symbol, days in (resume_state.get("failed_days_by_symbol") or {}).items()
+            if isinstance(days, list)
+        }
+    else:
+        done_paths = {
+            str(row.get("path"))
+            for row in outputs
+            if isinstance(row, dict) and row.get("status") in {"ok", "empty"} and row.get("path")
+        }
+        failed_days_by_symbol: dict[str, set[str]] = {}
+        for row in payload.get("errors") or []:
+            if not isinstance(row, dict) or not row.get("symbol") or not row.get("day"):
+                continue
+            failed_days_by_symbol.setdefault(str(row["symbol"]).upper(), set()).add(str(row["day"]))
     return {
         "symbols": [str(symbol).upper() for symbol in symbols],
         "start": plan.get("range_start") or parameters.get("start"),

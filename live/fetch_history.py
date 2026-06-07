@@ -73,21 +73,34 @@ def load_stock_resume_manifest(path: Path) -> dict:
         raise ValueError("resume manifest must be a JSON object")
     parameters = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    resume_state = payload.get("resume_state") if isinstance(payload.get("resume_state"), dict) else {}
     symbols_requested = payload.get("symbols_requested") if isinstance(payload.get("symbols_requested"), list) else []
     symbols_map = payload.get("symbols") if isinstance(payload.get("symbols"), dict) else {}
-    done_symbols = {
-        str(row.get("symbol") or symbol).upper()
-        for symbol, row in symbols_map.items()
-        if isinstance(row, dict) and row.get("status") in {"ok", "empty", "skipped"}
-    }
-    failed_symbols = {
-        str(row.get("symbol") or symbol).upper()
-        for symbol, row in symbols_map.items()
-        if isinstance(row, dict) and row.get("status") in {"failed", "partial"}
-    }
-    for row in payload.get("errors") or []:
-        if isinstance(row, dict) and row.get("symbol"):
-            failed_symbols.add(str(row["symbol"]).upper())
+    if resume_state:
+        done_symbols = {
+            str(symbol).upper()
+            for symbol in resume_state.get("done_symbols") or []
+            if str(symbol).strip()
+        }
+        failed_symbols = {
+            str(symbol).upper()
+            for symbol in resume_state.get("failed_symbols") or []
+            if str(symbol).strip()
+        }
+    else:
+        done_symbols = {
+            str(row.get("symbol") or symbol).upper()
+            for symbol, row in symbols_map.items()
+            if isinstance(row, dict) and row.get("status") in {"ok", "empty", "skipped"}
+        }
+        failed_symbols = {
+            str(row.get("symbol") or symbol).upper()
+            for symbol, row in symbols_map.items()
+            if isinstance(row, dict) and row.get("status") in {"failed", "partial"}
+        }
+        for row in payload.get("errors") or []:
+            if isinstance(row, dict) and row.get("symbol"):
+                failed_symbols.add(str(row["symbol"]).upper())
     symbols = [str(symbol).upper() for symbol in symbols_requested]
     if not symbols:
         symbols = sorted(set(done_symbols) | failed_symbols)

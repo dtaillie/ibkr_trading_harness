@@ -49,6 +49,7 @@ def test_fetch_manifest_records_retry_pacing_and_progress(tmp_path):
 
     payload = json.loads(manifest.path.read_text(encoding="utf-8"))
     counts = payload["counts"]
+    resume_state = payload["resume_state"]
     assert payload["status"] == "completed"
     assert counts["retry_events"] == 1
     assert counts["pacing_wait_events"] == 1
@@ -63,6 +64,35 @@ def test_fetch_manifest_records_retry_pacing_and_progress(tmp_path):
     assert counts["latest_avg_symbol_seconds"] == 0.5
     assert payload["outputs"][0]["attempt_count"] == 2
     assert payload["events"][0]["type"] == "retry"
+    assert resume_state["schema_version"] == 1
+    assert resume_state["resume_modes"] == ["chunk_path"]
+    assert resume_state["done_symbols"] == ["BTC-USD"]
+    assert resume_state["completed_output_paths"] == ["cache/ibkr_crypto/ZEROHASH/1min/BTC-USD.parquet"]
+    assert resume_state["completed_chunks"][0]["day"] == "2026-01-02"
+
+
+def test_fetch_manifest_resume_state_tracks_failed_pending_and_no_data(tmp_path):
+    manifest = FetchManifest(
+        manifest_dir=tmp_path,
+        kind="stock_history",
+        parameters={"bar_size": "5min"},
+        symbols=["SPY", "QQQ", "IWM", "DIA"],
+    )
+    manifest.symbol("SPY", "ok", bars=10)
+    manifest.symbol("QQQ", "empty", bars=0)
+    manifest.symbol("IWM", "failed", message="temporary")
+    manifest.error("IWM", "temporary HMDS error", kind="connection")
+    manifest.error("DIA", "No data returned", kind="no_data")
+    manifest.finish("partial")
+
+    payload = json.loads(manifest.path.read_text(encoding="utf-8"))
+    resume_state = payload["resume_state"]
+    assert resume_state["resume_modes"] == ["symbol"]
+    assert resume_state["done_symbols"] == ["QQQ", "SPY"]
+    assert resume_state["failed_symbols"] == ["DIA", "IWM"]
+    assert resume_state["pending_symbols"] == ["DIA", "IWM"]
+    assert resume_state["no_data_symbols"] == ["DIA"]
+    assert resume_state["retryable_symbols"] == ["IWM"]
 
 
 def test_crypto_resume_manifest_extracts_symbols_range_and_done_paths(tmp_path):
@@ -102,6 +132,29 @@ def test_crypto_resume_manifest_extracts_symbols_range_and_done_paths(tmp_path):
     assert resume["what_to_show"] == "AGGTRADES"
     assert resume["out_dir"] == "cache/ibkr_crypto"
     assert resume["done_paths"] == {"cache/btc.parquet", "cache/eth.parquet"}
+    assert resume["failed_days_by_symbol"] == {"ETH-USD": ["2026-01-02"]}
+
+
+def test_crypto_resume_manifest_prefers_normalized_resume_state(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        json.dumps({
+            "parameters": {"exchange": "ZEROHASH", "bar_size": "1min"},
+            "symbols_requested": ["BTC-USD", "ETH-USD"],
+            "outputs": [
+                {"symbol": "BTC-USD", "status": "ok", "day": "old", "path": "old.parquet"},
+            ],
+            "resume_state": {
+                "completed_output_paths": ["cache/btc.parquet"],
+                "failed_days_by_symbol": {"ETH-USD": ["2026-01-02"]},
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    resume = load_json_resume_manifest(path)
+
+    assert resume["done_paths"] == {"cache/btc.parquet"}
     assert resume["failed_days_by_symbol"] == {"ETH-USD": ["2026-01-02"]}
 
 
@@ -145,6 +198,30 @@ def test_stock_resume_manifest_extracts_symbols_options_and_done_symbols(tmp_pat
     assert resume["rth"] is False
     assert resume["what_to_show"] == "TRADES"
     assert resume["crypto_exchange"] == "ZEROHASH"
+
+
+def test_stock_resume_manifest_prefers_normalized_resume_state(tmp_path):
+    path = tmp_path / "stock_manifest.json"
+    path.write_text(
+        json.dumps({
+            "parameters": {"bar_size": "5min", "duration": "1 D"},
+            "symbols_requested": ["SPY", "QQQ", "IWM"],
+            "symbols": {
+                "SPY": {"symbol": "SPY", "status": "failed"},
+            },
+            "resume_state": {
+                "done_symbols": ["QQQ"],
+                "failed_symbols": ["SPY", "IWM"],
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    resume = load_stock_resume_manifest(path)
+
+    assert resume["done_symbols"] == {"QQQ"}
+    assert resume["failed_symbols"] == {"SPY", "IWM"}
+    assert resume["symbols"] == ["SPY", "QQQ", "IWM"]
 
 
 def test_stock_resume_manifest_no_pending_symbols_finishes_without_ibkr(tmp_path):

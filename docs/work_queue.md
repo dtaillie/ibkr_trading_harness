@@ -1166,6 +1166,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   - retry failed chunks
   - mark no-data responses separately from permission errors
   - persist enough state to resume after Gateway or PC restart
+    - partial; JSON fetch manifests now publish an explicit `resume_state`
+      block with completed symbols/output paths, pending/failed symbols,
+      failed/no-data days by symbol, no-data symbols, retryable symbols, and
+      supported resume modes. Stock and crypto resume loaders prefer that
+      normalized restart state while remaining compatible with older manifests,
+      and dashboard resume plans consume it when present.
 - Add backend tests for catalog discovery:
   - many-symbol fixture roots
     - done; tests now create 200+ nested synthetic saved files and assert the

@@ -361,6 +361,22 @@ def test_fetch_manifest_recovery_guidance_classifies_common_failures():
     assert crypto_resume_plan["retry_failed_count"] == 1
     assert crypto_resume_plan["review_no_data_count"] == 1
 
+    state_resume_plan = status_server.fetch_manifest_resume_plan({
+        "kind": "stock_history",
+        "symbols_requested": ["SPY", "QQQ", "IWM"],
+        "resume_state": {
+            "done_symbols": ["SPY"],
+            "pending_symbols": ["QQQ"],
+            "failed_symbols": ["IWM"],
+            "no_data_symbols": ["QQQ"],
+        },
+    })
+    assert state_resume_plan["resume_mode"] == "symbol"
+    assert state_resume_plan["skip_completed_count"] == 1
+    assert state_resume_plan["retry_failed_count"] == 2
+    assert state_resume_plan["review_no_data_count"] == 1
+    assert state_resume_plan["retry_symbols_sample"] == ["IWM", "QQQ"]
+
 
 def test_collect_status_from_run_dir(tmp_path):
     run_dir = tmp_path / "run"
