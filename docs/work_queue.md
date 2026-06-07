@@ -1561,6 +1561,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     heartbeat, alerting nodes, open-order nodes, Gateway/API issues, and active
     filters, with direct actions to sort risky nodes first, open newest detail,
     prepare a read-only status check, clear filters, or export CSV.
+  - partial; the seeded dashboard smoke now asserts the Remote Nodes Assistant
+    markup and action handlers, so the remote-monitoring triage surface cannot
+    disappear from the public UI without failing the render contract gate.
   - partial; Operations now exposes `/remote_nodes_export` and an Export Nodes
     CSV button for offline review of sanitized heartbeat, Gateway, mode,
     equity, positions, open orders, activity counts, freshness, and alerts by
