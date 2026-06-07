@@ -1712,6 +1712,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     modes, Workbench, remote monitoring, export/audit, limitations, and a
     pre-publish checklist. Final human editing for voice and publication venue
     remains open.
+  - partial; the blog draft now matches the consolidated
+    `scripts/public_publish_check.py` pre-publish gate instead of telling
+    readers to run only the older audit/test commands manually. Final human
+    editing for voice and publication venue remains open.
 - Add runbooks:
   - done in `docs/ibkr_gateway_runbook.md`: IBKR Gateway setup and recovery
   - done in `docs/paper_trading_runbook.md`: paper trading startup/shutdown

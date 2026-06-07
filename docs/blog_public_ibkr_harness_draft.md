@@ -49,8 +49,8 @@ The public repo includes reusable plumbing:
   Jobs, Workbench, Runs, Operations, and Help pages.
 - Read-only remote-monitoring and conservative command-queue prototypes.
 - Public-safe no-edge example strategies and example configs.
-- A public-readiness audit for catching private paths, token-like strings, and
-  private plugin references before export.
+- A consolidated public pre-publish check for export-manifest review,
+  public-readiness audits, cloud-example audits, tests, and dashboard smokes.
 
 It intentionally does not include a profitable strategy, tuned universe, private
 configuration, private runner, broker credentials, account IDs, runtime logs, or
@@ -212,13 +212,15 @@ python3 scripts/export_public_repo.py --dest ../algo_trade_public --force
 Then audit the public candidate:
 
 ```bash
-python3 scripts/public_readiness_audit.py --fail-on-review
+cd ../algo_trade_public
+python3 scripts/public_publish_check.py
 ```
 
-The audit is conservative. It checks publishable files for private/research
-paths, account-like IDs, credential-style assignments, local home paths, and
-private plugin references. It is not a substitute for manual review, but it
-gives the public repo a repeatable pre-push gate.
+The gate includes a conservative audit for private/research paths,
+account-like IDs, credential-style assignments, local home paths, and private
+plugin references. It also checks cloud-example boundaries, tests, and
+dashboard smokes. It is not a substitute for manual review, but it gives the
+public repo a repeatable pre-push gate.
 
 ## Limitations
 
@@ -241,8 +243,9 @@ work can remain private.
 ## Pre-Publish Checklist
 
 - Run the public export script.
-- Run `python3 scripts/public_readiness_audit.py --fail-on-review`.
-- Run the public test suite and dashboard smokes.
+- Run `python3 scripts/public_publish_check.py`.
+- Use `python3 scripts/public_publish_check.py --include-screenshots` for the
+  slower dashboard screenshot layout checks.
 - Confirm all example configs are no-edge and use placeholder values.
 - Confirm private strategy plugins, tuned universes, account IDs, credentials,
   logs, fills, and research outputs are excluded.
