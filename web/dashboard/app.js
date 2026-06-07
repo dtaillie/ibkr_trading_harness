@@ -1891,6 +1891,7 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
 function renderConfigDataActions(selected = selectedConfigDatasets()) {
   if (!$("config-data-actions-note") || !$("config-data-actions-cards")) return;
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
   const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
   const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
@@ -1899,7 +1900,7 @@ function renderConfigDataActions(selected = selectedConfigDatasets()) {
   $("config-data-open-detail").disabled = !selected.length;
   $("config-data-compare-selected").disabled = !compareReady;
   $("config-data-actions-note").textContent = selected.length
-    ? `${numberText(selected.length, 0)} selected / ${numberText(qualityIssues.length, 0)} quality issue${qualityIssues.length === 1 ? "" : "s"}`
+    ? `${numberText(selected.length, 0)} selected / ${numberText(qualityIssues.length, 0)} quality issue${qualityIssues.length === 1 ? "" : "s"} / ${numberText(contractIssues.length, 0)} contract issue${contractIssues.length === 1 ? "" : "s"}`
     : "Select saved data to inspect or compare it.";
   const cards = [
     {
@@ -1913,6 +1914,12 @@ function renderConfigDataActions(selected = selectedConfigDatasets()) {
       label: "Quality",
       title: qualityIssues.length ? `${numberText(qualityIssues.length, 0)} review` : selected.length ? "Clean" : "n/a",
       note: qualityIssues.length ? "Review warnings before generating a replay draft." : "No selected quality warnings reported.",
+    },
+    {
+      status: contractIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      label: "Contract",
+      title: contractIssues.length ? `${numberText(contractIssues.length, 0)} review` : selected.length ? "Clear" : "n/a",
+      note: contractIssues.length ? "Review storage metadata before generating a replay draft." : "Selected files pass current storage-contract checks.",
     },
     {
       status: compareReady ? "ok" : selected.length ? "warn" : "bad",
@@ -7658,6 +7665,9 @@ function renderDataHome(filteredRows = []) {
   const qualityCounts = catalog.quality_counts || {};
   const badCount = Number(qualityCounts.bad || 0);
   const warnCount = Number(qualityCounts.warn || 0);
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const contractBadCount = Number(contractCounts.bad || 0);
+  const contractWarnCount = Number(contractCounts.warn || 0);
 
   let nextStep = "Inspect";
   let nextNote = "Pick a saved file, inspect its chart, then use Workbench for replay setup.";
@@ -7678,6 +7688,9 @@ function renderDataHome(filteredRows = []) {
   } else if (parserErrors || badCount) {
     nextStep = "Review Quality";
     nextNote = `${numberText(parserErrors, 0)} parser errors and ${numberText(badCount, 0)} bad files need review before simulation.`;
+  } else if (contractBadCount || contractWarnCount) {
+    nextStep = "Review Metadata";
+    nextNote = `${numberText(contractBadCount + contractWarnCount, 0)} files have storage-contract warnings before simulation.`;
   } else if (capped) {
     nextStep = "Raise Limit";
     nextNote = `The catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows; increase the scan limit to see more files.`;
@@ -7700,7 +7713,7 @@ function renderDataHome(filteredRows = []) {
   $("data-home-filter-note").textContent = filterLabels.length ? filterLabels.join(" / ") : "No filter applied";
   $("data-home-best-symbol").textContent = best ? text(best.symbol) : "n/a";
   $("data-home-best-note").textContent = best
-    ? `${text(best.bar_size)} ${text(best.source)} ${text(best.quality_status)} / ${numberText(best.rows, 0)} rows`
+    ? `${text(best.bar_size)} ${text(best.source)} ${text(best.quality_status)} / contract ${text(best.storage_contract_status)} / ${numberText(best.rows, 0)} rows`
     : "No inspectable dataset";
   $("data-home-next-step").textContent = nextStep;
   $("data-home-next-note").textContent = nextNote;
@@ -7710,6 +7723,7 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Sources", catalog.source_counts || countBy(datasets, "source")),
     breakdownChips("Bars", catalog.bar_size_counts || countBy(datasets, "bar_size")),
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
+    breakdownChips("Contract", contractCounts),
   ].join("");
   renderDataUniversePanel();
   renderDataHomeWorkflows(filteredRows);
@@ -7724,6 +7738,7 @@ function dataHomeWorkflowCards(filteredRows = []) {
   const suggestedRoots = diagnostics.suggested_data_roots || [];
   const rootSummaries = catalog.root_summaries || [];
   const qualityCounts = catalog.quality_counts || {};
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
   const parserErrors = Number(catalog.error_count || rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
   const capped = rootSummaries.some((item) => item.scan_capped || item.not_scanned_reason === "global catalog limit reached");
   const visibleSymbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
@@ -7737,6 +7752,7 @@ function dataHomeWorkflowCards(filteredRows = []) {
   const hiddenConfiguredFiles = Math.max(0, rootFileCount - Number(catalog.count || datasets.length || 0));
   const visibilityIssue = suggestedRoots.length || parserErrors || capped || hiddenConfiguredFiles;
   const qualityIssueCount = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssueCount = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
 
   return [
     {
@@ -7787,12 +7803,12 @@ function dataHomeWorkflowCards(filteredRows = []) {
     },
     {
       label: "Check Quality",
-      title: qualityIssueCount ? `${numberText(qualityIssueCount, 0)} review` : datasets.length ? "Clean Enough" : "No Scan",
-      value: parserErrors ? `${numberText(parserErrors, 0)} parser errors` : countSummary(qualityCounts) || "n/a",
-      status: parserErrors || Number(qualityCounts.bad || 0) ? "bad" : qualityIssueCount ? "warn" : datasets.length ? "ok" : "bad",
-      detail: parserErrors || qualityIssueCount
-        ? "Review parser errors, bad files, warn-quality files, gaps, nulls, and duplicate timestamps before replay."
-        : "No catalog quality issues are visible in the current scan.",
+      title: qualityIssueCount || contractIssueCount ? `${numberText(qualityIssueCount + contractIssueCount, 0)} review` : datasets.length ? "Clean Enough" : "No Scan",
+      value: parserErrors ? `${numberText(parserErrors, 0)} parser errors` : `quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}`,
+      status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssueCount || contractIssueCount ? "warn" : datasets.length ? "ok" : "bad",
+      detail: parserErrors || qualityIssueCount || contractIssueCount
+        ? "Review parser errors, bad files, warn-quality files, storage metadata, gaps, nulls, and duplicate timestamps before replay."
+        : "No catalog quality or storage-contract issues are visible in the current scan.",
       href: workflowHref("data", "diagnostics"),
       cta: "Diagnostics",
     },
@@ -7852,7 +7868,7 @@ function renderDataHomeShortlist(filteredRows = []) {
           <strong>${escapeHtml(symbol)}</strong>
           <small>${escapeHtml(text(dataset.bar_size))} / ${escapeHtml(text(dataset.storage_session))} / ${escapeHtml(numberText(dataset.rows, 0))} rows</small>
           <small>${escapeHtml(rangeLabel(dataset.first_timestamp, dataset.last_timestamp))}</small>
-          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${escapeHtml(bytes(dataset.size_bytes))} / updated ${escapeHtml(shortTimestampAgeLabel(dataset.modified_at))}</small>
+          <small>${qualityBadge(dataset.quality_status, dataset.quality_warnings)} ${qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings)} ${escapeHtml(bytes(dataset.size_bytes))} / updated ${escapeHtml(shortTimestampAgeLabel(dataset.modified_at))}</small>
         </div>
         <div class="data-shortlist-actions">
           <button type="button" data-home-action="inspect" data-path="${escapeHtml(dataset.path)}" data-symbol="${escapeHtml(symbol)}">Inspect</button>
@@ -7884,6 +7900,7 @@ function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
     unsupported: Number(summary.unsupported_file_count || 0),
     capped: Boolean(summary.scan_capped || summary.not_scanned_reason === "global catalog limit reached"),
     reason: text(summary.not_scanned_reason || summary.error || ""),
+    contractCounts: countBy(visibleRows, "storage_contract_status"),
   };
 }
 
@@ -7931,6 +7948,7 @@ function renderDataSourceMap() {
       hiddenFiles ? `${numberText(hiddenFiles, 0)} hidden` : "",
       summary.parseErrors ? `${numberText(summary.parseErrors, 0)} parser errors` : "",
       summary.unsupported ? `${numberText(summary.unsupported, 0)} unsupported` : "",
+      countSummary(summary.contractCounts) ? `contract ${countSummary(summary.contractCounts)}` : "",
     ].filter(Boolean);
     cards.push({
       status,
@@ -9921,9 +9939,12 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
     counts[key] = (counts[key] || 0) + 1;
     return counts;
   }, {});
+  const contractCounts = countBy(datasets, "storage_contract_status");
   const detailPath = detail && detail.path;
   const viewer = (detail && detail.viewer) || {};
   const quality = (detail && detail.quality) || {};
+  const contractStatus = text((detail && detail.storage_contract_status) || "unknown");
+  const contractWarnings = Array.isArray(detail && detail.storage_contract_warnings) ? detail.storage_contract_warnings : [];
   const selectedSymbol = detailPath
     ? text(detail.symbol)
     : (($("data-detail-symbol") && $("data-detail-symbol").value.trim()) || "");
@@ -9931,8 +9952,19 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
     ? datasets.filter((dataset) => text(dataset.symbol).toUpperCase() === selectedSymbol.toUpperCase())
     : [];
   const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : detailPath ? "full" : "waiting"));
-  const catalogStatus = datasets.length ? (qualityCounts.bad ? "warn" : "ok") : "bad";
-  const openedStatus = detailPath ? text(quality.quality_status || "ok") : datasets.length ? "warn" : "bad";
+  const catalogContractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const catalogStatus = datasets.length ? (qualityCounts.bad || contractCounts.bad ? "warn" : "ok") : "bad";
+  const openedQualityStatus = text(quality.quality_status || "ok");
+  const openedStatus = detailPath
+    ? openedQualityStatus === "bad" || contractStatus === "bad"
+      ? "bad"
+      : openedQualityStatus === "warn" || contractStatus === "warn"
+        ? "warn"
+        : "ok"
+    : datasets.length ? "warn" : "bad";
+  const openedContractStatus = detailPath
+    ? contractStatus === "bad" ? "bad" : contractStatus === "warn" ? "warn" : "ok"
+    : datasets.length ? "warn" : "bad";
   const chartStatus = !detailPath
     ? "bad"
     : viewerStatus === "empty_range" || viewerStatus === "unavailable"
@@ -9957,6 +9989,10 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
     nextStatus = "warn";
     nextTitle = "Review Quality";
     nextNote = "Inspect gaps, missing intervals, nulls, and duplicate timestamps before replaying this file.";
+  } else if (detailPath && contractStatus !== "ok") {
+    nextStatus = contractStatus === "bad" ? "bad" : "warn";
+    nextTitle = "Review Metadata";
+    nextNote = contractWarnings.length ? contractWarnings.slice(0, 2).join("; ") : "Review storage-contract metadata before replaying this file.";
   } else if (detailPath) {
     nextStatus = "ok";
     nextTitle = "Use In Workbench";
@@ -9967,7 +10003,7 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
       status: catalogStatus,
       title: numberText(datasets.length, 0),
       label: "Catalog Files",
-      note: `${numberText(symbolCount, 0)} symbols; ${countSummary(qualityCounts) || "no quality counts"}.`,
+      note: `${numberText(symbolCount, 0)} symbols; quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}.`,
     },
     {
       status: selectedSymbol ? matchingSymbolFiles.length ? "ok" : "warn" : datasets.length ? "warn" : "bad",
@@ -9982,8 +10018,18 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
       title: detailPath ? text(detail.bar_size) : "None",
       label: "Opened File",
       note: detailPath
-        ? `${text(detail.source)} / ${text(detail.storage_session)} / ${bytes(detail.size_bytes)}.`
+        ? `${text(detail.source)} / ${text(detail.storage_session)} / ${openedQualityStatus}.`
         : "No saved file is loaded in Data Detail yet.",
+    },
+    {
+      status: openedContractStatus,
+      title: detailPath ? contractStatus : "None",
+      label: "Storage Contract",
+      note: detailPath
+        ? contractWarnings.length ? contractWarnings.slice(0, 2).join("; ") : `${bytes(detail.size_bytes)}; metadata checks passed.`
+        : catalogContractIssues
+          ? `${numberText(catalogContractIssues, 0)} catalog file${catalogContractIssues === 1 ? "" : "s"} need metadata review.`
+          : "Open a saved file to inspect its storage metadata.",
     },
     {
       status: chartStatus,
@@ -12489,6 +12535,7 @@ function renderConfigCompatibility() {
   const strategyFields = plugin.strategy_fields || [];
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const allowQualityWarnings = $("config-allow-quality-warnings") ? $("config-allow-quality-warnings").checked : false;
   const barSizes = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
   const sources = Array.from(new Set(selected.map((dataset) => text(dataset.source)).filter((value) => value !== "n/a")));
@@ -12522,14 +12569,14 @@ function renderConfigCompatibility() {
         : "Choose a configured Workbench plugin.",
     },
     {
-      status: !selected.length ? "bad" : qualityIssues.length && !allowQualityWarnings ? "warn" : "ok",
+      status: !selected.length ? "bad" : contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad") ? "bad" : (qualityIssues.length && !allowQualityWarnings) || contractIssues.length ? "warn" : "ok",
       title: selected.length ? numberText(selected.length, 0) : "None",
       label: "Data",
       note: selected.length
-        ? `${barSizes.join(", ") || "unknown bars"} from ${sources.join(", ") || "unknown source"}; ${numberText(qualityIssues.length, 0)} quality issue${qualityIssues.length === 1 ? "" : "s"}.`
+        ? `${barSizes.join(", ") || "unknown bars"} from ${sources.join(", ") || "unknown source"}; ${numberText(qualityIssues.length, 0)} quality / ${numberText(contractIssues.length, 0)} contract issue${contractIssues.length === 1 ? "" : "s"}.`
         : "No saved datasets selected.",
       next: selected.length
-        ? "Review Selected Data Quality and enable the quality-warning acknowledgement only when the warnings are acceptable."
+        ? "Review Selected Data Quality and storage-contract metadata before trusting a replay draft."
         : "Choose one or more scanned saved-data files.",
     },
     {
@@ -12585,6 +12632,7 @@ function renderConfigCompatibility() {
     ["Strategy Fields", strategyFields.length ? strategyFields.map((field) => `${field.name}:${field.kind}`).join(", ") : "none"],
     ["Selected Bar Sizes", barSizes.join(", ") || "none"],
     ["Selected Sources", sources.join(", ") || "none"],
+    ["Selected Contract Issues", contractIssues.length ? contractIssues.map((dataset) => `${text(dataset.symbol)} ${text(dataset.bar_size)} ${text(dataset.storage_contract_status)}`).join("; ") : "none"],
     ["Selected Paths", selected.map((dataset) => dataset.path).join("\n") || "none"],
     ["Alignment Window", alignment.dataset_count ? rangeLabel(alignment.common_first_timestamp, alignment.common_last_timestamp) : "not previewed"],
     ["Saved Draft Validation", savedDraft ? savedValidation ? savedValidation.valid ? "valid" : `invalid: ${(savedValidation.errors || []).join("; ")}` : "not checked" : "no saved draft selected"],

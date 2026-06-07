@@ -671,6 +671,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     symbols from the current filtered catalog by recency, row coverage, quality,
     and file count, with direct Inspect, Workbench, Compare, and Filter actions
     before the denser symbol card grid.
+  - partial; Data Home first-screen summaries, shortlist cards, workflow cards,
+    and source-map root cards now include storage-contract readiness alongside
+    quality so metadata blockers are visible before opening dense tables.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
@@ -847,6 +850,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Detail Assistant and health cards now include
       storage-contract status/warnings in replay readiness, so single-file
       inspection surfaces metadata blockers before Workbench handoff.
+    - partial; Data Detail overview cards now include catalog/opened-file
+      storage-contract status and route the next action to metadata review when
+      the selected file has contract warnings.
     - partial; Data Detail now exposes `/data_detail_export` and an Export
       Range CSV action that downloads the selected date range with normalized
       UTC timestamps and original file columns, bounded by a server row cap.
@@ -1305,6 +1311,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     files, quality issues, comparison readiness, and range, with direct actions
     to inspect the first selected file, compare selected files, or return to
     Data Library.
+  - partial; Workbench selected-data actions and Compatibility Review now count
+    storage-contract warnings beside quality warnings before draft generation,
+    and list selected contract issues in the compatibility detail.
   - partial; Workbench Builder now includes a Selected Data Packet panel that
     shows the current saved-file selection, quality pressure, bar/source mix,
     date-window choice, alignment overlap state, per-file ranges, and direct
