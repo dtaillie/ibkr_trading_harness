@@ -368,6 +368,10 @@ strategy-private.
     that surfaces latest-day, recent, month/year, all-available return, and
     drawdown from sanitized status-history equity rollups before users open the
     rollup tables.
+  - partial; Performance Home now includes a Performance Review panel that
+    interprets the selected source/window in plain operational terms: verdict,
+    evidence depth, return/drawdown/exposure, execution issues, live/paper
+    continuity, benchmark context, and direct next routes.
   - partial; Overview now surfaces a smaller current Performance Snapshot from
     status-history rollups so the common "how is it doing today/recently?"
     question is visible before entering the full Performance page.

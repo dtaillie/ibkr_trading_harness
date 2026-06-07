@@ -5545,6 +5545,22 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceReview({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   renderPerformanceSnapshot({
     source,
     window,
@@ -6047,6 +6063,142 @@ function renderPerformanceHome(context) {
     </div>
   `).join("");
   renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
+}
+
+function renderPerformanceReview(context) {
+  if (!$("performance-review-note") || !$("performance-review-cards") || !$("performance-review-actions")) return;
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const totalReturn = finiteNumber(periodPerf.total_return_pct);
+  const drawdown = finiteNumber(periodPerf.max_drawdown_pct);
+  const exposure = finiteNumber(periodPerf.max_gross_exposure_pct);
+  const elapsedDays = finiteNumber(periodPerf.elapsed_days);
+  const executionIssues = Number(rejections || 0) + Number(approvalRequired || 0);
+  const rollups = sortedStatusRollups();
+  const latestDay = rollups.length ? rollups[rollups.length - 1] : null;
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const sourceHasDepth = accountRows.length || (allAccountRows || []).length || fills.length || orders || decisions;
+  let verdictStatus = "bad";
+  let verdictTitle = "Load Performance";
+  let verdictNote = "No current telemetry, saved run summary, or artifact account path is available for review.";
+  let primaryHref = "#runs";
+  let primaryLabel = "Open Runs";
+  if (source.has_data && !sourceHasDepth) {
+    verdictStatus = "warn";
+    verdictTitle = "Summary Only";
+    verdictNote = "Headline metrics exist, but there are not enough account snapshots, fills, or decisions to explain them.";
+    primaryHref = "#workbench/artifacts";
+    primaryLabel = "Open Artifacts";
+  } else if (source.has_data && !accountRows.length) {
+    verdictStatus = "warn";
+    verdictTitle = "Change Window";
+    verdictNote = "The selected period has no account snapshots, so charts and drawdown are limited for this window.";
+    primaryHref = "#performance/diagnostics";
+    primaryLabel = "Open Diagnostics";
+  } else if (executionIssues) {
+    verdictStatus = "warn";
+    verdictTitle = "Execution Review Needed";
+    verdictNote = "Rejected orders or approval holds are present, so inspect execution before judging strategy quality.";
+    primaryHref = "#runs/state";
+    primaryLabel = "Review Orders";
+  } else if (totalReturn === null) {
+    verdictStatus = "warn";
+    verdictTitle = "Return Unavailable";
+    verdictNote = "The source is loaded, but the selected window does not expose a computable return.";
+    primaryHref = "#performance/diagnostics";
+    primaryLabel = "Open Diagnostics";
+  } else if (drawdown !== null && Math.abs(drawdown) >= 10) {
+    verdictStatus = totalReturn >= 0 ? "warn" : "bad";
+    verdictTitle = totalReturn >= 0 ? "Positive, Risky" : "Negative With Drawdown";
+    verdictNote = "The return window is readable, but drawdown is large enough that risk should be reviewed first.";
+    primaryHref = "#performance/rollups";
+    primaryLabel = "Open Rollups";
+  } else {
+    verdictStatus = totalReturn >= 0 ? "ok" : "warn";
+    verdictTitle = totalReturn >= 0 ? "Readable Positive Window" : "Readable Negative Window";
+    verdictNote = benchmark.path
+      ? "Outcome, account path, execution, and benchmark context are available for this window."
+      : "Outcome and execution are readable; add a benchmark if you want market-context comparison.";
+    primaryHref = benchmark.path ? "#performance/trades" : "#data/browse";
+    primaryLabel = benchmark.path ? "Inspect Trades" : "Load Benchmark";
+  }
+  const cards = [
+    {
+      status: verdictStatus,
+      label: "Verdict",
+      title: verdictTitle,
+      note: verdictNote,
+      className: statusClass(verdictStatus),
+    },
+    {
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Evidence Depth",
+      title: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : "No snapshots",
+      note: `${numberText(fills.length, 0)} fills / ${numberText(ledger.stats.closed_count, 0)} closed trades / ${numberText(decisions, 0)} decisions in scope.`,
+      className: statusClass(accountRows.length ? "ok" : source.has_data ? "warn" : "bad"),
+    },
+    {
+      status: totalReturn === null ? "warn" : totalReturn >= 0 ? "ok" : "bad",
+      label: "Window Result",
+      title: pctText(totalReturn),
+      note: `${window.label}; drawdown ${pctText(drawdown)} / elapsed ${elapsedDays === null ? "n/a" : `${numberText(elapsedDays, 3)} days`} / exposure ${pctText(exposure)}.`,
+      className: signedValueClass(totalReturn),
+    },
+    {
+      status: executionIssues ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Execution Quality",
+      title: executionIssues ? `${numberText(executionIssues, 0)} issues` : `${numberText(fillCount, 0)} fills`,
+      note: `${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approval holds.`,
+      className: statusClass(executionIssues ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad"),
+    },
+    {
+      status: latestDay ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Live/Paper Continuity",
+      title: latestDay ? pctText(latestDay.daily_return_pct) : "No rollups",
+      note: latestDay
+        ? `${text(latestDay.day)} ${text(latestDay.node_id)}; ${numberText(rollups.length, 0)} status-history day row${rollups.length === 1 ? "" : "s"}.`
+        : "Status-history rollups are not loaded, so current paper/live continuity is not visible here.",
+      className: latestDay ? rollupReturnClass(latestDay.daily_return_pct) : statusClass(source.has_data ? "warn" : "bad"),
+    },
+    {
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Market Context",
+      title: benchmark.path ? text(benchmark.symbol) : "No benchmark",
+      note: benchmark.path
+        ? `${text(benchmark.bar_size)} benchmark overlay loaded from saved data.`
+        : "Load a saved benchmark dataset when strategy return needs market context.",
+      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "bad"),
+    },
+  ];
+  $("performance-review-note").textContent = `${text(source.label)} / ${text(mode)} / ${window.label}; latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}`;
+  $("performance-review-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className)}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-review-actions").innerHTML = [
+    `<a href="${escapeHtml(primaryHref)}">${escapeHtml(primaryLabel)}</a>`,
+    `<a class="secondary" href="#performance/trades">Trades</a>`,
+    `<a class="secondary" href="#performance/rollups">Rollups</a>`,
+    `<a class="secondary" href="#runs/state">Orders</a>`,
+    `<a class="secondary" href="#data/browse">Benchmark Data</a>`,
+  ].join("");
 }
 
 function performanceSnapshotReturnCard({ label, value, detail, source }) {

@@ -915,6 +915,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-home-result" in html
         assert "performance-home-tiles" in html
         assert "performance-workflows" in html
+        assert "performance-review-note" in html
+        assert "performance-review-cards" in html
+        assert "performance-review-actions" in html
         assert "performance-live-period-note" in html
         assert "performance-live-period-cards" in html
         assert "data-catalog-body" in html
