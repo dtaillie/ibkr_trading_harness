@@ -1454,6 +1454,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("POST", "/config_draft_preview") in endpoints
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
+        assert ("GET", "/data_symbol_index") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
@@ -2547,6 +2548,53 @@ def test_cloud_status_server_normalizes_bar_size_aliases(tmp_path):
         with request.urlopen(f"{base}/data_storage_audit?catalog_limit=10&scan_limit=10", timeout=5) as resp:
             audit = json.loads(resp.read().decode("utf-8"))
         assert audit["configured_bar_size_guess_counts"] == {"1h": 1, "5min": 1, "unknown": 1}
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for idx in range(12):
+        symbol = f"SYM{idx:02d}"
+        (data_root / f"{symbol}_1min_sample.csv").write_text(
+            "\n".join([
+                "timestamp,close",
+                "2026-01-02T14:30:00Z,100",
+                "2026-01-02T14:31:00Z,101",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=3&preview_points=2", timeout=5) as resp:
+            catalog = json.loads(resp.read().decode("utf-8"))
+        assert catalog["count"] == 3
+        assert catalog["scan_capped_root_count"] == 1
+
+        with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
+            index = json.loads(resp.read().decode("utf-8"))
+        assert index["file_count"] == 12
+        assert index["symbol_count"] == 12
+        assert index["index_complete"] is True
+        assert index["scan_capped_root_count"] == 0
+        assert index["bar_size_counts"] == {"1min": 12}
+        assert index["asset_class_counts"] == {"stock": 12}
+        assert index["source_counts"] == {"file": 12}
+        assert index["symbols"][0]["file_count"] == 1
+        assert index["symbols"][0]["sample_paths"][0].endswith("_1min_sample.csv")
+        assert len(index["files"]) == 12
+
+        with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:
+            capped = json.loads(resp.read().decode("utf-8"))
+        assert capped["file_count"] == 5
+        assert capped["scan_capped_root_count"] == 1
+        assert capped["index_complete"] is False
     finally:
         server.shutdown()
         server.server_close()

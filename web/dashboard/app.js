@@ -2,6 +2,7 @@ const state = {
   status: null,
   history: [],
   dataCatalog: { datasets: [], errors: [] },
+  dataSymbolIndex: { symbols: [], files: [], errors: [] },
   dataDetail: null,
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
@@ -10263,8 +10264,17 @@ function renderDataCatalog() {
       ? row([`<span class="status-warn">Loading saved-data catalog...</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
       : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
   const errors = catalog.errors || [];
+  const symbolIndex = state.dataSymbolIndex || {};
+  const indexFileCount = Number(symbolIndex.file_count || 0);
+  const indexSymbolCount = Number(symbolIndex.symbol_count || 0);
+  const indexStatus = symbolIndex.index_error
+    ? `index error ${text(symbolIndex.index_error)}`
+    : indexFileCount
+      ? `root index ${numberText(indexFileCount, 0)} files / ${numberText(indexSymbolCount, 0)} symbols${symbolIndex.index_complete === false ? " capped" : ""}`
+      : "root index not loaded";
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
+    indexStatus,
     `scope ${text(catalog.catalog_visibility_status || "unknown")}`,
     `capped roots ${numberText(catalog.scan_capped_root_count || 0, 0)}`,
     `quality ${countSummary(catalog.quality_counts)}`,
@@ -10444,6 +10454,11 @@ function dataExplorerGroupRows(datasets, dimension) {
 
 function renderDataExplorer(datasets = [], filteredRows = []) {
   if (!$("data-explorer-note") || !$("data-explorer-cards") || !$("data-explorer-groups")) return;
+  const symbolIndex = state.dataSymbolIndex || {};
+  const indexFileCount = Number(symbolIndex.file_count || 0);
+  const indexSymbolCount = Number(symbolIndex.symbol_count || 0);
+  const indexCapped = Number(symbolIndex.scan_capped_root_count || 0) > 0 || symbolIndex.index_complete === false;
+  const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const symbolCount = new Set((datasets || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
   const filteredSymbolCount = new Set((filteredRows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
   const totalRows = (datasets || []).reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
@@ -10454,14 +10469,24 @@ function renderDataExplorer(datasets = [], filteredRows = []) {
   $("data-explorer-note").textContent = datasets.length
     ? filters.length
       ? `${numberText(filteredRows.length, 0)} files match ${filters.join(", ")}. Click a group to replace the current Browse filter.`
-      : `${numberText(datasets.length, 0)} files across ${numberText(symbolCount, 0)} symbols. Click a group to filter the table, Symbol Browser, and downstream actions.`
+      : `${numberText(datasets.length, 0)} full-catalog files across ${numberText(symbolCount, 0)} symbols; broad root index sees ${numberText(indexFileCount || datasets.length, 0)} candidate files across ${numberText(indexSymbolCount || symbolCount, 0)} symbols. Click a group to filter the table, Symbol Browser, and downstream actions.`
     : "Configure data roots or fetch history, then refresh Data Library to explore saved files.";
   const cards = [
     {
+      status: indexError !== "n/a" ? "bad" : indexFileCount ? (indexCapped ? "warn" : "ok") : datasets.length ? "warn" : "bad",
+      label: "Root Index",
+      title: indexFileCount ? `${numberText(indexFileCount, 0)} files` : "n/a",
+      note: indexError !== "n/a"
+        ? `Broad index failed: ${indexError}.`
+        : indexFileCount
+          ? `${numberText(indexSymbolCount, 0)} symbols inferred from filenames/paths${indexCapped ? "; index capped" : "; broader than the parsed catalog when limits apply"}.`
+          : "No broad symbol index loaded yet.",
+    },
+    {
       status: datasets.length ? "ok" : "bad",
-      label: "Catalog",
+      label: "Full Catalog",
       title: `${numberText(datasets.length, 0)} files`,
-      note: `${numberText(symbolCount, 0)} symbols / ${numberText(totalRows, 0)} rows in the current bounded catalog.`,
+      note: `${numberText(symbolCount, 0)} symbols / ${numberText(totalRows, 0)} parsed rows with quality and preview metadata.`,
     },
     {
       status: filteredRows.length ? "ok" : datasets.length ? "warn" : "bad",
@@ -23699,6 +23724,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   loadState.diagnosticsLoaded = false;
   loadState.diagnosticsError = "";
   loadState.diagnosticsRequested = Boolean(includeDiagnostics);
+  state.dataSymbolIndex = { symbols: [], files: [], errors: [] };
   state.dataCoverage = { symbols: [], date_bins: [], errors: [] };
   state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
   state.dataMinuteHeatmap = { rows: [], errors: [] };
@@ -23709,10 +23735,18 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   renderDataMinuteHeatmap();
   renderDataStorageAudit();
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000));
   try {
     const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=${dataCatalogPreviewPoints()}`);
+    let dataSymbolIndex = { symbols: [], files: [], errors: [] };
+    try {
+      dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}`);
+    } catch (indexErr) {
+      dataSymbolIndex = { symbols: [], files: [], errors: [{ error: indexErr.message }], index_error: indexErr.message };
+    }
     if (requestId !== loadState.requestId) return;
     state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+    state.dataSymbolIndex = dataSymbolIndex || { symbols: [], files: [], errors: [] };
     loadState.catalogLoaded = true;
     loadState.catalogLoading = false;
     renderDataCatalog();

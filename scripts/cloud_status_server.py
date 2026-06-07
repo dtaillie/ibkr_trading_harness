@@ -94,6 +94,8 @@ DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
 DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",)
 DEFAULT_DATA_CATALOG_LIMIT = 200
 DEFAULT_DATA_CATALOG_MAX_LIMIT = 1000
+DEFAULT_DATA_SYMBOL_INDEX_LIMIT = 5000
+DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT = 20000
 PUBLIC_DOCS = {
     "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
@@ -498,6 +500,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Inspect CSV/parquet data files under configured public data roots.",
         "response": "JSON catalog with quality metadata",
+    },
+    {
+        "method": "GET",
+        "path": "/data_symbol_index",
+        "category": "data",
+        "description": "Build a broad filename/path-inferred saved-data symbol index without parsing full data files.",
+        "response": "JSON symbol/file index",
     },
     {
         "method": "GET",
@@ -2091,6 +2100,11 @@ def infer_symbol(path: Path, df: pd.DataFrame) -> str | None:
     return match.group(1).upper() if match else None
 
 
+def infer_symbol_from_path(path: Path) -> str | None:
+    match = re.match(r"([A-Za-z0-9.-]+)", path.stem)
+    return match.group(1).upper() if match else None
+
+
 def normalize_bar_size(value: Any) -> str | None:
     raw = str(value or "").strip().lower()
     if not raw:
@@ -2842,6 +2856,120 @@ def build_data_catalog(
         "latest_modified_at": max(modified_values) if modified_values else None,
         "limit": limit,
         "preview_points": preview_points,
+    }
+
+
+def summarize_data_file_candidate(path: Path, *, root: Path) -> dict[str, Any]:
+    stat = path.stat()
+    symbol = infer_symbol_from_path(path)
+    asset_class = infer_asset_class(path, symbol)
+    canonical = canonical_symbol(symbol, asset_class)
+    bar_size = infer_bar_size_from_text("/".join(path.parts))
+    storage_session = storage_session_from_path(path, asset_class=asset_class) or ("24_7" if asset_class == "crypto" else "unknown")
+    adjustment_status = adjustment_status_from_path(path) or ("not_applicable" if asset_class == "crypto" else "unknown")
+    return {
+        "path": path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else str(path),
+        "root": root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root),
+        "format": path.suffix.lower().lstrip("."),
+        "source": infer_data_source(path),
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "symbol": symbol,
+        "canonical_symbol": canonical,
+        "asset_class": asset_class,
+        "bar_size": bar_size,
+        "storage_session": storage_session,
+        "adjustment_status": adjustment_status,
+    }
+
+
+def build_data_symbol_index(data_roots: list[Path], *, limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT) -> dict[str, Any]:
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit)
+    file_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for path in files:
+        resolved_path = path.resolve()
+        root = next((candidate.resolve() for candidate in data_roots if resolved_path.is_relative_to(candidate.resolve())), resolved_path.parent)
+        try:
+            file_rows.append(summarize_data_file_candidate(resolved_path, root=root))
+        except Exception as exc:
+            errors.append({
+                "path": resolved_path.relative_to(ROOT).as_posix() if resolved_path.is_relative_to(ROOT) else str(resolved_path),
+                "error": str(exc),
+            })
+
+    groups: dict[str, dict[str, Any]] = {}
+    for row in file_rows:
+        symbol = str(row.get("canonical_symbol") or row.get("symbol") or "UNKNOWN")
+        if symbol not in groups:
+            groups[symbol] = {
+                "symbol": symbol,
+                "display_symbol": row.get("symbol") or symbol,
+                "asset_class": row.get("asset_class") or "unknown",
+                "file_count": 0,
+                "size_bytes_total": 0,
+                "latest_modified_at": None,
+                "sources": set(),
+                "bar_sizes": set(),
+                "storage_sessions": set(),
+                "adjustment_statuses": set(),
+                "roots": set(),
+                "sample_paths": [],
+            }
+        group = groups[symbol]
+        group["file_count"] += 1
+        group["size_bytes_total"] += int(row.get("size_bytes") or 0)
+        modified = str(row.get("modified_at") or "")
+        if modified and (not group.get("latest_modified_at") or modified > str(group.get("latest_modified_at"))):
+            group["latest_modified_at"] = modified
+        for key, target in (
+            ("source", "sources"),
+            ("bar_size", "bar_sizes"),
+            ("storage_session", "storage_sessions"),
+            ("adjustment_status", "adjustment_statuses"),
+            ("root", "roots"),
+        ):
+            value = row.get(key)
+            if value:
+                group[target].add(str(value))
+        if len(group["sample_paths"]) < 3 and row.get("path"):
+            group["sample_paths"].append(row["path"])
+
+    symbol_rows = []
+    for group in groups.values():
+        symbol_rows.append({
+            **group,
+            "sources": sorted(group["sources"]),
+            "bar_sizes": sorted(group["bar_sizes"]),
+            "storage_sessions": sorted(group["storage_sessions"]),
+            "adjustment_statuses": sorted(group["adjustment_statuses"]),
+            "roots": sorted(group["roots"]),
+        })
+    symbol_rows.sort(key=lambda row: (-int(row.get("file_count") or 0), str(row.get("symbol") or "")))
+
+    return {
+        "generated_at": utc_now(),
+        "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
+        "root_summaries": root_summaries,
+        "symbols": symbol_rows,
+        "files": file_rows[:500],
+        "errors": errors,
+        "limit": limit,
+        "file_count": len(file_rows),
+        "symbol_count": len(symbol_rows),
+        "error_count": len(errors),
+        "scan_capped_root_count": sum(1 for row in root_summaries if row.get("scan_capped")),
+        "not_scanned_root_count": sum(1 for row in root_summaries if row.get("not_scanned_reason")),
+        "candidate_count_total": sum(int(row.get("candidate_count") or 0) for row in root_summaries),
+        "unsupported_file_count_total": sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries),
+        "size_bytes_total": sum(int(row.get("size_bytes") or 0) for row in file_rows),
+        "latest_modified_at": max([str(row.get("modified_at")) for row in file_rows if row.get("modified_at")] or [None]),
+        "asset_class_counts": count_values(file_rows, "asset_class"),
+        "source_counts": count_values(file_rows, "source"),
+        "bar_size_counts": count_values(file_rows, "bar_size"),
+        "storage_session_counts": count_values(file_rows, "storage_session"),
+        "adjustment_status_counts": count_values(file_rows, "adjustment_status"),
+        "index_complete": not any(row.get("scan_capped") or row.get("not_scanned_reason") for row in root_summaries),
     }
 
 
@@ -10811,6 +10939,24 @@ class StatusHandler(BaseHTTPRequestHandler):
                 payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
                 payload["default_limit"] = self.data_catalog_default_limit
                 payload["max_limit"] = self.data_catalog_max_limit
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_index":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_int_param(
+                    params,
+                    "limit",
+                    default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
+                    maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
+                )
+                payload = build_data_symbol_index(self.data_roots, limit=limit)
+                payload["default_limit"] = DEFAULT_DATA_SYMBOL_INDEX_LIMIT
+                payload["max_limit"] = DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

@@ -226,6 +226,10 @@ strategy-private.
     - partial; Data Library can now copy a `dashboard.data_roots` YAML block
       built from configured and scanner-suggested roots, giving users a direct
       local-config fix when real history exists outside scanned roots.
+    - partial; Data Library now loads a broad `/data_symbol_index` that infers
+      symbol/source/bar/session coverage from configured-root filenames without
+      parsing full datasets, so users can distinguish the bounded quality
+      catalog from the wider saved-file universe under their roots.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

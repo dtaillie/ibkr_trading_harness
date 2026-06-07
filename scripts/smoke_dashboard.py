@@ -1301,6 +1301,7 @@ def run_smoke(
         catalog_limit = 50 if scenario == "seeded" else 5
         coverage_symbol_limit = 50 if scenario == "seeded" else 10
         catalog = fetch_json(base_url, f"/data_catalog?limit={catalog_limit}&preview_points=3")
+        symbol_index = fetch_json(base_url, f"/data_symbol_index?limit={max(catalog_limit, 500)}")
         data_catalog_csv = fetch_text(base_url, f"/data_catalog_export?limit={catalog_limit}")
         data_symbol_directory_csv = fetch_text(base_url, f"/data_symbol_directory_export?limit={catalog_limit}")
         data_catalog_scan_csv = fetch_text(base_url, f"/data_catalog_scan_export?limit={catalog_limit}")
@@ -1380,6 +1381,8 @@ def run_smoke(
             raise RuntimeError("draft validation summary is missing")
         if diagnostics.get("status") not in {"ok", "warn", "bad"}:
             raise RuntimeError("diagnostics status is invalid")
+        if "symbols" not in symbol_index or "file_count" not in symbol_index or "index_complete" not in symbol_index:
+            raise RuntimeError("data symbol index summary is invalid")
         endpoint_paths = {(item.get("method"), item.get("path")) for item in endpoint_map.get("endpoints") or []}
         if ("GET", "/workbench_snapshot_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing workbench_snapshot_export")
@@ -1401,6 +1404,8 @@ def run_smoke(
             raise RuntimeError("endpoint map is missing fetch_manifest_detail_export")
         if ("GET", "/data_symbol_diagnostic") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_symbol_diagnostic")
+        if ("GET", "/data_symbol_index") not in endpoint_paths:
+            raise RuntimeError("endpoint map is missing data_symbol_index")
         if ("GET", "/data_coverage_export") not in endpoint_paths:
             raise RuntimeError("endpoint map is missing data_coverage_export")
         if ("GET", "/data_gap_summary") not in endpoint_paths:
@@ -1462,7 +1467,7 @@ def run_smoke(
         if "rollups" not in status_rollups_snapshot or "artifact_path" not in status_rollups_snapshot:
             raise RuntimeError("status equity rollup snapshot is invalid")
         command_audit_csv = fetch_text(base_url, "/command_audit_export?limit=5")
-        if "audited_at,event,node_id,command_id" not in command_audit_csv:
+        if "audited_at,event,auth_role,node_id,command_id" not in command_audit_csv:
             raise RuntimeError("command audit CSV header is missing")
         scenario_checks = {}
         if scenario == "empty":
