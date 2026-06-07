@@ -230,6 +230,8 @@ strategy-private.
       symbol/source/bar/session coverage from configured-root filenames without
       parsing full datasets, so users can distinguish the bounded quality
       catalog from the wider saved-file universe under their roots.
+      Data Inventory and Universe Coverage now surface that root-index count
+      on Data Home before users drill into Browse.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

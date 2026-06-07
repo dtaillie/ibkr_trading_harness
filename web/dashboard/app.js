@@ -10003,6 +10003,9 @@ function dataUniverseRows() {
 function renderDataUniversePanel() {
   if (!$("data-universe-title") || !$("data-universe-cards") || !$("data-universe-symbols")) return;
   const rows = dataUniverseRows();
+  const symbolIndex = state.dataSymbolIndex || {};
+  const indexFileCount = Number(symbolIndex.file_count || 0);
+  const indexSymbolCount = Number(symbolIndex.symbol_count || 0);
   const fileCount = rows.reduce((sum, item) => sum + Number(item.file_count || 0), 0);
   const rowCount = rows.reduce((sum, item) => sum + Number(item.row_count || 0), 0);
   const latestMillis = rows
@@ -10035,10 +10038,10 @@ function renderDataUniversePanel() {
     note = "The universe has multiple symbols. Use Compare for overlapping date windows or fetch additional bar sizes for same-symbol checks.";
   }
   $("data-universe-title").textContent = rows.length
-    ? `${numberText(rows.length, 0)} scanned symbol${rows.length === 1 ? "" : "s"}`
+    ? `${numberText(rows.length, 0)} parsed symbol${rows.length === 1 ? "" : "s"}`
     : "No universe loaded";
   $("data-universe-note").textContent = rows.length
-    ? `${numberText(fileCount, 0)} files / ${numberText(rowCount, 0)} rows. ${note}`
+    ? `${numberText(fileCount, 0)} parsed files / ${numberText(rowCount, 0)} rows; root index sees ${numberText(indexFileCount || fileCount, 0)} candidate files across ${numberText(indexSymbolCount || rows.length, 0)} symbols. ${note}`
     : note;
   const cards = [
     {
@@ -11097,6 +11100,11 @@ function renderDataInventoryPanel(filteredRows = []) {
   const loadState = dataLibraryLoadState();
   const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
   const catalogCount = Number(catalog.count || datasets.length || 0);
+  const symbolIndex = state.dataSymbolIndex || {};
+  const indexFileCount = Number(symbolIndex.file_count || 0);
+  const indexSymbolCount = Number(symbolIndex.symbol_count || 0);
+  const indexCapped = symbolIndex.index_complete === false || Number(symbolIndex.scan_capped_root_count || 0) > 0;
+  const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const rootSummaries = catalog.root_summaries || [];
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
   const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
@@ -11127,8 +11135,10 @@ function renderDataInventoryPanel(filteredRows = []) {
     note = `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} may contain real history outside the configured scan.`;
   } else if (capped) {
     status = "warn";
-    title = "Raise the scan limit";
-    note = `The catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows, so missing symbols may simply be beyond the current scan window.`;
+    title = indexFileCount > catalogCount ? "Catalog is a bounded sample" : "Raise the scan limit";
+    note = indexFileCount > catalogCount
+      ? `The parsed catalog is capped at ${numberText(catalog.limit || 0, 0)} rows, while the broad root index sees ${numberText(indexFileCount, 0)} candidate files across ${numberText(indexSymbolCount, 0)} symbols.`
+      : `The catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows, so missing symbols may simply be beyond the current scan window.`;
   } else if (catalogCount && hiddenByFilters === catalogCount) {
     status = "warn";
     title = "Filters hide all rows";
@@ -11156,6 +11166,16 @@ function renderDataInventoryPanel(filteredRows = []) {
       title: firstCatalogLoad ? "Loading" : `${numberText(symbols.size, 0)} symbols`,
       status: firstCatalogLoad ? "warn" : symbols.size ? "ok" : "bad",
       detail: `${numberText(catalogCount, 0)} catalog files / ${numberText(catalog.row_count_total || 0, 0)} rows.`,
+    },
+    {
+      label: "Root Index",
+      title: indexFileCount ? `${numberText(indexSymbolCount, 0)} symbols` : "n/a",
+      status: indexError !== "n/a" ? "bad" : indexFileCount ? (indexCapped ? "warn" : "ok") : catalogCount ? "warn" : "bad",
+      detail: indexError !== "n/a"
+        ? `Index failed: ${indexError}.`
+        : indexFileCount
+          ? `${numberText(indexFileCount, 0)} candidate files inferred from filenames/paths${indexCapped ? "; index capped" : ""}.`
+          : "No broad root index loaded.",
     },
     {
       label: "Roots",
