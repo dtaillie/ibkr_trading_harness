@@ -1239,6 +1239,72 @@
           <div id="data-universe-cards" class="data-universe-cards"></div>
           <div id="data-universe-symbols" class="data-universe-symbols"></div>
         </section>
+        <section class="nested-section" data-data-lens="home browse" aria-label="Root index browser">
+          <div class="section-head">
+            <h2>Root Index Browser</h2>
+            <span id="data-root-index-note" class="section-note">Filename/path-inferred symbols from configured roots</span>
+          </div>
+          <div class="table-toolbar">
+            <label class="wide-field">
+              <span>Find Candidate</span>
+              <input id="data-root-index-filter" type="search" placeholder="Symbol, source, bar, session, path">
+            </label>
+            <label>
+              <span>Asset</span>
+              <select id="data-root-index-asset"></select>
+            </label>
+            <label>
+              <span>Source</span>
+              <select id="data-root-index-source"></select>
+            </label>
+            <label>
+              <span>Bar</span>
+              <select id="data-root-index-bar"></select>
+            </label>
+            <label>
+              <span>Session</span>
+              <select id="data-root-index-session"></select>
+            </label>
+            <label>
+              <span>Sort</span>
+              <select id="data-root-index-sort">
+                <option value="files_desc" selected>Most files</option>
+                <option value="modified_desc">Newest modified</option>
+                <option value="size_desc">Largest size</option>
+                <option value="symbol_asc">Symbol A-Z</option>
+              </select>
+            </label>
+            <label>
+              <span>Show</span>
+              <select id="data-root-index-limit">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </label>
+            <button id="data-root-index-clear" class="secondary" type="button">Clear</button>
+          </div>
+          <div id="data-root-index-summary" class="action-card-grid"></div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Files</th>
+                  <th>Asset</th>
+                  <th>Sources</th>
+                  <th>Bars</th>
+                  <th>Sessions</th>
+                  <th>Modified</th>
+                  <th>Sample Paths</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="data-root-index-body"></tbody>
+            </table>
+          </div>
+        </section>
         <section class="nested-section data-preview-wall-panel" aria-label="Saved data preview wall">
           <div class="section-head">
             <h2>Saved Data Preview Wall</h2>
@@ -3959,7 +4025,7 @@
             </div>
             <div class="guide-item">
               <strong>Find missing symbols</strong>
-              <span>Use Data Home Root Index, Data Library root cards, Storage Audit, and Find Missing Symbol to distinguish missing files from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
+              <span>Use Data Home Root Index Browser, Data Library root cards, Storage Audit, and Find Missing Symbol to distinguish missing files from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
             </div>
             <div class="guide-item">
               <strong>Restart services safely</strong>

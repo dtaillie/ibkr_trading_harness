@@ -1052,6 +1052,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-directory-note" in html
         assert "export-data-symbol-directory-csv" in html
         assert "export-data-symbol-index-csv" in html
+        assert "data-root-index-filter" in html
+        assert "data-root-index-summary" in html
+        assert "data-root-index-body" in html
         assert "data-symbol-directory-filter" in html
         assert "data-symbol-directory-asset" in html
         assert "data-symbol-directory-source" in html

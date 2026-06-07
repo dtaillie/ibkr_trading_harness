@@ -86,8 +86,11 @@ session, quality, and storage-contract state, then lets you click a group to
 replace the current Browse filters and jump to the matching table rows. On Data
 Home, use Root Index first when the catalog looks too small; it counts
 candidate files and symbols inferred from configured-root filenames/paths
-without parsing every dataset. Use Export Root Index CSV when you want that
-candidate-file and symbol summary outside the dashboard.
+without parsing every dataset. Use Root Index Browser to search those
+candidate symbols, jump into parsed-catalog search, diagnose missing symbols,
+or copy sample paths; use Export Root Index CSV when you want that
+candidate-file and symbol summary outside the dashboard. Root Index rows are
+filename/path inferred, so inspect parsed Data Detail quality before replay.
 Use Saved History Matrix when you want the concrete bar inventory first: it
 groups visible saved files by asset, source, bar size, and session, then shows
 symbol/file/row counts, coverage range, replay readiness, and a Browse action

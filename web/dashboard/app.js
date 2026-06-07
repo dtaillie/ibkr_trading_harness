@@ -10096,6 +10096,196 @@ function renderDataUniversePanel() {
     : `<div class="empty-card"><strong>No symbols to rank</strong><span>Refresh Data Library after adding saved data roots.</span></div>`;
 }
 
+function rootIndexArray(row, key) {
+  const value = row && row[key];
+  if (Array.isArray(value)) return value.map(text).filter((item) => item && item !== "n/a");
+  const asText = text(value);
+  return asText && asText !== "n/a" ? [asText] : [];
+}
+
+function rootIndexFilterState() {
+  return {
+    text: (($("data-root-index-filter") || {}).value || "").trim().toLowerCase(),
+    asset: (($("data-root-index-asset") || {}).value || ""),
+    source: (($("data-root-index-source") || {}).value || ""),
+    bar: (($("data-root-index-bar") || {}).value || ""),
+    session: (($("data-root-index-session") || {}).value || ""),
+    sort: (($("data-root-index-sort") || {}).value || "files_desc"),
+    limit: Number((($("data-root-index-limit") || {}).value || "50")),
+  };
+}
+
+function syncRootIndexOptions(symbols = []) {
+  const makeSelect = (id, values) => {
+    const select = $(id);
+    if (!select) return;
+    const current = select.value;
+    const options = Array.from(new Set(values.map(text).filter((item) => item && item !== "n/a"))).sort();
+    select.innerHTML = [
+      `<option value="">All</option>`,
+      ...options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
+    ].join("");
+    if (options.includes(current)) select.value = current;
+  };
+  makeSelect("data-root-index-asset", symbols.map((item) => item.asset_class));
+  makeSelect("data-root-index-source", symbols.flatMap((item) => rootIndexArray(item, "sources")));
+  makeSelect("data-root-index-bar", symbols.flatMap((item) => rootIndexArray(item, "bar_sizes")));
+  makeSelect("data-root-index-session", symbols.flatMap((item) => rootIndexArray(item, "storage_sessions")));
+}
+
+function rootIndexSortValue(row, key) {
+  if (key === "files") return Number(row.file_count || 0);
+  if (key === "modified") return timestampMillis(row.latest_modified_at) || 0;
+  if (key === "size") return Number(row.size_bytes_total || 0);
+  return text(row.symbol).toLowerCase();
+}
+
+function rootIndexRows() {
+  const symbols = ((state.dataSymbolIndex || {}).symbols || []).slice();
+  syncRootIndexOptions(symbols);
+  const filters = rootIndexFilterState();
+  const rows = symbols.filter((item) => {
+    if (filters.asset && text(item.asset_class) !== filters.asset) return false;
+    if (filters.source && !rootIndexArray(item, "sources").includes(filters.source)) return false;
+    if (filters.bar && !rootIndexArray(item, "bar_sizes").includes(filters.bar)) return false;
+    if (filters.session && !rootIndexArray(item, "storage_sessions").includes(filters.session)) return false;
+    if (filters.text) {
+      const haystack = [
+        item.symbol,
+        item.display_symbol,
+        item.asset_class,
+        ...rootIndexArray(item, "sources"),
+        ...rootIndexArray(item, "bar_sizes"),
+        ...rootIndexArray(item, "storage_sessions"),
+        ...rootIndexArray(item, "adjustment_statuses"),
+        ...rootIndexArray(item, "roots"),
+        ...rootIndexArray(item, "sample_paths"),
+      ].map(text).join(" ").toLowerCase();
+      if (!haystack.includes(filters.text)) return false;
+    }
+    return true;
+  });
+  const [key, direction] = String(filters.sort || "files_desc").split("_");
+  const multiplier = direction === "asc" ? 1 : -1;
+  rows.sort((left, right) => {
+    const leftValue = rootIndexSortValue(left, key);
+    const rightValue = rootIndexSortValue(right, key);
+    if (typeof leftValue === "number" && typeof rightValue === "number" && leftValue !== rightValue) {
+      return (leftValue - rightValue) * multiplier;
+    }
+    const primary = String(leftValue).localeCompare(String(rightValue)) * multiplier;
+    if (primary) return primary;
+    return text(left.symbol).localeCompare(text(right.symbol));
+  });
+  return { rows, filters, shown: rows.slice(0, Math.max(1, filters.limit || 50)) };
+}
+
+function renderRootIndexBrowser() {
+  if (!$("data-root-index-note") || !$("data-root-index-summary") || !$("data-root-index-body")) return;
+  const index = state.dataSymbolIndex || {};
+  const symbols = index.symbols || [];
+  const { rows, filters, shown } = rootIndexRows();
+  const datasets = (state.dataCatalog || {}).datasets || [];
+  const parsedSymbols = new Set(datasets.map((dataset) => text(dataset.symbol).toUpperCase()).filter((value) => value && value !== "N/A"));
+  const parsedMatches = rows.filter((item) => parsedSymbols.has(text(item.symbol).toUpperCase()));
+  const indexError = text(index.index_error || ((index.errors || [])[0] || {}).error || "");
+  const capped = index.index_complete === false || Number(index.scan_capped_root_count || 0) > 0;
+  const activeFilters = [
+    filters.text ? `search "${filters.text}"` : "",
+    filters.asset ? `asset ${filters.asset}` : "",
+    filters.source ? `source ${filters.source}` : "",
+    filters.bar ? `bar ${filters.bar}` : "",
+    filters.session ? `session ${filters.session}` : "",
+  ].filter(Boolean);
+  $("data-root-index-note").textContent = indexError !== "n/a"
+    ? `Root index failed: ${indexError}`
+    : symbols.length
+      ? `${numberText(rows.length, 0)} matched / ${numberText(symbols.length, 0)} candidate symbols inferred from filenames and paths${capped ? "; scan capped" : ""}.`
+      : "No root-index symbols loaded; configure data roots or refresh Data Library.";
+  const cards = [
+    {
+      label: "Candidate Symbols",
+      status: indexError !== "n/a" ? "bad" : symbols.length ? (capped ? "warn" : "ok") : "bad",
+      title: numberText(symbols.length, 0),
+      note: `${numberText(index.file_count || 0, 0)} candidate files; ${capped ? "bounded by scan limits" : "full configured-root index"}.`,
+    },
+    {
+      label: "Matched Now",
+      status: rows.length ? "ok" : symbols.length ? "warn" : "bad",
+      title: numberText(rows.length, 0),
+      note: activeFilters.length ? activeFilters.join(" / ") : "No Root Index filters active.",
+    },
+    {
+      label: "Also Parsed",
+      status: parsedMatches.length ? "ok" : rows.length ? "warn" : "bad",
+      title: numberText(parsedMatches.length, 0),
+      note: parsedMatches.length
+        ? "These candidate symbols also appear in the quality catalog."
+        : rows.length ? "Candidates may be outside the parsed limit or skipped by parser/root settings." : "No matched candidates.",
+    },
+    {
+      label: "Latest Modified",
+      status: index.latest_modified_at ? "ok" : symbols.length ? "warn" : "bad",
+      title: index.latest_modified_at ? shortTimestampAgeLabel(index.latest_modified_at) : "n/a",
+      note: index.latest_modified_at ? text(index.latest_modified_at) : "No modification timestamp found.",
+    },
+  ];
+  $("data-root-index-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-root-index-body").innerHTML = shown.length
+    ? shown.map((item) => {
+        const symbol = text(item.symbol);
+        const samplePaths = rootIndexArray(item, "sample_paths");
+        const parsed = parsedSymbols.has(symbol.toUpperCase());
+        return row([
+          `<strong>${escapeHtml(symbol)}</strong><br><span class="muted">${escapeHtml(text(item.display_symbol))}${parsed ? " / parsed" : " / candidate only"}</span>`,
+          `${escapeHtml(numberText(item.file_count, 0))}<br><span class="muted">${escapeHtml(bytes(item.size_bytes_total))}</span>`,
+          escapeHtml(text(item.asset_class)),
+          escapeHtml(rootIndexArray(item, "sources").join(", ") || "unknown"),
+          escapeHtml(rootIndexArray(item, "bar_sizes").join(", ") || "unknown"),
+          escapeHtml(rootIndexArray(item, "storage_sessions").join(", ") || "unknown"),
+          escapeHtml(item.latest_modified_at ? shortTimestampAgeLabel(item.latest_modified_at) : "n/a"),
+          samplePaths.length
+            ? jsonDrilldown(samplePaths, samplePaths.slice(0, 2).join(" | "))
+            : `<span class="muted">none</span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
+        ]);
+      }).join("")
+    : row([symbols.length ? `<span class="muted">No root-index symbols match the current filters.</span>` : `<span class="muted">No root-index symbols loaded.</span>`, "", "", "", "", "", "", "", ""]);
+}
+
+async function handleRootIndexBrowserAction(target) {
+  const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
+  if (!symbol) return;
+  if (target.classList.contains("root-index-search-catalog")) {
+    $("data-filter-text").value = symbol;
+    $("data-symbol-browser-input").value = symbol;
+    state.manifestPathFilter = null;
+    renderDataCatalog();
+    navigateToDataLens("browse");
+    $("last-refresh").textContent = `Parsed catalog searched for ${symbol}`;
+    return;
+  }
+  if (target.classList.contains("root-index-diagnose")) {
+    $("data-symbol-input").value = symbol;
+    await diagnoseDataSymbol(new Event("submit"));
+    return;
+  }
+  if (target.classList.contains("root-index-copy-paths")) {
+    const item = ((state.dataSymbolIndex || {}).symbols || []).find((rowItem) => text(rowItem.symbol).toUpperCase() === symbol);
+    const paths = rootIndexArray(item || {}, "sample_paths");
+    await copyText(paths.join("\n"));
+    $("last-refresh").textContent = paths.length
+      ? `Copied ${numberText(paths.length, 0)} sample root-index path${paths.length === 1 ? "" : "s"} for ${symbol}`
+      : `No sample paths available for ${symbol}`;
+  }
+}
+
 function timestampRangeFromDatasets(datasets) {
   const starts = (datasets || []).map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
   const ends = (datasets || []).map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
@@ -11085,6 +11275,7 @@ function renderDataHome(filteredRows = []) {
   renderDataVisibilityReport(filteredRows);
   renderDataHistoryMatrix(filteredRows);
   renderDataUniversePanel();
+  renderRootIndexBrowser();
   renderDataPreviewWall(filteredRows);
   renderDataHomeWorkflows(filteredRows);
   renderDataHomeShortlist(filteredRows);
@@ -25131,6 +25322,33 @@ function init() {
   $("data-filter-contract").addEventListener("change", renderDataCatalog);
   $("data-filter-replay").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
+  $("data-root-index-filter").addEventListener("input", renderRootIndexBrowser);
+  $("data-root-index-asset").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-source").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-bar").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-session").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-sort").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-limit").addEventListener("change", renderRootIndexBrowser);
+  $("data-root-index-clear").addEventListener("click", () => {
+    $("data-root-index-filter").value = "";
+    $("data-root-index-asset").value = "";
+    $("data-root-index-source").value = "";
+    $("data-root-index-bar").value = "";
+    $("data-root-index-session").value = "";
+    $("data-root-index-sort").value = "files_desc";
+    $("data-root-index-limit").value = "50";
+    renderRootIndexBrowser();
+    $("last-refresh").textContent = "Root Index filters cleared";
+  });
+  $("data-root-index-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest(".root-index-search-catalog, .root-index-diagnose, .root-index-copy-paths")
+      : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRootIndexBrowserAction(target).catch((err) => {
+      $("data-root-index-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-home-clear-filters").addEventListener("click", () => {
     clearDataCatalogFilters();
     renderDataCatalog();
