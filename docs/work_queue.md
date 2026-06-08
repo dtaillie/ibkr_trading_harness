@@ -223,6 +223,12 @@ strategy-private.
     raises `market_data_health_bad` alerts, and Overview's Market Data card
     shows the feed-health reason and symbol coverage instead of only a stale
     timestamp.
+  - partial; `scripts/publish_status.py` now derives a top-level
+    `runtime_activity` summary from supervised jobs, active child processes,
+    fresh/stale runs, missed windows, and next start times. Overview and
+    Operations Paper show this directly as Runtime Activity so "Gateway
+    reachable" is no longer confused with "a strategy is actively running or
+    evaluating."
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
@@ -2042,6 +2048,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     allowlisted dashboard diagnostics. Private/specialized runners still need
     to publish comparable sanitized next-order-condition fields for this to
     become fully green in all modes.
+  - partial; the publisher now adds `runtime_activity`, and the Paper Monitor
+    checklist/observation packet consumes it to distinguish active child
+    processes, running/due/missed jobs, fresh telemetry, stale telemetry, and
+    idle waiting-for-window states.
   - partial; Operations now has Paper Monitor Health cards that summarize
     blocker/warning counts, next action, mode safety, and order-context
     visibility before the detailed checklist.

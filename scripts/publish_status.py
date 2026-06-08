@@ -768,6 +768,114 @@ def summarize_configured_supervisors(supervisors_cfg: list[Any], *, now: datetim
     return supervisors, alerts
 
 
+def summarize_runtime_activity(runs: list[dict[str, Any]], supervisors: list[dict[str, Any]], *, now: datetime) -> dict[str, Any]:
+    jobs: list[dict[str, Any]] = []
+    active_children: list[dict[str, Any]] = []
+    for supervisor in supervisors:
+        if not isinstance(supervisor, dict):
+            continue
+        for job in supervisor.get("jobs") or []:
+            if isinstance(job, dict):
+                row = dict(job)
+                row["supervisor_id"] = supervisor.get("id")
+                jobs.append(row)
+        for child in supervisor.get("active_children") or []:
+            if isinstance(child, dict):
+                row = dict(child)
+                row["supervisor_id"] = supervisor.get("id")
+                active_children.append(row)
+    running_jobs = [job for job in jobs if str(job.get("status") or "").lower() == "running"]
+    due_jobs = [job for job in jobs if str(job.get("status") or "").lower() == "due"]
+    missed_jobs = [
+        job for job in jobs
+        if str(job.get("status") or "").lower() == "missed" or job.get("missed_window") is True
+    ]
+    waiting_jobs = [job for job in jobs if str(job.get("status") or "").lower() == "waiting"]
+    completed_jobs = [job for job in jobs if str(job.get("status") or "").lower() in {"completed", "completed_or_exited"}]
+    stale_runs = [run for run in runs if isinstance(run, dict) and (run.get("freshness") or {}).get("stale")]
+    fresh_runs = [run for run in runs if isinstance(run, dict) and run.get("exists") is not False and not (run.get("freshness") or {}).get("stale")]
+    next_jobs = sorted(
+        [job for job in jobs if job.get("next_start_at")],
+        key=lambda item: str(item.get("next_start_at") or ""),
+    )
+    if active_children or running_jobs:
+        status = "running"
+        reason = "active_children"
+    elif due_jobs:
+        status = "due"
+        reason = "jobs_due"
+    elif missed_jobs:
+        status = "warn"
+        reason = "missed_windows"
+    elif fresh_runs:
+        status = "publishing"
+        reason = "fresh_run_telemetry"
+    elif stale_runs:
+        status = "stale"
+        reason = "stale_run_telemetry"
+    elif waiting_jobs or next_jobs:
+        status = "idle"
+        reason = "waiting_for_next_window"
+    else:
+        status = "unknown"
+        reason = "no_activity_evidence"
+    label = {
+        "running": "Running",
+        "due": "Due",
+        "warn": "Missed Window",
+        "publishing": "Publishing",
+        "stale": "Telemetry Stale",
+        "idle": "Idle",
+        "unknown": "Unknown",
+    }.get(status, status.title())
+    return {
+        "schema_version": 1,
+        "generated_at": now.isoformat(),
+        "status": status,
+        "label": label,
+        "reason": reason,
+        "active_child_count": len(active_children),
+        "running_job_count": len(running_jobs),
+        "due_job_count": len(due_jobs),
+        "missed_job_count": len(missed_jobs),
+        "waiting_job_count": len(waiting_jobs),
+        "completed_job_count": len(completed_jobs),
+        "fresh_run_count": len(fresh_runs),
+        "stale_run_count": len(stale_runs),
+        "next_start_at": next_jobs[0].get("next_start_at") if next_jobs else None,
+        "next_job_id": next_jobs[0].get("id") if next_jobs else None,
+        "running_jobs": [
+            {
+                "id": job.get("id"),
+                "label": job.get("label"),
+                "supervisor_id": job.get("supervisor_id"),
+                "reason": job.get("reason"),
+            }
+            for job in running_jobs[:10]
+        ],
+        "active_children": [
+            {
+                "id": child.get("id"),
+                "status": child.get("status"),
+                "pid": child.get("pid"),
+                "supervisor_id": child.get("supervisor_id"),
+                "runtime_seconds": child.get("runtime_seconds"),
+            }
+            for child in active_children[:10]
+        ],
+        "missed_jobs": [
+            {
+                "id": job.get("id"),
+                "label": job.get("label"),
+                "supervisor_id": job.get("supervisor_id"),
+                "reason": job.get("reason"),
+                "next_start_at": job.get("next_start_at"),
+            }
+            for job in missed_jobs[:10]
+        ],
+    }
+
+
 def load_recent_jsonl(path: Path, *, max_rows: int) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -985,6 +1093,7 @@ def collect_status(config: dict[str, Any]) -> dict[str, Any]:
         })
     supervisors, supervisor_alerts = summarize_configured_supervisors(supervisors_cfg, now=now)
     alerts.extend(supervisor_alerts)
+    runtime_activity = summarize_runtime_activity(runs, supervisors, now=now)
 
     remote_cfg = config.get("remote_control") or {}
     if not isinstance(remote_cfg, dict):
@@ -1006,6 +1115,7 @@ def collect_status(config: dict[str, Any]) -> dict[str, Any]:
         "gateway": gateway,
         "runs": runs,
         "supervisors": supervisors,
+        "runtime_activity": runtime_activity,
         "remote_control": remote_control,
         "alerts": alerts,
     }

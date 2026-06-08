@@ -5761,6 +5761,36 @@ function savedDataMetricModel() {
   };
 }
 
+function runtimeActivityModel() {
+  const activity = (state.status && state.status.runtime_activity) || {};
+  const status = String(activity.status || "").toLowerCase();
+  const mappedStatus = status === "running" || status === "publishing" || status === "due"
+    ? "ok"
+    : status === "warn" || status === "stale" || status === "idle"
+      ? "warn"
+      : "bad";
+  const active = Number(activity.active_child_count || 0);
+  const running = Number(activity.running_job_count || 0);
+  const due = Number(activity.due_job_count || 0);
+  const missed = Number(activity.missed_job_count || 0);
+  const freshRuns = Number(activity.fresh_run_count || 0);
+  const next = activity.next_start_at ? ` Next: ${text(activity.next_job_id || "job")} at ${text(activity.next_start_at)}.` : "";
+  const pieces = [
+    active ? `${numberText(active, 0)} active child${active === 1 ? "" : "ren"}` : "",
+    running ? `${numberText(running, 0)} running job${running === 1 ? "" : "s"}` : "",
+    due ? `${numberText(due, 0)} due job${due === 1 ? "" : "s"}` : "",
+    missed ? `${numberText(missed, 0)} missed window${missed === 1 ? "" : "s"}` : "",
+    freshRuns ? `${numberText(freshRuns, 0)} fresh run${freshRuns === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return {
+    raw: activity,
+    status: mappedStatus,
+    label: text(activity.label || status || "unknown"),
+    reason: text(activity.reason || "no_activity_evidence"),
+    detail: `${pieces.length ? pieces.join("; ") : "No active child/job evidence is published."}${next}`,
+  };
+}
+
 function metricLatestRejection(metrics) {
   if (!metrics || !metrics.latest_rejection_time) return null;
   return {
@@ -5785,6 +5815,7 @@ function runtimeStatusItems() {
   const metrics = (latestRun && latestRun.metrics) || {};
   const freshness = (latestRun && latestRun.freshness) || {};
   const supervisorFreshness = (supervisor && supervisor.freshness) || {};
+  const activity = runtimeActivityModel();
   const events = runEventRows();
   const latestDecision = events.find((event) => event.type === "decision");
   const latestOrder = events.find((event) => event.type === "order");
@@ -5820,7 +5851,13 @@ function runtimeStatusItems() {
         ? `Run ${text(latestRun.id)} freshness ${age(freshness.age_seconds)}`
         : supervisor
           ? `Supervisor ${text(supervisor.id)} freshness ${age(supervisorFreshness.age_seconds)}`
-          : "No run or supervisor heartbeat is configured.",
+        : "No run or supervisor heartbeat is configured.",
+    },
+    {
+      label: "Runtime Activity",
+      value: activity.label,
+      status: activity.status,
+      detail: activity.detail,
     },
     {
       label: "Gateway/API",
@@ -5889,6 +5926,7 @@ function paperMonitorItems() {
   const metrics = (latestRun && latestRun.metrics) || {};
   const freshness = (latestRun && latestRun.freshness) || {};
   const supervisorFreshness = (supervisor && supervisor.freshness) || {};
+  const activity = runtimeActivityModel();
   const events = runEventRows();
   const latestDecision = events.find((event) => event.type === "decision");
   const latestOrder = events.find((event) => event.type === "order");
@@ -5928,6 +5966,11 @@ function paperMonitorItems() {
           ? `Gateway reachable at ${text(gateway.host)}:${text(gateway.port)}.`
           : `Gateway check failed: ${text(gateway.error || "not reachable")}.`
         : "Gateway checks are disabled; enable them to verify broker connectivity.",
+    },
+    {
+      label: "Runtime Activity",
+      status: activity.status,
+      detail: `${activity.label}: ${activity.detail}`,
     },
     {
       label: "Account Freshness",
@@ -7025,6 +7068,7 @@ function renderOverviewCommandCenter() {
   const latestRun = latestTelemetryRun();
   const runMetrics = (latestRun && latestRun.metrics) || {};
   const marketData = runtimeMarketDataModel(runMetrics, latestRun);
+  const activity = runtimeActivityModel();
   const glance = overviewGlanceModel();
   const primary = $("overview-command-primary");
   const secondary = $("overview-command-secondary");
@@ -7080,6 +7124,12 @@ function renderOverviewCommandCenter() {
       title: source.has_data ? text(source.label) : "missing",
       status: source.has_data && (accountRows.length || rollups.length) ? "ok" : source.has_data || rollups.length ? "warn" : "bad",
       detail: `${numberText(accountRows.length, 0)} account snapshots / ${numberText(rollups.length, 0)} status day rows. ${accountDetail}`,
+    },
+    {
+      label: "Runtime Activity",
+      title: activity.label,
+      status: activity.status,
+      detail: activity.detail,
     },
     {
       label: "Market Data",
@@ -26375,19 +26425,15 @@ function paperObservationPacketModel() {
   const latestFill = events.find((event) => event.type === "fill");
   const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
   const openOrders = currentOpenOrderRows();
+  const activity = runtimeActivityModel();
   const accountTimestamp = metricTimestamp(metrics, [
     "account_end_time",
     "latest_account_time",
     "latest_account_timestamp",
     "account_snapshot_time",
   ]);
-  const marketTimestamp = metricTimestamp(metrics, [
-    "latest_bar_time",
-    "latest_data_time",
-    "latest_market_data_time",
-    "last_bar_time",
-    "market_data_time",
-  ]);
+  const marketData = runtimeMarketDataModel(metrics, latestRun);
+  const marketTimestamp = marketData.timestamp;
   const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
   const nextDecision = firstPresent(
     metrics.next_decision_time,
@@ -26411,7 +26457,7 @@ function paperObservationPacketModel() {
   const mode = String(metrics.mode || "").replace("-", "_").toLowerCase();
   const stale = Boolean((freshness && freshness.stale) || (supervisorFreshness && supervisorFreshness.stale));
   const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
-  const activeObserver = Boolean(latestRun && !stale && (marketTimestamp || decisionTimestamp));
+  const activeObserver = Boolean(latestRun && !stale && marketData.status !== "bad" && (marketTimestamp || decisionTimestamp));
   let status = "bad";
   let title = "Not Observing";
   let note = "No current runner market-data or decision timestamp is visible.";
@@ -26432,6 +26478,12 @@ function paperObservationPacketModel() {
       label: "Observer",
       title,
       note,
+    },
+    {
+      status: activity.status,
+      label: "Runtime Activity",
+      title: activity.label,
+      note: activity.detail,
     },
     {
       status: gatewayStatus,

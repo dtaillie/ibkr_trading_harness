@@ -54,6 +54,14 @@ python3 scripts/build_runtime_status_bridge.py
 python3 scripts/publish_status.py --config config/cloud_status_local.yaml
 ```
 
+The published `/status` payload includes separate fields for broker reachability
+and runtime activity. `gateway.reachable=true` only proves that the dashboard can
+open a socket to Gateway/API. `runtime_activity` summarizes whether a supervised
+child is running, a job is due, a start window was missed, fresh run telemetry
+exists, or the system is idle until the next window. Use Overview's Runtime
+Activity card or Operations > Paper before assuming the strategy loop is
+actively streaming/evaluating.
+
 For local monitoring, `config/cloud_status_local.yaml` should publish to the
 same `dashboard.state_dir` read by `scripts/cloud_status_server.py`, commonly
 `paper_logs/cloud_status_server/latest_status.json`, and can also post to the

@@ -910,12 +910,20 @@ def test_collect_status_warns_on_supervisor_missed_window(tmp_path):
     })
 
     supervisor = payload["supervisors"][0]
+    activity = payload["runtime_activity"]
     assert payload["status"] == "warn"
     assert supervisor["status"] == "warn"
     assert supervisor["active_child_count"] == 1
     assert supervisor["active_children"][0]["id"] == "crypto"
     assert supervisor["job_status_counts"] == {"missed": 1, "running": 1}
     assert supervisor["jobs"][0]["reason"] == "missed_start_window"
+    assert activity["status"] == "running"
+    assert activity["label"] == "Running"
+    assert activity["active_child_count"] == 1
+    assert activity["running_job_count"] == 1
+    assert activity["missed_job_count"] == 1
+    assert activity["active_children"][0]["id"] == "crypto"
+    assert activity["missed_jobs"][0]["id"] == "stock_paper"
     assert any(alert["kind"] == "supervisor_job_missed_window" for alert in payload["alerts"])
 
 
