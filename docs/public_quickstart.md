@@ -642,10 +642,13 @@ warning-heavy metadata. If the parsed catalog is capped, start with Data
 Home's Action Summary and Root Index count before concluding that other symbols
 do not exist on disk.
 Use Compare Saved Data to select several catalog-visible datasets and overlay
-their normalized close-return paths over one requested date range. Use Find
-Dataset to filter a large catalog by symbol, source, bar size, quality, or path;
-selected datasets stay visible while filtering. Select Symbol chooses exact
-catalog matches for the typed symbol, Select Shown chooses the visible
+their normalized close-return paths over one requested date range. Start with
+Compare Action Summary above the form; it recommends selecting shown or
+symbol-matched files, fixing overlap, running Compare, reviewing warnings,
+sending the compared window to Workbench, or exporting loaded paths. Use Find
+Dataset to filter a large catalog by symbol, source, bar size, quality, or
+path; selected datasets stay visible while filtering. Select Symbol chooses
+exact catalog matches for the typed symbol, Select Shown chooses the visible
 comparison set up to the dashboard's 8-dataset comparison cap, and Clear
 removes the current selection. This is offline and only reads CSV/parquet files
 under configured data roots. Use Copy Compare JSON to copy the exact

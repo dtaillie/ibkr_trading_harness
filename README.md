@@ -370,8 +370,12 @@ export actions plus assistant cards for readiness and next action, a Symbol
 Coverage Ledger for compact per-symbol ranges/readiness/actions with direct
 Workbench handoff and CSV export, and can compare several saved datasets
 over one requested date range by plotting normalized close-return paths from
-configured local files. The saved-data table can be filtered by search text,
-quality status, and bar size, and its header summarizes quality counts, bar-size
+configured local files. Compare Saved Data starts with a Compare Action Summary
+that recommends the first move across selecting shown or symbol-matched files,
+fixing overlap, running the comparison, reviewing warnings, sending the
+compared window to Workbench, or exporting loaded paths. The saved-data table
+can be filtered by search text, quality status, and bar size, and its header
+summarizes quality counts, bar-size
 counts, catalog scope status, capped-root count, total rows, local file size,
 and a broad Root Index count. The Root Index infers candidate files and symbols
 from configured-root filenames/paths without parsing every CSV/parquet file, so

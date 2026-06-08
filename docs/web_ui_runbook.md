@@ -367,15 +367,18 @@ including asset, source, bar-size, and storage-session breakdowns across
 configured and suggested roots.
 
 Use Compare Saved Data to overlay normalized close paths for multiple scanned
-symbols over one date range. Use Find Dataset to narrow large catalogs without
-dropping already selected files. Select Symbol chooses exact matches for the
-typed catalog symbol, and Select Shown chooses the visible comparison set up to
-the 8-dataset comparison cap. From Symbol Browser, Compare preselects matching
-saved files for the typed symbol, loads the normalized comparison chart, and
-jumps to the comparison workflow. Copy Compare JSON copies the exact request
-body that the dashboard will send to `/data_compare`. Use In Workbench sends
-the selected comparison set plus the compare date window directly into Config
-Builder.
+symbols over one date range. Start with Compare Action Summary above the form:
+it decides whether the next move is selecting shown/symbol files, fixing
+overlap, running Compare, reviewing warnings, sending the compared window to
+Workbench, or exporting loaded paths. Use Find Dataset to narrow large catalogs
+without dropping already selected files. Select Symbol chooses exact matches
+for the typed catalog symbol, and Select Shown chooses the visible comparison
+set up to the 8-dataset comparison cap. From Symbol Browser, Compare preselects
+matching saved files for the typed symbol, loads the normalized comparison
+chart, and jumps to the comparison workflow. Copy Compare JSON copies the exact
+request body that the dashboard will send to `/data_compare`. Use In Workbench
+sends the selected comparison set plus the compare date window directly into
+Config Builder.
 Use Compare Range Preset to quickly compare the full selected range, common
 overlap, or the last day/week/month/three months inside the common overlap
 before manually tuning Start/End.

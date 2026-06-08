@@ -1973,6 +1973,25 @@ section {
   font-size: 12px;
 }
 
+#data-compare-action-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  text-align: left;
+}
+
+#data-compare-action-actions button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#data-compare-action-actions button b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 #performance-action-actions button {
   display: inline-flex;
   align-items: center;
@@ -3723,6 +3742,7 @@ section {
 .fetch-action-summary-panel,
 .data-action-summary-panel,
 .data-detail-action-summary-panel,
+.data-compare-action-summary-panel,
 .data-inventory-evidence-panel,
 .operations-action-summary-panel,
 .operations-evidence-panel,
@@ -3745,6 +3765,7 @@ section {
 .fetch-action-summary-panel .section-note,
 .data-action-summary-panel .section-note,
 .data-detail-action-summary-panel .section-note,
+.data-compare-action-summary-panel .section-note,
 .data-inventory-evidence-panel .section-note,
 .operations-action-summary-panel .section-note,
 .operations-evidence-panel .section-note,

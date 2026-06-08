@@ -1303,6 +1303,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       selected files, overlap, common timestamps, warnings, return spread, and
       direct Compare/Overlap/Workbench/Export/JSON actions before the raw chart
       and table.
+    - partial; Compare Saved Data now starts with a Compare Action Summary
+      before the selection form, choosing between selecting shown/symbol files,
+      fixing overlap, running the comparison, reviewing warnings, sending the
+      compared window to Workbench, or exporting loaded paths.
   - export/copy the local file path and generated replay command
     - partial; Data Library rows and Data Detail can copy the local file path,
       a `--data-root` flag, a replay-starter command, and a full-file inferred
