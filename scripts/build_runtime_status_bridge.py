@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,10 @@ def latest_timestamp(values: list[Any]) -> str | None:
     if not parsed:
         return None
     return max(parsed).isoformat()
+
+
+def sort_key_timestamp(row: dict[str, Any]) -> datetime:
+    return parse_timestamp(row.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc)
 
 
 def session_dirs(root: Path, *, max_sessions: int) -> list[Path]:
@@ -203,17 +208,183 @@ def fill_from_row(row: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def account_from_crypto_signal(row: dict[str, str], state: dict[str, Any] | None = None) -> dict[str, Any]:
+@dataclass
+class PositionLot:
+    quantity: float
+    price: float
+    entry_time: str | None
+
+
+@dataclass
+class AccountingState:
+    positions: dict[str, float]
+    average_costs: dict[str, float]
+    realized_pnl: float
+    unrealized_pnl_by_symbol: dict[str, float]
+    unrealized_pnl: float
+    total_pnl: float
+    total_commission: float
+    gross_exposure: float
+    net_exposure: float
+    position_details: dict[str, dict[str, Any]]
+
+
+def market_price_for_symbol(symbol: str, lots: list[PositionLot], prices: dict[str, float]) -> float | None:
+    if symbol in prices:
+        return prices[symbol]
+    if lots:
+        return lots[-1].price
+    return None
+
+
+def close_lots(lots: list[PositionLot], quantity: float, price: float) -> tuple[float, list[PositionLot]]:
+    remaining = quantity
+    realized = 0.0
+    updated = [PositionLot(lot.quantity, lot.price, lot.entry_time) for lot in lots]
+    while remaining > 1e-12 and updated:
+        lot = updated[0]
+        closed_qty = min(lot.quantity, remaining)
+        realized += closed_qty * (price - lot.price)
+        lot.quantity -= closed_qty
+        remaining -= closed_qty
+        if lot.quantity <= 1e-12:
+            updated.pop(0)
+    return realized, updated
+
+
+def accounting_state_from_fills(fills: list[dict[str, Any]], prices: dict[str, float] | None = None) -> AccountingState:
+    prices = prices or {}
+    lots_by_symbol: dict[str, list[PositionLot]] = {}
+    realized_pnl = 0.0
+    total_commission = 0.0
+    for fill in sorted(fills, key=sort_key_timestamp):
+        symbol = str(fill.get("symbol") or "").strip()
+        side = str(fill.get("side") or "").strip().lower()
+        quantity = parse_float(fill.get("quantity")) or 0.0
+        price = parse_float(fill.get("price")) or 0.0
+        commission = parse_float(fill.get("commission")) or 0.0
+        if not symbol or quantity <= 0 or price <= 0:
+            continue
+        total_commission += commission
+        lots = lots_by_symbol.setdefault(symbol, [])
+        if side == "buy":
+            lots.append(PositionLot(quantity=quantity, price=price, entry_time=fill.get("timestamp")))
+        elif side == "sell":
+            closed_realized, updated_lots = close_lots(lots, quantity, price)
+            lots_by_symbol[symbol] = updated_lots
+            realized_pnl += closed_realized
+        prices.setdefault(symbol, price)
+
+    positions: dict[str, float] = {}
+    average_costs: dict[str, float] = {}
+    unrealized_by_symbol: dict[str, float] = {}
+    position_details: dict[str, dict[str, Any]] = {}
+    gross_exposure = 0.0
+    net_exposure = 0.0
+    unrealized_pnl = 0.0
+    for symbol, lots in sorted(lots_by_symbol.items()):
+        quantity = sum(lot.quantity for lot in lots)
+        if quantity <= 1e-12:
+            continue
+        cost = sum(lot.quantity * lot.price for lot in lots)
+        average_cost = cost / quantity if quantity else 0.0
+        current_price = market_price_for_symbol(symbol, lots, prices) or average_cost
+        market_value = quantity * current_price
+        unrealized = quantity * (current_price - average_cost)
+        positions[symbol] = quantity
+        average_costs[symbol] = average_cost
+        unrealized_by_symbol[symbol] = unrealized
+        gross_exposure += abs(market_value)
+        net_exposure += market_value
+        unrealized_pnl += unrealized
+        first_lot = lots[0]
+        position_details[symbol] = {
+            "entry_time": first_lot.entry_time,
+            "entry_price": first_lot.price,
+            "average_cost": average_cost,
+            "current_price": current_price,
+            "current_value": market_value,
+            "unrealized_pnl": unrealized,
+            "active_exit_rule": "trailing_stop",
+            "exit_state": "holding",
+        }
+    return AccountingState(
+        positions=positions,
+        average_costs=average_costs,
+        realized_pnl=realized_pnl,
+        unrealized_pnl_by_symbol=unrealized_by_symbol,
+        unrealized_pnl=unrealized_pnl,
+        total_pnl=realized_pnl + unrealized_pnl,
+        total_commission=total_commission,
+        gross_exposure=gross_exposure,
+        net_exposure=net_exposure,
+        position_details=position_details,
+    )
+
+
+def normalized_positions(raw: Any) -> dict[str, float] | None:
+    if not isinstance(raw, dict):
+        return None
+    positions = {
+        str(symbol): quantity
+        for symbol, raw_quantity in raw.items()
+        if (quantity := parse_float(raw_quantity)) is not None and abs(quantity) > 1e-12
+    }
+    return positions
+
+
+def positions_close(left: dict[str, float], right: dict[str, float], *, tolerance: float = 1e-6) -> bool:
+    symbols = set(left) | set(right)
+    return all(abs(left.get(symbol, 0.0) - right.get(symbol, 0.0)) <= tolerance for symbol in symbols)
+
+
+def exposure_from_positions(positions: dict[str, float], prices: dict[str, float]) -> tuple[float, float]:
+    gross = 0.0
+    net = 0.0
+    for symbol, quantity in positions.items():
+        price = prices.get(symbol)
+        if price is None:
+            continue
+        value = quantity * price
+        gross += abs(value)
+        net += value
+    return gross, net
+
+
+def equity_delta(account_rows: list[dict[str, Any]]) -> float | None:
+    equities = [parse_float(row.get("equity")) for row in account_rows]
+    equities = [value for value in equities if value is not None]
+    if len(equities) < 2:
+        return None
+    return equities[-1] - equities[0]
+
+
+def account_from_crypto_signal(
+    row: dict[str, str],
+    state: dict[str, Any] | None = None,
+    accounting: AccountingState | None = None,
+) -> dict[str, Any]:
     cash = parse_float(row.get("cash"))
     equity = parse_float(row.get("estimated_equity"))
-    positions = state.get("sim_positions", {}) if isinstance(state, dict) else {}
+    positions = accounting.positions if accounting is not None else state.get("sim_positions", {}) if isinstance(state, dict) else {}
+    gross = accounting.gross_exposure if accounting is not None else None
+    net = accounting.net_exposure if accounting is not None else None
     return {
         "timestamp": iso_or_none(first_value(row.get("run_started_at"), row.get("decision_hour"))),
         "cash": cash,
         "equity": equity,
         "positions": positions if isinstance(positions, dict) else {},
-        "gross_exposure": None,
-        "net_exposure": None,
+        "gross_exposure": gross,
+        "net_exposure": net,
+        "gross_exposure_pct": (gross / equity) * 100.0 if equity and gross is not None else None,
+        "net_exposure_pct": (net / equity) * 100.0 if equity and net is not None else None,
+        "average_costs": accounting.average_costs if accounting is not None else {},
+        "unrealized_pnl_by_symbol": accounting.unrealized_pnl_by_symbol if accounting is not None else {},
+        "position_details": accounting.position_details if accounting is not None else {},
+        "realized_pnl": accounting.realized_pnl if accounting is not None else None,
+        "unrealized_pnl": accounting.unrealized_pnl if accounting is not None else None,
+        "total_pnl": accounting.total_pnl if accounting is not None else None,
+        "total_commission": accounting.total_commission if accounting is not None else None,
     }
 
 
@@ -226,12 +397,12 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
     data_times: list[str] = []
     symbols: set[str] = set()
     modes = Counter()
+    signal_rows_by_session: list[tuple[Path, dict[str, str]]] = []
 
     for session in session_dirs(sessions_root, max_sessions=max_sessions):
         signal_rows = read_csv_rows(session / "signal.csv")
         for row in signal_rows:
-            decisions.append(crypto_decision_from_signal(row, session))
-            account.append(account_from_crypto_signal(row, state))
+            signal_rows_by_session.append((session, row))
             if row.get("latest_data_time"):
                 data_times.append(row["latest_data_time"])
             symbols.update(split_symbols(row.get("target_symbols")))
@@ -241,14 +412,76 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         orders.extend(crypto_order_from_row(row) for row in read_csv_rows(session / "orders.csv"))
         fills.extend(fill_from_row(row) for row in read_csv_rows(session / "fills.csv"))
 
+    state_prices = state.get("sim_last_prices") if isinstance(state.get("sim_last_prices"), dict) else {}
+    prices = {
+        str(symbol): price
+        for symbol, raw_price in state_prices.items()
+        if (price := parse_float(raw_price)) is not None
+    }
+
+    final_accounting = accounting_state_from_fills(fills, prices.copy())
+    state_positions = normalized_positions(state.get("sim_positions"))
+    reconstructed_positions_match_state = (
+        state_positions is None or positions_close(final_accounting.positions, state_positions)
+    )
+
+    for session, row in signal_rows_by_session:
+        timestamp = parse_timestamp(first_value(row.get("run_started_at"), row.get("decision_hour")))
+        fills_to_date = [
+            fill
+            for fill in fills
+            if timestamp is None or sort_key_timestamp(fill) <= timestamp
+        ]
+        accounting = (
+            accounting_state_from_fills(fills_to_date, prices.copy())
+            if reconstructed_positions_match_state
+            else None
+        )
+        decisions.append(crypto_decision_from_signal(row, session))
+        account.append(account_from_crypto_signal(row, state, accounting))
+
     if state:
+        final_equity = parse_float(state.get("sim_equity"))
+        authoritative_positions = state_positions if state_positions is not None else final_accounting.positions
+        authoritative_gross, authoritative_net = exposure_from_positions(authoritative_positions, prices)
+        pnl_from_equity = equity_delta(account + [{"equity": final_equity}]) if final_equity is not None else None
+        if reconstructed_positions_match_state:
+            realized_pnl = final_accounting.realized_pnl
+            unrealized_pnl = final_accounting.unrealized_pnl
+            total_pnl = final_accounting.total_pnl
+            average_costs = final_accounting.average_costs
+            unrealized_by_symbol = final_accounting.unrealized_pnl_by_symbol
+            position_details = final_accounting.position_details
+        else:
+            realized_pnl = pnl_from_equity if not authoritative_positions else None
+            unrealized_pnl = 0.0 if not authoritative_positions else None
+            total_pnl = pnl_from_equity
+            average_costs = {}
+            unrealized_by_symbol = {}
+            position_details = {}
         account.append({
             "timestamp": iso_or_none(state.get("last_run_at")),
             "cash": parse_float(state.get("sim_cash")),
-            "equity": parse_float(state.get("sim_equity")),
-            "positions": state.get("sim_positions") if isinstance(state.get("sim_positions"), dict) else {},
-            "gross_exposure": None,
-            "net_exposure": None,
+            "equity": final_equity,
+            "positions": authoritative_positions,
+            "gross_exposure": authoritative_gross,
+            "net_exposure": authoritative_net,
+            "gross_exposure_pct": (
+                authoritative_gross / final_equity * 100.0
+                if final_equity else None
+            ),
+            "net_exposure_pct": (
+                authoritative_net / final_equity * 100.0
+                if final_equity else None
+            ),
+            "average_costs": average_costs,
+            "unrealized_pnl_by_symbol": unrealized_by_symbol,
+            "position_details": position_details,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "total_pnl": total_pnl,
+            "total_commission": final_accounting.total_commission,
+            "accounting_source": "fills" if reconstructed_positions_match_state else "state_equity",
         })
         signal = state.get("last_signal") if isinstance(state.get("last_signal"), dict) else {}
         if state.get("last_decision_hour"):
@@ -283,6 +516,12 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         "final_equity": final_account.get("equity"),
         "final_positions": final_positions,
         "account_snapshot_count": len(account),
+        "realized_pnl": final_account.get("realized_pnl"),
+        "unrealized_pnl": final_account.get("unrealized_pnl"),
+        "total_pnl": final_account.get("total_pnl"),
+        "total_commission": final_account.get("total_commission"),
+        "max_gross_exposure": max((parse_float(row.get("gross_exposure")) or 0.0 for row in account), default=0.0),
+        "max_abs_net_exposure": max((abs(parse_float(row.get("net_exposure")) or 0.0) for row in account), default=0.0),
         "latest_data_time": latest_timestamp(data_times),
         "latest_bar_time": latest_timestamp(data_times),
         "latest_signal_reason": latest_signal.get("reason"),

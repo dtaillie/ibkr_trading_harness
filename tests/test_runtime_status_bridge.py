@@ -71,6 +71,18 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
                 "submitted": "True",
                 "simulated": "True",
                 "sim_status": "filled",
+            },
+            {
+                "timestamp": "2026-01-02T15:10:01+00:00",
+                "decision_hour": "2026-01-02T15:00:00+00:00",
+                "symbol": "DOGE-USD",
+                "side": "sell",
+                "quantity": "40",
+                "cash_quantity": "",
+                "tag": "crypto_private_exit_trailing_stop",
+                "submitted": "True",
+                "simulated": "True",
+                "sim_status": "filled",
             }
         ],
     )
@@ -85,6 +97,15 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
                 "price": "0.1",
                 "commission": "0.01",
                 "tag": "crypto_private_entry_simulated",
+            },
+            {
+                "timestamp": "2026-01-02T15:10:01+00:00",
+                "symbol": "DOGE-USD",
+                "side": "sell",
+                "quantity": "40",
+                "price": "0.11",
+                "commission": "0.02",
+                "tag": "crypto_private_exit_trailing_stop",
             }
         ],
     )
@@ -97,7 +118,8 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
             "last_signal": {"reason": "selected", "signal": -0.02, "symbol": "DOGE-USD"},
             "sim_cash": 34990,
             "sim_equity": 35100,
-            "sim_positions": {"DOGE-USD": 100},
+            "sim_last_prices": {"DOGE-USD": 0.12},
+            "sim_positions": {"DOGE-USD": 60},
         },
     )
 
@@ -109,11 +131,22 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     fills = read_jsonl(out / "fills.jsonl")
     assert result["decisions"] == 2
     assert metrics["status"] if "status" in metrics else True
-    assert metrics["orders"] == 1
-    assert metrics["fills"] == 1
+    account = read_jsonl(out / "account.jsonl")
+    assert metrics["orders"] == 2
+    assert metrics["fills"] == 2
     assert metrics["final_equity"] == 35100
     assert orders[0]["tag"] == "entry"
+    assert orders[1]["tag"] == "exit"
     assert fills[0]["tag"] == "entry"
+    assert fills[1]["tag"] == "exit"
+    assert abs(metrics["realized_pnl"] - 0.4) < 1e-9
+    assert abs(metrics["unrealized_pnl"] - 1.2) < 1e-9
+    assert abs(metrics["total_pnl"] - 1.6) < 1e-9
+    assert abs(metrics["total_commission"] - 0.03) < 1e-9
+    assert account[-1]["positions"] == {"DOGE-USD": 60}
+    assert abs(account[-1]["average_costs"]["DOGE-USD"] - 0.1) < 1e-9
+    assert abs(account[-1]["gross_exposure"] - 7.2) < 1e-9
+    assert account[-1]["position_details"]["DOGE-USD"]["active_exit_rule"] == "trailing_stop"
     assert "private" not in json.dumps(orders)
     assert "private" not in json.dumps(fills)
 
@@ -182,3 +215,93 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     assert result["jobs"] == 1
     assert payload["status"] == "ok"
     assert payload["jobs"][0]["id"] == "last_stock_started_at"
+
+
+def test_runtime_bridge_prefers_authoritative_state_positions_when_fills_disagree(tmp_path):
+    sessions = tmp_path / "crypto_sessions"
+    session = sessions / "2026-01-02_150500_UTC"
+    write_csv(
+        session / "signal.csv",
+        [
+            {
+                "run_started_at": "2026-01-02T15:05:00+00:00",
+                "decision_hour": "2026-01-02T15:00:00+00:00",
+                "target_symbol": "DOGE-USD",
+                "signal": "-0.02",
+                "raw_return": "-0.03",
+                "market_return": "-0.01",
+                "reason": "selected",
+                "action_reason": "selected",
+                "submit_orders": "False",
+                "simulate_fills": "True",
+                "cash": "35000",
+                "estimated_equity": "35000",
+                "latest_data_time": "2026-01-02T15:00:00+00:00",
+                "max_data_age_minutes": "90",
+                "order_circuit_open": "False",
+                "order_circuit_reason": "",
+                "target_symbols": "DOGE-USD",
+                "position_exit_reason": "",
+                "config_version": "private_config_version",
+                "strategy_hold_h": "10",
+                "strategy_trailing_stop_pct": "0.025",
+                "strategy_min_abs_signal": "0.005",
+            }
+        ],
+    )
+    write_csv(
+        session / "orders.csv",
+        [
+            {
+                "timestamp": "2026-01-02T15:05:01+00:00",
+                "decision_hour": "2026-01-02T15:00:00+00:00",
+                "symbol": "DOGE-USD",
+                "side": "buy",
+                "quantity": "100",
+                "cash_quantity": "10",
+                "tag": "crypto_private_entry_simulated",
+                "submitted": "True",
+                "simulated": "True",
+                "sim_status": "filled",
+            }
+        ],
+    )
+    write_csv(
+        session / "fills.csv",
+        [
+            {
+                "timestamp": "2026-01-02T15:05:01+00:00",
+                "symbol": "DOGE-USD",
+                "side": "buy",
+                "quantity": "100",
+                "price": "0.1",
+                "commission": "0.01",
+                "tag": "crypto_private_entry_simulated",
+            }
+        ],
+    )
+    write_json(
+        tmp_path / "crypto_state.json",
+        {
+            "last_run_at": "2026-01-02T15:06:00+00:00",
+            "last_decision_hour": "2026-01-02T15:00:00+00:00",
+            "last_mode": "simulate_fills",
+            "last_signal": {"reason": "selected", "signal": -0.02, "symbol": "DOGE-USD"},
+            "sim_cash": 34900,
+            "sim_equity": 34900,
+            "sim_last_prices": {"DOGE-USD": 0.2},
+            "sim_positions": {},
+        },
+    )
+
+    out = tmp_path / "runtime" / "crypto"
+    build_crypto_run(tmp_path / "crypto_state.json", sessions, out, max_sessions=10)
+    metrics = summarize_run(out)
+    account = read_jsonl(out / "account.jsonl")
+
+    assert metrics["final_positions"] == {}
+    assert metrics["realized_pnl"] == -100.0
+    assert metrics["unrealized_pnl"] == 0.0
+    assert metrics["max_gross_exposure"] == 0.0
+    assert account[-1]["accounting_source"] == "state_equity"
+    assert account[-1]["position_details"] == {}

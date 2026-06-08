@@ -295,6 +295,11 @@ strategy-private.
       unrealized PnL, total PnL, total commission, and average costs, and the
       Overview/Performance pages display realized/unrealized PnL when those
       fields are available.
+    - partial; the legacy runtime status bridge now reconciles crypto
+      simulated-fill accounting against authoritative runner state before
+      publishing positions/exposure. If legacy fills are incomplete or disagree
+      with state, the bridge uses account equity/state for public PnL and avoids
+      inventing open exposure.
   - today's return, week/month return, cumulative paper return
     - partial; cumulative/latest artifact return is available in Performance.
       Performance Home now also shows live/paper latest-day, trailing 7-day,
@@ -493,6 +498,10 @@ strategy-private.
     `fills.jsonl`, and `account.jsonl` artifacts so status-history rollups and
     current-run views do not show empty states just because the runner predates
     the generic plugin contract.
+  - partial; bridged crypto runtime artifacts now include public-safe realized
+    PnL, unrealized PnL, total PnL, total commission, exposure, average costs,
+    and position detail fields when fills and authoritative runner state agree,
+    and fall back to state/equity-derived accounting when they do not.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.
