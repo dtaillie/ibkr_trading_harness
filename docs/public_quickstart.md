@@ -321,6 +321,11 @@ On Operations Home, read Operations Evidence when the question is what proof is
 available right now. It separates local runner/paper observation, Gateway/API
 reachability, remote snapshots, command-audit integrity, control queue state,
 alerts, and the next route to inspect.
+In Operations Paper, the Observation Packet uses generic runner telemetry such
+as latest bar/decision/account timestamps plus `next_check_time`,
+`next_expected_decision_time`, and `next_check_reason` to show whether a
+paper/shadow loop is actively waiting for its next evaluation or has already
+stopped.
 Before queueing any command, open Operations Control and read Command Safety
 Review. It summarizes target-node state, command risk classes, confirmation
 requirements, pending/failed commands, audit integrity, retention, selected

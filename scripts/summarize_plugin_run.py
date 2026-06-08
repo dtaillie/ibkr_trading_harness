@@ -327,6 +327,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"run directory not found: {run_dir}")
 
     summary = load_json(run_dir / "summary.json")
+    runner_status = load_json(run_dir / "runner_status.json")
     plugin_contract = load_json(run_dir / "plugin_contract.json")
     decisions = load_jsonl(run_dir / "decisions.jsonl")
     orders = load_jsonl(run_dir / "orders.jsonl")
@@ -370,6 +371,9 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "account_end_time": summary.get("account_end_time", performance["account_end_time"]),
         "latest_data_time": summary.get("latest_data_time") or summary.get("latest_market_data_time") or summary.get("latest_bar_time"),
         "latest_bar_time": summary.get("latest_bar_time") or summary.get("latest_data_time") or summary.get("latest_market_data_time"),
+        "next_check_time": summary.get("next_check_time") or runner_status.get("next_check_time"),
+        "next_expected_decision_time": summary.get("next_expected_decision_time") or runner_status.get("next_expected_decision_time"),
+        "next_check_reason": summary.get("next_check_reason") or runner_status.get("next_check_reason"),
         "latest_rejection_time": summary.get("latest_rejection_time") or latest_rejection.get("timestamp"),
         "latest_rejection_symbol": summary.get("latest_rejection_symbol") or latest_rejection.get("symbol"),
         "latest_rejection_status": summary.get("latest_rejection_status") or latest_rejection.get("status"),
@@ -429,6 +433,7 @@ def format_text(metrics: dict[str, Any]) -> str:
         f"Run: {metrics['run_dir']}",
         f"Mode: {metrics.get('mode') or 'unknown'}",
         f"Loop: {'enabled' if metrics.get('loop_enabled') else 'one-shot'} iterations={metrics.get('loop_iterations', 0)}",
+        f"Next check: {metrics.get('next_check_time') or 'n/a'} reason={metrics.get('next_check_reason') or 'n/a'}",
         f"Decisions: {metrics['decisions']} records={metrics['decision_records']}",
         f"Window: {metrics.get('first_decision_time') or 'n/a'} -> {metrics.get('last_decision_time') or 'n/a'}",
         f"Orders: {metrics['orders']} events={metrics['order_events']} statuses={metrics['order_status_counts']}",

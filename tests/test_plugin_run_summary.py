@@ -99,6 +99,17 @@ def test_summarize_plugin_run_metrics(tmp_path):
             sort_keys=True,
         )
     )
+    (run_dir / "runner_status.json").write_text(
+        json.dumps(
+            {
+                "state": "sleeping",
+                "next_check_time": "2026-01-02T14:36:00+00:00",
+                "next_expected_decision_time": "2026-01-02T14:36:00+00:00",
+                "next_check_reason": "sleeping_until_next_loop",
+            },
+            sort_keys=True,
+        )
+    )
 
     metrics = summarize_run(run_dir)
 
@@ -125,6 +136,9 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["max_position_count"] == 1
     assert metrics["latest_data_time"] == "2026-01-02T14:35:00+00:00"
     assert metrics["latest_bar_time"] == "2026-01-02T14:35:00+00:00"
+    assert metrics["next_check_time"] == "2026-01-02T14:36:00+00:00"
+    assert metrics["next_expected_decision_time"] == "2026-01-02T14:36:00+00:00"
+    assert metrics["next_check_reason"] == "sleeping_until_next_loop"
     assert metrics["latest_rejection_time"] == "2026-01-02T14:35:00+00:00"
     assert metrics["latest_rejection_symbol"] == "SPY"
     assert metrics["latest_rejection_status"] == "rejected"
@@ -141,6 +155,7 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["artifact_files"]["performance_rollups"] is False
     assert "Fills: 1" in format_text(metrics)
     assert "Loop: enabled iterations=2" in format_text(metrics)
+    assert "Next check: 2026-01-02T14:36:00+00:00 reason=sleeping_until_next_loop" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
     assert "Plugin contract: available plugin=no_edge_template" in format_text(metrics)
     assert "Return/day:" in format_text(metrics)

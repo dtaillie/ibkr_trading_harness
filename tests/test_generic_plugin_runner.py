@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import live.plugin_runner as plugin_runner
 from live.plugin_runner import (
     SECONDS_PER_YEAR,
     ConfigValidationError,
@@ -861,11 +862,56 @@ def test_shadow_loop_records_bounded_iterations(tmp_path):
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["loop_enabled"] is True
     assert summary["loop_iterations"] == 2
+    assert summary["next_check_time"] is None
+    assert summary["next_expected_decision_time"] is None
+    assert summary["next_check_reason"] == "max_loop_iterations_reached"
     status = json.loads((output_dir / "runner_status.json").read_text())
     assert status["state"] == "completed"
     assert status["loop"]["enabled"] is True
     assert status["loop"]["iterations"] == 2
     assert status["counts"]["decisions"] == 2
+    assert status["next_check_time"] is None
+    assert status["next_expected_decision_time"] is None
+    assert status["next_check_reason"] == "max_loop_iterations_reached"
+
+
+def test_shadow_loop_publishes_next_check_while_sleeping(tmp_path, monkeypatch):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 1,
+            "max_loop_iterations": 2,
+            "skip_duplicate_latest": False,
+        },
+    )
+    sleep_durations = []
+    sleeping_statuses = []
+
+    def fake_sleep(seconds):
+        sleep_durations.append(seconds)
+        sleeping_statuses.append(json.loads((output_dir / "runner_status.json").read_text()))
+
+    monkeypatch.setattr(plugin_runner.time, "sleep", fake_sleep)
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_iterations == 2
+    assert sleep_durations == [1]
+    assert sleeping_statuses[0]["state"] == "sleeping"
+    assert sleeping_statuses[0]["next_check_reason"] == "sleeping_until_next_loop"
+    assert sleeping_statuses[0]["next_check_time"]
+    assert sleeping_statuses[0]["next_expected_decision_time"] == sleeping_statuses[0]["next_check_time"]
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["next_check_time"] is None
+    assert summary["next_check_reason"] == "max_loop_iterations_reached"
 
 
 def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):

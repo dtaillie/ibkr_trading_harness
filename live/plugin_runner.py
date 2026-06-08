@@ -20,7 +20,7 @@ import shutil
 import sys
 import time
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import datetime, time as datetime_time, timezone
+from datetime import datetime, timedelta, time as datetime_time, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -126,6 +126,9 @@ class RunnerResult:
     session_enabled: bool = False
     session_idle_iterations: int = 0
     session_status: str | None = None
+    next_check_time: str | None = None
+    next_expected_decision_time: str | None = None
+    next_check_reason: str | None = None
     stopped_by_control: bool = False
     stop_marker: str | None = None
 
@@ -2165,6 +2168,9 @@ def run_from_config(
     run_started_at = datetime.now(timezone.utc)
     latest_error: dict[str, str] | None = None
     last_decision_time: str | None = None
+    next_check_time: str | None = None
+    next_expected_decision_time: str | None = None
+    next_check_reason: str | None = None
     latest_rejection: dict[str, Any] | None = None
     observed_dashboard_keys: set[str] = set()
     observed_intent_metadata_keys: set[str] = set()
@@ -2190,6 +2196,9 @@ def run_from_config(
             "latest_data_time": latest_data_time,
             "latest_bar_time": latest_data_time,
             "last_decision_time": last_decision_time,
+            "next_check_time": next_check_time,
+            "next_expected_decision_time": next_expected_decision_time,
+            "next_check_reason": next_check_reason,
             "latest_rejection": latest_rejection,
             "latest_rejection_time": latest_rejection.get("timestamp") if latest_rejection else None,
             "latest_rejection_symbol": latest_rejection.get("symbol") if latest_rejection else None,
@@ -2242,6 +2251,14 @@ def run_from_config(
             log.warning("Could not write runner status: %s", exc)
 
     update_runner_status("starting")
+
+    def set_next_check(when: datetime | None, reason: str | None) -> None:
+        nonlocal next_check_time
+        nonlocal next_expected_decision_time
+        nonlocal next_check_reason
+        next_check_time = when.isoformat() if when is not None else None
+        next_expected_decision_time = next_check_time
+        next_check_reason = reason
 
     def record_order_rejection(intent: OrderIntent, now: pd.Timestamp, reason: str | None) -> None:
         nonlocal rejections
@@ -2597,11 +2614,19 @@ def run_from_config(
                         process_step(step, now, panels)
                     last_processed_latest = now
                 if max_loop_iterations is not None and loop_iterations >= max_loop_iterations:
+                    set_next_check(None, "max_loop_iterations_reached")
+                    update_runner_status("completed", note="max_loop_iterations reached")
                     break
                 if loop_interval > 0:
+                    set_next_check(
+                        datetime.now(timezone.utc) + timedelta(seconds=loop_interval),
+                        "sleeping_until_next_loop",
+                    )
+                    update_runner_status("sleeping", note="waiting for next loop interval")
                     time.sleep(loop_interval)
     except Exception as exc:
         latest_error = {"type": type(exc).__name__, "message": str(exc)}
+        set_next_check(None, "failed")
         update_runner_status("failed", note=str(exc))
         raise
     finally:
@@ -2626,6 +2651,13 @@ def run_from_config(
         final_cash = runner_starting_cash
         final_positions = {}
         final_equity = runner_starting_cash
+
+    if stopped_by_control:
+        set_next_check(None, "stopped_by_control")
+    elif not loop_enabled:
+        set_next_check(None, "one_shot_completed")
+    elif max_loop_iterations is not None and loop_iterations >= max_loop_iterations:
+        set_next_check(None, "max_loop_iterations_reached")
 
     perf = account_metrics(account_records)
     performance_rollups_path = output_dir / "performance_rollups.json"
@@ -2677,6 +2709,9 @@ def run_from_config(
         session_enabled=session_cfg is not None,
         session_idle_iterations=session_idle_iterations,
         session_status=latest_session_status,
+        next_check_time=next_check_time,
+        next_expected_decision_time=next_expected_decision_time,
+        next_check_reason=next_check_reason,
         stopped_by_control=stopped_by_control,
         stop_marker=str(stop_marker) if stop_marker is not None else None,
     )

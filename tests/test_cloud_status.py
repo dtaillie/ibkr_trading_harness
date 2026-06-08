@@ -1653,6 +1653,9 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                             "account_end_time": "2026-01-02T14:31:00+00:00",
                             "latest_data_time": "2026-01-02T14:31:00+00:00",
                             "last_decision_time": "2026-01-02T14:31:00+00:00",
+                            "next_check_time": "2026-01-02T14:32:00+00:00",
+                            "next_expected_decision_time": "2026-01-02T14:32:00+00:00",
+                            "next_check_reason": "sleeping_until_next_loop",
                             "rejections": 1,
                         },
                         "recent_events": {
@@ -1737,6 +1740,9 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert by_node["test-node"]["fill_count"] == 1
         assert by_node["test-node"]["rejection_count"] == 1
         assert by_node["test-node"]["latest_account_time"] == "2026-01-02T14:31:00+00:00"
+        assert by_node["test-node"]["next_check_time"] == "2026-01-02T14:32:00+00:00"
+        assert by_node["test-node"]["next_expected_decision_time"] == "2026-01-02T14:32:00+00:00"
+        assert by_node["test-node"]["next_check_reason"] == "sleeping_until_next_loop"
 
         with request.urlopen(f"{base}/remote_nodes_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1751,6 +1757,8 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert csv_by_node["test-node"]["final_equity"] == "10123.45"
         assert csv_by_node["test-node"]["open_order_count"] == "1"
         assert csv_by_node["test-node"]["latest_decision_time"] == "2026-01-02T14:31:00+00:00"
+        assert csv_by_node["test-node"]["next_check_time"] == "2026-01-02T14:32:00+00:00"
+        assert csv_by_node["test-node"]["next_check_reason"] == "sleeping_until_next_loop"
 
         with request.urlopen(f"{base}/remote_node_detail?node_id=test-node&limit=2", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
@@ -1762,6 +1770,8 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert detail["runs"][0]["id"] == "run-a"
         assert detail["runs"][0]["mode"] == "paper"
         assert detail["runs"][0]["position_count"] == 1
+        assert detail["runs"][0]["next_check_time"] == "2026-01-02T14:32:00+00:00"
+        assert detail["runs"][0]["next_check_reason"] == "sleeping_until_next_loop"
         assert detail["runs"][0]["recent_orders"][0]["status"] == "Submitted"
         assert detail["runs"][0]["artifact_evidence"]["existing_count"] == 4
         assert detail["runs"][0]["artifact_evidence"]["jsonl_row_count"] == 9
@@ -1791,7 +1801,13 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert any(row["row_type"] == "activity" and row["run_id"] == "run-a" and row["status"] == "Submitted" for row in detail_rows)
         assert any(row["row_type"] == "artifact_evidence" and row["run_id"] == "run-a" and row["status"] == "available" and "event_stream_count" in row["detail"] for row in detail_rows)
         assert any(row["row_type"] == "artifact_file" and row["run_id"] == "run-a" and "category" in row["detail"] for row in detail_rows)
-        assert any(row["row_type"] == "summary" and row["node_id"] == "test-node" and row["mode"] == "paper" for row in detail_rows)
+        assert any(
+            row["row_type"] == "summary"
+            and row["node_id"] == "test-node"
+            and row["mode"] == "paper"
+            and row["next_check_reason"] == "sleeping_until_next_loop"
+            for row in detail_rows
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -4473,6 +4489,9 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["runner_status"]["state"] == "completed"
         assert run_artifacts["runner_status"]["counts"]["decisions"] == 2
         assert run_artifacts["runner_status"]["latest_bar_time"] == "2026-01-02T14:35:00+00:00"
+        assert run_artifacts["runner_status"]["next_check_time"] is None
+        assert run_artifacts["runner_status"]["next_expected_decision_time"] is None
+        assert run_artifacts["runner_status"]["next_check_reason"] == "one_shot_completed"
         assert run_artifacts["runner_status"]["latest_rejection_time"] is None
         assert run_artifacts["plugin_contract"]["available"] is True
         assert run_artifacts["plugin_contract"]["plugin"]["name"] == "no_edge_template"

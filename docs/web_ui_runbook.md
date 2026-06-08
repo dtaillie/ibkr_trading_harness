@@ -254,8 +254,12 @@ without scanning the full operations surface.
 In Operations Paper, read Observation Packet before the longer checklist. It
 separates the runner heartbeat, Gateway/API, market-data feed, account feed,
 decision loop, order context, and mode safety, which answers whether the paper
-runner is actively observing/evaluating or only has a Gateway window open. Use
-Paper Monitor Health and the checklist next for blockers and specific fixes.
+runner is actively observing/evaluating or only has a Gateway window open.
+Generic plugin-runner loops publish `next_check_time`,
+`next_expected_decision_time`, and `next_check_reason` while waiting for the
+next interval, then clear them with a terminal reason when stopped or completed.
+Use Paper Monitor Health and the checklist next for blockers and specific
+fixes.
 In Operations Remote, Remote Node Detail shows bounded artifact evidence for
 published runs when the status publisher can see a generic runner output
 directory. This evidence is limited to expected public artifact filenames,

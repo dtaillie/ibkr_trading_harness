@@ -309,6 +309,13 @@ strategy-private.
     - partial; Overview shows a Next Check tile when generic telemetry includes
       `next_decision_time`, `next_expected_decision_time`, `next_check_time`, or
       `next_signal_time`.
+    - partial; the generic plugin runner now publishes `next_check_time`,
+      `next_expected_decision_time`, and `next_check_reason` in
+      `runner_status.json` while a loop is sleeping/waiting and in
+      `summary.json` for terminal runs. The status summarizer, remote-node
+      summaries, and remote CSV exports preserve those fields, so Overview and
+      Operations Paper can distinguish an active loop's next scheduled check
+      from a completed/stopped one.
   - stale-data, stale-account, rejected-order, risk-limit, and gateway-login
     alerts
     - partial; published alerts and Gateway state are visible, specialized alert
@@ -1890,8 +1897,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Operations now has a Paper Monitor checklist that checks
     Gateway/API reachability, account freshness, current run config/mode,
     market-data/decision observation, and next-order or latest-order context
-    from generic telemetry. Private/specialized runners still need to publish
-    richer next-decision fields for this to become fully green in all modes.
+    from generic telemetry. Generic plugin-runner loops now publish
+    `next_check_time`, `next_expected_decision_time`, and `next_check_reason`
+    while waiting for the next interval and clear them with a terminal reason
+    when stopped/completed. Private/specialized runners still need to publish
+    richer next-order-condition fields for this to become fully green in all
+    modes.
   - partial; Operations now has Paper Monitor Health cards that summarize
     blocker/warning counts, next action, mode safety, and order-context
     visibility before the detailed checklist.
