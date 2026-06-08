@@ -3645,6 +3645,7 @@ section {
 .fetch-evidence-panel,
 .data-inventory-evidence-panel,
 .operations-evidence-panel,
+.runs-action-summary-panel,
 .runs-evidence-panel {
   padding: 14px;
   border: 1px solid rgba(37, 99, 235, 0.16);
@@ -3659,6 +3660,7 @@ section {
 .fetch-evidence-panel .section-note,
 .data-inventory-evidence-panel .section-note,
 .operations-evidence-panel .section-note,
+.runs-action-summary-panel .section-note,
 .runs-evidence-panel .section-note {
   color: #334155;
 }

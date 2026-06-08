@@ -547,6 +547,10 @@ strategy-private.
       current run source, account/position state, open orders, timeline mix,
       artifact availability, and the next inspection route before dense state,
       search, and event tables.
+    - partial; Runs Home now includes an Action Summary that prioritizes open
+      orders, execution issues, open positions, fills/results, quiet runners,
+      and artifact loading, with direct links to State, Events, Run Search,
+      Performance, and Workbench Artifacts.
     - partial; Runs Home now also includes a Runs Evidence panel that
       separates current run source, recent decision/order/fill rows, execution
       issues, account-boundary evidence, loaded artifacts, active filters, and

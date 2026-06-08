@@ -290,7 +290,9 @@ for saved draft folders, tags, validation coverage, runnable drafts, selected
 draft state, latest runs, and next action before the dense draft/run tables.
 Runs Home includes a Runs Evidence panel that separates current run source,
 recent decision/order/fill events, execution issues, account boundary,
-loaded artifacts, active filters, and the next verification route.
+loaded artifacts, active filters, and the next verification route. It also
+starts with an Action Summary that tells users whether to inspect open orders,
+execution issues, positions, fills/results, quiet runners, or artifacts first.
 Operations Remote includes a copyable Remote
 Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
 alerts, open orders, stale data/account timestamps, and next actions.

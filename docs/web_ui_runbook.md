@@ -216,6 +216,10 @@ means one or more open positions lacked a current price in that snapshot.
 
 Open Runs when a metric looks suspicious. Runs exposes recent decisions,
 orders, fills, rejects, account snapshots, logs, and artifact drilldowns.
+Read Action Summary on Runs Home first when you need a concise answer for what
+to inspect next. It prioritizes open orders, execution issues, open positions,
+fills/results, quiet runners, and artifact loading, then links directly to the
+focused State, Events, Run Search, Performance, or Workbench Artifacts view.
 Read Runs Evidence on Runs Home before the dense tables when you need the proof
 chain. It separates current run source, recent decision/order/fill rows,
 execution issues, account-boundary evidence, loaded artifacts, active filters,
