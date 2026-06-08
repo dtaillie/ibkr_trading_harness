@@ -511,6 +511,10 @@ strategy-private.
     including daily/month/year account-equity rollups plus public-safe
     order/fill/rejection counts. Stock rollups derive intraday max exposure
     from trusted paper fills when final account snapshots are flat.
+  - partial; bridged legacy runs now also write an empty
+    `order_previews.jsonl` when no held-preview approval flow exists, so
+    artifact evidence can distinguish "no previews" from "missing artifact" and
+    current paper runs show a complete generic artifact set.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.

@@ -1077,6 +1077,7 @@ def write_run_artifacts(
     write_jsonl(out_dir / "orders.jsonl", orders)
     write_jsonl(out_dir / "fills.jsonl", fills)
     write_jsonl(out_dir / "account.jsonl", account)
+    write_jsonl(out_dir / "order_previews.jsonl", [])
 
 
 def build_supervisor_status(state_path: Path, out_path: Path) -> dict[str, Any]:

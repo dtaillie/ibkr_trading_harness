@@ -130,6 +130,7 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     rollups = json.loads((out / "performance_rollups.json").read_text())
     orders = read_jsonl(out / "orders.jsonl")
     fills = read_jsonl(out / "fills.jsonl")
+    order_previews = read_jsonl(out / "order_previews.jsonl")
     assert result["decisions"] == 2
     assert metrics["status"] if "status" in metrics else True
     account = read_jsonl(out / "account.jsonl")
@@ -137,6 +138,8 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     assert metrics["fills"] == 2
     assert metrics["final_equity"] == 35100
     assert metrics["artifact_files"]["performance_rollups"] is True
+    assert metrics["artifact_files"]["order_previews"] is True
+    assert order_previews == []
     assert rollups["source"] == "legacy_runtime_status_bridge"
     assert rollups["bridge_kind"] == "legacy_crypto_csv_sessions"
     assert rollups["rollups"][0]["day"] == "2026-01-02"
@@ -281,6 +284,7 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     )
     metrics = summarize_run(out)
     rollups = json.loads((out / "performance_rollups.json").read_text())
+    order_previews = read_jsonl(out / "order_previews.jsonl")
     assert result["decisions"] == 1
     assert result["orders"] == 2
     assert result["fills"] == 2
@@ -292,6 +296,8 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     assert metrics["realized_pnl"] == 30.0
     assert metrics["total_commission"] == 1.25
     assert metrics["artifact_files"]["performance_rollups"] is True
+    assert metrics["artifact_files"]["order_previews"] is True
+    assert order_previews == []
     assert rollups["source"] == "legacy_runtime_status_bridge"
     assert rollups["bridge_kind"] == "legacy_stock_csv_sessions"
     assert rollups["rollups"][0]["day"] == "2026-01-02"
