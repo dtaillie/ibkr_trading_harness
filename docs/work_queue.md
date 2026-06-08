@@ -316,6 +316,13 @@ strategy-private.
       summaries, and remote CSV exports preserve those fields, so Overview and
       Operations Paper can distinguish an active loop's next scheduled check
       from a completed/stopped one.
+    - partial; generic plugin-runner decisions now publish a public-safe latest
+      signal context from allowlisted `diagnostics.dashboard` fields plus
+      `latest_signal_reason`, `latest_signal_label`, `latest_signal_value`, and
+      `next_order_condition` in runner status, summaries, status publishing,
+      remote-node summaries, and CSV exports. This gives the dashboard a
+      strategy-neutral explanation of the latest signal/threshold state without
+      exposing raw private signal payloads.
   - stale-data, stale-account, rejected-order, risk-limit, and gateway-login
     alerts
     - partial; published alerts and Gateway state are visible, specialized alert
@@ -1900,9 +1907,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     from generic telemetry. Generic plugin-runner loops now publish
     `next_check_time`, `next_expected_decision_time`, and `next_check_reason`
     while waiting for the next interval and clear them with a terminal reason
-    when stopped/completed. Private/specialized runners still need to publish
-    richer next-order-condition fields for this to become fully green in all
-    modes.
+    when stopped/completed. Generic plugin-runner summaries now also preserve
+    public-safe latest signal context and `next_order_condition` from
+    allowlisted dashboard diagnostics. Private/specialized runners still need
+    to publish comparable sanitized next-order-condition fields for this to
+    become fully green in all modes.
   - partial; Operations now has Paper Monitor Health cards that summarize
     blocker/warning counts, next action, mode safety, and order-context
     visibility before the detailed checklist.

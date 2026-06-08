@@ -121,6 +121,11 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     summary = json.loads((output_dir / "summary.json").read_text())
     assert summary["latest_data_time"] == "2026-01-02T14:40:00+00:00"
     assert summary["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
+    assert summary["latest_signal_context"]["reason"] == "example_only_no_signal"
+    assert summary["latest_signal_context"]["signal_label"] == "Example score"
+    assert summary["latest_signal_value"] == pytest.approx(0.0)
+    assert summary["latest_signal_reason"] == "example_only_no_signal"
+    assert summary["next_order_condition"] == "Example score threshold distance -1"
     assert summary["latest_rejection_time"] is None
     assert summary["performance_rollups_path"] == str(output_dir / "performance_rollups.json")
     assert summary["runner_status_path"] == str(output_dir / "runner_status.json")
@@ -132,6 +137,9 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     assert status["latest_data_time"] == "2026-01-02T14:40:00+00:00"
     assert status["latest_bar_time"] == "2026-01-02T14:40:00+00:00"
     assert status["last_decision_time"] == "2026-01-02T14:40:00+00:00"
+    assert status["latest_signal_context"]["threshold_distance"] == pytest.approx(-1.0)
+    assert status["latest_signal_reason"] == "example_only_no_signal"
+    assert status["next_order_condition"] == "Example score threshold distance -1"
     assert status["latest_rejection"] is None
     assert status["latest_rejection_time"] is None
     assert status["counts"] == {

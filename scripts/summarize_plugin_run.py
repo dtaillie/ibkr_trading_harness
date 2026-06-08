@@ -178,6 +178,24 @@ def first_last_timestamp(rows: list[dict[str, Any]]) -> tuple[str | None, str | 
     return min(timestamps), max(timestamps)
 
 
+def next_order_condition_from_drilldown(drilldown: dict[str, Any]) -> str | None:
+    if not drilldown:
+        return None
+    reason = str(drilldown.get("near_threshold_reason") or drilldown.get("reason") or "").strip()
+    label = str(drilldown.get("signal_label") or "signal").strip()
+    signal_value = finite_float(drilldown.get("signal_value"))
+    threshold = finite_float(drilldown.get("threshold"))
+    threshold_distance = finite_float(drilldown.get("threshold_distance"))
+    near_threshold = drilldown.get("near_threshold")
+    if near_threshold is True:
+        return f"near threshold: {reason}" if reason else "near threshold"
+    if threshold_distance is not None:
+        return f"{label} threshold distance {threshold_distance:.6g}"
+    if signal_value is not None and threshold is not None:
+        return f"{label} {signal_value:.6g} versus threshold {threshold:.6g}"
+    return reason or None
+
+
 def summarize_decision_record(row: dict[str, Any]) -> dict[str, Any]:
     intents = row.get("intents") or []
     diagnostics = row.get("diagnostics") or {}
@@ -216,6 +234,14 @@ def summarize_decision_record(row: dict[str, Any]) -> dict[str, Any]:
             if key in public_keys and isinstance(value, bool | int | float | str)
         }
     return record
+
+
+def latest_decision_drilldown(decisions: list[dict[str, Any]]) -> dict[str, Any]:
+    for row in reversed(decisions):
+        drilldown = summarize_decision_record(row).get("drilldown")
+        if isinstance(drilldown, dict) and drilldown:
+            return drilldown
+    return {}
 
 
 PUBLIC_EXECUTION_NUMERIC_FIELDS = (
@@ -334,6 +360,14 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     fills = load_jsonl(run_dir / "fills.jsonl")
     account = load_jsonl(run_dir / "account.jsonl")
     first_ts, last_ts = first_last_timestamp(decisions)
+    latest_drilldown = latest_decision_drilldown(decisions)
+    latest_signal_context = (
+        summary.get("latest_signal_context")
+        or runner_status.get("latest_signal_context")
+        or latest_drilldown
+    )
+    if not isinstance(latest_signal_context, dict):
+        latest_signal_context = {}
 
     rejected_orders = [row for row in orders if row.get("status") == "rejected"]
     latest_rejection = rejected_orders[-1] if rejected_orders else {}
@@ -374,6 +408,30 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "next_check_time": summary.get("next_check_time") or runner_status.get("next_check_time"),
         "next_expected_decision_time": summary.get("next_expected_decision_time") or runner_status.get("next_expected_decision_time"),
         "next_check_reason": summary.get("next_check_reason") or runner_status.get("next_check_reason"),
+        "latest_signal_context": latest_signal_context,
+        "latest_signal_reason": (
+            summary.get("latest_signal_reason")
+            or runner_status.get("latest_signal_reason")
+            or latest_signal_context.get("near_threshold_reason")
+            or latest_signal_context.get("reason")
+        ),
+        "latest_signal_label": (
+            summary.get("latest_signal_label")
+            or runner_status.get("latest_signal_label")
+            or latest_signal_context.get("signal_label")
+        ),
+        "latest_signal_value": (
+            summary.get("latest_signal_value")
+            if summary.get("latest_signal_value") is not None
+            else runner_status.get("latest_signal_value")
+            if runner_status.get("latest_signal_value") is not None
+            else latest_signal_context.get("signal_value")
+        ),
+        "next_order_condition": (
+            summary.get("next_order_condition")
+            or runner_status.get("next_order_condition")
+            or next_order_condition_from_drilldown(latest_signal_context)
+        ),
         "latest_rejection_time": summary.get("latest_rejection_time") or latest_rejection.get("timestamp"),
         "latest_rejection_symbol": summary.get("latest_rejection_symbol") or latest_rejection.get("symbol"),
         "latest_rejection_status": summary.get("latest_rejection_status") or latest_rejection.get("status"),
@@ -434,6 +492,7 @@ def format_text(metrics: dict[str, Any]) -> str:
         f"Mode: {metrics.get('mode') or 'unknown'}",
         f"Loop: {'enabled' if metrics.get('loop_enabled') else 'one-shot'} iterations={metrics.get('loop_iterations', 0)}",
         f"Next check: {metrics.get('next_check_time') or 'n/a'} reason={metrics.get('next_check_reason') or 'n/a'}",
+        f"Next order condition: {metrics.get('next_order_condition') or 'n/a'}",
         f"Decisions: {metrics['decisions']} records={metrics['decision_records']}",
         f"Window: {metrics.get('first_decision_time') or 'n/a'} -> {metrics.get('last_decision_time') or 'n/a'}",
         f"Orders: {metrics['orders']} events={metrics['order_events']} statuses={metrics['order_status_counts']}",

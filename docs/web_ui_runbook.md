@@ -258,6 +258,10 @@ runner is actively observing/evaluating or only has a Gateway window open.
 Generic plugin-runner loops publish `next_check_time`,
 `next_expected_decision_time`, and `next_check_reason` while waiting for the
 next interval, then clear them with a terminal reason when stopped or completed.
+Generic runner summaries also publish public-safe latest signal context and
+`next_order_condition` from allowlisted dashboard diagnostics, so the Order
+Context card can explain the latest threshold/signal state without raw strategy
+payloads.
 Use Paper Monitor Health and the checklist next for blockers and specific
 fixes.
 In Operations Remote, Remote Node Detail shows bounded artifact evidence for

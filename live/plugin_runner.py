@@ -60,6 +60,27 @@ PUBLIC_POSITION_DETAIL_FIELDS = (
     "mae_pct",
     "mfe_pct",
 )
+PUBLIC_DECISION_DRILLDOWN_FIELDS = (
+    "reason",
+    "signal_label",
+    "signal_value",
+    "threshold",
+    "threshold_distance",
+    "threshold_direction",
+    "near_threshold",
+    "near_threshold_reason",
+    "entry_marker",
+    "exit_marker",
+    "expected_hold_minutes",
+    "hold_until",
+    "active_exit_rule",
+    "exit_state",
+    "stop_state",
+    "stop_price",
+    "target_price",
+    "mae_pct",
+    "mfe_pct",
+)
 WEEKDAY_NAMES = {
     "mon": 0,
     "monday": 0,
@@ -129,6 +150,11 @@ class RunnerResult:
     next_check_time: str | None = None
     next_expected_decision_time: str | None = None
     next_check_reason: str | None = None
+    latest_signal_context: dict[str, Any] | None = None
+    latest_signal_reason: str | None = None
+    latest_signal_label: str | None = None
+    latest_signal_value: float | None = None
+    next_order_condition: str | None = None
     stopped_by_control: bool = False
     stop_marker: str | None = None
 
@@ -972,6 +998,42 @@ def public_position_details_from_diagnostics(
         if public_detail:
             details[symbol] = public_detail
     return details
+
+
+def public_decision_drilldown_from_diagnostics(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    dashboard = diagnostics.get("dashboard") if isinstance(diagnostics, dict) else {}
+    if not isinstance(dashboard, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for field in PUBLIC_DECISION_DRILLDOWN_FIELDS:
+        if field not in dashboard:
+            continue
+        value = dashboard[field]
+        if isinstance(value, (str, int, float, bool)):
+            out[field] = value
+    return out
+
+
+def next_order_condition_from_drilldown(drilldown: dict[str, Any]) -> str | None:
+    if not drilldown:
+        return None
+    reason = str(drilldown.get("near_threshold_reason") or drilldown.get("reason") or "").strip()
+    label = str(drilldown.get("signal_label") or "signal").strip()
+    signal_value = finite_float(drilldown.get("signal_value"))
+    threshold = finite_float(drilldown.get("threshold"))
+    threshold_distance = finite_float(drilldown.get("threshold_distance"))
+    near_threshold = drilldown.get("near_threshold")
+    if near_threshold is True:
+        if reason:
+            return f"near threshold: {reason}"
+        return "near threshold"
+    if threshold_distance is not None:
+        return f"{label} threshold distance {threshold_distance:.6g}"
+    if signal_value is not None and threshold is not None:
+        return f"{label} {signal_value:.6g} versus threshold {threshold:.6g}"
+    if reason:
+        return reason
+    return None
 
 
 def account_snapshot_record(
@@ -2171,6 +2233,11 @@ def run_from_config(
     next_check_time: str | None = None
     next_expected_decision_time: str | None = None
     next_check_reason: str | None = None
+    latest_signal_context: dict[str, Any] | None = None
+    latest_signal_reason: str | None = None
+    latest_signal_label: str | None = None
+    latest_signal_value: float | None = None
+    next_order_condition: str | None = None
     latest_rejection: dict[str, Any] | None = None
     observed_dashboard_keys: set[str] = set()
     observed_intent_metadata_keys: set[str] = set()
@@ -2199,6 +2266,11 @@ def run_from_config(
             "next_check_time": next_check_time,
             "next_expected_decision_time": next_expected_decision_time,
             "next_check_reason": next_check_reason,
+            "latest_signal_context": latest_signal_context,
+            "latest_signal_reason": latest_signal_reason,
+            "latest_signal_label": latest_signal_label,
+            "latest_signal_value": latest_signal_value,
+            "next_order_condition": next_order_condition,
             "latest_rejection": latest_rejection,
             "latest_rejection_time": latest_rejection.get("timestamp") if latest_rejection else None,
             "latest_rejection_symbol": latest_rejection.get("symbol") if latest_rejection else None,
@@ -2291,6 +2363,11 @@ def run_from_config(
         nonlocal paper_final_cash
         nonlocal paper_final_positions
         nonlocal last_decision_time
+        nonlocal latest_signal_context
+        nonlocal latest_signal_reason
+        nonlocal latest_signal_label
+        nonlocal latest_signal_value
+        nonlocal next_order_condition
 
         snapshot = snapshot_at(panels, now, history_bars=history_bars)
         if not snapshot:
@@ -2371,6 +2448,19 @@ def run_from_config(
         decisions += 1
         last_decision_time = decision.timestamp.isoformat()
         diagnostics = decision.diagnostics if isinstance(decision.diagnostics, dict) else {}
+        latest_signal_context = public_decision_drilldown_from_diagnostics(diagnostics)
+        latest_signal_reason = (
+            str(latest_signal_context.get("near_threshold_reason") or latest_signal_context.get("reason"))
+            if latest_signal_context.get("near_threshold_reason") is not None or latest_signal_context.get("reason") is not None
+            else None
+        )
+        latest_signal_label = (
+            str(latest_signal_context.get("signal_label"))
+            if latest_signal_context.get("signal_label") is not None
+            else None
+        )
+        latest_signal_value = finite_float(latest_signal_context.get("signal_value"))
+        next_order_condition = next_order_condition_from_drilldown(latest_signal_context)
         observed_dashboard_keys.update(public_key_list(diagnostics.get("dashboard")))
         append_jsonl(output_dir / "decisions.jsonl", {
             "timestamp": decision.timestamp,
@@ -2712,6 +2802,11 @@ def run_from_config(
         next_check_time=next_check_time,
         next_expected_decision_time=next_expected_decision_time,
         next_check_reason=next_check_reason,
+        latest_signal_context=latest_signal_context,
+        latest_signal_reason=latest_signal_reason,
+        latest_signal_label=latest_signal_label,
+        latest_signal_value=latest_signal_value,
+        next_order_condition=next_order_condition,
         stopped_by_control=stopped_by_control,
         stop_marker=str(stop_marker) if stop_marker is not None else None,
     )

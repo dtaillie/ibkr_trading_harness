@@ -37,7 +37,20 @@ def test_summarize_plugin_run_metrics(tmp_path):
         run_dir / "decisions.jsonl",
         [
             {"timestamp": "2026-01-02T14:30:00+00:00", "intents": []},
-            {"timestamp": "2026-01-02T14:35:00+00:00", "intents": []},
+            {
+                "timestamp": "2026-01-02T14:35:00+00:00",
+                "intents": [],
+                "diagnostics": {
+                    "dashboard": {
+                        "reason": "example_only_no_signal",
+                        "signal_label": "Example score",
+                        "signal_value": 0.0,
+                        "threshold": 1.0,
+                        "threshold_distance": -1.0,
+                        "private_ignored": "secret",
+                    }
+                },
+            },
         ],
     )
     write_jsonl(
@@ -139,6 +152,17 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert metrics["next_check_time"] == "2026-01-02T14:36:00+00:00"
     assert metrics["next_expected_decision_time"] == "2026-01-02T14:36:00+00:00"
     assert metrics["next_check_reason"] == "sleeping_until_next_loop"
+    assert metrics["latest_signal_context"] == {
+        "reason": "example_only_no_signal",
+        "signal_label": "Example score",
+        "signal_value": 0.0,
+        "threshold": 1.0,
+        "threshold_distance": -1.0,
+    }
+    assert metrics["latest_signal_reason"] == "example_only_no_signal"
+    assert metrics["latest_signal_label"] == "Example score"
+    assert metrics["latest_signal_value"] == 0.0
+    assert metrics["next_order_condition"] == "Example score threshold distance -1"
     assert metrics["latest_rejection_time"] == "2026-01-02T14:35:00+00:00"
     assert metrics["latest_rejection_symbol"] == "SPY"
     assert metrics["latest_rejection_status"] == "rejected"
@@ -156,6 +180,7 @@ def test_summarize_plugin_run_metrics(tmp_path):
     assert "Fills: 1" in format_text(metrics)
     assert "Loop: enabled iterations=2" in format_text(metrics)
     assert "Next check: 2026-01-02T14:36:00+00:00 reason=sleeping_until_next_loop" in format_text(metrics)
+    assert "Next order condition: Example score threshold distance -1" in format_text(metrics)
     assert "Return: 0.2%" in format_text(metrics)
     assert "Plugin contract: available plugin=no_edge_template" in format_text(metrics)
     assert "Return/day:" in format_text(metrics)

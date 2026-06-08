@@ -325,7 +325,9 @@ In Operations Paper, the Observation Packet uses generic runner telemetry such
 as latest bar/decision/account timestamps plus `next_check_time`,
 `next_expected_decision_time`, and `next_check_reason` to show whether a
 paper/shadow loop is actively waiting for its next evaluation or has already
-stopped.
+stopped. Generic runner summaries also expose public-safe
+`next_order_condition` and latest signal fields derived from allowlisted
+`diagnostics.dashboard` keys, not raw strategy diagnostics.
 Before queueing any command, open Operations Control and read Command Safety
 Review. It summarizes target-node state, command risk classes, confirmation
 requirements, pending/failed commands, audit integrity, retention, selected
