@@ -269,6 +269,9 @@ available. It also shows the active source, mode, latest account timestamp,
 open position count, and decision/order/fill/reject activity before the charts.
 Its Current Strategy Report gives a copyable plain-language summary of source,
 equity/returns, risk, trades, execution issues, evidence depth, and next action.
+The Current Scoreboard above it shows source, today, recent, month,
+all-available return, drawdown, and readiness for the quickest performance
+scan.
 Its Performance Evidence panel separates account-backed, event-backed,
 summary-only, rollup-only, and benchmarked results so users can verify what
 supports a return before trusting it.

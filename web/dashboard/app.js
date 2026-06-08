@@ -7364,6 +7364,22 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceScoreboard({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   renderPerformanceReview({
     source,
     window,
@@ -7916,6 +7932,71 @@ function renderPerformanceHome(context) {
     </div>
   `).join("");
   renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
+}
+
+function renderPerformanceScoreboard(context) {
+  if (!$("performance-scoreboard-note") || !$("performance-scoreboard-cards") || !$("performance-scoreboard-actions")) return;
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    mode,
+    latestAccount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const snapshot = performanceSnapshotModel(context);
+  const cardsByLabel = new Map((snapshot.cards || []).map((card) => [card.label, card]));
+  const issueCount = Number(rejections || 0) + Number(approvalRequired || 0);
+  const sourceStatus = source.has_data
+    ? issueCount ? "warn" : accountRows.length || (allAccountRows || []).length ? "ok" : "warn"
+    : "bad";
+  const sourceCard = {
+    status: sourceStatus,
+    className: statusClass(sourceStatus),
+    label: "Source",
+    title: source.has_data ? text(mode || source.source_type || "loaded") : "No Source",
+    note: source.has_data
+      ? `${text(source.label)}; latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}.`
+      : "Publish telemetry, open a saved run, or load Workbench artifacts.",
+  };
+  const scoreboardCards = [
+    sourceCard,
+    cardsByLabel.get("Today"),
+    cardsByLabel.get("Recent"),
+    cardsByLabel.get("Month"),
+    cardsByLabel.get("All Available"),
+    cardsByLabel.get("Max Drawdown"),
+    cardsByLabel.get("Readiness"),
+  ].filter(Boolean);
+  const numericReturn = finiteNumber(periodPerf.total_return_pct);
+  const headline = source.has_data
+    ? `${pctText(numericReturn)} selected-window return`
+    : "No current performance source";
+  const evidence = accountRows.length
+    ? `${numberText(accountRows.length, 0)} account snapshots in ${window.label}`
+    : (allAccountRows || []).length
+      ? `${numberText((allAccountRows || []).length, 0)} account snapshots outside this period`
+      : "no account snapshot path";
+  const issueText = issueCount
+    ? `${numberText(issueCount, 0)} execution issue${issueCount === 1 ? "" : "s"} visible`
+    : "no visible rejects or approval holds";
+  $("performance-scoreboard-note").textContent = `${headline}; ${evidence}; ${issueText}.`;
+  $("performance-scoreboard-cards").innerHTML = scoreboardCards.map((card) => `
+    <article class="performance-scoreboard-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </article>
+  `).join("");
+  $("performance-scoreboard-actions").innerHTML = [
+    `<a href="#performance/trades">Trades</a>`,
+    `<a class="secondary" href="#performance/rollups">Rollups</a>`,
+    `<a class="secondary" href="#runs/state">Orders</a>`,
+    `<a class="secondary" href="#data/browse">Benchmark Data</a>`,
+  ].join("");
 }
 
 function renderPerformanceReview(context) {

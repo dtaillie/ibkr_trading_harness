@@ -385,6 +385,8 @@ Workbench readiness, and the next inspection action in copyable rows.
 Performance Home also includes a Current Strategy Report that summarizes source
 freshness, equity and return, risk, trades, execution issues, evidence depth,
 and the next action in copyable plain-language rows.
+The Current Scoreboard above that report gives the shortest readout of source,
+today, recent, month, all-available return, drawdown, and readiness.
 Use Performance Evidence beside it to see whether the selected result is backed
 by account snapshots, fills, status-history rollups, an artifact, a summary, or
 a benchmark overlay.

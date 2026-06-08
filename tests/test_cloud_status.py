@@ -968,6 +968,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "performance-home-result" in html
         assert "performance-home-tiles" in html
+        assert "performance-scoreboard-note" in html
+        assert "performance-scoreboard-cards" in html
+        assert "performance-scoreboard-actions" in html
         assert "performance-workflows" in html
         assert "performance-review-note" in html
         assert "performance-review-cards" in html

@@ -435,6 +435,10 @@ strategy-private.
     compresses source, latest equity, today/recent/month/all return, drawdown,
     exposure, trades, open positions, execution issues, evidence depth, and the
     next action into copyable plain-language rows.
+  - partial; Performance Home now promotes a Current Scoreboard directly under
+    the home band, using the same sanitized status-history/account evidence to
+    show source, today, recent, month, all-available return, drawdown, and
+    readiness before the denser review, evidence, chart, and trade sections.
   - partial; Performance Home now includes a Performance Evidence panel that
     separates account-backed, event-backed, summary-only, rollup-only, and
     benchmarked results, with copyable evidence rows and drilldowns to rollups,
