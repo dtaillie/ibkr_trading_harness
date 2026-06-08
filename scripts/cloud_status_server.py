@@ -3095,11 +3095,20 @@ def build_data_symbol_index(
             "roots": sorted(group["roots"]),
         })
     symbol_rows.sort(key=lambda row: (-int(row.get("file_count") or 0), str(row.get("symbol") or "")))
+    symbol_inventory = build_data_symbol_inventory(
+        symbol_rows=symbol_rows,
+        file_rows=file_rows,
+        root_summaries=root_summaries,
+        filters=filters,
+        errors=errors,
+        limit=limit,
+    )
 
     return {
         "generated_at": utc_now(),
         "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
         "root_summaries": root_summaries,
+        "symbol_inventory": symbol_inventory,
         "symbols": symbol_rows,
         "files": file_rows[:500],
         "errors": errors,
@@ -8326,6 +8335,90 @@ def count_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
         label = str(row.get(key) or "unknown")
         counts[label] = counts.get(label, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def build_data_symbol_inventory(
+    *,
+    symbol_rows: list[dict[str, Any]],
+    file_rows: list[dict[str, Any]],
+    root_summaries: list[dict[str, Any]],
+    filters: dict[str, str],
+    errors: list[dict[str, Any]],
+    limit: int,
+) -> dict[str, Any]:
+    scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
+    not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
+    candidate_count_total = sum(int(row.get("candidate_count") or 0) for row in root_summaries)
+    supported_seen_total = sum(int(row.get("supported_file_seen_count") or 0) for row in root_summaries)
+    unsupported_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
+    filter_skipped_total = sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries)
+    index_complete = not any(row.get("scan_capped") or row.get("not_scanned_reason") for row in root_summaries)
+    filter_active = bool(filters)
+    if symbol_rows and index_complete:
+        status = "ok"
+        reason = "filtered_symbols_visible" if filter_active else "symbols_visible"
+    elif symbol_rows:
+        status = "warn"
+        reason = "partial_index_symbols_visible"
+    elif filter_active and candidate_count_total:
+        status = "warn"
+        reason = "filtered_no_matches"
+    elif root_summaries and candidate_count_total == 0:
+        status = "bad"
+        reason = "no_candidate_files"
+    elif root_summaries:
+        status = "bad"
+        reason = "no_symbols"
+    else:
+        status = "bad"
+        reason = "no_roots"
+    if errors and status == "ok":
+        status = "warn"
+        reason = "index_errors"
+    note_by_reason = {
+        "symbols_visible": "Root Index found saved data and scanned all configured roots within the current limit.",
+        "filtered_symbols_visible": "Root Index found symbols matching the active server-side filters.",
+        "partial_index_symbols_visible": "Root Index found saved data, but one or more roots were capped or not fully scanned.",
+        "filtered_no_matches": "Root Index scanned candidate files, but active filters matched no symbols.",
+        "no_candidate_files": "Configured roots were scanned but no supported candidate files were found.",
+        "no_symbols": "Candidate files were seen, but no symbols could be inferred from them.",
+        "no_roots": "No data roots are configured for the Root Index.",
+        "index_errors": "Root Index found symbols but also saw candidate summarization errors.",
+    }
+    return {
+        "schema_version": 1,
+        "status": status,
+        "reason": reason,
+        "note": note_by_reason.get(reason, reason),
+        "symbol_count": len(symbol_rows),
+        "file_count": len(file_rows),
+        "root_count": len(root_summaries),
+        "limit": limit,
+        "filter_active": filter_active,
+        "filters": filters,
+        "index_complete": index_complete,
+        "scan_capped_root_count": scan_capped_root_count,
+        "not_scanned_root_count": not_scanned_root_count,
+        "candidate_count_total": candidate_count_total,
+        "supported_file_seen_count_total": supported_seen_total,
+        "filter_skipped_count_total": filter_skipped_total,
+        "unsupported_file_count_total": unsupported_total,
+        "error_count": len(errors),
+        "asset_class_counts": count_values(file_rows, "asset_class"),
+        "source_counts": count_values(file_rows, "source"),
+        "bar_size_counts": count_values(file_rows, "bar_size"),
+        "top_symbols": [
+            {
+                "symbol": row.get("symbol"),
+                "file_count": row.get("file_count"),
+                "asset_class": row.get("asset_class"),
+                "bar_sizes": row.get("bar_sizes") or [],
+                "sources": row.get("sources") or [],
+                "latest_modified_at": row.get("latest_modified_at"),
+            }
+            for row in symbol_rows[:10]
+        ],
+    }
 
 
 def successful_run_summary(row: dict[str, Any]) -> dict[str, Any]:

@@ -2921,6 +2921,11 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         assert index["file_count"] == 12
         assert index["symbol_count"] == 12
         assert index["index_complete"] is True
+        assert index["symbol_inventory"]["status"] == "ok"
+        assert index["symbol_inventory"]["reason"] == "symbols_visible"
+        assert index["symbol_inventory"]["symbol_count"] == 12
+        assert index["symbol_inventory"]["file_count"] == 12
+        assert index["symbol_inventory"]["top_symbols"][0]["symbol"].startswith("SYM")
         assert index["scan_capped_root_count"] == 0
         assert index["bar_size_counts"] == {"1min": 12}
         assert index["asset_class_counts"] == {"stock": 12}
@@ -2944,6 +2949,9 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         assert capped["file_count"] == 5
         assert capped["scan_capped_root_count"] == 1
         assert capped["index_complete"] is False
+        assert capped["symbol_inventory"]["status"] == "warn"
+        assert capped["symbol_inventory"]["reason"] == "partial_index_symbols_visible"
+        assert capped["symbol_inventory"]["scan_capped_root_count"] == 1
     finally:
         server.shutdown()
         server.server_close()
@@ -2982,6 +2990,9 @@ def test_cloud_status_server_filters_broad_data_symbol_index_past_scan_cap(tmp_p
         assert filtered["symbol_count"] == 1
         assert filtered["symbols"][0]["symbol"] == "ZZZ"
         assert filtered["filter_skipped_count_total"] >= 5
+        assert filtered["symbol_inventory"]["status"] == "ok"
+        assert filtered["symbol_inventory"]["reason"] == "filtered_symbols_visible"
+        assert filtered["symbol_inventory"]["filter_active"] is True
 
         with request.urlopen(f"{base}/data_symbol_index_export?limit=5&q=ZZZ", timeout=5) as resp:
             exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))

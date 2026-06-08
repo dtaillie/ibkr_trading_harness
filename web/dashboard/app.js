@@ -5737,21 +5737,43 @@ function runtimeMarketDataModel(metrics = {}, latestRun = null) {
   };
 }
 
+function symbolInventoryModel() {
+  const index = state.dataSymbolIndex || {};
+  const inventory = index.symbol_inventory || {};
+  const symbolCount = Number(inventory.symbol_count ?? index.symbol_count ?? ((index.symbols || []).length) ?? 0);
+  const fileCount = Number(inventory.file_count ?? index.file_count ?? ((index.files || []).length) ?? 0);
+  const status = text(inventory.status || (index.index_complete === false ? "warn" : symbolCount || fileCount ? "ok" : "bad")).toLowerCase();
+  return {
+    raw: inventory,
+    status: ["ok", "warn", "bad"].includes(status) ? status : "warn",
+    reason: text(inventory.reason || (index.index_complete === false ? "partial_index" : "n/a")),
+    note: text(inventory.note || ""),
+    symbolCount,
+    fileCount,
+    indexComplete: inventory.index_complete ?? index.index_complete,
+    scanCappedRootCount: Number(inventory.scan_capped_root_count ?? index.scan_capped_root_count ?? 0),
+    notScannedRootCount: Number(inventory.not_scanned_root_count ?? index.not_scanned_root_count ?? 0),
+    candidateCountTotal: Number(inventory.candidate_count_total ?? index.candidate_count_total ?? 0),
+    supportedFileSeenCountTotal: Number(inventory.supported_file_seen_count_total ?? index.supported_file_seen_count_total ?? 0),
+    filterActive: Boolean(inventory.filter_active ?? index.filter_active),
+    topSymbols: inventory.top_symbols || (index.symbols || []).slice(0, 10),
+  };
+}
+
 function savedDataMetricModel() {
+  const inventory = symbolInventoryModel();
   const index = state.dataSymbolIndex || {};
   const catalog = state.dataCatalog || {};
-  const indexSymbols = Number(index.symbol_count || ((index.symbols || []).length));
-  const indexFiles = Number(index.file_count || ((index.files || []).length));
   const catalogRows = (catalog.datasets || []).length;
   if (index.index_error) {
     return { value: `${numberText(catalogRows, 0)} files`, status: "warn", title: text(index.index_error) };
   }
-  if (indexSymbols || indexFiles) {
-    const partial = index.index_complete === false ? "partial" : "complete";
+  if (inventory.symbolCount || inventory.fileCount) {
+    const partial = inventory.indexComplete === false ? "partial" : "complete";
     return {
-      value: `${numberText(indexSymbols, 0)} symbols`,
-      status: index.index_complete === false ? "warn" : "ok",
-      title: `${numberText(indexFiles, 0)} indexed files; ${partial} root index.`,
+      value: `${numberText(inventory.symbolCount, 0)} symbols`,
+      status: inventory.status,
+      title: `${numberText(inventory.fileCount, 0)} indexed files; ${partial} root index; ${inventory.reason}.`,
     };
   }
   return {
@@ -13748,9 +13770,10 @@ function dataInventoryEvidenceModel(filteredRows = []) {
   const hiddenByFilters = Math.max(0, catalogRows - filteredRows.length);
   const catalogSymbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
   const visibleSymbols = new Set((activeRows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
-  const indexSymbols = Number(symbolIndex.symbol_count || ((symbolIndex.symbols || []).length) || 0);
-  const indexFiles = Number(symbolIndex.file_count || ((symbolIndex.files || []).length) || 0);
-  const indexCapped = symbolIndex.index_complete === false || Number(symbolIndex.scan_capped_root_count || 0) > 0;
+  const inventory = symbolInventoryModel();
+  const indexSymbols = inventory.symbolCount;
+  const indexFiles = inventory.fileCount;
+  const indexCapped = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
   const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const rootSummaries = catalog.root_summaries || [];
   const rootInventory = catalog.root_inventory || {};
@@ -13818,12 +13841,12 @@ function dataInventoryEvidenceModel(filteredRows = []) {
       note: `${numberText(catalogSymbols.size, 0)} symbols / ${numberText(catalog.row_count_total || totalRows, 0)} rows; ${numberText(hiddenByFilters, 0)} hidden by filters.`,
     },
     {
-      status: indexError !== "n/a" ? "bad" : indexFiles ? indexCapped || indexFiles > catalogRows ? "warn" : "ok" : catalogRows ? "warn" : "bad",
+      status: indexError !== "n/a" ? "bad" : indexFiles ? inventory.status : catalogRows ? "warn" : "bad",
       label: "Root Index",
       title: indexFiles ? `${numberText(indexFiles, 0)} candidates` : "n/a",
       note: indexError !== "n/a"
         ? `Root index failed: ${indexError}.`
-        : `${numberText(indexSymbols, 0)} inferred symbols${indexCapped ? "; index capped" : ""}${indexFiles > catalogRows ? "; broader than parsed catalog" : ""}.`,
+        : `${numberText(indexSymbols, 0)} inferred symbols; ${inventory.reason}${indexCapped ? "; partial scan" : ""}${indexFiles > catalogRows ? "; broader than parsed catalog" : ""}.`,
     },
     {
       status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
@@ -13866,11 +13889,11 @@ function dataInventoryEvidenceModel(filteredRows = []) {
         : "No timestamp range is available for the current saved-data scope.",
     },
     {
-      status: indexError !== "n/a" ? "bad" : indexFiles ? indexCapped || indexFiles > catalogRows ? "warn" : "ok" : catalogRows ? "warn" : "bad",
+      status: indexError !== "n/a" ? "bad" : indexFiles ? inventory.status : catalogRows ? "warn" : "bad",
       title: "Root Index Cross-Check",
       detail: indexError !== "n/a"
         ? `Root index failed with: ${indexError}.`
-        : `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} were inferred from root paths; parsed catalog has ${numberText(catalogRows, 0)} files${catalogLooksPartial ? ", so the catalog may be partial" : ""}.`,
+        : `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} were inferred from root paths; inventory=${inventory.reason}; parsed catalog has ${numberText(catalogRows, 0)} files${catalogLooksPartial ? ", so the catalog may be partial" : ""}.`,
     },
     {
       status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
@@ -14085,9 +14108,10 @@ function renderDataInventoryPanel(filteredRows = []) {
   const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
   const catalogCount = Number(catalog.count || datasets.length || 0);
   const symbolIndex = state.dataSymbolIndex || {};
-  const indexFileCount = Number(symbolIndex.file_count || 0);
-  const indexSymbolCount = Number(symbolIndex.symbol_count || 0);
-  const indexCapped = symbolIndex.index_complete === false || Number(symbolIndex.scan_capped_root_count || 0) > 0;
+  const inventory = symbolInventoryModel();
+  const indexFileCount = inventory.fileCount;
+  const indexSymbolCount = inventory.symbolCount;
+  const indexCapped = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
   const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const rootSummaries = catalog.root_summaries || [];
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
@@ -14154,11 +14178,11 @@ function renderDataInventoryPanel(filteredRows = []) {
     {
       label: "Root Index",
       title: indexFileCount ? `${numberText(indexSymbolCount, 0)} symbols` : "n/a",
-      status: indexError !== "n/a" ? "bad" : indexFileCount ? (indexCapped ? "warn" : "ok") : catalogCount ? "warn" : "bad",
+      status: indexError !== "n/a" ? "bad" : indexFileCount ? inventory.status : catalogCount ? "warn" : "bad",
       detail: indexError !== "n/a"
         ? `Index failed: ${indexError}.`
         : indexFileCount
-          ? `${numberText(indexFileCount, 0)} candidate files inferred from filenames/paths${indexCapped ? "; index capped" : ""}.`
+          ? `${numberText(indexFileCount, 0)} candidate files; ${inventory.reason}${indexCapped ? `; ${numberText(inventory.scanCappedRootCount, 0)} capped / ${numberText(inventory.notScannedRootCount, 0)} not scanned roots` : ""}.`
           : "No broad root index loaded.",
     },
     {

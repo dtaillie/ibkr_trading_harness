@@ -1030,6 +1030,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     Data Library scope/visibility/scan reports use those fields so parser
     errors, unsupported files, scan caps, not-scanned roots, and readable-root
     counts agree across the UI and scan CSV.
+  - partial; `/data_symbol_index` now publishes a backend-owned
+    `symbol_inventory` summary with status, reason, note, symbol/file/root
+    counts, cap/not-scanned counts, source/bar/asset breakdowns, and top
+    symbols. Data Home and the global Saved Data metric consume that summary so
+    broad Root Index evidence is not reinterpreted differently across panels.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

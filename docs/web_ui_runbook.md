@@ -158,6 +158,10 @@ Root Index says the scan is capped and the loaded candidates still do not
 include a symbol you expect, enter a symbol/source/bar/session filter and click
 Search Roots. That sends the filters to the server so large roots are searched
 for matching filenames/paths instead of filtering only the first bounded batch.
+The Root Index payload also includes `symbol_inventory.status` and
+`symbol_inventory.reason`; Data Home uses those fields so a broad partial scan
+such as "many symbols visible, but capped" is distinct from "no saved data
+found."
 Use Export Root Index CSV when you want the current broader or filtered
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.
