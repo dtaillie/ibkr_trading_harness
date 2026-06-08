@@ -1988,6 +1988,10 @@ QQQ show up, treat that as a bug until proven otherwise.
   - partial; Operations now has Command Audit Health cards that surface
     hash-chain status, HMAC signature coverage, latest sanitized command
     event, and local/off-host retention next steps before the dense audit rows.
+  - partial; Remote Node Detail now includes a copyable Remote Node Health
+    Report for the selected node, summarizing heartbeat, Gateway/API,
+    account/data feed age, run health, activity, bounded artifact evidence,
+    cloud boundary, and next action before dense history/activity tables.
 - Add alerts:
   - missed heartbeat
   - Gateway login required
@@ -2040,6 +2044,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     summarizes heartbeat freshness, alerts, latest-run health, activity mix,
     artifact evidence, and the sanitized cloud boundary, with direct actions
     for activity filters, CSV export, and command-target selection.
+  - partial; Remote Node Detail now also has a Remote Node Health Report that
+    turns the selected node's heartbeat, Gateway/API, account/data feed age,
+    latest-run health, activity, bounded artifact evidence, and cloud boundary
+    into copyable evidence rows.
   - partial; Remote Node Detail now publishes an explicit retention/privacy
     boundary policy in the API, CSV export, and UI, documenting snapshot/run/
     event/artifact bounds plus excluded raw logs, credentials, local paths, and

@@ -259,7 +259,9 @@ directory. This evidence is limited to expected public artifact filenames,
 presence, byte counts, modified times, and JSONL row counts. It is useful for
 answering "did the remote runner produce the files I need to inspect locally?"
 without posting raw logs, raw artifacts, credentials, or private diagnostics to
-the receiver.
+the receiver. Read Remote Node Health Report first when a node is selected; it
+turns heartbeat, Gateway/API, account/data feed age, run health, activity,
+bounded artifact evidence, cloud boundary, and next action into copyable rows.
 
 ## Review a Completed Fetch
 

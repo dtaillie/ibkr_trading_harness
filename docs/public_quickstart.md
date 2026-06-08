@@ -498,7 +498,10 @@ rows. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. The Remote Monitor Report summarizes remote node coverage, heartbeat,
 Gateway/API state, alerts, open orders, stale data/account timestamps, and next
-actions in copyable rows before the remote-node table. It also shows read-only
+actions in copyable rows before the remote-node table. After selecting a node,
+Remote Node Health Report summarizes that node's heartbeat, Gateway/API,
+account/data feed age, run health, activity, bounded artifact evidence, cloud
+boundary, and next action in copyable rows. It also shows read-only
 workbench state for saved draft count, run
 count, archived artifact count, local disk usage, and the latest saved run.
 Generic plugin-runner runs write `runner_status.json`,

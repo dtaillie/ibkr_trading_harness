@@ -291,6 +291,9 @@ loaded artifacts, active filters, and the next verification route.
 Operations Remote includes a copyable Remote
 Monitor Report for node coverage, heartbeat freshness, Gateway/API state,
 alerts, open orders, stale data/account timestamps, and next actions.
+When a node is selected, Remote Node Health Report gives the same copyable
+evidence packet for that node: heartbeat, Gateway/API, account/data feed age,
+runs, activity, bounded artifact evidence, cloud boundary, and next action.
 Operations Home includes an Operations Evidence panel that separates local
 runner/paper proof, Gateway/API proof, remote snapshots, command-audit state,
 control queue pressure, alerts, and the next operational drilldown before

@@ -56,6 +56,7 @@ const state = {
   helpPerformanceGuideText: "",
   helpModeBoundaryText: "",
   performanceRollupContinuityText: "",
+  remoteNodeHealthReportText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -25128,6 +25129,213 @@ function handleRemoteDetailAssistantAction(action) {
   }
 }
 
+function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, context = {}) {
+  const summary = detail.summary || {};
+  const runs = detail.runs || [];
+  const alerts = detail.alerts || [];
+  const activity = context.activity || remoteNodeActivityEvents(runs);
+  const filteredActivity = context.filteredActivity || activity;
+  const artifactRows = context.artifactRows || remoteRunArtifactEvidenceRows(runs);
+  const latestActivity = activity[0] || null;
+  const completedRuns = runs.filter((run) => text(run.status).toLowerCase() === "completed");
+  const failedRuns = runs.filter((run) => ["failed", "error", "timeout", "cancelled", "canceled"].includes(text(run.status).toLowerCase()));
+  const rejectedActivity = activity.filter((event) => eventStatusIsBad({
+    status: eventStatus(event, event.type),
+  }));
+  const heartbeatTimestamp = summary.received_at || summary.generated_at || detail.generated_at;
+  const heartbeatMillis = timestampMillis(heartbeatTimestamp);
+  const heartbeatAgeSeconds = heartbeatMillis === null ? null : (Date.now() - heartbeatMillis) / 1000;
+  const heartbeatStale = heartbeatAgeSeconds === null || heartbeatAgeSeconds > 900;
+  const latestAccount = summary.latest_account_time;
+  const latestData = firstPresent(summary.latest_data_time, summary.latest_bar_time);
+  const accountMillis = timestampMillis(latestAccount);
+  const dataMillis = timestampMillis(latestData);
+  const accountStale = accountMillis === null || ((Date.now() - accountMillis) / 1000) > 900;
+  const dataStale = dataMillis === null || ((Date.now() - dataMillis) / 1000) > 900;
+  const artifactFileCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).existing_count || 0), 0);
+  const artifactMissingCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).missing_count || 0), 0);
+  const artifactRowCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).jsonl_row_count || 0), 0);
+  const boundary = detail.boundary_policy || {};
+  const hasBoundary = Boolean(boundary.name);
+  let status = "bad";
+  let headline = "No remote node selected";
+  let note = "Select Detail on a Remote Nodes row to build a health report.";
+  if (detail.node_id) {
+    status = heartbeatStale || failedRuns.length || rejectedActivity.length || alerts.length || artifactMissingCount ? "warn" : "ok";
+    headline = status === "ok" ? "Remote node health evidence is usable" : "Remote node health needs review";
+    note = `${text(detail.node_id)} / ${text(summary.mode)} / heartbeat ${timestampAgeLabel(heartbeatTimestamp)} / ${numberText(alerts.length, 0)} alert${alerts.length === 1 ? "" : "s"}.`;
+  }
+  const cards = [
+    {
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      label: "Heartbeat",
+      title: detail.node_id ? timestampAgeLabel(heartbeatTimestamp) : "No Node",
+      note: detail.node_id ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored status snapshots.` : "Select a remote node first.",
+    },
+    {
+      status: detail.node_id ? summary.gateway_reachable === false ? "bad" : summary.gateway_reachable === true ? "ok" : "warn" : "bad",
+      label: "Gateway/API",
+      title: detail.node_id ? text(summary.gateway_reachable) : "n/a",
+      note: detail.node_id ? `${text(summary.status)} / mode ${text(summary.mode)}.` : "No remote Gateway evidence loaded.",
+    },
+    {
+      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "bad",
+      label: "Feeds",
+      title: `${accountStale ? "Review" : "Fresh"}`,
+      note: `Account ${timestampAgeLabel(latestAccount)} / data ${timestampAgeLabel(latestData)}.`,
+    },
+    {
+      status: alerts.length ? "bad" : detail.node_id ? "ok" : "bad",
+      label: "Alerts",
+      title: numberText(alerts.length, 0),
+      note: alerts.length ? text((alerts[0] || {}).message || (alerts[0] || {}).kind) : "No latest alerts in selected node detail.",
+    },
+    {
+      status: failedRuns.length ? "bad" : completedRuns.length ? "ok" : runs.length ? "warn" : detail.node_id ? "warn" : "bad",
+      label: "Runs",
+      title: `${numberText(completedRuns.length, 0)} completed`,
+      note: `${numberText(failedRuns.length, 0)} failed/error; ${numberText(runs.length, 0)} bounded latest run summaries.`,
+    },
+    {
+      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      label: "Activity",
+      title: numberText(filteredActivity.length, 0),
+      note: latestActivity ? `${text(latestActivity.type)} ${timestampAgeLabel(eventTimestamp(latestActivity))}; ${numberText(rejectedActivity.length, 0)} issue events.` : "No bounded decision/order/fill activity loaded.",
+    },
+    {
+      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "bad",
+      label: "Artifacts",
+      title: `${numberText(artifactFileCount, 0)} files`,
+      note: `${numberText(artifactRows.length, 0)} run evidence rows / ${numberText(artifactRowCount, 0)} JSONL rows / ${numberText(artifactMissingCount, 0)} missing expected files.`,
+    },
+    {
+      status: hasBoundary ? "ok" : detail.node_id ? "warn" : "bad",
+      label: "Boundary",
+      title: hasBoundary ? "Sanitized" : "Missing",
+      note: hasBoundary ? text(boundary.retention_note || boundary.scope) : "Boundary policy is not loaded for the selected node.",
+    },
+  ];
+  const lines = [
+    {
+      status,
+      title: "Current Read",
+      detail: detail.node_id ? `${headline}: ${note}` : "No node is selected. Use Remote Nodes table Detail to load one.",
+    },
+    {
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      title: "Heartbeat And Source",
+      detail: detail.node_id
+        ? `Latest heartbeat ${timestampAgeLabel(heartbeatTimestamp)}; ${numberText(detail.count || 0, 0)} loaded snapshots out of ${numberText(detail.total || 0, 0)} stored.`
+        : "No heartbeat source is loaded.",
+    },
+    {
+      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "bad",
+      title: "Account And Data Feeds",
+      detail: `Equity ${money(summary.final_equity)}, cash ${money(summary.cash)}, positions ${numberText(summary.position_count, 0)}, open orders ${numberText(summary.open_order_count, 0)}, account ${timestampAgeLabel(latestAccount)}, data ${timestampAgeLabel(latestData)}.`,
+    },
+    {
+      status: failedRuns.length || rejectedActivity.length ? "warn" : runs.length || activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      title: "Runs And Activity",
+      detail: `${numberText(runs.length, 0)} latest run summaries, ${numberText(completedRuns.length, 0)} completed, ${numberText(failedRuns.length, 0)} failed/error, ${numberText(activity.length, 0)} activity rows, ${numberText(rejectedActivity.length, 0)} issue events.`,
+    },
+    {
+      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "bad",
+      title: "Artifact Evidence",
+      detail: artifactRows.length
+        ? `${numberText(artifactRows.length, 0)} latest runs include bounded artifact evidence: ${numberText(artifactFileCount, 0)} existing files, ${numberText(artifactRowCount, 0)} JSONL rows, ${numberText(artifactMissingCount, 0)} missing expected files.`
+        : "No bounded artifact evidence is included in the latest remote run summaries.",
+    },
+    {
+      status: hasBoundary ? "ok" : "warn",
+      title: "Cloud Boundary",
+      detail: hasBoundary
+        ? `${text(boundary.scope)} Excludes ${(boundary.excluded || []).slice(0, 4).join(", ") || "raw logs, credentials, local paths, and private diagnostics"}.`
+        : "Remote detail should remain bounded and sanitized before any richer cloud artifact browsing.",
+    },
+    {
+      status,
+      title: "Next Action",
+      detail: status === "ok"
+        ? "Remote evidence is readable; use Performance or Runs locally for deeper artifact-level inspection if a metric looks surprising."
+        : detail.node_id ? "Review alerts, stale feed timestamps, failed runs, rejected activity, missing artifact evidence, or Gateway state before trusting cloud status." : "Select a node, then copy or export this report.",
+    },
+  ];
+  return { status, headline, note, cards, lines };
+}
+
+function remoteNodeHealthReportText(model) {
+  return [
+    `Remote Node Health Report: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderRemoteNodeHealthReport(detail = state.remoteNodeDetail || {}, context = {}) {
+  if (
+    !$("remote-node-health-report-note")
+    || !$("remote-node-health-report-cards")
+    || !$("remote-node-health-report-body")
+    || !$("remote-node-health-report-actions")
+  ) return;
+  const model = remoteNodeHealthReportModel(detail, context);
+  state.remoteNodeHealthReportText = remoteNodeHealthReportText(model);
+  $("remote-node-health-report-note").textContent = model.note;
+  $("remote-node-health-report-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("remote-node-health-report-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("remote-node-health-report-actions").innerHTML = [
+    `<button type="button" data-remote-node-health-report-action="copy">Copy Report</button>`,
+    `<button type="button" class="secondary" data-remote-node-health-report-action="activity">Activity</button>`,
+    `<button type="button" class="secondary" data-remote-node-health-report-action="artifacts">Artifacts</button>`,
+    `<button type="button" class="secondary" data-remote-node-health-report-action="export">Export CSV</button>`,
+    `<button type="button" class="secondary" data-remote-node-health-report-action="control">Control</button>`,
+    `<button type="button" class="secondary" data-remote-node-health-report-action="cloud">Cloud Readiness</button>`,
+  ].join("");
+}
+
+function handleRemoteNodeHealthReportAction(action) {
+  if (action === "copy") {
+    copyText(state.remoteNodeHealthReportText || "No remote node health report loaded").then(() => {
+      $("last-refresh").textContent = "Remote node health report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Remote health report copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "activity") {
+    $("remote-node-activity-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "artifacts") {
+    $("remote-node-artifacts-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "export") {
+    downloadRemoteNodeDetailCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote node detail CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "control") {
+    handleRemoteDetailAssistantAction("control");
+    return;
+  }
+  navigateToOperationsLens("diagnostics");
+  $("cloud-readiness-note").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 function eventTimestamp(event) {
   return event.timestamp
     || event.time
@@ -25821,6 +26029,11 @@ function renderRemoteNodeDetail() {
   const filteredActivity = activityFilter ? activity.filter((event) => event.type === activityFilter) : activity;
   const latestActivity = activity[0] || {};
   renderRemoteDetailAssistant(detail, {
+    activity,
+    artifactRows,
+    filteredActivity,
+  });
+  renderRemoteNodeHealthReport(detail, {
     activity,
     artifactRows,
     filteredActivity,
@@ -27820,6 +28033,11 @@ function init() {
       : null;
     if (!(button instanceof HTMLElement) || button.hasAttribute("disabled")) return;
     handleRemoteDetailAssistantAction(button.dataset.remoteDetailAction || "");
+  });
+  $("remote-node-health-report-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-node-health-report-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleRemoteNodeHealthReportAction(target.dataset.remoteNodeHealthReportAction || "");
   });
   $("runs-filter-text").addEventListener("input", renderRuns);
   $("runs-filter-status").addEventListener("change", renderRuns);
