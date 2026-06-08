@@ -55,6 +55,7 @@ const state = {
   runsEvidenceText: "",
   helpPerformanceGuideText: "",
   helpModeBoundaryText: "",
+  performanceRollupContinuityText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -8736,6 +8737,7 @@ function renderPerformanceRollups() {
   const payload = state.performanceRollups || {};
   const rollups = payload.rollups || [];
   renderPerformanceRollupAssistant();
+  renderPerformanceRollupContinuity();
   $("performance-rollups-note").textContent = payload.generated_at
     ? `${numberText(rollups.length, 0)} shown / ${numberText(payload.total || rollups.length, 0)} total day rows`
     : "No daily rollups loaded";
@@ -8897,6 +8899,233 @@ function renderPerformanceRollupAssistant() {
       <b>${escapeHtml(action.label)}</b>
     </button>
   `).join("");
+}
+
+function dayMillis(day) {
+  if (!day) return null;
+  return timestampMillis(`${day}T00:00:00Z`);
+}
+
+function calendarDayCount(firstDay, lastDay) {
+  const firstMillis = dayMillis(firstDay);
+  const lastMillis = dayMillis(lastDay);
+  if (firstMillis === null || lastMillis === null || lastMillis < firstMillis) return null;
+  return Math.floor((lastMillis - firstMillis) / 86400000) + 1;
+}
+
+function statusRollupContinuityModel() {
+  const statusPayload = state.statusEquityRollups || {};
+  const statusRows = sortedStatusRollups();
+  const archivedPayload = state.performanceRollups || {};
+  const archivedRows = archivedPayload.rollups || [];
+  const statusPeriodRows = performancePeriodRows(statusPayload);
+  const archivedPeriodRows = performancePeriodRows(archivedPayload);
+  const dayRows = statusRows.filter((item) => dayMillis(item.day) !== null);
+  const uniqueDays = Array.from(new Set(dayRows.map((item) => item.day))).sort();
+  const firstDay = uniqueDays[0] || "";
+  const lastDay = uniqueDays[uniqueDays.length - 1] || "";
+  const calendarDays = calendarDayCount(firstDay, lastDay);
+  const missingDays = calendarDays === null ? null : Math.max(0, calendarDays - uniqueDays.length);
+  const latest = latestRollupRow(statusRows);
+  const latestTimestamp = latest && (latest.account_end_time || latest.day);
+  const latestMillis = latestTimestamp ? timestampMillis(latestTimestamp) : null;
+  const latestAgeHours = latestMillis === null ? null : (Date.now() - latestMillis) / 3600000;
+  const stale = latestAgeHours !== null && latestAgeHours > 36;
+  const veryStale = latestAgeHours !== null && latestAgeHours > 96;
+  const nodes = Array.from(new Set(statusRows.map((item) => text(item.node_id)).filter((item) => item !== "n/a"))).sort();
+  const modes = Array.from(new Set(statusRows.map((item) => text(item.mode)).filter((item) => item !== "n/a"))).sort();
+  const snapshotCount = statusRows.reduce((sum, item) => sum + Number(item.snapshot_count || 0), 0);
+  const snapshotDensity = uniqueDays.length ? snapshotCount / uniqueDays.length : null;
+  const alertCount = statusRows.reduce((sum, item) => sum + Number(item.alert_count || 0), 0);
+  const rejectionCount = statusRows.reduce((sum, item) => sum + Number(item.rejection_count || 0), 0);
+  const gatewayDownCount = statusRows.filter((item) => item.gateway_reachable === false).length;
+  const sourceStatus = statusRows.length
+    ? veryStale || gatewayDownCount ? "bad" : stale || missingDays || alertCount || rejectionCount ? "warn" : "ok"
+    : archivedRows.length ? "warn" : "bad";
+  const headline = statusRows.length
+    ? sourceStatus === "ok"
+      ? "Live/paper rollup continuity looks usable"
+      : sourceStatus === "bad"
+        ? "Live/paper rollup continuity needs review"
+        : "Live/paper rollup continuity is partial"
+    : archivedRows.length
+      ? "Only archived run rollups are loaded"
+      : "No rollup continuity evidence loaded";
+  const note = statusRows.length
+    ? `${numberText(statusRows.length, 0)} status day row${statusRows.length === 1 ? "" : "s"} across ${numberText(uniqueDays.length, 0)} observed day${uniqueDays.length === 1 ? "" : "s"}; latest ${latestTimestamp ? timestampAgeLabel(latestTimestamp) : "n/a"}.`
+    : archivedRows.length
+      ? "Archived run rollups can explain saved simulations, but they do not prove current paper/live continuity."
+      : "Run status publishing during paper/live sessions or load run artifacts before relying on period performance.";
+  const cards = [
+    {
+      status: sourceStatus,
+      label: "Continuity",
+      title: statusRows.length ? `${numberText(uniqueDays.length, 0)} days` : "Missing",
+      note: calendarDays === null
+        ? "No status-history day range is available."
+        : `${rangeLabel(firstDay, lastDay)}; ${numberText(missingDays, 0)} missing calendar day${missingDays === 1 ? "" : "s"} inside the range.`,
+    },
+    {
+      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "bad",
+      label: "Latest Status",
+      title: latestTimestamp ? timestampAgeLabel(latestTimestamp) : "n/a",
+      note: latest ? `${text(latest.node_id)} / ${text(latest.mode)} / ${text(latest.day)}.` : "No live/paper status day row is loaded.",
+    },
+    {
+      status: snapshotDensity === null ? "bad" : snapshotDensity >= 4 ? "ok" : "warn",
+      label: "Snapshot Density",
+      title: snapshotDensity === null ? "n/a" : `${numberText(snapshotDensity, 1)} / day`,
+      note: `${numberText(snapshotCount, 0)} total status snapshot${snapshotCount === 1 ? "" : "s"} across observed days.`,
+    },
+    {
+      status: nodes.length > 1 || modes.length > 1 ? "warn" : statusRows.length ? "ok" : "bad",
+      label: "Node / Mode Mix",
+      title: `${numberText(nodes.length, 0)} node${nodes.length === 1 ? "" : "s"}`,
+      note: `${nodes.slice(0, 3).join(", ") || "none"}${nodes.length > 3 ? "..." : ""}; modes ${modes.slice(0, 4).join(", ") || "none"}.`,
+    },
+    {
+      status: rejectionCount || alertCount || gatewayDownCount ? "warn" : statusRows.length ? "ok" : "bad",
+      label: "Issues",
+      title: `${numberText(rejectionCount, 0)} rejects`,
+      note: `${numberText(alertCount, 0)} alerts / ${numberText(gatewayDownCount, 0)} Gateway-down day row${gatewayDownCount === 1 ? "" : "s"}.`,
+    },
+    {
+      status: archivedRows.length || archivedPeriodRows.length ? "ok" : statusRows.length ? "warn" : "bad",
+      label: "Archived Backup",
+      title: `${numberText(archivedRows.length, 0)} days`,
+      note: `${numberText(archivedPeriodRows.length, 0)} archived month/year period row${archivedPeriodRows.length === 1 ? "" : "s"} loaded.`,
+    },
+  ];
+  const lines = [
+    {
+      status: statusRows.length ? "ok" : archivedRows.length ? "warn" : "bad",
+      title: "What This Proves",
+      detail: statusRows.length
+        ? "Status rollups come from persisted sanitized status-history snapshots, so they can answer current paper/live daily and period performance without an open artifact."
+        : archivedRows.length ? "Archived run rollups explain saved replay/simulation artifacts, but current paper/live continuity is missing." : "There is no persisted rollup evidence for current or archived performance.",
+    },
+    {
+      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "bad",
+      title: "Freshness",
+      detail: latestTimestamp
+        ? `Latest status rollup timestamp is ${timestampAgeLabel(latestTimestamp)} from ${text(latestTimestamp)}.`
+        : "No latest status rollup timestamp is available.",
+    },
+    {
+      status: missingDays ? "warn" : statusRows.length ? "ok" : "bad",
+      title: "Calendar Coverage",
+      detail: calendarDays === null
+        ? "No rollup calendar range can be computed."
+        : `${numberText(uniqueDays.length, 0)} observed day${uniqueDays.length === 1 ? "" : "s"} out of ${numberText(calendarDays, 0)} calendar day${calendarDays === 1 ? "" : "s"} from ${rangeLabel(firstDay, lastDay)}.`,
+    },
+    {
+      status: snapshotDensity === null ? "bad" : snapshotDensity >= 4 ? "ok" : "warn",
+      title: "Snapshot Density",
+      detail: snapshotDensity === null
+        ? "No status snapshots were summarized into day rows."
+        : `${numberText(snapshotCount, 0)} snapshots produce an average of ${numberText(snapshotDensity, 1)} snapshot${snapshotDensity === 1 ? "" : "s"} per observed day.`,
+    },
+    {
+      status: rejectionCount || alertCount || gatewayDownCount ? "warn" : statusRows.length ? "ok" : "bad",
+      title: "Execution Caveats",
+      detail: `${numberText(rejectionCount, 0)} observed rejects, ${numberText(alertCount, 0)} alerts, and ${numberText(gatewayDownCount, 0)} Gateway-down day rows are present in status rollups.`,
+    },
+    {
+      status: sourceStatus,
+      title: "Next Action",
+      detail: sourceStatus === "ok"
+        ? "Use the status day and period tables below for paper/live continuity, then inspect Trades or Runs if a day looks surprising."
+        : statusRows.length ? "Review the stale/gap/issue cards, export the status CSV if needed, and check Operations for publisher or Gateway gaps." : "Start status publishing during paper/live sessions or load saved artifacts before relying on period stats.",
+    },
+  ];
+  return {
+    status: sourceStatus,
+    headline,
+    note,
+    cards,
+    lines,
+    statusRows,
+    statusPeriodRows,
+    archivedRows,
+    archivedPeriodRows,
+  };
+}
+
+function performanceRollupContinuityText(model) {
+  return [
+    `Status Rollup Continuity: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderPerformanceRollupContinuity() {
+  if (
+    !$("performance-rollup-continuity-note")
+    || !$("performance-rollup-continuity-cards")
+    || !$("performance-rollup-continuity-body")
+    || !$("performance-rollup-continuity-actions")
+  ) return;
+  const model = statusRollupContinuityModel();
+  state.performanceRollupContinuityText = performanceRollupContinuityText(model);
+  $("performance-rollup-continuity-note").textContent = model.note;
+  $("performance-rollup-continuity-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-rollup-continuity-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("performance-rollup-continuity-actions").innerHTML = [
+    `<button type="button" data-performance-rollup-continuity-action="copy">Copy Continuity</button>`,
+    `<button type="button" class="secondary" data-performance-rollup-continuity-action="status">Status Rows</button>`,
+    `<button type="button" class="secondary" data-performance-rollup-continuity-action="periods">Periods</button>`,
+    `<button type="button" class="secondary" data-performance-rollup-continuity-action="archived">Archived</button>`,
+    `<button type="button" class="secondary" data-performance-rollup-continuity-action="operations">Operations</button>`,
+    `<button type="button" class="secondary" data-performance-rollup-continuity-action="export">Export CSV</button>`,
+  ].join("");
+}
+
+function handlePerformanceRollupContinuityAction(action) {
+  if (action === "copy") {
+    copyText(state.performanceRollupContinuityText || "No rollup continuity report loaded").then(() => {
+      $("last-refresh").textContent = "Rollup continuity report copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Rollup continuity copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "status") {
+    $("performance-status-rollups-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing status rollup rows";
+    return;
+  }
+  if (action === "periods") {
+    const statusPeriodRows = performancePeriodRows(state.statusEquityRollups || {});
+    const target = statusPeriodRows.length ? "performance-status-period-rollups-body" : "performance-period-rollups-body";
+    $(target).scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing rollup period rows";
+    return;
+  }
+  if (action === "archived") {
+    $("performance-rollups-body").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = "Reviewing archived rollup rows";
+    return;
+  }
+  if (action === "operations") {
+    navigateToOperationsLens("paper");
+    return;
+  }
+  downloadStatusRollupsCsv().catch((err) => {
+    $("last-refresh").textContent = `Status rollups CSV export failed: ${err.message}`;
+  });
 }
 
 function handlePerformanceRollupAssistantAction(action) {
@@ -28020,6 +28249,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-rollup-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceRollupAssistantAction(target.dataset.performanceRollupAction || "");
+  });
+  $("performance-rollup-continuity-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-rollup-continuity-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceRollupContinuityAction(target.dataset.performanceRollupContinuityAction || "");
   });
   $("performance-snapshot-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-snapshot-action]") : null;

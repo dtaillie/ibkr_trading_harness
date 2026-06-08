@@ -1262,6 +1262,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-status-rollups-body" in html
         assert "performance-status-equity-chart" in html
         assert "performance-status-return-chart" in html
+        assert "performance-rollup-continuity-note" in html
+        assert "performance-rollup-continuity-cards" in html
+        assert "performance-rollup-continuity-body" in html
+        assert "performance-rollup-continuity-actions" in html
         assert "performance-status-period-rollups-body" in html
         assert "export-status-rollups-csv" in html
         assert "comparison-filter-text" in html

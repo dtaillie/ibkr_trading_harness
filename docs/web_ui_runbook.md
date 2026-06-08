@@ -194,6 +194,10 @@ They link directly to the focused Performance/Runs/Data views behind each
 question.
 Use Export Status CSV to download live/paper status-history daily, monthly, and
 yearly equity rollups for offline review.
+Before trusting a live/paper period result, open Performance Rollups and read
+Status Rollup Continuity. It states whether status-history rollups are fresh,
+how many calendar days are observed or missing, average snapshots per observed
+day, node/mode mix, Gateway-down rows, alerts, rejections, and the next action.
 Latest status rollups are also persisted as public-safe JSON snapshots in
 `paper_logs/cloud_status_server/status_equity_rollups/`, and
 `/status_equity_rollups_snapshot` returns the latest saved artifact for local

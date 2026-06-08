@@ -515,6 +515,10 @@ Rollups, and Export JSON includes the sanitized status, contract, and rollup
 artifacts.
 Use Export Status CSV from Performance when you want live/paper status-history
 daily, monthly, and yearly equity rollups outside the dashboard.
+Use Performance Rollups' Status Rollup Continuity panel before trusting those
+period stats. It summarizes latest snapshot age, observed versus missing
+calendar days, snapshot density, node/mode mix, Gateway-down rows, alerts, and
+rejections.
 The dashboard also persists the latest sanitized status rollups under
 `paper_logs/cloud_status_server/status_equity_rollups/` as JSON snapshots, with
 `latest_all.json` for all nodes and `latest_<node>.json` for node-filtered

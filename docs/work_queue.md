@@ -90,6 +90,10 @@ strategy-private.
     compares live/paper status-history rollups with archived run rollups,
     highlights best/worst days and periods, and offers direct review/export
     actions before the dense rollup tables.
+  - partial; Performance Rollups now also includes a Status Rollup Continuity
+    panel that explains live/paper rollup freshness, calendar coverage gaps,
+    snapshot density, node/mode mix, Gateway-down rows, alerts, rejections, and
+    the next verification action before users trust period statistics.
   - partial; Data Library now has Home / Browse / Inspect / Compare /
     Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
     root visibility, catalog browsing, saved-file inspection, comparisons, and
@@ -463,6 +467,10 @@ strategy-private.
   - partial; Performance now charts live/paper status-history end-of-day equity
     by node plus recent daily return bars, making current/published strategy
     performance readable without opening archived artifacts.
+  - partial; Performance Rollups now adds a continuity report for persisted
+    status-history rows, calling out latest snapshot age, observed versus
+    missing calendar days, snapshot density, node/mode mix, execution caveats,
+    and CSV/Operations follow-up actions.
 - Add a Runs and Orders page:
   - searchable run history
     - done for saved run comparison rows
