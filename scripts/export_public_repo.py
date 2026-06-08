@@ -77,6 +77,7 @@ COPY_FILES = [
     "scripts/cloud_status_server.py",
     "scripts/command_worker.py",
     "scripts/export_public_repo.py",
+    "scripts/install_dashboard_server.sh",
     "scripts/is_us_stock_market_day.py",
     "scripts/plugin_supervisor.py",
     "scripts/public_publish_check.py",

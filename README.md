@@ -141,6 +141,13 @@ python3 scripts/publish_status.py \
   --token-env TRADING_STATUS_TOKEN
 ```
 
+For an unattended local receiver, install the user service from the checkout:
+
+```bash
+scripts/install_dashboard_server.sh
+systemctl --user restart algo-trade-dashboard-server.service
+```
+
 Open `http://127.0.0.1:8765/` for the operational dashboard.
 The Help view is the easiest first screen for a new local copy: it recommends
 one next route from current setup state, includes a Guided Tour for current

@@ -206,6 +206,11 @@ strategy-private.
     CSV/JSON paper-runner session folders into the generic dashboard telemetry
     contract, and the local ignored status config publishes bridged crypto,
     stock, supervisor, and Gateway state into `/status`.
+  - partial; `scripts/install_dashboard_server.sh` now installs a managed
+    user-systemd dashboard/status receiver service for the current checkout.
+    This closes the stale-manual-server gap where `/status` could be fresh while
+    newer Data Library and Workbench endpoints still returned missing backend
+    data.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

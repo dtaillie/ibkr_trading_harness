@@ -305,6 +305,13 @@ python3 scripts/cloud_status_server.py \
   --auth-token-env TRADING_STATUS_TOKEN
 ```
 
+For an unattended local receiver, install the user service from the checkout:
+
+```bash
+scripts/install_dashboard_server.sh
+systemctl --user restart algo-trade-dashboard-server.service
+```
+
 Then publish to it from another terminal:
 
 ```bash

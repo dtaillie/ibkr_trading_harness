@@ -18,6 +18,14 @@ your private data roots:
 python3 scripts/cloud_status_server.py --config config/cloud_status_local.yaml
 ```
 
+To keep the local dashboard receiver running under systemd and restart it onto
+the current checkout after code changes, install the user service:
+
+```bash
+scripts/install_dashboard_server.sh
+systemctl --user restart algo-trade-dashboard-server.service
+```
+
 Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.

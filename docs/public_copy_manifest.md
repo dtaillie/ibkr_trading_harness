@@ -45,6 +45,7 @@ pushing this working tree.
   - `ops/systemd/algo-trade-command-worker.service`
 - Operational dashboard:
   - `web/dashboard/`
+  - `scripts/install_dashboard_server.sh`
   - `ops/systemd/algo-trade-plugin-supervisor.service`
   - `ops/systemd/algo-trade-status-publisher.service`
   - `ops/systemd/algo-trade-status-publisher.timer`
