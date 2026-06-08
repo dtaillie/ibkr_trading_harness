@@ -122,6 +122,10 @@ strategy-private.
   - partial; Operations Control now includes a Control Assistant that summarizes
     target-node, pending-command, failed-result, and command-audit state before
     the dense supervisors, queue, result, and audit tables.
+  - partial; Operations Control now includes a Supervisor Action Summary that
+    turns local supervisor/job status, stale heartbeats, pause/restart markers,
+    and configured supervisor IDs into prep-only status/run-once controls plus
+    restart-runbook routing before the dense supervisor table.
   - partial; Help now has Home / Pages / Workflows / Data / Boundary / Docs
     lenses with deep-linkable hashes such as `#help/workflows`, separating
     first-step routing, page guide, workflow recipes, data troubleshooting,

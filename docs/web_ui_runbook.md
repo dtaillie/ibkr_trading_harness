@@ -569,6 +569,10 @@ summarizes the target node, read-only/control/launcher action classes,
 confirmation requirements, pending and failed command pressure, audit
 integrity, retention state, selected-action boundary copy, and the high-risk
 live-control actions that remain fail-closed in the public command surface.
+Supervisor Action Summary is the first supervisor view: it summarizes loaded
+local supervisor count, job count, stale heartbeats, failed/paused jobs, and
+pause/restart marker availability, then prepares `supervisor_status` or
+`run_supervisor_once` without queueing either command.
 
 Click Detail on a node when you need bounded per-node history, recent
 decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote

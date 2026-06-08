@@ -1921,6 +1921,39 @@ section {
   margin-top: 22px;
 }
 
+#supervisor-action-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 180px;
+  max-width: 280px;
+  text-align: left;
+}
+
+#supervisor-action-actions button span,
+#supervisor-action-actions button strong,
+#supervisor-action-actions button small {
+  display: block;
+  min-width: 0;
+}
+
+#supervisor-action-actions button small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+#supervisor-action-actions button.secondary small {
+  color: var(--muted);
+}
+
+#supervisor-action-actions button b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 .task-field,
 .task-field select {
   min-width: 170px;
@@ -3653,6 +3686,7 @@ section {
 .data-inventory-evidence-panel,
 .operations-action-summary-panel,
 .operations-evidence-panel,
+.supervisor-action-summary-panel,
 .runs-action-summary-panel,
 .runs-evidence-panel {
   padding: 14px;
@@ -3672,6 +3706,7 @@ section {
 .data-inventory-evidence-panel .section-note,
 .operations-action-summary-panel .section-note,
 .operations-evidence-panel .section-note,
+.supervisor-action-summary-panel .section-note,
 .runs-action-summary-panel .section-note,
 .runs-evidence-panel .section-note {
   color: #334155;

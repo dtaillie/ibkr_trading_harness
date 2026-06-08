@@ -24720,8 +24720,177 @@ function sortedRunEvents(events) {
   });
 }
 
+function supervisorJobRows(supervisor) {
+  return Array.isArray(supervisor && supervisor.jobs) ? supervisor.jobs.filter((job) => job && typeof job === "object") : [];
+}
+
+function supervisorActionStatus(value) {
+  const status = String(value || "").toLowerCase();
+  if (!status) return "unknown";
+  if (["ok", "running", "waiting", "not_due", "completed", "success", "idle"].includes(status)) return "ok";
+  if (["paused", "pending", "stopped", "exited", "disabled", "missing"].includes(status)) return "warn";
+  if (["failed", "error", "bad", "rejected", "timeout", "dead", "crashed", "exception"].includes(status)) return "bad";
+  return status.includes("fail") || status.includes("error") || status.includes("crash") ? "bad" : "warn";
+}
+
+function firstSupervisorId(supervisors) {
+  const match = (supervisors || []).find((supervisor) => text(supervisor.id) !== "n/a");
+  return match ? text(match.id) : "";
+}
+
+function supervisorActionSummaryModel() {
+  const supervisors = (state.status && state.status.supervisors) || [];
+  const jobs = supervisors.flatMap(supervisorJobRows);
+  const staleSupervisors = supervisors.filter((supervisor) => Boolean((supervisor.freshness || {}).stale));
+  const badSupervisors = supervisors.filter((supervisor) => supervisorActionStatus(supervisor.status) === "bad");
+  const warnSupervisors = supervisors.filter((supervisor) => supervisorActionStatus(supervisor.status) === "warn");
+  const badJobs = jobs.filter((job) => supervisorActionStatus(job.status || job.reason) === "bad");
+  const pausedJobs = jobs.filter((job) => supervisorActionStatus(job.status || job.reason) === "warn" && String(job.status || job.reason || "").toLowerCase().includes("paused"));
+  const restartMarkers = jobs.filter((job) => text(job.restart_marker) !== "n/a");
+  const pauseMarkers = jobs.filter((job) => text(job.pause_marker) !== "n/a");
+  const selectedSupervisor = firstSupervisorId(supervisors);
+  let headline = "No Supervisor State";
+  let note = "No local supervisor status payload is loaded; configure one before relying on managed public plugin jobs.";
+  let severity = "warn";
+  if (supervisors.length) {
+    if (badSupervisors.length || badJobs.length) {
+      headline = "Supervisor Issue";
+      note = `${numberText(badSupervisors.length, 0)} supervisor status blocker${badSupervisors.length === 1 ? "" : "s"} and ${numberText(badJobs.length, 0)} job issue${badJobs.length === 1 ? "" : "s"} need review.`;
+      severity = "bad";
+    } else if (staleSupervisors.length) {
+      headline = "Supervisor Stale";
+      note = `${numberText(staleSupervisors.length, 0)} supervisor heartbeat${staleSupervisors.length === 1 ? "" : "s"} stale; confirm the local process before trusting runner state.`;
+      severity = "warn";
+    } else if (pausedJobs.length || warnSupervisors.length) {
+      headline = "Supervisor Paused Or Waiting";
+      note = `${numberText(pausedJobs.length, 0)} paused job${pausedJobs.length === 1 ? "" : "s"} and ${numberText(warnSupervisors.length, 0)} supervisor warning${warnSupervisors.length === 1 ? "" : "s"} visible.`;
+      severity = "warn";
+    } else {
+      headline = "Supervisors Healthy";
+      note = `${numberText(supervisors.length, 0)} supervisor${supervisors.length === 1 ? "" : "s"} and ${numberText(jobs.length, 0)} job${jobs.length === 1 ? "" : "s"} have no visible blockers.`;
+      severity = "ok";
+    }
+  }
+  const cards = [
+    {
+      status: supervisors.length ? severity : "warn",
+      label: "Supervisor State",
+      title: supervisors.length ? headline : "Not Loaded",
+      note,
+    },
+    {
+      status: staleSupervisors.length ? "warn" : supervisors.length ? "ok" : "warn",
+      label: "Freshness",
+      title: staleSupervisors.length ? `${numberText(staleSupervisors.length, 0)} stale` : supervisors.length ? "Fresh" : "No State",
+      note: supervisors.length
+        ? `Newest visible supervisor: ${text((supervisors[0] || {}).id)} / ${timestampAgeLabel((supervisors[0] || {}).generated_at)}.`
+        : "Publish supervisor status to see heartbeat age.",
+    },
+    {
+      status: badJobs.length ? "bad" : pausedJobs.length ? "warn" : jobs.length ? "ok" : "warn",
+      label: "Jobs",
+      title: jobs.length ? `${numberText(jobs.length, 0)} visible` : "None",
+      note: badJobs.length
+        ? `${numberText(badJobs.length, 0)} job${badJobs.length === 1 ? "" : "s"} failed or errored.`
+        : pausedJobs.length ? `${numberText(pausedJobs.length, 0)} job${pausedJobs.length === 1 ? "" : "s"} paused by marker.` : "Job status counts are available below.",
+    },
+    {
+      status: restartMarkers.length || pauseMarkers.length ? "warn" : "ok",
+      label: "Control Markers",
+      title: `${numberText(pauseMarkers.length, 0)} pause / ${numberText(restartMarkers.length, 0)} restart`,
+      note: restartMarkers.length || pauseMarkers.length
+        ? "Configured markers make pause/resume or managed restarts available through local controls."
+        : "No pause or restart markers are visible in current job rows.",
+    },
+  ];
+  const actions = [
+    {
+      action: "prepare-status",
+      title: "Prepare Status Check",
+      note: selectedSupervisor ? `Fill supervisor_status for ${selectedSupervisor}.` : "Load a supervisor ID before checking status.",
+      label: "Status",
+      disabled: !selectedSupervisor,
+    },
+    {
+      action: "inspect",
+      title: "Inspect Supervisor Rows",
+      note: "Jump to the raw supervisor table for IDs, ages, and job status counts.",
+      label: "Inspect",
+      disabled: !supervisors.length,
+    },
+    {
+      action: "run-once",
+      title: "Prepare Run Once",
+      note: selectedSupervisor ? "Fill run_supervisor_once without queueing it." : "Needs a configured supervisor ID.",
+      label: "Run Once",
+      disabled: !selectedSupervisor,
+    },
+    {
+      action: "runbook",
+      title: "Open Restart Runbook",
+      note: "Review local service and supervisor restart recipes before broad restarts.",
+      label: "Runbook",
+      disabled: false,
+    },
+  ];
+  return { headline, note, cards, actions, selectedSupervisor };
+}
+
+function renderSupervisorActionSummary() {
+  if (!$("supervisor-action-note") || !$("supervisor-action-cards") || !$("supervisor-action-actions")) return;
+  const model = supervisorActionSummaryModel();
+  $("supervisor-action-note").textContent = model.note;
+  $("supervisor-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("supervisor-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-supervisor-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>
+        <strong>${escapeHtml(action.title)}</strong>
+        <small>${escapeHtml(action.note)}</small>
+      </span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleSupervisorAction(action) {
+  const supervisors = (state.status && state.status.supervisors) || [];
+  const supervisorId = firstSupervisorId(supervisors);
+  if (action === "prepare-status") {
+    if (supervisorId) $("command-supervisor").value = supervisorId;
+    $("command-action").value = "supervisor_status";
+    updateCommandFields();
+    $("command-form").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = supervisorId
+      ? `Read-only supervisor_status prepared for ${supervisorId}; review before queueing`
+      : "Load a supervisor before preparing supervisor_status";
+    return;
+  }
+  if (action === "run-once") {
+    if (supervisorId) $("command-supervisor").value = supervisorId;
+    $("command-action").value = "run_supervisor_once";
+    updateCommandFields();
+    $("command-form").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("last-refresh").textContent = supervisorId
+      ? `run_supervisor_once prepared for ${supervisorId}; review local boundary before queueing`
+      : "Load a supervisor before preparing run_supervisor_once";
+    return;
+  }
+  if (action === "runbook") {
+    window.location.href = "/docs/service_restart_runbook.md";
+    return;
+  }
+  $("supervisors-body").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 function renderSupervisors() {
   const supervisors = (state.status && state.status.supervisors) || [];
+  renderSupervisorActionSummary();
   $("supervisors-body").innerHTML = supervisors.length
     ? supervisors.map((supervisor) => row([
         escapeHtml(supervisor.id),
@@ -29253,6 +29422,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-control-assistant-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleControlAssistantAction(target.dataset.controlAssistantAction || "");
+  });
+  $("supervisor-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-supervisor-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleSupervisorAction(target.dataset.supervisorAction || "");
   });
   $("command-safety-review-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-command-safety-action]") : null;

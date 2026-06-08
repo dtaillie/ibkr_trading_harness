@@ -533,6 +533,10 @@ supervisors, remote-control audit health, alerts, queued commands, and command
 results. Operations Action Summary picks the first operational route across
 paper readiness, Gateway/API, remote-node freshness, command audit/control
 queue, and local alerts before the deeper readiness and evidence panels. The
+Supervisor Action Summary sits above the supervisor table and summarizes local
+supervisor/job state, stale heartbeats, failed or paused jobs, and pause/restart
+marker availability before preparing `supervisor_status` or `run_supervisor_once`
+controls. The
 Remote Monitor Report summarizes remote node coverage, heartbeat,
 Gateway/API state, alerts, open orders, stale data/account timestamps, and next
 actions in copyable rows before the remote-node table. After selecting a node,
@@ -927,6 +931,9 @@ The dashboard and server validate action-specific parameters before queueing:
 supervisor actions need `supervisor_id`. Pending commands can be canceled from
 the dashboard or by posting to `/commands/cancel`; canceling only applies before
 the local worker has polled the command.
+Operations Control's Supervisor Action Summary can fill the current supervisor
+ID and selected action for `supervisor_status` or `run_supervisor_once`, but it
+does not queue the command; review the boundary copy and submit explicitly.
 Set `server.token_env` in `config/remote_control.example.yaml` and
 `publish.token_env` in `config/cloud_status.example.yaml` when using the
 authenticated server. Store the token value only in the environment.

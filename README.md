@@ -316,7 +316,11 @@ Operations Control includes Command Safety Review before the raw command form,
 summarizing target-node state, read-only/control/launcher action classes,
 confirmation requirements, pending/failed command pressure, audit integrity,
 retention state, selected-action boundary copy, and fail-closed high-risk
-live-control actions. The dashboard can also inspect configured local
+live-control actions. It also includes Supervisor Action Summary before the
+supervisor table, summarizing local supervisor/job state, stale heartbeats,
+failed or paused jobs, and pause/restart marker availability while only
+preparing, not queueing, `supervisor_status` or `run_supervisor_once`.
+The dashboard can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small
 downsampled price previews. It also includes a recent date-bin coverage view
