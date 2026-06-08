@@ -613,6 +613,11 @@ strategy-private.
       users who only want to know whether the current strategy is up/down today
       can see source quality, account-snapshot support, risk, trades, rollups,
       and exact follow-up pages without reading the full guide.
+    - partial; Help Home now also has a state-aware Mode Guide that explains
+      replay, shadow, simulated-paper, broker-paper, and live order authority
+      from the selected source, latest telemetry mode, Gateway/API state,
+      account snapshots, and open-order events, with direct routes to the
+      evidence pages.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots
@@ -631,6 +636,9 @@ strategy-private.
   - partial; Help and the Web UI runbook now include a Data To Simulation Fast
     Path that names the current first-screen panels: Data Source Map, Data
     Home, Fetch Recovery Plan, and Workbench Home.
+  - partial; Help Home, the Web UI runbook, and the public quickstart now
+    describe how to distinguish replay, shadow, simulated paper, broker paper,
+    and live order authority from current telemetry/artifact evidence.
   - partial; the Web UI runbook and public quickstart now document Catalog
     Scope as the first stop for capped scans, hidden filters, missing symbols,
     suggested roots, and root-YAML fixes before users browse dense data tables.

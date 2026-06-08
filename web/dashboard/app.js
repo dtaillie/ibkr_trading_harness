@@ -54,6 +54,7 @@ const state = {
   operationsEvidenceText: "",
   runsEvidenceText: "",
   helpPerformanceGuideText: "",
+  helpModeBoundaryText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -1807,6 +1808,7 @@ function renderHelpSetupGaps() {
   renderHelpNextAssistant(items);
   renderHelpTaskNavigator(items);
   renderHelpPerformanceGuide();
+  renderHelpModeBoundary();
   renderPublicationReviewAssistant(items);
   renderHelpWorkbenchQuickstart();
 }
@@ -2394,6 +2396,249 @@ function handleHelpPerformanceGuideAction(action) {
   if (action === "trades") return navigateToPerformanceLens("trades");
   if (action === "runs") return navigateToRunsLens("events");
   if (action === "operations") return navigateToOperationsLens("paper");
+}
+
+function normalizedModeName(value) {
+  return String(value || "").replace("-", "_").toLowerCase();
+}
+
+function helpModeDefinitionRows() {
+  return [
+    {
+      mode: "replay",
+      status: "ok",
+      title: "Replay",
+      detail: "Historical saved data and archived artifacts only; no broker order authority.",
+      verify: "Workbench Run and saved artifacts.",
+    },
+    {
+      mode: "shadow",
+      status: "ok",
+      title: "Shadow",
+      detail: "Live observation and signal logging; order submissions should stay disabled.",
+      verify: "Overview telemetry, Runs decisions, and Operations monitor state.",
+    },
+    {
+      mode: "simulated_paper",
+      status: "ok",
+      title: "Simulated Paper",
+      detail: "Local file-backed or in-process simulated fills/account state; no broker order authority.",
+      verify: "Workbench artifacts, simulated account snapshots, and run config.",
+    },
+    {
+      mode: "paper",
+      status: "warn",
+      title: "Broker Paper",
+      detail: "Broker API order authority against a paper account; resettable, but still real API automation.",
+      verify: "Operations Gateway/API, Runs orders/fills, and Performance account snapshots.",
+    },
+    {
+      mode: "live",
+      status: "bad",
+      title: "Live",
+      detail: "Broker API order authority against a live account; requires explicit private operational controls.",
+      verify: "Runs account boundary, command audit, Gateway/API, and broker account state.",
+    },
+  ];
+}
+
+function helpModeBoundaryModel() {
+  const source = latestArtifactPerformance();
+  const summary = source.summary || {};
+  const perf = source.performance || {};
+  const latestRun = latestTelemetryRun();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const gateway = ((state.status || {}).gateway) || {};
+  const openOrders = currentOpenOrderRows();
+  const accountRows = source.account || [];
+  const workbenchMode = $("config-mode") ? $("config-mode").value : "";
+  const rawMode = firstPresent(
+    metrics.mode,
+    perf.mode,
+    summary.mode,
+    workbenchMode,
+  );
+  const mode = normalizedModeName(rawMode);
+  const authority = accountBoundaryAuthority(mode, source);
+  const modeDefinition = helpModeDefinitionRows().find((rowItem) => rowItem.mode === mode) || null;
+  const sourceStatus = source.has_data
+    ? source.source_type === "live_telemetry" ? "warn" : "ok"
+    : latestRun ? "warn" : "bad";
+  const gatewayStatus = gateway.enabled
+    ? gateway.reachable ? "ok" : "bad"
+    : mode === "paper" || mode === "live" ? "warn" : "ok";
+  const accountStatus = accountRows.length
+    ? "ok"
+    : source.has_data || latestRun ? "warn" : "bad";
+  const latestAccount = latestAccountRow(accountRows);
+  const headline = modeDefinition
+    ? `${modeDefinition.title}: ${authority[1]}`
+    : "Mode authority is not identified yet";
+  const note = modeDefinition
+    ? `${authority[2]} Verify with the linked evidence views before trusting results.`
+    : "Load telemetry, a Workbench artifact, or choose a Workbench mode to see order authority.";
+  const cards = [
+    {
+      status: modeDefinition ? modeDefinition.status : "bad",
+      label: "Current Mode",
+      title: modeDefinition ? modeDefinition.title : "Unknown",
+      note: rawMode ? `Published as ${text(rawMode)}.` : "No mode is published by the selected source.",
+    },
+    {
+      status: authority[0],
+      label: "Order Authority",
+      title: authority[1],
+      note: authority[2],
+    },
+    {
+      status: sourceStatus,
+      label: "Selected Source",
+      title: text(source.source_type),
+      note: source.has_data ? `${text(source.label)} - ${sourceMeaning(source)}` : "No telemetry or artifact source is loaded.",
+    },
+    {
+      status: gatewayStatus,
+      label: "Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      note: gateway.enabled
+        ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === undefined || gateway.latency_ms === null ? "" : `${gateway.latency_ms}ms`}`
+        : "Gateway checks are disabled; fine for replay, but not enough for paper/live.",
+    },
+    {
+      status: accountStatus,
+      label: "Account Evidence",
+      title: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : "Missing",
+      note: accountRows.length
+        ? `Latest account ${shortTimestampAgeLabel(latestAccount.timestamp)}.`
+        : "Account-backed PnL and position checks need published account snapshots.",
+    },
+    {
+      status: openOrders.length ? "warn" : "ok",
+      label: "Open Orders",
+      title: numberText(openOrders.length, 0),
+      note: openOrders.length
+        ? `${text(openOrders[0].symbol)} ${text(openOrders[0].status)} needs Runs/broker reconciliation.`
+        : "No recent non-terminal order telemetry.",
+    },
+  ];
+  const definitions = helpModeDefinitionRows().map((rowItem) => ({
+    status: rowItem.mode === mode ? rowItem.status : "ok",
+    title: rowItem.title,
+    detail: `${rowItem.detail} Verify in ${rowItem.verify}`,
+  }));
+  const verification = [
+    {
+      status: source.has_data || latestRun ? "ok" : "bad",
+      title: "1. Identify The Source",
+      detail: source.has_data
+        ? `${text(source.label)} is selected as ${text(source.source_type)}.`
+        : latestRun ? `Latest run ${text(latestRun.id)} is publishing telemetry, but Performance source detail is limited.` : "No current telemetry or loaded artifact is visible.",
+    },
+    {
+      status: authority[0],
+      title: "2. Read Order Authority",
+      detail: `${authority[1]} - ${authority[2]}`,
+    },
+    {
+      status: gatewayStatus,
+      title: "3. Check Broker Connectivity",
+      detail: gateway.enabled
+        ? gateway.reachable ? "Gateway/API is reachable in Operations." : `Gateway/API is not reachable: ${text(gateway.error || "no response")}.`
+        : "Gateway reachability is not checked; enable it before broker paper/live monitoring.",
+    },
+    {
+      status: openOrders.length ? "warn" : "ok",
+      title: "4. Reconcile Orders",
+      detail: openOrders.length
+        ? `${numberText(openOrders.length, 0)} non-terminal order event${openOrders.length === 1 ? "" : "s"} visible; inspect Runs Events and broker state.`
+        : "No non-terminal order events are visible.",
+    },
+    {
+      status: accountStatus,
+      title: "5. Verify Account State",
+      detail: accountRows.length
+        ? `${numberText(accountRows.length, 0)} account snapshots support Performance and position views.`
+        : "Account snapshots are missing; performance may be event-backed or summary-only.",
+    },
+    {
+      status: modeDefinition ? "ok" : "warn",
+      title: "Next Verification",
+      detail: modeDefinition
+        ? `${modeDefinition.verify} Use Boundary for public/private export rules.`
+        : "Choose a Workbench mode or load a run artifact, then return to this guide.",
+    },
+  ];
+  return { headline, note, cards, definitions, verification };
+}
+
+function helpModeBoundaryText(model) {
+  return [
+    `Mode And Order Authority Guide: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.verification.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderHelpModeBoundary() {
+  if (
+    !$("help-mode-boundary-title")
+    || !$("help-mode-boundary-note")
+    || !$("help-mode-boundary-cards")
+    || !$("help-mode-boundary-body")
+    || !$("help-mode-boundary-actions")
+  ) return;
+  const model = helpModeBoundaryModel();
+  state.helpModeBoundaryText = helpModeBoundaryText(model);
+  $("help-mode-boundary-title").textContent = model.headline;
+  $("help-mode-boundary-note").textContent = model.note;
+  $("help-mode-boundary-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-mode-boundary-body").innerHTML = [
+    ...model.definitions.map((line) => `
+      <article class="performance-report-line status-${escapeHtml(line.status)}">
+        <strong>${escapeHtml(line.title)}</strong>
+        <span>${escapeHtml(line.detail)}</span>
+      </article>
+    `),
+    ...model.verification.map((line) => `
+      <article class="performance-report-line status-${escapeHtml(line.status)}">
+        <strong>${escapeHtml(line.title)}</strong>
+        <span>${escapeHtml(line.detail)}</span>
+      </article>
+    `),
+  ].join("");
+  $("help-mode-boundary-actions").innerHTML = [
+    `<button type="button" data-help-mode-boundary-action="copy">Copy Guide</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="overview">Overview</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="workbench">Workbench</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="performance">Performance</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="runs">Runs</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="operations">Operations</button>`,
+    `<button type="button" class="secondary" data-help-mode-boundary-action="boundary">Boundary</button>`,
+  ].join("");
+}
+
+function handleHelpModeBoundaryAction(action) {
+  if (action === "copy") {
+    copyText(state.helpModeBoundaryText || "No mode boundary guide loaded").then(() => {
+      $("last-refresh").textContent = "Mode boundary guide copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Mode boundary guide copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "overview") return navigateToOverviewLens("home");
+  if (action === "workbench") return navigateToWorkbenchLens("builder");
+  if (action === "performance") return navigateToPerformanceLens("home");
+  if (action === "runs") return navigateToRunsLens("state");
+  if (action === "operations") return navigateToOperationsLens("paper");
+  if (action === "boundary") return navigateToHelpLens("boundary");
 }
 
 function publicationReviewModel(setupItems = helpSetupGapItems()) {
@@ -27166,6 +27411,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-performance-guide-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleHelpPerformanceGuideAction(target.dataset.helpPerformanceGuideAction || "");
+  });
+  $("help-mode-boundary-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-mode-boundary-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleHelpModeBoundaryAction(target.dataset.helpModeBoundaryAction || "");
   });
   $("help-publication-review-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-publication-review-action]") : null;

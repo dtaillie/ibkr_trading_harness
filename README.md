@@ -147,8 +147,10 @@ one next route from current setup state, shows a copyable Task Navigator for
 monitoring, performance, saved data, fetch recovery, simulation, run events,
 operations, and publishing boundaries, and now includes a Today's Performance
 Guide that explains the Overview -> Performance -> Runs evidence path for
-today/latest-session results, then links to Overview, Performance, Data
-Library, Workbench, Runs, Operations, and the local runbooks.
+today/latest-session results. It also includes a Mode Guide that distinguishes
+replay, shadow, simulated paper, broker paper, and live order authority from
+the currently loaded telemetry/artifact source, then links to Overview,
+Performance, Data Library, Workbench, Runs, Operations, and the local runbooks.
 Use the topbar "I want to" selector when you know the job but not the page; it
 routes tasks such as monitoring today's run, finding saved data, building a
 simulation, checking runtime health, and publishing safely to the right

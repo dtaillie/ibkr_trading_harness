@@ -165,7 +165,10 @@ When the right page is unclear, open Help Home. The Help workflow cards provide
 state-aware routes for Monitor Today, Read Performance, Inspect Data, Build
 Simulation, Troubleshoot, and Publish Safely. The Task Navigator above those
 cards is the compact operational checklist to copy into notes or follow during
-triage.
+triage. The Mode Guide beside the performance guide explains replay, shadow,
+simulated paper, broker paper, and live modes from the currently loaded
+telemetry/artifact source, then links to Overview, Workbench, Performance,
+Runs, Operations, and Boundary for evidence.
 The Performance Snapshot on Overview is the quickest status-history readout:
 today, recent period returns, all-available return, drawdown, and observed
 orders/fills/rejects/alerts.

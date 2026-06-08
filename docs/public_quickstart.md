@@ -346,7 +346,11 @@ boundary views. Use Help Home's Today's Performance Guide when Sharpe,
 drawdown, or raw return is not enough context: it walks from Overview current
 state to Performance Home, evidence chain, trades/orders, rollups, and Runs
 verification using the same public-safe performance source the dashboard has
-loaded.
+loaded. Use Help Home's Mode Guide when you need to know whether the current
+result is replay, shadow, simulated paper, broker paper, or live. It reads the
+selected source, latest telemetry mode, Gateway/API state, account snapshots,
+and open-order events, then links to the evidence pages that prove the order
+authority boundary.
 Use the "I want to" task selector in the topbar when you know the job but not
 the page, for example monitoring today's run, finding saved data, recovering a
 fetch, building a simulation, checking runtime health, or publishing safely.
