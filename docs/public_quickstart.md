@@ -523,7 +523,10 @@ Flow Report that summarizes filters, execution issues, decision/order/fill
 mix, latest event, run/symbol coverage, and the next inspection action before
 dense event rows. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
-results. The Remote Monitor Report summarizes remote node coverage, heartbeat,
+results. Operations Action Summary picks the first operational route across
+paper readiness, Gateway/API, remote-node freshness, command audit/control
+queue, and local alerts before the deeper readiness and evidence panels. The
+Remote Monitor Report summarizes remote node coverage, heartbeat,
 Gateway/API state, alerts, open orders, stale data/account timestamps, and next
 actions in copyable rows before the remote-node table. After selecting a node,
 Remote Node Health Report summarizes that node's heartbeat, Gateway/API,

@@ -3645,6 +3645,7 @@ section {
 .fetch-evidence-panel,
 .fetch-action-summary-panel,
 .data-inventory-evidence-panel,
+.operations-action-summary-panel,
 .operations-evidence-panel,
 .runs-action-summary-panel,
 .runs-evidence-panel {
@@ -3661,6 +3662,7 @@ section {
 .fetch-evidence-panel .section-note,
 .fetch-action-summary-panel .section-note,
 .data-inventory-evidence-panel .section-note,
+.operations-action-summary-panel .section-note,
 .operations-evidence-panel .section-note,
 .runs-action-summary-panel .section-note,
 .runs-evidence-panel .section-note {

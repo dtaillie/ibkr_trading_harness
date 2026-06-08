@@ -1295,6 +1295,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "operations-readiness-note" in html
         assert "operations-readiness-cards" in html
         assert "operations-readiness-actions" in html
+        assert "operations-action-note" in html
+        assert "operations-action-cards" in html
+        assert "operations-action-actions" in html
         assert "operations-evidence-note" in html
         assert "operations-evidence-cards" in html
         assert "operations-evidence-body" in html

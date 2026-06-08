@@ -532,6 +532,9 @@ translations, not stable performance estimates.
 Open Operations Home first. It summarizes local paper-monitor readiness,
 Gateway/API reachability, remote-node freshness, command-audit integrity and
 signature state, and current alerts before the detailed tables.
+Read Operations Action Summary first when you want the fastest route. It
+chooses between Paper Monitor, Gateway/API diagnostics, Remote Nodes, Command
+Audit/Control, and local alerts from the current public-safe operations state.
 Read Operations Evidence beside it when you need the proof chain rather than
 just the route. It states whether current state is backed by local runner/paper
 telemetry, Gateway/API checks, remote-node snapshots, command-audit integrity,

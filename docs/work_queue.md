@@ -1961,6 +1961,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     consolidates local paper checks, Gateway/API reachability, remote-node
     freshness, command-audit integrity, control queue state, local alerts, and
     the next operational drilldown before dense paper/remote/control tables.
+  - partial; Operations Home now includes an Action Summary that prioritizes
+    paper readiness, Gateway/API diagnostics, remote-node freshness, command
+    audit/control queue review, and local alerts with direct Paper, Remote,
+    Control, and Diagnostics routes.
   - partial; Operations Home now also includes an Operations Evidence panel
     that separates local runner/paper proof, Gateway/API proof, remote
     snapshots, command-audit integrity, control queue pressure, alerts, and the

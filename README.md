@@ -301,10 +301,12 @@ alerts, open orders, stale data/account timestamps, and next actions.
 When a node is selected, Remote Node Health Report gives the same copyable
 evidence packet for that node: heartbeat, Gateway/API, account/data feed age,
 runs, activity, bounded artifact evidence, cloud boundary, and next action.
-Operations Home includes an Operations Evidence panel that separates local
+Operations Home includes an Action Summary that picks the first route across
+paper readiness, Gateway/API, remote-node freshness, command audit/control
+queue, and local alerts. Its Operations Evidence panel then separates local
 runner/paper proof, Gateway/API proof, remote snapshots, command-audit state,
-control queue pressure, alerts, and the next operational drilldown before
-users open the lower tables.
+control queue pressure, alerts, and the next operational drilldown before users
+open the lower tables.
 Operations Control includes Command Safety Review before the raw command form,
 summarizing target-node state, read-only/control/launcher action classes,
 confirmation requirements, pending/failed command pressure, audit integrity,
