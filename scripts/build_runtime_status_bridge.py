@@ -322,6 +322,27 @@ def accounting_state_from_fills(fills: list[dict[str, Any]], prices: dict[str, f
     )
 
 
+def max_gross_exposure_from_fills(fills: list[dict[str, Any]]) -> float:
+    positions: dict[str, float] = {}
+    prices: dict[str, float] = {}
+    max_gross = 0.0
+    for fill in sorted(fills, key=sort_key_timestamp):
+        symbol = str(fill.get("symbol") or "").strip()
+        side = str(fill.get("side") or "").strip().lower()
+        quantity = parse_float(fill.get("quantity")) or 0.0
+        price = parse_float(fill.get("price")) or 0.0
+        if not symbol or quantity <= 0 or price <= 0:
+            continue
+        signed_quantity = quantity if side == "buy" else -quantity if side == "sell" else 0.0
+        positions[symbol] = positions.get(symbol, 0.0) + signed_quantity
+        if abs(positions[symbol]) <= 1e-12:
+            positions.pop(symbol, None)
+        prices[symbol] = price
+        gross = sum(abs(qty * prices.get(sym, 0.0)) for sym, qty in positions.items())
+        max_gross = max(max_gross, gross)
+    return max_gross
+
+
 def normalized_positions(raw: Any) -> dict[str, float] | None:
     if not isinstance(raw, dict):
         return None
@@ -504,6 +525,9 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
     latest_signal = state.get("last_signal") if isinstance(state.get("last_signal"), dict) else {}
     final_account = next((row for row in reversed(account) if row.get("equity") is not None), {})
     final_positions = final_account.get("positions") if isinstance(final_account.get("positions"), dict) else {}
+    max_gross_exposure = max((parse_float(row.get("gross_exposure")) or 0.0 for row in account), default=0.0)
+    max_abs_net_exposure = max((abs(parse_float(row.get("net_exposure")) or 0.0) for row in account), default=0.0)
+    initial_equity = next((parse_float(row.get("equity")) for row in account if parse_float(row.get("equity")) is not None), None)
     summary = {
         "mode": state.get("last_mode") or ("simulated_paper" if modes.get("True") else "paper"),
         "loop_enabled": True,
@@ -520,8 +544,10 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         "unrealized_pnl": final_account.get("unrealized_pnl"),
         "total_pnl": final_account.get("total_pnl"),
         "total_commission": final_account.get("total_commission"),
-        "max_gross_exposure": max((parse_float(row.get("gross_exposure")) or 0.0 for row in account), default=0.0),
-        "max_abs_net_exposure": max((abs(parse_float(row.get("net_exposure")) or 0.0) for row in account), default=0.0),
+        "max_gross_exposure": max_gross_exposure,
+        "max_gross_exposure_pct": (max_gross_exposure / initial_equity * 100.0) if initial_equity else None,
+        "max_abs_net_exposure": max_abs_net_exposure,
+        "max_abs_net_exposure_pct": (max_abs_net_exposure / initial_equity * 100.0) if initial_equity else None,
         "latest_data_time": latest_timestamp(data_times),
         "latest_bar_time": latest_timestamp(data_times),
         "latest_signal_reason": latest_signal.get("reason"),
@@ -595,9 +621,78 @@ def stock_decision_from_signal(row: dict[str, str], manifest: dict[str, Any], se
     }
 
 
-def build_stock_run(sessions_root: Path, out_dir: Path, *, max_sessions: int) -> dict[str, Any]:
+def stock_order_from_entry_row(row: dict[str, str]) -> dict[str, Any]:
+    status = str(row.get("entry_status") or "").strip().lower() or "unknown"
+    return {
+        "timestamp": iso_or_none(row.get("timestamp")),
+        "status": status,
+        "symbol": row.get("symbol") or None,
+        "side": (row.get("entry_action") or "").lower() or None,
+        "order_type": row.get("entry_order_type") or None,
+        "quantity": parse_float(first_value(row.get("filled_qty"), row.get("quantity"))),
+        "reason": None,
+        "tag": "entry",
+        "avg_fill_price": parse_float(row.get("avg_fill_price")),
+        "order_status": row.get("entry_status") or None,
+        "message": row.get("entry_message") or None,
+    }
+
+
+def stock_order_from_eod_row(row: dict[str, str]) -> dict[str, Any]:
+    return {
+        "timestamp": iso_or_none(row.get("timestamp")),
+        "status": (row.get("status") or "unknown").strip().lower(),
+        "symbol": row.get("symbol") or None,
+        "side": (row.get("action") or "").lower() or None,
+        "order_type": "MKT",
+        "quantity": parse_float(row.get("quantity")),
+        "reason": "eod_flatten",
+        "tag": "exit",
+        "avg_fill_price": parse_float(row.get("avg_price")),
+        "order_status": row.get("status") or None,
+        "message": row.get("message") or None,
+    }
+
+
+def stock_fill_from_entry_row(row: dict[str, str]) -> dict[str, Any]:
+    return {
+        "timestamp": iso_or_none(row.get("timestamp")),
+        "symbol": row.get("symbol") or None,
+        "side": (row.get("entry_action") or "").lower() or None,
+        "quantity": parse_float(row.get("quantity")),
+        "price": parse_float(row.get("avg_price")),
+        "commission": parse_float(row.get("commission")) or 0.0,
+        "tag": "entry",
+        "simulated": False,
+    }
+
+
+def stock_fill_from_eod_row(row: dict[str, str]) -> dict[str, Any]:
+    return {
+        "timestamp": iso_or_none(row.get("timestamp")),
+        "symbol": row.get("symbol") or None,
+        "side": (row.get("action") or "").lower() or None,
+        "quantity": parse_float(row.get("quantity")),
+        "price": parse_float(row.get("avg_price")),
+        "commission": 0.0,
+        "tag": "exit",
+        "simulated": False,
+    }
+
+
+def build_stock_run(
+    sessions_root: Path,
+    out_dir: Path,
+    *,
+    order_log: Path,
+    fill_log: Path,
+    eod_flatten_log: Path,
+    max_sessions: int,
+) -> dict[str, Any]:
     decisions: list[dict[str, Any]] = []
     account: list[dict[str, Any]] = []
+    orders: list[dict[str, Any]] = []
+    fills: list[dict[str, Any]] = []
     data_times: list[str] = []
     symbols: set[str] = set()
     accepted = 0
@@ -633,19 +728,65 @@ def build_stock_run(sessions_root: Path, out_dir: Path, *, max_sessions: int) ->
             if symbol_row.get("symbol"):
                 symbols.add(symbol_row["symbol"])
 
+    entry_order_rows = read_csv_rows(order_log)
+    entry_fill_rows = read_csv_rows(fill_log)
+    eod_rows = read_csv_rows(eod_flatten_log)
+    orders.extend(stock_order_from_entry_row(row) for row in entry_order_rows)
+    orders.extend(stock_order_from_eod_row(row) for row in eod_rows)
+    fills.extend(stock_fill_from_entry_row(row) for row in entry_fill_rows)
+    fills.extend(stock_fill_from_eod_row(row) for row in eod_rows if str(row.get("status") or "").lower() == "filled")
+    orders.sort(key=sort_key_timestamp)
+    fills.sort(key=sort_key_timestamp)
+    symbols.update(str(row.get("symbol")) for row in orders if row.get("symbol"))
+
+    final_accounting = accounting_state_from_fills(fills, {})
+    max_fill_gross_exposure = max_gross_exposure_from_fills(fills)
     final_account = next((row for row in reversed(account) if row.get("equity") is not None), {})
+    if final_account:
+        final_account.update({
+            "positions": final_accounting.positions,
+            "gross_exposure": final_accounting.gross_exposure,
+            "net_exposure": final_accounting.net_exposure,
+            "gross_exposure_pct": (
+                final_accounting.gross_exposure / final_account["equity"] * 100.0
+                if final_account.get("equity") else None
+            ),
+            "net_exposure_pct": (
+                final_accounting.net_exposure / final_account["equity"] * 100.0
+                if final_account.get("equity") else None
+            ),
+            "average_costs": final_accounting.average_costs,
+            "unrealized_pnl_by_symbol": final_accounting.unrealized_pnl_by_symbol,
+            "position_details": final_accounting.position_details,
+            "realized_pnl": final_accounting.realized_pnl,
+            "unrealized_pnl": final_accounting.unrealized_pnl,
+            "total_pnl": final_accounting.total_pnl,
+            "total_commission": final_accounting.total_commission,
+            "accounting_source": "fills",
+        })
+    max_gross_exposure = max(max_fill_gross_exposure, final_accounting.gross_exposure, max((parse_float(row.get("gross_exposure")) or 0.0 for row in account), default=0.0))
+    max_abs_net_exposure = max(max_fill_gross_exposure, abs(final_accounting.net_exposure), max((abs(parse_float(row.get("net_exposure")) or 0.0) for row in account), default=0.0))
+    initial_equity = next((parse_float(row.get("equity")) for row in account if parse_float(row.get("equity")) is not None), None)
     summary = {
-        "mode": "signal_monitor",
+        "mode": "paper" if orders or fills else "signal_monitor",
         "loop_enabled": True,
         "loop_iterations": len(decisions),
         "decisions": len(decisions),
-        "orders": 0,
-        "fills": 0,
-        "rejections": 0,
+        "orders": len(orders),
+        "fills": len(fills),
+        "rejections": sum(1 for row in orders if str(row.get("status") or "").lower() in {"rejected", "cancelled", "canceled", "error"}),
         "final_cash": final_account.get("cash"),
         "final_equity": final_account.get("equity"),
-        "final_positions": {},
+        "final_positions": final_accounting.positions,
         "account_snapshot_count": len(account),
+        "realized_pnl": final_accounting.realized_pnl,
+        "unrealized_pnl": final_accounting.unrealized_pnl,
+        "total_pnl": final_accounting.total_pnl,
+        "total_commission": final_accounting.total_commission,
+        "max_gross_exposure": max_gross_exposure,
+        "max_gross_exposure_pct": (max_gross_exposure / initial_equity * 100.0) if initial_equity else None,
+        "max_abs_net_exposure": max_abs_net_exposure,
+        "max_abs_net_exposure_pct": (max_abs_net_exposure / initial_equity * 100.0) if initial_equity else None,
         "latest_data_time": latest_timestamp(data_times),
         "latest_bar_time": latest_timestamp(data_times),
         "latest_signal_reason": latest_reason,
@@ -665,13 +806,13 @@ def build_stock_run(sessions_root: Path, out_dir: Path, *, max_sessions: int) ->
             "next_check_reason": "market_session_schedule",
         },
         decisions=decisions,
-        orders=[],
-        fills=[],
+        orders=orders,
+        fills=fills,
         account=account,
         symbols=sorted(symbols),
         bridge_kind="legacy_stock_csv_sessions",
     )
-    return {"run_dir": str(out_dir), "decisions": len(decisions), "orders": 0, "fills": 0}
+    return {"run_dir": str(out_dir), "decisions": len(decisions), "orders": len(orders), "fills": len(fills)}
 
 
 def write_run_artifacts(
@@ -739,6 +880,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--crypto-sessions", type=Path, default=Path("paper_logs/crypto_hourly_reversal/sessions"))
     parser.add_argument("--crypto-out", type=Path, default=Path("paper_logs/runtime_status/crypto_hourly_reversal"))
     parser.add_argument("--stock-sessions", type=Path, default=Path("paper_logs/sip_orb_fail/sessions"))
+    parser.add_argument("--stock-order-log", type=Path, default=Path("paper_logs/sip_orb_fail/paper_orders.csv"))
+    parser.add_argument("--stock-fill-log", type=Path, default=Path("paper_logs/sip_orb_fail/paper_fills.csv"))
+    parser.add_argument("--stock-eod-flatten-log", type=Path, default=Path("paper_logs/sip_orb_fail/paper_eod_flatten.csv"))
     parser.add_argument("--stock-out", type=Path, default=Path("paper_logs/runtime_status/stock_intraday"))
     parser.add_argument("--supervisor-state", type=Path, default=Path("paper_logs/paper_supervisor/state.json"))
     parser.add_argument("--supervisor-out", type=Path, default=Path("paper_logs/runtime_status/paper_supervisor/status.json"))
@@ -752,7 +896,14 @@ def main() -> None:
     result = {
         "generated_at": utc_now().isoformat(),
         "crypto": build_crypto_run(args.crypto_state, args.crypto_sessions, args.crypto_out, max_sessions=args.max_sessions),
-        "stock": build_stock_run(args.stock_sessions, args.stock_out, max_sessions=args.max_sessions),
+        "stock": build_stock_run(
+            args.stock_sessions,
+            args.stock_out,
+            order_log=args.stock_order_log,
+            fill_log=args.stock_fill_log,
+            eod_flatten_log=args.stock_eod_flatten_log,
+            max_sessions=args.max_sessions,
+        ),
         "supervisor": build_supervisor_status(args.supervisor_state, args.supervisor_out),
     }
     if args.json:

@@ -200,12 +200,88 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     )
     write_csv(session / "subscriptions.csv", [{"symbol": "LULU", "role": "stock"}])
 
+    write_csv(
+        tmp_path / "paper_orders.csv",
+        [
+            {
+                "timestamp": "2026-01-02T08:50:01",
+                "date": "2026-01-02",
+                "symbol": "LULU",
+                "side": "long",
+                "entry_action": "BUY",
+                "quantity": "10",
+                "intended_entry": "100",
+                "stop": "95",
+                "target": "115",
+                "order_ref": "EXAMPLE_2026-01-02_LULU",
+                "entry_status": "Filled",
+                "entry_order_id": "1",
+                "entry_message": "Fill 10@100",
+                "filled_qty": "10",
+                "avg_fill_price": "100",
+                "entry_order_style": "market",
+                "entry_order_type": "MKT",
+                "entry_limit_price": "",
+                "entry_algo_strategy": "",
+                "entry_algo_params": "",
+                "target_order_id": "2",
+                "stop_order_id": "3",
+                "oca_group": "EXAMPLE_exit",
+            }
+        ],
+    )
+    write_csv(
+        tmp_path / "paper_fills.csv",
+        [
+            {
+                "timestamp": "2026-01-02T08:50:01",
+                "date": "2026-01-02",
+                "symbol": "LULU",
+                "side": "long",
+                "entry_action": "BUY",
+                "quantity": "10",
+                "avg_price": "100",
+                "commission": "1.25",
+                "order_ref": "EXAMPLE_2026-01-02_LULU",
+            }
+        ],
+    )
+    write_csv(
+        tmp_path / "paper_eod_flatten.csv",
+        [
+            {
+                "timestamp": "2026-01-02T13:55:00",
+                "symbol": "LULU",
+                "action": "SELL",
+                "quantity": "10",
+                "status": "Filled",
+                "avg_price": "103",
+                "message": "Fill 10@103",
+                "order_ref": "EXAMPLE_2026-01-02_eod_flat",
+            }
+        ],
+    )
+
     out = tmp_path / "runtime" / "stock"
-    result = build_stock_run(sessions, out, max_sessions=10)
+    result = build_stock_run(
+        sessions,
+        out,
+        order_log=tmp_path / "paper_orders.csv",
+        fill_log=tmp_path / "paper_fills.csv",
+        eod_flatten_log=tmp_path / "paper_eod_flatten.csv",
+        max_sessions=10,
+    )
     metrics = summarize_run(out)
     assert result["decisions"] == 1
+    assert result["orders"] == 2
+    assert result["fills"] == 2
+    assert metrics["mode"] == "paper"
     assert metrics["final_equity"] == 35050
     assert metrics["latest_signal_reason"] == "accepted"
+    assert metrics["order_status_counts"] == {"filled": 2}
+    assert metrics["fill_sides"] == {"buy": 1, "sell": 1}
+    assert metrics["realized_pnl"] == 30.0
+    assert metrics["total_commission"] == 1.25
 
     state = tmp_path / "supervisor_state.json"
     status = tmp_path / "runtime" / "supervisor" / "status.json"

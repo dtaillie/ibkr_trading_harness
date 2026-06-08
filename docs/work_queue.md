@@ -502,6 +502,10 @@ strategy-private.
     PnL, unrealized PnL, total PnL, total commission, exposure, average costs,
     and position detail fields when fills and authoritative runner state agree,
     and fall back to state/equity-derived accounting when they do not.
+  - partial; bridged stock runtime artifacts now ingest the separate stock
+    paper order, fill, and EOD-flatten logs, so accepted stock signals are
+    linked to actual paper orders/fills, realized PnL, commission, final flat
+    state, and max gross exposure instead of appearing as signal-only runs.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.
