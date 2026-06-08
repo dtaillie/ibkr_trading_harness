@@ -26,6 +26,16 @@ scripts/install_dashboard_server.sh
 systemctl --user restart algo-trade-dashboard-server.service
 ```
 
+To install the dashboard receiver plus a once-per-minute status publisher timer
+for this checkout, use:
+
+```bash
+scripts/install_local_monitoring_stack.sh
+```
+
+Add `--with-command-worker` only after reviewing the remote-control allowlist
+and local enable-marker rules.
+
 Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.

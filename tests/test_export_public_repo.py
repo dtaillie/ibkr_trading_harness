@@ -37,6 +37,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "scripts" / "audit_dashboard_contracts.py").exists()
     assert (dest / "scripts" / "audit_workbench_contracts.py").exists()
     assert (dest / "scripts" / "install_dashboard_server.sh").exists()
+    assert (dest / "scripts" / "install_local_monitoring_stack.sh").exists()
     assert (dest / "scripts" / "public_publish_check.py").exists()
     assert (dest / "scripts" / "smoke_dashboard.py").exists()
     assert (dest / "tests" / "test_cloud_examples_audit.py").exists()

@@ -2076,6 +2076,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `ops/cloud/status-receiver.compose.example.yaml`, an nginx reverse-proxy
     template, a local status-publisher timer, and a command-worker service.
     Fully hardened provider-specific infrastructure remains open.
+  - partial; `scripts/install_local_monitoring_stack.sh` now installs the
+    local dashboard/status receiver and once-per-minute status publisher for
+    the current checkout, seeds ignored local configs under
+    `~/.config/algo-trade`, and keeps the command worker behind an explicit
+    `--with-command-worker` opt-in.
   - partial; hosted/local receiver configs now support
     `dashboard.network_access` with CIDR/IP allowlists and optional trusted
     `X-Forwarded-For` handling, so deployments can restrict direct receiver

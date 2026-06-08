@@ -148,6 +148,15 @@ scripts/install_dashboard_server.sh
 systemctl --user restart algo-trade-dashboard-server.service
 ```
 
+For a local receiver plus status-publisher timer, use:
+
+```bash
+scripts/install_local_monitoring_stack.sh
+```
+
+Add `--with-command-worker` only after reviewing the remote-control allowlist
+and local enable-marker rules.
+
 Open `http://127.0.0.1:8765/` for the operational dashboard.
 The Help view is the easiest first screen for a new local copy: it recommends
 one next route from current setup state, includes a Guided Tour for current

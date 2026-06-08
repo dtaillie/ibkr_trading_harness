@@ -400,22 +400,19 @@ python3 scripts/command_worker.py \
   --once
 ```
 
-For a long-running local worker, use the example service only after reviewing
-`config/remote_control.example.yaml` and leaving `audit.enabled=true`:
+For local dashboard plus status publishing services, use the monitoring stack
+installer from the checkout:
 
 ```bash
-mkdir -p ~/.config/algo-trade
-cp config/remote_control.example.yaml ~/.config/algo-trade/remote_control.yaml
-# Edit server.commands_url and server.results_url to point at your receiver.
-# Remove run_supervisor_once from allowed_actions for monitoring-only setups.
+scripts/install_local_monitoring_stack.sh
+```
 
-cat > ~/.config/algo-trade/command-worker.env <<'EOF'
-TRADING_STATUS_TOKEN=replace-with-the-same-long-random-value
-EOF
-chmod 600 ~/.config/algo-trade/command-worker.env
+For a long-running local worker, use the same installer with the explicit worker
+opt-in only after reviewing `config/remote_control.example.yaml` and leaving
+`audit.enabled=true`:
 
-systemctl --user link "$PWD/ops/systemd/algo-trade-command-worker.service"
-systemctl --user enable --now algo-trade-command-worker.service
+```bash
+scripts/install_local_monitoring_stack.sh --with-command-worker
 ```
 
 For monitoring-only deployments, remove `run_supervisor_once` from

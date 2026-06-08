@@ -46,6 +46,7 @@ pushing this working tree.
 - Operational dashboard:
   - `web/dashboard/`
   - `scripts/install_dashboard_server.sh`
+  - `scripts/install_local_monitoring_stack.sh`
   - `ops/systemd/algo-trade-plugin-supervisor.service`
   - `ops/systemd/algo-trade-status-publisher.service`
   - `ops/systemd/algo-trade-status-publisher.timer`

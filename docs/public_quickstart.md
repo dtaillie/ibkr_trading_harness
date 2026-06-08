@@ -312,6 +312,17 @@ scripts/install_dashboard_server.sh
 systemctl --user restart algo-trade-dashboard-server.service
 ```
 
+To install the local receiver plus a once-per-minute status publisher timer for
+the current checkout, use the monitoring stack installer:
+
+```bash
+scripts/install_local_monitoring_stack.sh
+```
+
+It seeds ignored local config under `~/.config/algo-trade`, keeps the command
+worker disabled by default, and points the publisher at
+`http://127.0.0.1:8765/status`.
+
 Then publish to it from another terminal:
 
 ```bash
@@ -889,6 +900,17 @@ python3 scripts/command_worker.py \
   --token-env TRADING_STATUS_TOKEN \
   --once
 ```
+
+To install the long-running local worker with the monitoring stack, opt in
+explicitly:
+
+```bash
+scripts/install_local_monitoring_stack.sh --with-command-worker
+```
+
+Review `~/.config/algo-trade/remote_control.yaml` after installation. For
+monitoring-only deployments, remove `run_supervisor_once` and keep the local
+enable marker absent.
 
 By default the worker writes local audit records to
 `paper_logs/remote_control/audit.jsonl`. Keep that enabled for real
