@@ -1706,6 +1706,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     distinguishes selected-data evidence, alignment evidence, plugin boundary,
     draft validation, latest run state, and loaded artifact evidence before
     users trust Performance or Runs output.
+  - partial; Workbench Home now includes a Stage Summary that compresses the
+    current workflow stage, ready/review/blocked counts, selected data packet,
+    alignment, draft, run, results, and the next route before the deeper
+    example gallery, simulation plan, readiness, and evidence panels.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.

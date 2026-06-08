@@ -485,6 +485,10 @@ Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
 artifacts, and the next action. Use its buttons to jump to data selection,
 alignment preview, builder review, the run form, or loaded results.
+The Stage Summary directly below Workbench Home is the fastest scan: it shows
+the current workflow stage, ready/review/blocked counts, data packet,
+alignment, draft, run, results, and the next route before the fuller plan and
+evidence panels.
 In Workbench Builder, start with Builder Assistant and Selected Data Packet
 before the lower form fields. Builder Assistant says which step is next, while
 Selected Data Packet answers whether the current saved-file input is the one

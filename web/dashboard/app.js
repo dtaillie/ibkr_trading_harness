@@ -3886,11 +3886,105 @@ function renderWorkbenchHome() {
       <small>${escapeHtml(tile.note)}</small>
     </div>
   `).join("");
+  renderWorkbenchStageSummary(stateModel);
   renderWorkbenchExampleGallery();
   renderWorkbenchSimulationPlan(stateModel);
   renderWorkbenchReadinessReview(stateModel);
   renderWorkbenchEvidence();
   renderWorkbenchWorkflowLauncher();
+}
+
+function workbenchNextActionHref(action) {
+  if (action === "data") return "#data/browse";
+  if (action === "quality" || action === "alignment" || action === "generate") return "#workbench/builder";
+  if (action === "run") return "#workbench/run";
+  if (action === "results") return "#workbench/artifacts";
+  return "#workbench";
+}
+
+function workbenchNextActionLabel(action) {
+  if (action === "data") return "Select Data";
+  if (action === "quality") return "Review Data";
+  if (action === "alignment") return "Preview Alignment";
+  if (action === "generate") return "Open Builder";
+  if (action === "run") return "Open Run";
+  if (action === "results") return "Open Results";
+  return "Open Workbench";
+}
+
+function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
+  if (!$("workbench-stage-note") || !$("workbench-stage-cards") || !$("workbench-stage-actions")) return;
+  const tiles = stateModel.tiles || [];
+  const okCount = tiles.filter((tile) => tile.status === "ok").length;
+  const warnCount = tiles.filter((tile) => tile.status === "warn").length;
+  const badCount = tiles.filter((tile) => tile.status === "bad").length;
+  const dataTile = tiles.find((tile) => tile.label === "Data") || {};
+  const alignmentTile = tiles.find((tile) => tile.label === "Alignment") || {};
+  const draftTile = tiles.find((tile) => tile.label === "Draft") || {};
+  const runTile = tiles.find((tile) => tile.label === "Run") || {};
+  const resultsTile = tiles.find((tile) => tile.label === "Results") || {};
+  const nextHref = workbenchNextActionHref(stateModel.nextAction);
+  const nextLabel = workbenchNextActionLabel(stateModel.nextAction);
+  const status = badCount ? "bad" : warnCount ? "warn" : "ok";
+  $("workbench-stage-note").textContent = `${stateModel.result}; ${numberText(okCount, 0)} ready / ${numberText(warnCount, 0)} review / ${numberText(badCount, 0)} blocked. Next: ${nextLabel}.`;
+  const cards = [
+    {
+      status,
+      label: "Current Stage",
+      title: stateModel.result,
+      note: stateModel.note,
+      className: statusClass(status),
+    },
+    {
+      status: dataTile.status || "bad",
+      label: "Data Packet",
+      title: dataTile.title || "None",
+      note: dataTile.note || "Select saved files before generating a draft.",
+      className: statusClass(dataTile.status || "bad"),
+    },
+    {
+      status: alignmentTile.status || "bad",
+      label: "Alignment",
+      title: alignmentTile.title || "Preview",
+      note: alignmentTile.note || "Preview shared timestamps before running.",
+      className: statusClass(alignmentTile.status || "bad"),
+    },
+    {
+      status: draftTile.status || "bad",
+      label: "Draft",
+      title: draftTile.title || "Missing",
+      note: draftTile.note || "Generate and validate a public-safe draft.",
+      className: statusClass(draftTile.status || "bad"),
+    },
+    {
+      status: runTile.status || "bad",
+      label: "Run",
+      title: runTile.title || "Not Run",
+      note: runTile.note || "Run after draft validation.",
+      className: statusClass(runTile.status || "bad"),
+    },
+    {
+      status: resultsTile.status || "bad",
+      label: "Results",
+      title: resultsTile.title || "Missing",
+      note: resultsTile.note || "Load artifacts before reading Performance.",
+      className: statusClass(resultsTile.status || "bad"),
+    },
+  ];
+  $("workbench-stage-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className)}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-stage-actions").innerHTML = [
+    `<a href="${escapeHtml(nextHref)}">${escapeHtml(nextLabel)}</a>`,
+    `<a class="secondary" href="#data/browse">Data Library</a>`,
+    `<a class="secondary" href="#workbench/builder">Builder</a>`,
+    `<a class="secondary" href="#workbench/run">Run</a>`,
+    `<a class="secondary" href="#performance">Performance</a>`,
+  ].join("");
 }
 
 function workbenchExampleGalleryModel() {
