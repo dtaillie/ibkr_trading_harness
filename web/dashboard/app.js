@@ -7046,6 +7046,16 @@ function overviewGlanceModel() {
   const positions = nonzeroPositionsFromSource(source);
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const artifactRows = runs
+    .map((runItem) => ({ run: runItem, evidence: runItem.artifact_evidence || null }))
+    .filter((item) => item.evidence);
+  const artifactExisting = artifactRows.reduce((sum, item) => sum + Number(item.evidence.existing_count || 0), 0);
+  const artifactMissing = artifactRows.reduce((sum, item) => sum + Number(item.evidence.missing_count || 0), 0);
+  const artifactJsonlRows = artifactRows.reduce((sum, item) => sum + Number(item.evidence.jsonl_row_count || 0), 0);
+  const performanceArtifactRuns = artifactRows.filter((item) => {
+    const categories = item.evidence.category_counts || {};
+    return Number(categories.performance || 0) > 0;
+  }).length;
   const performance = latestArtifactPerformance();
   const accountRows = performance.account || [];
   const todayWindow = performancePeriodWindow(accountRows, "today");
@@ -7314,6 +7324,14 @@ function overviewHealthReportModel() {
       note: todayRows.length ? `${numberText(todayRows.length, 0)} account snapshots today; latest account ${accountFresh}.` : "No current-day account path loaded.",
     },
     {
+      status: artifactRows.length ? artifactMissing ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      label: "Artifacts",
+      title: artifactRows.length ? `${numberText(artifactExisting, 0)} files` : "none",
+      note: artifactRows.length
+        ? `${numberText(artifactMissing, 0)} missing; ${numberText(artifactJsonlRows, 0)} JSONL rows; ${numberText(performanceArtifactRuns, 0)} performance rollup run${performanceArtifactRuns === 1 ? "" : "s"}.`
+        : "Current runs did not publish bounded artifact evidence.",
+    },
+    {
       status: dataStatus,
       label: "Saved Data",
       title: numberText(datasets.length, 0),
@@ -7353,6 +7371,13 @@ function overviewHealthReportModel() {
       status: positions.length ? "warn" : source.has_data ? "ok" : "bad",
       title: "Account And Positions",
       detail: `${text(source.label || source.source_type)}; latest account ${accountFresh}; ${numberText(positions.length, 0)} open position${positions.length === 1 ? "" : "s"}; today return ${pctText(todayPerf.total_return_pct)}.`,
+    },
+    {
+      status: artifactRows.length ? artifactMissing ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      title: "Artifact Evidence",
+      detail: artifactRows.length
+        ? `${numberText(artifactRows.length, 0)} current run${artifactRows.length === 1 ? "" : "s"}; ${numberText(artifactExisting, 0)} existing expected files; ${numberText(artifactMissing, 0)} missing; ${numberText(artifactJsonlRows, 0)} JSONL rows; ${numberText(performanceArtifactRuns, 0)} performance rollup artifact${performanceArtifactRuns === 1 ? "" : "s"}.`
+        : "No bounded current-run artifact evidence is published.",
     },
     {
       status: dataStatus,
