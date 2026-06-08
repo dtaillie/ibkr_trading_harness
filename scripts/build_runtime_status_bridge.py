@@ -108,6 +108,10 @@ def latest_timestamp(values: list[Any]) -> str | None:
     return max(parsed).isoformat()
 
 
+def finite_float(raw: Any) -> float | None:
+    return parse_float(raw)
+
+
 def sort_key_timestamp(row: dict[str, Any]) -> datetime:
     return parse_timestamp(row.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc)
 
@@ -343,6 +347,31 @@ def max_gross_exposure_from_fills(fills: list[dict[str, Any]]) -> float:
     return max_gross
 
 
+def exposure_by_day_from_fills(fills: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    positions: dict[str, float] = {}
+    prices: dict[str, float] = {}
+    by_day: dict[str, dict[str, float]] = {}
+    for fill in sorted(fills, key=sort_key_timestamp):
+        symbol = str(fill.get("symbol") or "").strip()
+        side = str(fill.get("side") or "").strip().lower()
+        quantity = parse_float(fill.get("quantity")) or 0.0
+        price = parse_float(fill.get("price")) or 0.0
+        day = row_utc_day(fill)
+        if not symbol or quantity <= 0 or price <= 0 or not day:
+            continue
+        signed_quantity = quantity if side == "buy" else -quantity if side == "sell" else 0.0
+        positions[symbol] = positions.get(symbol, 0.0) + signed_quantity
+        if abs(positions[symbol]) <= 1e-12:
+            positions.pop(symbol, None)
+        prices[symbol] = price
+        gross = sum(abs(qty * prices.get(sym, 0.0)) for sym, qty in positions.items())
+        net = sum(qty * prices.get(sym, 0.0) for sym, qty in positions.items())
+        current = by_day.setdefault(day, {"max_gross_exposure": 0.0, "max_abs_net_exposure": 0.0})
+        current["max_gross_exposure"] = max(current["max_gross_exposure"], gross)
+        current["max_abs_net_exposure"] = max(current["max_abs_net_exposure"], abs(net))
+    return by_day
+
+
 def normalized_positions(raw: Any) -> dict[str, float] | None:
     if not isinstance(raw, dict):
         return None
@@ -370,6 +399,189 @@ def exposure_from_positions(positions: dict[str, float], prices: dict[str, float
         gross += abs(value)
         net += value
     return gross, net
+
+
+def row_utc_day(row: dict[str, Any]) -> str | None:
+    parsed = parse_timestamp(row.get("timestamp"))
+    return parsed.date().isoformat() if parsed else None
+
+
+def count_events_by_day(rows: list[dict[str, Any]], *, rejected_only: bool = False) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        if rejected_only:
+            status = str(row.get("status") or row.get("order_status") or "").strip().lower()
+            if status not in {"rejected", "cancelled", "canceled", "error"}:
+                continue
+        day = row_utc_day(row)
+        if not day:
+            continue
+        counts[day] = counts.get(day, 0) + 1
+    return counts
+
+
+def position_count(row: dict[str, Any]) -> int:
+    positions = row.get("positions")
+    if not isinstance(positions, dict):
+        return 0
+    return sum(1 for value in positions.values() if parse_float(value) not in (None, 0.0))
+
+
+def daily_account_rollups(
+    account: list[dict[str, Any]],
+    *,
+    orders: list[dict[str, Any]],
+    fills: list[dict[str, Any]],
+    mode: str | None,
+    include_fill_exposure: bool,
+) -> list[dict[str, Any]]:
+    by_day: dict[str, list[dict[str, Any]]] = {}
+    for row in account:
+        day = row_utc_day(row)
+        equity = parse_float(row.get("equity"))
+        if not day or equity is None:
+            continue
+        enriched = dict(row)
+        enriched["_timestamp"] = sort_key_timestamp(row)
+        by_day.setdefault(day, []).append(enriched)
+    order_counts = count_events_by_day(orders)
+    fill_counts = count_events_by_day(fills)
+    rejection_counts = count_events_by_day(orders, rejected_only=True)
+    fill_exposure = exposure_by_day_from_fills(fills) if include_fill_exposure else {}
+
+    rollups: list[dict[str, Any]] = []
+    for day, rows in by_day.items():
+        ordered = sorted(rows, key=lambda item: item["_timestamp"])
+        start = ordered[0]
+        end = ordered[-1]
+        start_equity = parse_float(start.get("equity"))
+        end_equity = parse_float(end.get("equity"))
+        daily_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        gross_values = [parse_float(row.get("gross_exposure")) for row in ordered]
+        gross_values = [value for value in gross_values if value is not None]
+        net_values = [parse_float(row.get("net_exposure")) for row in ordered]
+        net_values = [value for value in net_values if value is not None]
+        fill_day_exposure = fill_exposure.get(day, {})
+        max_gross = max(
+            [*gross_values, parse_float(fill_day_exposure.get("max_gross_exposure")) or 0.0],
+            default=None,
+        )
+        max_abs_net = max(
+            [*(abs(value) for value in net_values), parse_float(fill_day_exposure.get("max_abs_net_exposure")) or 0.0],
+            default=None,
+        )
+        rollups.append({
+            "day": day,
+            "mode": mode,
+            "snapshot_count": len(ordered),
+            "account_start_time": start["_timestamp"].isoformat(),
+            "account_end_time": end["_timestamp"].isoformat(),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "daily_return_pct": finite_float(daily_return_pct),
+            "max_gross_exposure": finite_float(max_gross),
+            "max_abs_net_exposure": finite_float(max_abs_net),
+            "max_position_count": max(position_count(row) for row in ordered),
+            "realized_pnl": finite_float(end.get("realized_pnl")),
+            "unrealized_pnl": finite_float(end.get("unrealized_pnl")),
+            "total_pnl": finite_float(end.get("total_pnl")),
+            "total_commission": finite_float(end.get("total_commission")),
+            "total_borrow_fees": finite_float(end.get("total_borrow_fees")),
+            "order_count": order_counts.get(day, 0),
+            "fill_count": fill_counts.get(day, 0),
+            "rejection_count": rejection_counts.get(day, 0),
+        })
+    return sorted(rollups, key=lambda row: str(row.get("day") or ""), reverse=True)
+
+
+def period_account_rollups(rows: list[dict[str, Any]], *, period: str) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        day = str(row.get("day") or "")
+        if len(day) < 7:
+            continue
+        label = day[:7] if period == "month" else day[:4]
+        grouped.setdefault(label, []).append(row)
+    out: list[dict[str, Any]] = []
+    for label, group in grouped.items():
+        ordered = sorted(group, key=lambda item: str(item.get("day") or ""))
+        start = ordered[0]
+        end = ordered[-1]
+        start_equity = parse_float(start.get("start_equity"))
+        end_equity = parse_float(end.get("end_equity"))
+        total_return_pct = (
+            ((end_equity / start_equity) - 1.0) * 100.0
+            if start_equity and end_equity is not None
+            else None
+        )
+        out.append({
+            "label": label,
+            "first_day": start.get("day"),
+            "last_day": end.get("day"),
+            "day_count": len(ordered),
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "total_return_pct": finite_float(total_return_pct),
+            "snapshot_count": sum(int(row.get("snapshot_count") or 0) for row in ordered),
+            "max_gross_exposure": finite_float(max((parse_float(row.get("max_gross_exposure")) or 0.0 for row in ordered), default=None)),
+            "max_abs_net_exposure": finite_float(max((parse_float(row.get("max_abs_net_exposure")) or 0.0 for row in ordered), default=None)),
+            "max_position_count": max(int(row.get("max_position_count") or 0) for row in ordered),
+            "order_count": sum(int(row.get("order_count") or 0) for row in ordered),
+            "fill_count": sum(int(row.get("fill_count") or 0) for row in ordered),
+            "rejection_count": sum(int(row.get("rejection_count") or 0) for row in ordered),
+        })
+    return sorted(out, key=lambda row: str(row.get("label") or ""), reverse=True)
+
+
+def build_performance_rollups(
+    *,
+    out_dir: Path,
+    summary: dict[str, Any],
+    account: list[dict[str, Any]],
+    orders: list[dict[str, Any]],
+    fills: list[dict[str, Any]],
+    bridge_kind: str,
+    include_fill_exposure: bool,
+) -> dict[str, Any]:
+    daily = daily_account_rollups(
+        account,
+        orders=orders,
+        fills=fills,
+        mode=summary.get("mode"),
+        include_fill_exposure=include_fill_exposure,
+    )
+    return {
+        "schema_version": 1,
+        "generated_at": utc_now().isoformat(),
+        "source": "legacy_runtime_status_bridge",
+        "bridge_kind": bridge_kind,
+        "mode": summary.get("mode"),
+        "output_dir": str(out_dir),
+        "summary": {
+            "decisions": summary.get("decisions"),
+            "orders": summary.get("orders"),
+            "fills": summary.get("fills"),
+            "rejections": summary.get("rejections"),
+            "account_snapshot_count": summary.get("account_snapshot_count"),
+            "initial_equity": daily[-1].get("start_equity") if daily else None,
+            "final_equity": summary.get("final_equity"),
+            "total_return_pct": summary.get("total_return_pct"),
+            "max_drawdown_pct": summary.get("max_drawdown_pct"),
+            "account_start_time": daily[-1].get("account_start_time") if daily else None,
+            "account_end_time": daily[0].get("account_end_time") if daily else None,
+        },
+        "rollups": daily,
+        "period_rollups": {
+            "month": period_account_rollups(daily, period="month"),
+            "year": period_account_rollups(daily, period="year"),
+        },
+        "count": len(daily),
+        "total": len(daily),
+    }
 
 
 def equity_delta(account_rows: list[dict[str, Any]]) -> float | None:
@@ -571,6 +783,7 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         account=account,
         symbols=sorted(symbols),
         bridge_kind="legacy_crypto_csv_sessions",
+        include_fill_exposure_rollups=False,
     )
     return {"run_dir": str(out_dir), "decisions": len(decisions), "orders": len(orders), "fills": len(fills)}
 
@@ -811,6 +1024,7 @@ def build_stock_run(
         account=account,
         symbols=sorted(symbols),
         bridge_kind="legacy_stock_csv_sessions",
+        include_fill_exposure_rollups=True,
     )
     return {"run_dir": str(out_dir), "decisions": len(decisions), "orders": len(orders), "fills": len(fills)}
 
@@ -826,10 +1040,23 @@ def write_run_artifacts(
     account: list[dict[str, Any]],
     symbols: list[str],
     bridge_kind: str,
+    include_fill_exposure_rollups: bool,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "summary.json", summary)
     write_json(out_dir / "runner_status.json", runner_status)
+    write_json(
+        out_dir / "performance_rollups.json",
+        build_performance_rollups(
+            out_dir=out_dir,
+            summary=summary,
+            account=account,
+            orders=orders,
+            fills=fills,
+            bridge_kind=bridge_kind,
+            include_fill_exposure=include_fill_exposure_rollups,
+        ),
+    )
     write_json(out_dir / "plugin_contract.json", {
         "schema_version": 1,
         "plugin": {

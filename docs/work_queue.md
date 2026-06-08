@@ -506,6 +506,11 @@ strategy-private.
     paper order, fill, and EOD-flatten logs, so accepted stock signals are
     linked to actual paper orders/fills, realized PnL, commission, final flat
     state, and max gross exposure instead of appearing as signal-only runs.
+  - partial; legacy runtime bridge outputs now write runner-owned
+    `performance_rollups.json` artifacts for bridged crypto and stock runs,
+    including daily/month/year account-equity rollups plus public-safe
+    order/fill/rejection counts. Stock rollups derive intraday max exposure
+    from trusted paper fills when final account snapshots are flat.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.

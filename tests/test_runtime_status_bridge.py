@@ -127,6 +127,7 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     result = build_crypto_run(tmp_path / "crypto_state.json", sessions, out, max_sessions=10)
 
     metrics = summarize_run(out)
+    rollups = json.loads((out / "performance_rollups.json").read_text())
     orders = read_jsonl(out / "orders.jsonl")
     fills = read_jsonl(out / "fills.jsonl")
     assert result["decisions"] == 2
@@ -135,6 +136,13 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     assert metrics["orders"] == 2
     assert metrics["fills"] == 2
     assert metrics["final_equity"] == 35100
+    assert metrics["artifact_files"]["performance_rollups"] is True
+    assert rollups["source"] == "legacy_runtime_status_bridge"
+    assert rollups["bridge_kind"] == "legacy_crypto_csv_sessions"
+    assert rollups["rollups"][0]["day"] == "2026-01-02"
+    assert rollups["rollups"][0]["order_count"] == 2
+    assert rollups["rollups"][0]["fill_count"] == 2
+    assert rollups["period_rollups"]["month"][0]["label"] == "2026-01"
     assert orders[0]["tag"] == "entry"
     assert orders[1]["tag"] == "exit"
     assert fills[0]["tag"] == "entry"
@@ -272,6 +280,7 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
         max_sessions=10,
     )
     metrics = summarize_run(out)
+    rollups = json.loads((out / "performance_rollups.json").read_text())
     assert result["decisions"] == 1
     assert result["orders"] == 2
     assert result["fills"] == 2
@@ -282,6 +291,14 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     assert metrics["fill_sides"] == {"buy": 1, "sell": 1}
     assert metrics["realized_pnl"] == 30.0
     assert metrics["total_commission"] == 1.25
+    assert metrics["artifact_files"]["performance_rollups"] is True
+    assert rollups["source"] == "legacy_runtime_status_bridge"
+    assert rollups["bridge_kind"] == "legacy_stock_csv_sessions"
+    assert rollups["rollups"][0]["day"] == "2026-01-02"
+    assert rollups["rollups"][0]["order_count"] == 2
+    assert rollups["rollups"][0]["fill_count"] == 2
+    assert rollups["rollups"][0]["max_gross_exposure"] == 1000.0
+    assert rollups["period_rollups"]["year"][0]["label"] == "2026"
 
     state = tmp_path / "supervisor_state.json"
     status = tmp_path / "runtime" / "supervisor" / "status.json"
