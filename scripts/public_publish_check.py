@@ -45,6 +45,11 @@ def build_checks(*, include_screenshots: bool = False) -> list[Check]:
             [sys.executable, "scripts/audit_cloud_examples.py"],
         ),
         Check(
+            "workbench_contract_audit",
+            "Check public Workbench plugin/example contracts.",
+            [sys.executable, "scripts/audit_workbench_contracts.py"],
+        ),
+        Check(
             "python_compile",
             "Compile public Python files.",
             [sys.executable, "-m", "compileall", "-q", "."],

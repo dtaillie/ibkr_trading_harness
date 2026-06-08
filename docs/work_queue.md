@@ -1725,6 +1725,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     plugin hooks but lack `example_only`, example-only, or non-viable boundary
     language, so future public examples cannot silently look like viable
     strategies.
+  - partial; `scripts/audit_workbench_contracts.py` now checks exported
+    Workbench/plugin contracts directly: schema/version tokens, the builtin
+    no-edge public plugin, exported example config `example_only` status,
+    example/private replacement guidance, and the local plugin-registry
+    placeholder boundary.
 - Add schema-driven form rendering after config schemas are reliable.
   - partial; `config_draft_options` now returns public-safe form field metadata
     for the core Config Builder fields, and the Workbench renders those
@@ -2213,10 +2218,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     no-edge examples, dashboard labels, and remaining limitations.
   - partial; `scripts/public_publish_check.py` now provides a consolidated
     public pre-publish gate for export-manifest JSON, strict public readiness,
-    cloud examples, Python compile, dashboard JavaScript syntax, pytest,
-    default/seeded/empty dashboard smokes, accessibility, and optional
-    screenshot layout checks. Help, README, and publication-readiness docs
-    point to it before the manual inspection step.
+    public docs, cloud examples, Workbench contracts, Python compile,
+    dashboard JavaScript syntax, pytest, default/seeded/empty dashboard smokes,
+    accessibility, and optional screenshot layout checks. Help, README, and
+    publication-readiness docs point to it before the manual inspection step.
   - partial; `scripts/audit_public_docs.py` now checks that the exported
     README, quickstart, publication-readiness checklist, blog draft,
     configuration privacy guide, and cloud deployment runbook retain required

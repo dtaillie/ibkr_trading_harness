@@ -119,7 +119,9 @@ Use this after exporting the public candidate and before pushing to GitHub:
 python3 scripts/export_public_repo.py --dest ../algo_trade_public --force
 cd ../algo_trade_public
 python3 scripts/public_readiness_audit.py --fail-on-review
+python3 scripts/audit_public_docs.py
 python3 scripts/audit_cloud_examples.py
+python3 scripts/audit_workbench_contracts.py
 PYTHONPATH=. pytest -q
 python3 scripts/smoke_dashboard.py --scenario seeded
 python3 scripts/smoke_dashboard.py --scenario empty
