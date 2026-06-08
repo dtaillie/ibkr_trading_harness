@@ -1001,6 +1001,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-preview-summary" in html
         assert "data-preview-wall" in html
         assert "data-home-inspect-top" in html
+        assert "data-action-note" in html
+        assert "data-action-cards" in html
+        assert "data-action-actions" in html
         assert "data-inventory-title" in html
         assert "data-inventory-note" in html
         assert "data-inventory-cards" in html

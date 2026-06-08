@@ -12843,6 +12843,176 @@ function dataVisibilityReportText(model) {
   ].join("\n");
 }
 
+function dataActionSummaryModel(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const diagnostics = state.diagnostics || {};
+  const datasets = catalog.datasets || [];
+  const roots = diagnostics.data_roots || [];
+  const suggestedRoots = diagnostics.suggested_data_roots || [];
+  const rootSummaries = catalog.root_summaries || [];
+  const rootInventory = catalog.root_inventory || {};
+  const symbolIndex = state.dataSymbolIndex || {};
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const fetchTotals = fetchManifestVisibilityTotals(manifests);
+  const loadState = dataLibraryLoadState();
+  const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
+  const catalogRows = Number(catalog.count || datasets.length || 0);
+  const filteredCount = Number((filteredRows || []).length || 0);
+  const filters = dataFilterSummary();
+  const hiddenByFilters = Math.max(0, catalogRows - filteredCount);
+  const symbols = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const activeRows = filters.length ? filteredRows : datasets;
+  const activeSymbols = new Set((activeRows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a"));
+  const range = timestampRangeFromDatasets(activeRows || []);
+  const matrix = dataHistoryMatrixRows(activeRows || []);
+  const readyGroups = matrix.filter((group) => group.status === "ok").length;
+  const blockedGroups = matrix.filter((group) => group.status === "bad").length;
+  const parserErrors = Number(rootInventory.parse_error_count ?? catalog.error_count ?? rootSummaries.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0));
+  const qualityCounts = catalog.quality_counts || countBy(datasets, "quality_status");
+  const contractCounts = catalog.storage_contract_counts || countBy(datasets, "storage_contract_status");
+  const qualityIssues = Number(qualityCounts.bad || 0) + Number(qualityCounts.warn || 0);
+  const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
+  const capped = catalogScopeIsCapped(catalog);
+  const indexFiles = Number(symbolIndex.file_count || ((symbolIndex.files || []).length) || 0);
+  const indexSymbols = Number(symbolIndex.symbol_count || ((symbolIndex.symbols || []).length) || 0);
+  const indexCapped = symbolIndex.index_complete === false || Number(symbolIndex.scan_capped_root_count || 0) > 0;
+  const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
+  const best = (filteredRows || []).find((dataset) => dataset.path) || datasets.find((dataset) => dataset.path) || null;
+  const issueCount = parserErrors + Number(qualityCounts.bad || 0) + Number(contractCounts.bad || 0) + fetchTotals.errors;
+  let status = "bad";
+  let headline = "No saved data is ready yet";
+  let note = "Start by configuring roots, running a fetch, or opening diagnostics to explain what the dashboard can see.";
+  let primaryHref = "#data/diagnostics";
+  let primaryLabel = "Open Diagnostics";
+
+  if (firstCatalogLoad) {
+    status = "warn";
+    headline = "Saved-data scan is running";
+    note = `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"} are scanning; this summary will update when catalog rows load.`;
+    primaryHref = "#data";
+    primaryLabel = "Stay On Data Home";
+  } else if (suggestedRoots.length && (!roots.length || !catalogRows)) {
+    status = "warn";
+    headline = "Local history may be outside configured roots";
+    note = `${numberText(suggestedRoots.length, 0)} suggested root${suggestedRoots.length === 1 ? "" : "s"} may contain saved bars that Data Library is not scanning yet.`;
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Copy Root YAML";
+  } else if (!catalogRows && indexFiles) {
+    status = "warn";
+    headline = "Root index sees files, but parser catalog is empty";
+    note = `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} are inferred from filenames.`;
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Review Scanner";
+  } else if (!catalogRows && manifests.length) {
+    status = "warn";
+    headline = "Fetch jobs exist, but no saved rows are visible";
+    note = `${numberText(manifests.length, 0)} fetch manifest${manifests.length === 1 ? "" : "s"} are loaded; check output paths and data roots.`;
+    primaryHref = "#fetch";
+    primaryLabel = "Open Fetch Jobs";
+  } else if (!catalogRows) {
+    status = roots.length ? "warn" : "bad";
+    headline = roots.length ? "Configured roots have no parsed rows" : "No saved-data roots configured";
+    note = roots.length ? "Open diagnostics to see parser errors, unsupported files, or scan limits." : "Configure dashboard.data_roots or run a fetch job before browsing history.";
+    primaryHref = roots.length ? "#data/diagnostics" : "#fetch";
+    primaryLabel = roots.length ? "Open Diagnostics" : "Fetch Data";
+  } else if (hiddenByFilters === catalogRows) {
+    status = "warn";
+    headline = "Filters hide every saved file";
+    note = `${numberText(catalogRows, 0)} files are loaded, but current filters show zero rows.`;
+    primaryHref = "#data/browse";
+    primaryLabel = "Browse And Clear";
+  } else if (parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0)) {
+    status = "bad";
+    headline = "Visible data has replay blockers";
+    note = `${numberText(parserErrors, 0)} parser errors, ${numberText(Number(qualityCounts.bad || 0), 0)} bad-quality files, and ${numberText(Number(contractCounts.bad || 0), 0)} bad-contract files need review.`;
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Review Blockers";
+  } else if (capped || indexCapped || (indexFiles && indexFiles > catalogRows)) {
+    status = "warn";
+    headline = "Visible catalog may be a partial sample";
+    note = `Parsed catalog has ${numberText(catalogRows, 0)} files while the root index sees ${numberText(indexFiles, 0)} candidate files.`;
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Check Scan Limit";
+  } else if (fetchTotals.issues || fetchTotals.errors) {
+    status = "warn";
+    headline = "Fetch outputs need visibility review";
+    note = `${numberText(fetchTotals.issues + fetchTotals.errors, 0)} fetch output or failure clue${fetchTotals.issues + fetchTotals.errors === 1 ? "" : "s"} are visible.`;
+    primaryHref = "#fetch";
+    primaryLabel = "Review Fetch Jobs";
+  } else {
+    status = qualityIssues || contractIssues ? "warn" : "ok";
+    headline = `${numberText(activeSymbols.size || symbols.size, 0)} symbols are ready to inspect`;
+    note = `${numberText(filteredCount || catalogRows, 0)} visible file${(filteredCount || catalogRows) === 1 ? "" : "s"} across ${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"}.`;
+    primaryHref = "#data/browse";
+    primaryLabel = "Browse Saved Data";
+  }
+
+  const cards = [
+    {
+      status,
+      label: "Next Move",
+      title: headline,
+      detail: note,
+    },
+    {
+      status: catalogRows ? hiddenByFilters ? "warn" : "ok" : "bad",
+      label: "Visible Scope",
+      title: `${numberText(filteredCount, 0)} / ${numberText(catalogRows, 0)} files`,
+      detail: filters.length ? `${filters.join(" / ")}; ${numberText(hiddenByFilters, 0)} hidden.` : `${numberText(symbols.size, 0)} symbols loaded with no active Browse filters.`,
+    },
+    {
+      status: indexError !== "n/a" ? "bad" : indexFiles ? (indexCapped || indexFiles > catalogRows ? "warn" : "ok") : catalogRows ? "warn" : "bad",
+      label: "Universe Check",
+      title: indexFiles ? `${numberText(indexSymbols, 0)} indexed symbols` : `${numberText(symbols.size, 0)} parsed symbols`,
+      detail: indexError !== "n/a" ? `Index failed: ${indexError}.` : `${numberText(indexFiles, 0)} root-index candidates; catalog ${capped ? "capped" : "not capped"}.`,
+    },
+    {
+      status: parserErrors || Number(qualityCounts.bad || 0) || Number(contractCounts.bad || 0) ? "bad" : qualityIssues || contractIssues ? "warn" : catalogRows ? "ok" : "bad",
+      label: "Readiness",
+      title: issueCount ? `${numberText(issueCount, 0)} blocker` : catalogRows ? "Usable" : "Unknown",
+      detail: `${numberText(qualityIssues, 0)} quality review / ${numberText(contractIssues, 0)} contract review / ${numberText(parserErrors, 0)} parser errors.`,
+    },
+    {
+      status: blockedGroups ? "bad" : readyGroups ? "ok" : matrix.length ? "warn" : catalogRows ? "warn" : "bad",
+      label: "History Groups",
+      title: `${numberText(matrix.length, 0)} groups`,
+      detail: `${numberText(readyGroups, 0)} ready and ${numberText(blockedGroups, 0)} blocked for Workbench replay. ${range.start && range.end ? `${range.start} to ${range.end}.` : "No timestamp range loaded."}`,
+    },
+    {
+      status: best ? "ok" : catalogRows ? "warn" : "bad",
+      label: "Inspect First",
+      title: best ? text(best.symbol) : "none",
+      detail: best ? `${text(best.bar_size)} ${text(best.source)} / ${numberText(best.rows, 0)} rows / ${text(best.quality_status)} quality.` : "No inspectable file is currently visible.",
+    },
+  ];
+  const actions = [
+    { href: primaryHref, label: primaryLabel },
+    { href: "#data/browse", label: "Browse", secondary: true },
+    { href: "#data/inspect", label: "Inspect", secondary: true },
+    { href: "#data/compare", label: "Compare", secondary: true },
+    { href: "#data/diagnostics", label: "Diagnostics", secondary: true },
+    { href: "#workbench/builder", label: "Workbench", secondary: true },
+    { href: "#fetch", label: "Fetch Jobs", secondary: true },
+  ];
+  return { status, headline, note, cards, actions };
+}
+
+function renderDataActionSummary(filteredRows = []) {
+  if (!$("data-action-note") || !$("data-action-cards") || !$("data-action-actions")) return;
+  const model = dataActionSummaryModel(filteredRows);
+  $("data-action-note").textContent = model.note;
+  $("data-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("data-action-actions").innerHTML = model.actions.map((action) => (
+    `<a${action.secondary ? ' class="secondary"' : ""} href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>`
+  )).join("");
+}
+
 function renderDataVisibilityReport(filteredRows = []) {
   if (!$("data-visibility-report-note") || !$("data-visibility-report-cards") || !$("data-visibility-report-body") || !$("data-visibility-report-actions")) return;
   const model = dataVisibilityReportModel(filteredRows);
@@ -13226,6 +13396,7 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Quality", catalog.quality_counts || countBy(datasets, "quality_status")),
     breakdownChips("Contract", contractCounts),
   ].join("");
+  renderDataActionSummary(filteredRows);
   renderDataScopeAssistant(filteredRows);
   renderDataInventoryPanel(filteredRows);
   renderDataHistoryReview(filteredRows);

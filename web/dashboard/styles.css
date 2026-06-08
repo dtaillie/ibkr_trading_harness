@@ -1928,6 +1928,7 @@ section {
 
 #data-inventory-actions a,
 #data-history-actions a,
+#data-action-actions a,
 #workbench-simulation-actions a,
 #workbench-readiness-actions a,
 #performance-review-actions a,
@@ -1950,6 +1951,7 @@ section {
 
 #data-inventory-actions a.secondary,
 #data-history-actions a.secondary,
+#data-action-actions a.secondary,
 #workbench-simulation-actions a.secondary,
 #workbench-readiness-actions a.secondary,
 #performance-review-actions a.secondary,
@@ -3644,6 +3646,7 @@ section {
 .workbench-evidence-panel,
 .fetch-evidence-panel,
 .fetch-action-summary-panel,
+.data-action-summary-panel,
 .data-inventory-evidence-panel,
 .operations-action-summary-panel,
 .operations-evidence-panel,
@@ -3661,6 +3664,7 @@ section {
 .workbench-evidence-panel .section-note,
 .fetch-evidence-panel .section-note,
 .fetch-action-summary-panel .section-note,
+.data-action-summary-panel .section-note,
 .data-inventory-evidence-panel .section-note,
 .operations-action-summary-panel .section-note,
 .operations-evidence-panel .section-note,

@@ -940,6 +940,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     replay readiness, filter pressure, root/scanner issues, fetch-output
     visibility, and a copyable next-action summary into one first-screen proof
     chain before users open dense Browse/Diagnostics/Fetch tables.
+  - partial; Data Home now includes a Data Action Summary that chooses the
+    first route across missing roots, suggested local roots, root-index/catalog
+    mismatches, scan caps, hidden filters, replay blockers, fetch-output
+    visibility issues, and inspect/compare/workbench handoff so users do not
+    need to interpret every diagnostics panel before taking the next step.
   - partial; `/data_catalog` now publishes a normalized `root_inventory`
     summary plus per-root `inventory_status`/`inventory_reason` fields, and the
     Data Library scope/visibility/scan reports use those fields so parser

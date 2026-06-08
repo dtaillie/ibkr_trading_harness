@@ -318,11 +318,14 @@ downsampled price previews. It also includes a recent date-bin coverage view
 and a storage audit that compares configured/suggested root files with
 catalog-visible rows. The symbol diagnostic answers why a ticker is visible,
 scan-limited, in an unconfigured root, malformed, fetch-failed, or absent. Data
-Home includes a Historical Inventory Evidence panel and Data Visibility Report
-that summarize parsed catalog files, root-index candidates, saved history
-matrix groups, filters, catalog caps, root visibility, parser skips, replay
-readiness, and fetch-output visibility before users open dense tables, plus a
-Saved Data Preview Wall with summary cards, sparklines, and direct
+Home starts with a Data Action Summary that picks the next route across root
+setup, scan caps, hidden filters, replay blockers, fetch-output visibility,
+and inspect/compare/workbench handoff. It also includes a Historical Inventory
+Evidence panel and Data Visibility Report that summarize parsed catalog files,
+root-index candidates, saved history matrix groups, filters, catalog caps, root
+visibility, parser skips, replay readiness, and fetch-output visibility before
+users open dense tables, plus a Saved Data Preview Wall with summary cards,
+sparklines, and direct
 Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
 reads JSON manifests from configured manifest roots, summarizing historical-data
 pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.

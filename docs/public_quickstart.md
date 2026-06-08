@@ -400,8 +400,10 @@ archived account artifacts by UTC day with return, equity, orders, fills,
 rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, historical
-previews, a Data Home Saved Data Preview Wall with summary cards, sparklines,
-and direct Inspect/Compare/Workbench actions, and a shortlist with direct
+previews, a Data Home Action Summary that chooses the next route across root
+setup, scan caps, filters, replay blockers, fetch-output visibility, and
+inspect/compare/workbench handoff, plus a Saved Data Preview Wall with summary
+cards, sparklines, and direct Inspect/Compare/Workbench actions, and a shortlist with direct
 Inspect, Filter, and Compare actions for the best currently visible files. Use Saved Data
 Explorer in Browse
 when you want the broad saved-data map first: it groups the bounded parsed
@@ -624,8 +626,9 @@ Workbench handoff.
 Use Saved Data Explorer before choosing a row when you do not yet know which
 symbol or source matters; it shows whether the parsed local catalog is mostly
 stocks, crypto, 1-minute bars, 5-minute bars, RTH files, 24/7 files, or
-warning-heavy metadata. If the parsed catalog is capped, use Data Home's Root
-Index count before concluding that other symbols do not exist on disk.
+warning-heavy metadata. If the parsed catalog is capped, start with Data
+Home's Action Summary and Root Index count before concluding that other symbols
+do not exist on disk.
 Use Compare Saved Data to select several catalog-visible datasets and overlay
 their normalized close-return paths over one requested date range. Use Find
 Dataset to filter a large catalog by symbol, source, bar size, quality, or path;

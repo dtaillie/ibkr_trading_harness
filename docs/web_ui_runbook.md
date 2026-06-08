@@ -67,8 +67,11 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Read Data Inventory, Historical Inventory Evidence, Universe Coverage, Data
-   Visibility Report, and Catalog Scope. Compare Root Index counts with parsed
+2. Start with Action Summary, then read Data Inventory, Historical Inventory
+   Evidence, Universe Coverage, Data Visibility Report, and Catalog Scope.
+   Action Summary chooses the first route across root setup, scan caps, hidden
+   filters, replay blockers, fetch-output visibility, and
+   inspect/compare/workbench handoff. Compare Root Index counts with parsed
    catalog counts: if Root Index sees many more candidate files/symbols, the
    dashboard has found local files but the quality catalog is still a bounded
    parsed sample. If Catalog Scope says the scan is capped, use Scan Max Rows
@@ -332,7 +335,9 @@ works offline from saved CSV/parquet files and shows:
 Start with Data Home when the catalog is large. Saved Data Preview Wall shows
 sampled close-path sparklines for the top visible files with a summary of
 scope, replay readiness, coverage, sampled-return leader, and direct Inspect,
-Compare, and Workbench actions. The shortlist ranks the currently visible
+Compare, and Workbench actions. Action Summary above it explains the first
+route when roots, scan caps, filters, parser errors, fetch outputs, or replay
+readiness are the reason data is hard to find. The shortlist ranks the currently visible
 saved files by quality, rows, and recency, then gives direct Inspect, Filter,
 and Compare actions before you need to use the dense table.
 Use Saved Data Explorer when you do not know the symbol yet. It answers which
