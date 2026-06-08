@@ -315,6 +315,34 @@ def test_runtime_bridge_builds_stock_and_supervisor_status(tmp_path):
     assert payload["status"] == "ok"
     assert payload["jobs"][0]["id"] == "last_stock_started_at"
 
+    write_json(
+        state,
+        {
+            "schema_version": 2,
+            "status": "warn",
+            "generated_at": "2026-01-03T16:00:00",
+            "active_children": [{"id": "crypto", "status": "running", "pid": 123}],
+            "job_status_counts": {"missed": 1, "running": 1},
+            "jobs": [
+                {
+                    "id": "stock_paper",
+                    "status": "missed",
+                    "reason": "missed_start_window",
+                    "missed_window": True,
+                    "next_start_at": "2026-01-04T07:25:00",
+                }
+            ],
+        },
+    )
+    result = build_supervisor_status(state, status)
+    payload = json.loads(status.read_text())
+    assert result["jobs"] == 1
+    assert payload["status"] == "warn"
+    assert payload["generated_at"] == "2026-01-03T16:00:00"
+    assert payload["active_children"][0]["id"] == "crypto"
+    assert payload["job_status_counts"] == {"missed": 1, "running": 1}
+    assert payload["jobs"][0]["reason"] == "missed_start_window"
+
 
 def test_runtime_bridge_prefers_authoritative_state_positions_when_fills_disagree(tmp_path):
     sessions = tmp_path / "crypto_sessions"

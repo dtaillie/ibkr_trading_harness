@@ -345,8 +345,9 @@ confirmation requirements, pending/failed command pressure, audit integrity,
 retention state, selected-action boundary copy, and fail-closed high-risk
 live-control actions. It also includes Supervisor Action Summary before the
 supervisor table, summarizing local supervisor/job state, stale heartbeats,
-failed or paused jobs, and pause/restart marker availability while only
-preparing, not queueing, `supervisor_status` or `run_supervisor_once`.
+missed/running/due/waiting jobs, and pause/restart marker availability while
+only preparing, not queueing, `supervisor_status` or `run_supervisor_once`.
+Missed start windows should publish the reason and next expected start time.
 The dashboard can also inspect configured local
 CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
 root-scan diagnostics, suggested unconfigured local roots, and small

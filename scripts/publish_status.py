@@ -688,10 +688,22 @@ def summarize_configured_supervisors(supervisors_cfg: list[Any], *, now: datetim
             if not isinstance(jobs, list):
                 jobs = []
             statuses = Counter(str(job.get("status", "")) for job in jobs if isinstance(job, dict))
+            published_status_counts = payload.get("job_status_counts")
+            if isinstance(published_status_counts, dict):
+                statuses.update({
+                    str(key): int(value or 0)
+                    for key, value in published_status_counts.items()
+                    if key and str(key) not in statuses
+                })
+            active_children = payload.get("active_children") or []
+            if not isinstance(active_children, list):
+                active_children = []
             record.update({
                 "status": str(payload.get("status") or "ok"),
                 "generated_at": payload.get("generated_at"),
                 "jobs": jobs,
+                "active_children": active_children,
+                "active_child_count": len(active_children),
                 "job_status_counts": dict(sorted(statuses.items())),
                 "freshness": freshness_record(
                     payload.get("generated_at"),
@@ -711,6 +723,23 @@ def summarize_configured_supervisors(supervisors_cfg: list[Any], *, now: datetim
                     "kind": "supervisor_status",
                     "message": f"{supervisor_id}: status={record['status']}",
                 })
+            for job in jobs:
+                if not isinstance(job, dict):
+                    continue
+                job_id = str(job.get("id") or "job")
+                job_status = str(job.get("status") or "")
+                if job_status == "missed" or job.get("missed_window") is True:
+                    alerts.append({
+                        "level": "warn",
+                        "kind": "supervisor_job_missed_window",
+                        "message": f"{supervisor_id}: {job_id} missed its start window",
+                    })
+                elif job_status == "not_running" and job.get("enabled") is True:
+                    alerts.append({
+                        "level": "warn",
+                        "kind": "supervisor_job_not_running",
+                        "message": f"{supervisor_id}: {job_id} is enabled but not running",
+                    })
         except Exception as exc:
             record["status"] = "error"
             record["error"] = str(exc)

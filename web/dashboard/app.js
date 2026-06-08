@@ -25719,12 +25719,36 @@ function supervisorJobRows(supervisor) {
   return Array.isArray(supervisor && supervisor.jobs) ? supervisor.jobs.filter((job) => job && typeof job === "object") : [];
 }
 
+function supervisorJobSummary(supervisor) {
+  const jobs = supervisorJobRows(supervisor);
+  if (!jobs.length) return { status: "warn", text: "0", detail: "No jobs published" };
+  const missed = jobs.filter((job) => job.missed_window === true || String(job.status || "").toLowerCase() === "missed");
+  const running = jobs.filter((job) => String(job.status || "").toLowerCase() === "running");
+  const due = jobs.filter((job) => String(job.status || "").toLowerCase() === "due");
+  const waiting = jobs.filter((job) => String(job.status || "").toLowerCase() === "waiting");
+  const next = jobs
+    .filter((job) => job.next_start_at)
+    .slice()
+    .sort((a, b) => String(a.next_start_at || "").localeCompare(String(b.next_start_at || "")))[0];
+  const status = missed.length ? "bad" : due.length || running.length ? "ok" : "warn";
+  const textValue = missed.length
+    ? `${numberText(missed.length, 0)} missed`
+    : running.length ? `${numberText(running.length, 0)} running`
+      : due.length ? `${numberText(due.length, 0)} due`
+        : `${numberText(waiting.length, 0)} waiting`;
+  const detail = missed.length
+    ? `${text(missed[0].label || missed[0].id)} missed ${text(missed[0].reason || "start window")}.`
+    : next ? `Next: ${text(next.label || next.id)} at ${text(next.next_start_at)}.`
+      : "No next start time published.";
+  return { status, text: textValue, detail };
+}
+
 function supervisorActionStatus(value) {
   const status = String(value || "").toLowerCase();
   if (!status) return "unknown";
-  if (["ok", "running", "waiting", "not_due", "completed", "success", "idle"].includes(status)) return "ok";
-  if (["paused", "pending", "stopped", "exited", "disabled", "missing"].includes(status)) return "warn";
-  if (["failed", "error", "bad", "rejected", "timeout", "dead", "crashed", "exception"].includes(status)) return "bad";
+  if (["ok", "running", "waiting", "not_due", "due", "completed", "completed_or_exited", "success", "idle"].includes(status)) return "ok";
+  if (["paused", "pending", "stopped", "exited", "disabled", "missing", "not_running"].includes(status)) return "warn";
+  if (["failed", "error", "bad", "rejected", "timeout", "dead", "crashed", "exception", "missed", "missed_start_window"].includes(status)) return "bad";
   return status.includes("fail") || status.includes("error") || status.includes("crash") ? "bad" : "warn";
 }
 
@@ -25887,14 +25911,17 @@ function renderSupervisors() {
   const supervisors = (state.status && state.status.supervisors) || [];
   renderSupervisorActionSummary();
   $("supervisors-body").innerHTML = supervisors.length
-    ? supervisors.map((supervisor) => row([
+    ? supervisors.map((supervisor) => {
+      const jobSummary = supervisorJobSummary(supervisor);
+      return row([
         escapeHtml(supervisor.id),
         statusText(supervisor.status),
-        escapeHtml((supervisor.jobs || []).length),
+        `<span class="${statusClass(jobSummary.status)}">${escapeHtml(jobSummary.text)}</span><br><span class="muted">${escapeHtml(jobSummary.detail)}</span>`,
         escapeHtml(supervisor.generated_at),
         `<span class="${statusClass((supervisor.freshness || {}).stale ? "warn" : "ok")}">${escapeHtml(age((supervisor.freshness || {}).age_seconds))}</span>`,
         jsonDrilldown(supervisor.job_status_counts || {}, countSummary(supervisor.job_status_counts || {})),
-      ])).join("")
+      ]);
+    }).join("")
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 }
 

@@ -647,9 +647,11 @@ confirmation requirements, pending and failed command pressure, audit
 integrity, retention state, selected-action boundary copy, and the high-risk
 live-control actions that remain fail-closed in the public command surface.
 Supervisor Action Summary is the first supervisor view: it summarizes loaded
-local supervisor count, job count, stale heartbeats, failed/paused jobs, and
-pause/restart marker availability, then prepares `supervisor_status` or
-`run_supervisor_once` without queueing either command.
+local supervisor count, job count, stale heartbeats, missed/running/due/waiting
+jobs, and pause/restart marker availability, then prepares `supervisor_status`
+or `run_supervisor_once` without queueing either command. A missed start window
+should appear as a structured supervisor job alert with the next expected start
+time; it should not require reading local service logs.
 
 Click Detail on a node when you need bounded per-node history, recent
 decisions/orders/fills, latest run summaries, alerts, and supervisors. Remote

@@ -564,9 +564,10 @@ Operations Remote starts with a Remote Action Summary that routes missing
 snapshots, stale heartbeats, Gateway/API blockers, alerts, open orders, stale
 feed timestamps, active filters, or healthy report/export review. The
 Supervisor Action Summary sits above the supervisor table and summarizes local
-supervisor/job state, stale heartbeats, failed or paused jobs, and pause/restart
-marker availability before preparing `supervisor_status` or `run_supervisor_once`
-controls. The
+supervisor/job state, stale heartbeats, missed/running/due/waiting jobs, and
+pause/restart marker availability before preparing `supervisor_status` or
+`run_supervisor_once` controls. Missed start windows should include the reason
+and next expected start time in the status payload. The
 Remote Monitor Report summarizes remote node coverage, heartbeat,
 Gateway/API state, alerts, open orders, stale data/account timestamps, and next
 actions in copyable rows before the remote-node table. After selecting a node,

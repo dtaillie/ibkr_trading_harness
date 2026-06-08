@@ -211,6 +211,12 @@ strategy-private.
     This closes the stale-manual-server gap where `/status` could be fresh while
     newer Data Library and Workbench endpoints still returned missing backend
     data.
+  - partial; the combined paper supervisor now publishes structured job
+    schedule state with active children, missed start windows, reasons, and
+    next expected start times. The status bridge and publisher preserve those
+    fields, raise explicit `supervisor_job_missed_window` alerts, and the
+    Operations supervisor table summarizes missed/running/due/waiting jobs
+    directly instead of forcing users to infer "disconnected/no data" from logs.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

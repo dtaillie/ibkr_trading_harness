@@ -847,6 +847,53 @@ def test_collect_status_warns_on_stale_supervisor(tmp_path):
     assert any(alert["kind"] == "supervisor_stale" for alert in payload["alerts"])
 
 
+def test_collect_status_warns_on_supervisor_missed_window(tmp_path):
+    supervisor_state = tmp_path / "supervisor" / "status.json"
+    supervisor_state.parent.mkdir(parents=True)
+    supervisor_state.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "status": "warn",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "active_children": [{"id": "crypto", "status": "running", "pid": 123}],
+                "jobs": [
+                    {
+                        "id": "stock_paper",
+                        "label": "Stock paper runner",
+                        "status": "missed",
+                        "reason": "missed_start_window",
+                        "enabled": True,
+                        "missed_window": True,
+                        "next_start_at": "2026-01-05T07:25:00",
+                    },
+                    {
+                        "id": "crypto_hourly",
+                        "label": "Crypto hourly runner",
+                        "status": "running",
+                        "enabled": True,
+                    },
+                ],
+            },
+            sort_keys=True,
+        )
+    )
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "supervisors": [{"id": "paper", "path": str(supervisor_state), "max_age_seconds": 60}],
+    })
+
+    supervisor = payload["supervisors"][0]
+    assert payload["status"] == "warn"
+    assert supervisor["status"] == "warn"
+    assert supervisor["active_child_count"] == 1
+    assert supervisor["active_children"][0]["id"] == "crypto"
+    assert supervisor["job_status_counts"] == {"missed": 1, "running": 1}
+    assert supervisor["jobs"][0]["reason"] == "missed_start_window"
+    assert any(alert["kind"] == "supervisor_job_missed_window" for alert in payload["alerts"])
+
+
 def test_collect_status_warns_on_stale_remote_control_audit(tmp_path):
     audit_log = tmp_path / "audit.jsonl"
     old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()

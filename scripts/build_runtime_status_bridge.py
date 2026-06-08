@@ -1083,21 +1083,32 @@ def write_run_artifacts(
 def build_supervisor_status(state_path: Path, out_path: Path) -> dict[str, Any]:
     state = read_json(state_path)
     now = utc_now().isoformat()
-    jobs = []
-    for key, value in sorted(state.items()):
-        if value in {None, ""}:
-            continue
-        jobs.append({
-            "id": key,
-            "status": "observed",
-            "last_seen_at": iso_or_none(value) if key.endswith(("_at", "_started")) else None,
-            "value": value,
-        })
+    jobs = state.get("jobs") if isinstance(state.get("jobs"), list) else None
+    if jobs is None:
+        jobs = []
+        for key, value in sorted(state.items()):
+            if value in {None, ""}:
+                continue
+            jobs.append({
+                "id": key,
+                "status": "observed",
+                "last_seen_at": iso_or_none(value) if key.endswith(("_at", "_started")) else None,
+                "value": value,
+            })
     payload = {
-        "status": "ok" if state else "missing",
-        "generated_at": now,
+        "status": state.get("status") or ("ok" if state else "missing"),
+        "generated_at": state.get("generated_at") or now,
         "jobs": jobs,
     }
+    for key in (
+        "active_children",
+        "job_status_counts",
+        "last_crypto_started_at",
+        "last_stock_baseline_refresh_started_at",
+        "last_stock_started_at",
+    ):
+        if key in state:
+            payload[key] = state[key]
     write_json(out_path, payload)
     return {"path": str(out_path), "jobs": len(jobs)}
 
