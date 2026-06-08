@@ -398,7 +398,10 @@ Summary and Stage Summary that show the current workflow stage, blockers, data,
 alignment, draft, run, results, and the next route. The workbench path also includes a Workbench
 Evidence panel that states whether the current setup is only data-backed,
 draft-backed, run-backed, or loaded-artifact-backed before users trust
-performance output. It
+performance output. Workbench Artifacts starts with an Artifacts Action Summary
+that routes loaded or available run evidence to latest-artifact loading,
+Performance, Runs, bounded logs, JSON export, or Run Draft before the dense
+artifact tables. It
 remains limited to file-based data under configured
 data roots and non-live modes. Drafts can use
 one or more selected datasets, with duplicate symbols and duplicate paths

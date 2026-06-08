@@ -2011,6 +2011,25 @@ section {
   font-size: 12px;
 }
 
+#workbench-artifacts-action-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  text-align: left;
+}
+
+#workbench-artifacts-action-actions button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#workbench-artifacts-action-actions button b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 .task-field,
 .task-field select {
   min-width: 170px;
@@ -2020,6 +2039,7 @@ section {
 #data-history-actions a,
 #data-action-actions a,
 #workbench-action-actions a,
+#workbench-artifacts-action-actions a,
 #workbench-simulation-actions a,
 #workbench-readiness-actions a,
 #performance-review-actions a,
@@ -2044,6 +2064,7 @@ section {
 #data-history-actions a.secondary,
 #data-action-actions a.secondary,
 #workbench-action-actions a.secondary,
+#workbench-artifacts-action-actions a.secondary,
 #workbench-simulation-actions a.secondary,
 #workbench-readiness-actions a.secondary,
 #performance-review-actions a.secondary,
@@ -3738,6 +3759,7 @@ section {
 .performance-action-summary-panel,
 .workbench-evidence-panel,
 .workbench-action-summary-panel,
+.workbench-artifacts-action-summary-panel,
 .fetch-evidence-panel,
 .fetch-action-summary-panel,
 .data-action-summary-panel,
@@ -3761,6 +3783,7 @@ section {
 .performance-action-summary-panel .section-note,
 .workbench-evidence-panel .section-note,
 .workbench-action-summary-panel .section-note,
+.workbench-artifacts-action-summary-panel .section-note,
 .fetch-evidence-panel .section-note,
 .fetch-action-summary-panel .section-note,
 .data-action-summary-panel .section-note,

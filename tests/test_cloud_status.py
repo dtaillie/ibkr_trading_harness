@@ -1472,6 +1472,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-result-open-runs" in html
         assert "workbench-result-open-log" in html
         assert "workbench-result-tiles" in html
+        assert "workbench-artifacts-action-note" in html
+        assert "workbench-artifacts-action-cards" in html
+        assert "workbench-artifacts-action-actions" in html
         assert "artifact-plugin-boundary-note" in html
         assert "artifact-plugin-boundary-cards" in html
         assert "artifact-plugin-boundary" in html

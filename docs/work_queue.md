@@ -1952,6 +1952,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     loaded run identity, return/drawdown evidence, execution counts, plugin
     result-field coverage, rollups, held order previews, and direct
     Performance/Runs/Log/Export actions before dense artifact tables.
+  - partial; Workbench Artifacts now starts with an Artifacts Action Summary
+    that chooses between loading the latest completed run, opening Performance,
+    opening Runs, loading bounded logs, exporting the artifact JSON, or
+    returning to Run Draft before users scan artifact/log tables.
   - partial; Help > Workflows now includes a state-aware Workbench Quickstart
     that turns saved-data discovery, selected data, alignment, draft generation,
     run execution, and artifact loading into six status cards with direct jumps

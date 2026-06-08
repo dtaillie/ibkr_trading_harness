@@ -487,6 +487,10 @@ The Log button opens Workbench Artifacts and loads bounded run evidence from
 `/config_draft_run_evidence`: execution status, summary availability, stdout
 and stderr tail stats, and the expected artifact-file manifest. Use that panel
 first when a run failed, timed out, or completed without visible artifacts.
+In Workbench Artifacts, start with Artifacts Action Summary before the Run Log
+and Run Artifacts tables. It tells you whether to load the latest completed
+run, open Performance, open Runs, load bounded logs, export the artifact JSON,
+or return to Run Draft.
 
 Run Artifacts reads public-safe `diagnostics.dashboard` values from plugin
 decisions. Add `result_fields` to a public or ignored local plugin registry

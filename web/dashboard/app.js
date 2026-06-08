@@ -22893,6 +22893,156 @@ function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {
   return { status, title, note, cards, actions };
 }
 
+function latestLoadableWorkbenchRun() {
+  return ((state.configRuns && state.configRuns.runs) || [])
+    .find((run) => run && (run.run_id || run.draft_id) && text(run.status) === "completed" && text(run.action) !== "validate") || null;
+}
+
+function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts || {}) {
+  const savedRuns = (state.configRuns && state.configRuns.runs) || [];
+  const loadableRun = latestLoadableWorkbenchRun();
+  const summary = artifacts.summary || {};
+  const performance = artifacts.performance || {};
+  const pluginSummary = artifacts.plugin_result_summary || {};
+  const decisions = artifacts.decisions || [];
+  const orders = artifacts.orders || [];
+  const fills = artifacts.fills || [];
+  const logsLoaded = Boolean(state.runDetail && (state.runDetail.run_id === artifacts.run_id || state.runDetail.draft_id === artifacts.draft_id));
+  const loaded = Boolean(artifacts.run_id || artifacts.draft_id || artifacts.output_dir);
+  const runId = text(artifacts.run_id || (loadableRun && loadableRun.run_id) || "none");
+  const draftId = text(artifacts.draft_id || (loadableRun && loadableRun.draft_id) || "none");
+  const rejects = finiteNumber(summary.rejections) ?? orders.filter((order) => text(order.status).toLowerCase().includes("reject")).length;
+  const approvalHolds = finiteNumber(summary.approval_required_orders) || (artifacts.order_previews || []).length;
+  const accountRows = finiteNumber(performance.account_snapshot_count) ?? (artifacts.account || []).length;
+  const returnPct = finiteNumber(performance.total_return_pct);
+  const drawdownPct = finiteNumber(performance.max_drawdown_pct);
+  const emittedFields = finiteNumber(pluginSummary.emitted_field_count) || 0;
+  const declaredFields = finiteNumber(pluginSummary.declared_field_count) || ((artifacts.plugin || {}).result_fields || []).length;
+  const unlabeledKeys = finiteNumber(pluginSummary.unlabeled_public_key_count) || 0;
+  const rollups = ((artifacts.performance_rollups || {}).rollups || []).length;
+  let status = "bad";
+  let title = "Load Latest Artifact";
+  let note = savedRuns.length
+    ? `${numberText(savedRuns.length, 0)} saved run${savedRuns.length === 1 ? "" : "s"} are available; load one before reading artifact detail.`
+    : "No saved Workbench run artifacts are visible yet. Run a replay or simulated-paper draft first.";
+  if (loaded) {
+    status = rejects || approvalHolds || unlabeledKeys ? "warn" : "ok";
+    title = rejects ? "Review Execution" : approvalHolds ? "Review Held Orders" : "Use Loaded Results";
+    note = rejects
+      ? `${numberText(rejects, 0)} rejection${rejects === 1 ? "" : "s"} are present; inspect orders, logs, and Runs before trusting results.`
+      : approvalHolds
+        ? `${numberText(approvalHolds, 0)} order preview/approval hold${approvalHolds === 1 ? "" : "s"} need operator review.`
+        : "Loaded artifacts are ready for Performance, Runs, plugin result review, logs, or JSON export.";
+  } else if (loadableRun) {
+    status = "warn";
+    title = "Load Latest Completed Run";
+    note = `${text(loadableRun.draft_id)} / ${text(loadableRun.run_id)} can be loaded for artifact inspection.`;
+  }
+  const cards = [
+    {
+      label: "Artifact State",
+      status: loaded ? "ok" : loadableRun ? "warn" : "bad",
+      title: loaded ? "Loaded" : loadableRun ? "Available" : "Missing",
+      note: loaded ? `${draftId} / ${runId}` : loadableRun ? "Completed run exists but is not loaded." : "No completed run artifact is available.",
+    },
+    {
+      label: "Result",
+      status: returnPct === null ? loaded ? "warn" : "bad" : returnPct >= 0 ? "ok" : "bad",
+      title: loaded ? pctText(returnPct) : "n/a",
+      note: loaded ? `Drawdown ${pctText(drawdownPct)}; ${numberText(accountRows, 0)} account snapshot${accountRows === 1 ? "" : "s"}.` : "Load artifacts for return and drawdown.",
+    },
+    {
+      label: "Execution",
+      status: rejects ? "bad" : approvalHolds ? "warn" : fills.length ? "ok" : decisions.length ? "warn" : loaded ? "warn" : "bad",
+      title: `${numberText(fills.length, 0)} fills / ${numberText(rejects, 0)} rejects`,
+      note: `${numberText(decisions.length, 0)} decisions / ${numberText(orders.length, 0)} orders / ${numberText(approvalHolds, 0)} approval holds.`,
+    },
+    {
+      label: "Plugin Evidence",
+      status: unlabeledKeys ? "warn" : emittedFields ? "ok" : declaredFields ? "warn" : loaded ? "warn" : "bad",
+      title: declaredFields ? `${numberText(emittedFields, 0)} / ${numberText(declaredFields, 0)}` : "none",
+      note: unlabeledKeys ? `${numberText(unlabeledKeys, 0)} public keys lack declared labels.` : "Declared result fields drive the plugin result cards below.",
+    },
+    {
+      label: "Logs / Rollups",
+      status: logsLoaded && rollups ? "ok" : loaded ? "warn" : "bad",
+      title: `${logsLoaded ? "log" : "no log"} / ${numberText(rollups, 0)} rollups`,
+      note: logsLoaded ? "Bounded stdout/stderr evidence is loaded." : "Open Log for bounded stdout/stderr and artifact evidence.",
+    },
+    {
+      label: "Next Move",
+      status,
+      title,
+      note,
+    },
+  ];
+  const actions = [
+    { action: "load-latest", label: "Load", title: "Load Latest", disabled: loaded || !loadableRun },
+    { action: "performance", label: "Performance", title: "Open Performance", disabled: !loaded },
+    { action: "runs", label: "Runs", title: "Open Runs", disabled: !loaded },
+    { action: "log", label: "Log", title: "Open Log", disabled: !loaded || !artifacts.run_id },
+    { action: "export", label: "Export", title: "Export JSON", disabled: !loaded || !artifacts.run_id },
+    { action: "run", label: "Run", title: "Run Draft", disabled: false },
+  ];
+  return { status, title, note, cards, actions, loadableRun };
+}
+
+function renderWorkbenchArtifactsActionSummary(artifacts = state.configArtifacts || {}) {
+  if (!$("workbench-artifacts-action-note") || !$("workbench-artifacts-action-cards") || !$("workbench-artifacts-action-actions")) return;
+  const model = workbenchArtifactsActionSummaryModel(artifacts);
+  $("workbench-artifacts-action-note").textContent = `${model.title}: ${model.note}`;
+  $("workbench-artifacts-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-artifacts-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-workbench-artifacts-summary-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+async function handleWorkbenchArtifactsActionSummary(action) {
+  if (action === "load-latest") {
+    const run = latestLoadableWorkbenchRun();
+    if (!run) throw new Error("No completed Workbench run is available to load");
+    if (run.run_id && run.artifact_path) {
+      await loadRunArtifacts(run.run_id);
+      return;
+    }
+    if (run.draft_id) {
+      await loadConfigArtifacts(run.draft_id);
+      return;
+    }
+    throw new Error("Latest completed run has no loadable run_id or draft_id");
+  }
+  if (action === "performance") {
+    navigateToView("performance");
+    return;
+  }
+  if (action === "runs") {
+    navigateToRunsLens("events");
+    return;
+  }
+  if (action === "log") {
+    const runId = state.configArtifacts && state.configArtifacts.run_id;
+    if (!runId) throw new Error("No run id is loaded for log inspection");
+    await loadRunDetail(runId);
+    return;
+  }
+  if (action === "export") {
+    await downloadRunArtifactsJson();
+    return;
+  }
+  if (action === "run") {
+    navigateToWorkbenchLens("run");
+  }
+}
+
 function renderWorkbenchArtifactsAssistant(artifacts = state.configArtifacts || {}) {
   if (!$("workbench-artifacts-assistant-title") || !$("workbench-artifacts-assistant-cards") || !$("workbench-artifacts-assistant-actions")) return;
   const model = workbenchArtifactsAssistantModel(artifacts);
@@ -22978,6 +23128,7 @@ function renderWorkbenchArtifacts() {
     : artifacts.draft_id
       ? `${artifacts.draft_id} - ${text(artifacts.output_dir)}`
     : "No run selected";
+  renderWorkbenchArtifactsActionSummary(artifacts);
   renderWorkbenchArtifactsAssistant(artifacts);
   const pairs = [
     ["Mode", text(summary.mode)],
@@ -29018,6 +29169,7 @@ async function loadRunDetail(runId, options = {}) {
   state.runDetail = response;
   state.runEvidence = response;
   renderRunDetail();
+  renderWorkbenchArtifactsActionSummary(state.configArtifacts || {});
   if (options.navigate !== false) {
     navigateToView("workbench");
     applyWorkbenchLens("artifacts");
@@ -30672,6 +30824,15 @@ function init() {
   $("workbench-result-open-log").addEventListener("click", () => {
     openWorkbenchResultLog().catch((err) => {
       $("config-run-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("workbench-artifacts-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest("button[data-workbench-artifacts-summary-action]")
+      : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchArtifactsActionSummary(target.dataset.workbenchArtifactsSummaryAction || "").catch((err) => {
+      $("workbench-artifacts-action-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("workbench-artifacts-assistant-actions").addEventListener("click", (event) => {

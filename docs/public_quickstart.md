@@ -688,6 +688,9 @@ Summary that show current workflow stage, blockers, data, alignment, draft, run,
 results, and next route, plus Workbench Evidence that labels the current
 workflow as data-only, draft-only, run-backed, or loaded-artifact-backed. Gallery actions only populate
 plugin/mode fields; they do not save drafts or run simulations. The Workbench
+Artifacts lens starts with Artifacts Action Summary, which routes available or
+loaded runs to latest-artifact loading, Performance, Runs, bounded logs, JSON
+export, or Run Draft before the dense artifact tables. The Workbench
 can render public-safe `strategy_fields` from that plugin metadata and writes
 those allowlisted values into the generated `strategy` section. It rejects
 unknown strategy keys and enforces public-safe field metadata such as required,
