@@ -4206,6 +4206,7 @@ function renderWorkbenchHome() {
     </div>
   `).join("");
   renderWorkbenchStageSummary(stateModel);
+  renderWorkbenchActionSummary(stateModel);
   renderWorkbenchExampleGallery();
   renderWorkbenchSimulationPlan(stateModel);
   renderWorkbenchReadinessReview(stateModel);
@@ -4304,6 +4305,101 @@ function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
     `<a class="secondary" href="#workbench/run">Run</a>`,
     `<a class="secondary" href="#performance">Performance</a>`,
   ].join("");
+}
+
+function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
+  const selected = selectedConfigDatasets();
+  const dataReadiness = selectedDataReadiness(selected);
+  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
+  const draft = state.configDraft || {};
+  const savedDraft = selectedRunDraft();
+  const savedDraftId = savedDraft ? savedDraft.draft_id : draft.name || ($("config-run-draft") && $("config-run-draft").value) || "";
+  const validation = savedDraftId ? draftValidationById()[savedDraftId] : null;
+  const generatedValid = draft.validation ? Boolean(draft.validation.valid) : false;
+  const draftValid = Boolean(draft.yaml && generatedValid) || Boolean(savedDraft && validation && validation.valid);
+  const latestRun = latestWorkbenchRunForDraft(savedDraftId);
+  const artifacts = state.configArtifacts || {};
+  const hasArtifacts = Boolean(artifacts.run_id || artifacts.draft_id);
+  const plugin = selectedConfigPlugin();
+  const mode = $("config-mode") ? $("config-mode").value : "";
+  const alignmentCommon = Number(alignment.common_timestamp_count || 0);
+  const alignmentWarnings = Number(alignment.warning_count || (alignment.warnings || []).length || 0);
+  const alignmentStatus = alignment.dataset_count
+    ? alignmentCommon > 0 ? alignmentWarnings ? "warn" : "ok" : "bad"
+    : selected.length ? "warn" : "bad";
+  const nextHref = workbenchNextActionHref(stateModel.nextAction);
+  const nextLabel = workbenchNextActionLabel(stateModel.nextAction);
+  const runStatus = latestRun
+    ? latestRun.status === "completed" ? "ok" : "warn"
+    : draftValid ? "warn" : "bad";
+  const resultsStatus = hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad";
+  const overallStatus = (stateModel.tiles || []).some((tile) => tile.status === "bad")
+    ? "bad"
+    : (stateModel.tiles || []).some((tile) => tile.status === "warn") ? "warn" : "ok";
+  const cards = [
+    {
+      label: "Next Move",
+      status: overallStatus,
+      title: stateModel.result,
+      detail: stateModel.note,
+    },
+    {
+      label: "Data",
+      status: selected.length ? dataReadiness.status : "bad",
+      title: selected.length ? `${numberText(selected.length, 0)} selected` : "Choose files",
+      detail: selected.length ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote : "Start from Data Library, Compare, or Fetch Outputs.",
+    },
+    {
+      label: "Alignment",
+      status: alignmentStatus,
+      title: alignment.dataset_count ? `${numberText(alignmentCommon, 0)} common` : "Preview needed",
+      detail: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage / ${numberText(alignmentWarnings, 0)} warnings.` : "Preview timestamp overlap before generating YAML.",
+    },
+    {
+      label: "Plugin And Mode",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      title: plugin.label || plugin.id || "No plugin",
+      detail: plugin.id ? `${text(mode || "mode n/a")} / ${text(plugin.visibility || plugin.boundary || "registry metadata")}.` : "Choose a public example or ignored local plugin.",
+    },
+    {
+      label: "Draft",
+      status: draftValid ? "ok" : draft.yaml || savedDraft ? "warn" : alignmentCommon > 0 ? "warn" : "bad",
+      title: savedDraftId || (draft.yaml ? "Generated" : "Missing"),
+      detail: draftValid ? "Draft is valid enough to run." : draft.yaml || savedDraft ? "Draft exists, but validation needs review." : "Generate and save a draft after data/plugin review.",
+    },
+    {
+      label: "Run And Results",
+      status: hasArtifacts ? "ok" : runStatus === "bad" || resultsStatus === "bad" ? "bad" : "warn",
+      title: hasArtifacts ? "Artifacts loaded" : latestRun ? text(latestRun.status || latestRun.action) : "Not run",
+      detail: hasArtifacts ? "Open Performance or Runs for charts/events." : latestRun && latestRun.artifact_path ? "Completed artifacts are available; load them before reading performance." : "Run validate/replay/simulated-paper from the Run lens.",
+    },
+  ];
+  const actions = [
+    { href: nextHref, label: nextLabel },
+    { href: "#data/browse", label: "Data Library", secondary: true },
+    { href: "#workbench/builder", label: "Builder", secondary: true },
+    { href: "#workbench/run", label: "Run", secondary: true },
+    { href: "#workbench/artifacts", label: "Artifacts", secondary: true },
+    { href: "#performance", label: "Performance", secondary: true },
+    { href: "#runs", label: "Runs", secondary: true },
+  ];
+  return { note: `${stateModel.result}: ${stateModel.note}`, cards, actions };
+}
+
+function renderWorkbenchActionSummary(stateModel = workbenchHomeState()) {
+  if (!$("workbench-action-note") || !$("workbench-action-cards") || !$("workbench-action-actions")) return;
+  const model = workbenchActionSummaryModel(stateModel);
+  $("workbench-action-note").textContent = model.note;
+  $("workbench-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("workbench-action-actions").innerHTML = model.actions.map((action) => (
+    `<a${action.secondary ? ' class="secondary"' : ""} href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>`
+  )).join("");
 }
 
 function workbenchExampleGalleryModel() {

@@ -498,6 +498,9 @@ Start from Workbench Home before the form. It summarizes selected data,
 alignment, optional replay window, draft validation, latest run, loaded
 artifacts, and the next action. Use its buttons to jump to data selection,
 alignment preview, builder review, the run form, or loaded results.
+Read Workbench Action Summary first when you want the shortest next move. It
+turns selected data, alignment, plugin/mode, draft, run, and result state into
+one route before the deeper plan and evidence panels.
 The Stage Summary directly below Workbench Home is the fastest scan: it shows
 the current workflow stage, ready/review/blocked counts, data packet,
 alignment, draft, run, results, and the next route before the fuller plan and

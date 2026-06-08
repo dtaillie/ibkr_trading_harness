@@ -1390,6 +1390,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-stage-note" in html
         assert "workbench-stage-cards" in html
         assert "workbench-stage-actions" in html
+        assert "workbench-action-note" in html
+        assert "workbench-action-cards" in html
+        assert "workbench-action-actions" in html
         assert "workbench-simulation-title" in html
         assert "workbench-simulation-note" in html
         assert "workbench-simulation-cards" in html

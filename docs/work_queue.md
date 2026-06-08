@@ -1732,6 +1732,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     current workflow stage, ready/review/blocked counts, selected data packet,
     alignment, draft, run, results, and the next route before the deeper
     example gallery, simulation plan, readiness, and evidence panels.
+  - partial; Workbench Home now includes an Action Summary that picks the first
+    route across data selection, alignment, plugin/mode, draft validation, run
+    state, loaded results, Performance, and Runs so users can move through the
+    simulation path without interpreting every deeper panel first.
   - partial; Workbench now has a Run Result panel directly after Run Draft,
     summarizing the selected draft's latest run, artifact availability,
     decisions/fills/rejections, and direct Performance/Runs/Log actions.
