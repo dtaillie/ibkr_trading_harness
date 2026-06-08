@@ -50,6 +50,11 @@ def build_checks(*, include_screenshots: bool = False) -> list[Check]:
             [sys.executable, "scripts/audit_workbench_contracts.py"],
         ),
         Check(
+            "dashboard_contract_audit",
+            "Check public dashboard navigation and lens contracts.",
+            [sys.executable, "scripts/audit_dashboard_contracts.py"],
+        ),
+        Check(
             "python_compile",
             "Compile public Python files.",
             [sys.executable, "-m", "compileall", "-q", "."],

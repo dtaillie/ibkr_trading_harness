@@ -122,6 +122,7 @@ python3 scripts/public_readiness_audit.py --fail-on-review
 python3 scripts/audit_public_docs.py
 python3 scripts/audit_cloud_examples.py
 python3 scripts/audit_workbench_contracts.py
+python3 scripts/audit_dashboard_contracts.py
 PYTHONPATH=. pytest -q
 python3 scripts/smoke_dashboard.py --scenario seeded
 python3 scripts/smoke_dashboard.py --scenario empty

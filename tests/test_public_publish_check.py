@@ -27,6 +27,7 @@ def test_public_publish_check_lists_default_checks():
         "public_docs_audit",
         "cloud_examples_audit",
         "workbench_contract_audit",
+        "dashboard_contract_audit",
         "python_compile",
         "dashboard_javascript_syntax",
         "pytest",
@@ -52,10 +53,11 @@ def test_public_publish_check_lists_json_with_optional_screenshots():
     ids = [row["id"] for row in payload["checks"]]
     assert payload["schema_version"] == 1
     assert payload["check_count"] == len(ids)
-    assert payload["check_count"] == 14
+    assert payload["check_count"] == 15
     assert "python_compile" in ids
     assert "public_docs_audit" in ids
     assert "workbench_contract_audit" in ids
+    assert "dashboard_contract_audit" in ids
     assert "dashboard_javascript_syntax" in ids
     assert "pytest" in ids
     assert "dashboard_default_smoke" in ids

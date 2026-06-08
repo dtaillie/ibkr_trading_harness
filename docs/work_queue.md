@@ -789,6 +789,12 @@ strategy-private.
       starts with visible evidence before dense tables.
 - Add UI quality gates:
   - screenshot-smoke every top-level page at desktop and mobile widths
+    - partial; `scripts/audit_dashboard_contracts.py` now statically protects
+      the public dashboard navigation contract: top-level nav order, Quick
+      Jump routes, unique task-selector labels, page-intro controls, focus-lens
+      buttons, and required app-shell CSS/JS hooks. The consolidated publish
+      gate runs it before compile/tests so the dashboard cannot quietly regress
+      back toward a single dense page or duplicate workflow control.
     - partial; `scripts/smoke_dashboard_screenshots.py` now starts the
       dashboard with seeded synthetic state and captures every top-level view
       at desktop and mobile sizes with Chrome/Chromium when available.
@@ -2218,10 +2224,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     no-edge examples, dashboard labels, and remaining limitations.
   - partial; `scripts/public_publish_check.py` now provides a consolidated
     public pre-publish gate for export-manifest JSON, strict public readiness,
-    public docs, cloud examples, Workbench contracts, Python compile,
-    dashboard JavaScript syntax, pytest, default/seeded/empty dashboard smokes,
-    accessibility, and optional screenshot layout checks. Help, README, and
-    publication-readiness docs point to it before the manual inspection step.
+    public docs, cloud examples, Workbench contracts, dashboard navigation
+    contracts, Python compile, dashboard JavaScript syntax, pytest,
+    default/seeded/empty dashboard smokes, accessibility, and optional
+    screenshot layout checks. Help, README, and publication-readiness docs
+    point to it before the manual inspection step.
   - partial; `scripts/audit_public_docs.py` now checks that the exported
     README, quickstart, publication-readiness checklist, blog draft,
     configuration privacy guide, and cloud deployment runbook retain required
