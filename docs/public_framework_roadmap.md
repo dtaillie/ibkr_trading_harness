@@ -83,8 +83,8 @@ This roadmap is broader context; the queue is the current execution order.
 - Keep data-catalog quality scoring visible before simulation: timestamp
   parseability, missing close data, duplicate timestamps, gaps, and volume
   availability should be summarized before a dataset is selected.
-- Add fetch-job manifests with status, ETA, failure counts, retry counts, and
-  resumability.
+- Add fetch-job manifests with status, ETA, activity freshness, failure counts,
+  retry counts, and resumability.
 - Add consistent paper/live mode gates so a strategy cannot accidentally submit
   live orders when configured for paper or shadow mode. The generic paper
   runner now refuses known live IBKR ports without dual opt-in; broker-native
@@ -193,8 +193,8 @@ This roadmap is broader context; the queue is the current execution order.
   heartbeats, positions, signal state, recent orders, risk limits, and PnL.
 - Add strategy drilldowns with charts for entry/exit points, signal values,
   expected hold windows, MAE/MFE, and current stop/exit state.
-- Add fetch-job screens for progress, ETA, failures, retries, and richer data
-  coverage.
+- Add fetch-job screens for progress, ETA, activity freshness, failures,
+  retries, and richer data coverage.
 - Add config editors only after schemas and validation are reliable.
 
 ## Documentation

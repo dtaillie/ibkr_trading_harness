@@ -1493,6 +1493,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       manifest-root evidence, loaded-manifest evidence, recovery pressure,
       output visibility, selected detail/resume evidence, and the next
       verification action.
+    - partial; fetch manifest list/detail/export payloads now expose
+      `last_event_at`, `last_event_source`, and `active_age_seconds` from
+      explicit manifest activity when available, and Fetch Jobs shows that
+      Activity signal in the Jobs table plus Fetch Detail so active-job
+      freshness is visible without tailing logs.
   - progress by symbol and chunk
     - partial; symbol/chunk summaries are visible from the JSON manifest
   - rolling ETA based on recent chunk time

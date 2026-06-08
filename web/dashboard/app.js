@@ -16919,6 +16919,7 @@ function renderFetchJobs() {
     "",
     "",
     "",
+    "",
     escapeHtml(item.error),
     "",
     "",
@@ -16945,11 +16946,16 @@ function renderFetchJobs() {
       item.retry_events ? `retries ${numberText(item.retry_events, 0)}` : "",
       item.pacing_wait_events ? `waits ${numberText(item.pacing_wait_events, 0)}` : "",
     ].filter(Boolean).join(" / ") || "n/a";
+    const activitySummary = [
+      item.last_event_at ? timestampAgeLabel(item.last_event_at) : "",
+      item.last_event_source ? text(item.last_event_source) : "",
+    ].filter(Boolean).join(" / ") || "n/a";
     const output = item.latest_output_path || item.out_dir || item.first_output_path || "";
     return row([
       escapeHtml(item.started_at),
       escapeHtml(item.kind),
       statusText(item.status),
+      escapeHtml(activitySummary),
       escapeHtml(item.bar_size),
       escapeHtml(rangeLabel(item.range_start, item.range_end || item.duration || item.months)),
       escapeHtml(symbolSummary),
@@ -16964,7 +16970,7 @@ function renderFetchJobs() {
   });
   $("fetch-manifests-body").innerHTML = manifestRows.length || errorRows.length
     ? manifestRows.concat(errorRows).join("")
-    : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderFetchHealthPanel(context = {}) {
@@ -18002,6 +18008,7 @@ function renderFetchManifestDetail() {
     ["Status", text(detail.status)],
     ["Started", text(detail.started_at)],
     ["Finished", text(detail.finished_at)],
+    ["Last Activity", detail.last_event_at ? `${timestampAgeLabel(detail.last_event_at)} / ${text(detail.last_event_source)}` : "n/a"],
     ["Bar / Range", `${text(parameters.bar_size)} ${rangeLabel(plan.range_start || parameters.start, plan.range_end || parameters.end || parameters.duration)}`],
     ["Symbols", jsonDrilldown(counts.status_counts || {}, countSummary(counts.status_counts || {})), true],
     ["Outputs", `${numberText(detail.output_total, 0)} total / rows ${numberText(counts.rows, 0)}`],

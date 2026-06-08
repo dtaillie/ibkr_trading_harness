@@ -2160,6 +2160,43 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
             },
         ],
     )
+    running_manifest = manifest_root / "stock_history_running.json"
+    running_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "job_id": "stock_history_running",
+                "kind": "stock_history",
+                "status": "running",
+                "started_at": "2026-01-02T15:00:00+00:00",
+                "finished_at": None,
+                "parameters": {"bar_size": "5min", "duration": "1 D", "out_dir": "cache/ibkr"},
+                "plan": {},
+                "symbols_requested": ["MSFT"],
+                "symbols": {"MSFT": {"symbol": "MSFT", "status": "qualified", "updated_at": "2026-01-02T15:00:05+00:00"}},
+                "outputs": [],
+                "errors": [],
+                "events": [{"timestamp": "2026-01-02T15:00:10+00:00", "type": "connected", "message": "connected"}],
+                "progress": {
+                    "updated_at": "2026-01-02T15:00:20+00:00",
+                    "completed_symbols": 0,
+                    "remaining_symbols": 1,
+                    "total_symbols": 1,
+                    "eta_seconds": 5.0,
+                },
+                "counts": {
+                    "requested_symbols": 1,
+                    "tracked_symbols": 1,
+                    "latest_completed_symbols": 0,
+                    "latest_remaining_symbols": 1,
+                    "latest_total_symbols": 1,
+                    "latest_eta_seconds": 5.0,
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     server = create_server(
         "127.0.0.1",
         0,
@@ -2174,14 +2211,24 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         with request.urlopen(f"{base}/fetch_manifests?limit=5", timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
 
-        assert payload["count"] == 1
-        assert payload["total"] == 1
-        assert payload["status_counts"] == {"completed": 1}
-        assert payload["kind_counts"] == {"stock_history": 1}
-        assert payload["roots"][0]["manifest_count"] == 1
-        manifest = payload["manifests"][0]
+        assert payload["count"] == 2
+        assert payload["total"] == 2
+        assert payload["status_counts"] == {"completed": 1, "running": 1}
+        assert payload["kind_counts"] == {"stock_history": 2}
+        assert payload["roots"][0]["manifest_count"] == 2
+        by_job = {item["job_id"]: item for item in payload["manifests"]}
+        active = by_job["stock_history_running"]
+        assert active["status"] == "running"
+        assert active["last_event_at"] == "2026-01-02T15:00:20+00:00"
+        assert active["last_event_source"] == "progress"
+        assert active["active_age_seconds"] is not None
+        assert active["latest_eta_seconds"] == 5.0
+        manifest = by_job["stock_history_20260102"]
         assert manifest["job_id"] == "stock_history_20260102"
         assert manifest["status"] == "completed"
+        assert manifest["last_event_at"] == "2026-01-02T14:31:20+00:00"
+        assert manifest["last_event_source"] == "output"
+        assert manifest["active_age_seconds"] is not None
         assert manifest["symbols_requested"] == 2
         assert manifest["success_symbols"] == 1
         assert manifest["failed_symbols"] == 1
@@ -2223,35 +2270,46 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
             assert resp.headers["Content-Disposition"] == 'attachment; filename="fetch_manifests.csv"'
             csv_body = resp.read().decode("utf-8")
         rows = list(csv.DictReader(io.StringIO(csv_body)))
-        assert len(rows) == 1
-        assert rows[0]["job_id"] == "stock_history_20260102"
-        assert rows[0]["kind"] == "stock_history"
-        assert rows[0]["status"] == "completed"
-        assert rows[0]["success_symbols"] == "1"
-        assert rows[0]["failed_symbols"] == "1"
-        assert rows[0]["retry_events"] == "1"
-        assert rows[0]["pacing_wait_events"] == "1"
-        assert rows[0]["latest_avg_chunk_seconds"] == "0.4"
-        assert rows[0]["output_visible_count"] == "1"
-        assert rows[0]["output_missing_file_count"] == "1"
-        assert rows[0]["output_outside_data_roots_count"] == "1"
-        assert rows[0]["recovery_status"] == "blocked"
-        assert rows[0]["recovery_action"] == "fix_permissions"
-        assert rows[0]["resume_mode"] == "symbol"
-        assert rows[0]["resume_skip_count"] == "1"
-        assert rows[0]["resume_retry_count"] == "1"
-        assert rows[0]["resume_pending_estimate"] == "1"
-        assert rows[0]["resume_state_done_symbol_count"] == "1"
-        assert rows[0]["resume_state_failed_day_count"] == "1"
-        assert rows[0]["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
-        assert rows[0]["permission_error_count"] == "1"
-        assert rows[0]["latest_output_path"].endswith("IWM_5min.csv")
-        assert "visible" in rows[0]["output_visibility_counts"]
-        assert "permission" in rows[0]["error_kind_counts"]
+        assert len(rows) == 2
+        csv_by_job = {row["job_id"]: row for row in rows}
+        assert csv_by_job["stock_history_running"]["status"] == "running"
+        assert csv_by_job["stock_history_running"]["last_event_at"] == "2026-01-02T15:00:20+00:00"
+        assert csv_by_job["stock_history_running"]["last_event_source"] == "progress"
+        assert csv_by_job["stock_history_running"]["active_age_seconds"]
+        row = csv_by_job["stock_history_20260102"]
+        assert row["kind"] == "stock_history"
+        assert row["status"] == "completed"
+        assert row["last_event_at"] == "2026-01-02T14:31:20+00:00"
+        assert row["last_event_source"] == "output"
+        assert row["active_age_seconds"]
+        assert row["success_symbols"] == "1"
+        assert row["failed_symbols"] == "1"
+        assert row["retry_events"] == "1"
+        assert row["pacing_wait_events"] == "1"
+        assert row["latest_avg_chunk_seconds"] == "0.4"
+        assert row["output_visible_count"] == "1"
+        assert row["output_missing_file_count"] == "1"
+        assert row["output_outside_data_roots_count"] == "1"
+        assert row["recovery_status"] == "blocked"
+        assert row["recovery_action"] == "fix_permissions"
+        assert row["resume_mode"] == "symbol"
+        assert row["resume_skip_count"] == "1"
+        assert row["resume_retry_count"] == "1"
+        assert row["resume_pending_estimate"] == "1"
+        assert row["resume_state_done_symbol_count"] == "1"
+        assert row["resume_state_failed_day_count"] == "1"
+        assert row["resume_command"].startswith("python3 live/fetch_history.py --resume-manifest ")
+        assert row["permission_error_count"] == "1"
+        assert row["latest_output_path"].endswith("IWM_5min.csv")
+        assert "visible" in row["output_visibility_counts"]
+        assert "permission" in row["error_kind_counts"]
 
         with request.urlopen(f"{base}/fetch_manifest_detail?job_id=stock_history_20260102&limit=10", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
         assert detail["job_id"] == "stock_history_20260102"
+        assert detail["last_event_at"] == "2026-01-02T14:31:20+00:00"
+        assert detail["last_event_source"] == "output"
+        assert detail["active_age_seconds"] is not None
         assert detail["output_total"] == 3
         assert detail["error_total"] == 1
         assert detail["symbols"][0]["symbol"] in {"QQQ", "SPY"}
@@ -2301,6 +2359,9 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert {row["row_type"] for row in rows} == {"symbol", "output", "error", "event", "resume_plan", "resume_state"}
         output_rows = [row for row in rows if row["row_type"] == "output"]
         assert len(output_rows) == 3
+        assert output_rows[0]["last_event_at"] == "2026-01-02T14:31:20+00:00"
+        assert output_rows[0]["last_event_source"] == "output"
+        assert output_rows[0]["active_age_seconds"]
         assert output_rows[0]["symbol"] == "SPY"
         assert output_rows[0]["data_detail_available"] == "True"
         assert output_rows[0]["data_detail_status"] == "visible"

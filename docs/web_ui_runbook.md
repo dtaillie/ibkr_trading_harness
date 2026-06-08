@@ -552,6 +552,10 @@ Start with Fetch Progress Review when a pull is active, partial, failed, or
 otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
 ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,
 and next action before the dense Jobs table.
+In the Jobs table, the Activity column shows the latest explicit manifest event
+or progress timestamp and its source. For running jobs, treat a stale Activity
+age as evidence that the fetcher stopped updating its manifest even if the job
+still appears non-terminal.
 Read Fetch Evidence when the question is whether the dashboard can prove what
 happened: it separates configured root evidence, loaded manifest rows, recovery
 pressure, Data Library-visible outputs, selected-detail state, and the next

@@ -3670,6 +3670,9 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "started_at",
     "finished_at",
     "modified_at",
+    "last_event_at",
+    "last_event_source",
+    "active_age_seconds",
     "symbols_requested",
     "tracked_symbols",
     "success_symbols",
@@ -3749,6 +3752,9 @@ FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
     "job_id",
     "kind",
     "status",
+    "last_event_at",
+    "last_event_source",
+    "active_age_seconds",
     "symbol",
     "symbol_status",
     "timestamp",
@@ -5078,6 +5084,48 @@ def fetch_resume_state_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def latest_fetch_manifest_activity(payload: dict[str, Any], *, modified_at: str | None = None) -> dict[str, Any]:
+    candidates: list[tuple[str, str]] = []
+
+    def add(raw: Any, source: str) -> None:
+        if raw not in (None, "") and parse_status_timestamp(raw) is not None:
+            candidates.append((str(raw), source))
+
+    add(payload.get("started_at"), "started_at")
+    add(payload.get("finished_at"), "finished_at")
+    progress = payload.get("progress") if isinstance(payload.get("progress"), dict) else {}
+    add(progress.get("updated_at"), "progress")
+    resume_state = payload.get("resume_state") if isinstance(payload.get("resume_state"), dict) else {}
+    add(resume_state.get("updated_at"), "resume_state")
+    for row in (payload.get("symbols") or {}).values() if isinstance(payload.get("symbols"), dict) else []:
+        if isinstance(row, dict):
+            add(row.get("updated_at"), "symbol")
+    for row in payload.get("outputs") or []:
+        if isinstance(row, dict):
+            add(row.get("timestamp"), "output")
+    for row in payload.get("errors") or []:
+        if isinstance(row, dict):
+            add(row.get("timestamp"), "error")
+    for row in payload.get("events") or []:
+        if isinstance(row, dict):
+            add(row.get("timestamp"), "event")
+    if not candidates:
+        add(modified_at, "modified_at")
+
+    if not candidates:
+        return {"last_event_at": None, "last_event_source": None, "active_age_seconds": None}
+    last_raw, source = max(candidates, key=lambda item: parse_status_timestamp(item[0]) or datetime.min.replace(tzinfo=timezone.utc))
+    age = None
+    parsed = parse_status_timestamp(last_raw)
+    if parsed is not None:
+        age = round(max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds()), 3)
+    return {
+        "last_event_at": last_raw,
+        "last_event_source": source,
+        "active_age_seconds": age,
+    }
+
+
 def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] | None = None) -> dict[str, Any]:
     payload = read_fetch_manifest(path)
     stat = path.stat()
@@ -5108,6 +5156,8 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
     resume_plan = fetch_manifest_resume_plan(payload, resume_supported=bool(recovery.get("resume_supported")))
     resume_state = fetch_resume_state_summary(payload)
     resume_command = fetch_manifest_resume_command(payload.get("kind"), path) if recovery.get("resume_supported") else None
+    modified_at = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    activity = latest_fetch_manifest_activity(payload, modified_at=modified_at)
     return {
         "job_id": payload.get("job_id") or path.stem,
         "path": display_path(path),
@@ -5116,7 +5166,8 @@ def summarize_fetch_manifest(path: Path, *, root: Path, data_roots: list[Path] |
         "status": payload.get("status"),
         "started_at": payload.get("started_at"),
         "finished_at": payload.get("finished_at"),
-        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "modified_at": modified_at,
+        **activity,
         "size_bytes": stat.st_size,
         "symbols_requested": counts.get("requested_symbols", len(symbols)),
         "tracked_symbols": counts.get("tracked_symbols"),
@@ -5243,6 +5294,9 @@ def build_fetch_manifest_detail_csv(
         "job_id": detail.get("job_id"),
         "kind": detail.get("kind"),
         "status": detail.get("status"),
+        "last_event_at": detail.get("last_event_at"),
+        "last_event_source": detail.get("last_event_source"),
+        "active_age_seconds": detail.get("active_age_seconds"),
     }
     rows: list[dict[str, Any]] = []
     for item in detail.get("symbols") or []:
