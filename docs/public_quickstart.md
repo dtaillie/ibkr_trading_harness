@@ -342,7 +342,11 @@ Storage Audit visibility, and the next recovery action before the raw table.
 Use Help Task Navigator when the next action is unclear. It reads the current
 public-safe dashboard state and links directly to monitoring, performance,
 saved data, fetch recovery, simulation, run-event, operations, and publishing
-boundary views.
+boundary views. Use Help Home's Today's Performance Guide when Sharpe,
+drawdown, or raw return is not enough context: it walks from Overview current
+state to Performance Home, evidence chain, trades/orders, rollups, and Runs
+verification using the same public-safe performance source the dashboard has
+loaded.
 Use the "I want to" task selector in the topbar when you know the job but not
 the page, for example monitoring today's run, finding saved data, recovering a
 fetch, building a simulation, checking runtime health, or publishing safely.

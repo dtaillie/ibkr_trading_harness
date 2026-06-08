@@ -558,6 +558,12 @@ strategy-private.
       first-time routing is separate from reference material.
   - "How do I know today's strategy performance?" walkthrough
     - done on the Help page
+    - partial; Help Home now includes a state-aware Today's Performance Guide
+      that reuses the Performance source/evidence/rollup context, explains the
+      Overview -> Performance -> Runs verification path, shows today's return,
+      risk, trade/order proof, and rollup state, and provides copyable guidance
+      plus direct routes to Overview, Performance Home, Trades, Rollups, Runs,
+      and Operations.
   - "Why do I only see SPY and QQQ?" diagnostic walkthrough
     - done on the Help page
   - "How do I inspect historical data I already fetched?" walkthrough
@@ -603,6 +609,10 @@ strategy-private.
       current dashboard state into copyable guidance and direct routes for
       monitoring, performance review, saved-data inspection, fetch recovery,
       simulation, run events, operations, and publication boundaries.
+    - partial; Help Home now also has a focused Today's Performance Guide so
+      users who only want to know whether the current strategy is up/down today
+      can see source quality, account-snapshot support, risk, trades, rollups,
+      and exact follow-up pages without reading the full guide.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots

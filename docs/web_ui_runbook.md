@@ -42,7 +42,10 @@ unreachable Gateway checks, unreadable data roots, catalog caps, missing fetch
 manifests, and missing Workbench drafts.
 The Help Task Navigator turns the current dashboard state into a copyable route
 map for monitoring, performance, saved data, fetch recovery, simulation, run
-events, operations, and public/private publishing boundaries.
+events, operations, and public/private publishing boundaries. The Today's
+Performance Guide answers "how is it doing today?" by summarizing the current
+performance source, today/latest-session return card, evidence chain,
+drawdown, trade/order proof, rollups, and the next verification route.
 
 Every top-level page also starts with a compact workflow rail. Read it left to
 right for the common path on that page before opening the deeper tables below.

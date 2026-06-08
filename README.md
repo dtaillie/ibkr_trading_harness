@@ -145,8 +145,10 @@ Open `http://127.0.0.1:8765/` for the operational dashboard.
 The Help view is the easiest first screen for a new local copy: it recommends
 one next route from current setup state, shows a copyable Task Navigator for
 monitoring, performance, saved data, fetch recovery, simulation, run events,
-operations, and publishing boundaries, then links to Overview, Performance,
-Data Library, Workbench, Runs, Operations, and the local runbooks.
+operations, and publishing boundaries, and now includes a Today's Performance
+Guide that explains the Overview -> Performance -> Runs evidence path for
+today/latest-session results, then links to Overview, Performance, Data
+Library, Workbench, Runs, Operations, and the local runbooks.
 Use the topbar "I want to" selector when you know the job but not the page; it
 routes tasks such as monitoring today's run, finding saved data, building a
 simulation, checking runtime health, and publishing safely to the right

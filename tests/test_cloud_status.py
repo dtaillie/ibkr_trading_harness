@@ -1011,6 +1011,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-source-map" in html
         assert "help-start-panel" in html
         assert "help-workflows" in html
+        assert "help-performance-guide-title" in html
+        assert "help-performance-guide-note" in html
+        assert "help-performance-guide-cards" in html
+        assert "help-performance-guide-body" in html
+        assert "help-performance-guide-actions" in html
         assert "help-public-checklist" in html
         assert "help-publish-readiness" in html
         assert "help-publish-note" in html

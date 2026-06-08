@@ -53,6 +53,7 @@ const state = {
   dataInventoryEvidenceText: "",
   operationsEvidenceText: "",
   runsEvidenceText: "",
+  helpPerformanceGuideText: "",
   commands: [],
   results: [],
   commandAudit: { events: [] },
@@ -1805,6 +1806,7 @@ function renderHelpSetupGaps() {
   renderHelpWorkflowLauncher(items);
   renderHelpNextAssistant(items);
   renderHelpTaskNavigator(items);
+  renderHelpPerformanceGuide();
   renderPublicationReviewAssistant(items);
   renderHelpWorkbenchQuickstart();
 }
@@ -2180,6 +2182,218 @@ function handleHelpTaskNavigatorAction(action) {
   if (action === "runs") return navigateToRunsLens("events");
   if (action === "operations") return navigateToOperationsLens("diagnostics");
   if (action === "boundary") return navigateToHelpLens("boundary");
+}
+
+function performanceGuideContext() {
+  const source = latestArtifactPerformance();
+  const perf = source.performance || {};
+  const summary = source.summary || {};
+  const allAccountRows = source.account || [];
+  const period = ($("performance-period") || {}).value || "all";
+  const window = performancePeriodWindow(allAccountRows, period);
+  const accountRows = period === "all" ? allAccountRows : rowsInWindow(allAccountRows, window);
+  const periodPerf = Object.keys(perf).length && period === "all"
+    ? perf
+    : performanceFromAccountRows(accountRows);
+  const fills = period === "all" ? (source.fills || []) : rowsInWindow(source.fills || [], window);
+  const ledger = buildTradeLedger(fills);
+  const latestAccount = latestAccountRow(accountRows.length ? accountRows : allAccountRows);
+  const mode = perf.mode ?? summary.mode;
+  return {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions: summary.decisions ?? (source.decisions || []).length,
+    orders: summary.orders ?? (source.orders || []).length,
+    fillCount: summary.fills ?? (source.fills || []).length,
+    rejections: summary.rejections ?? summary.rejects ?? 0,
+    approvalRequired: summary.approval_required_orders ?? perf.approval_required_orders ?? 0,
+  };
+}
+
+function helpPerformanceGuideModel() {
+  const context = performanceGuideContext();
+  const snapshot = performanceSnapshotModel(context);
+  const evidence = performanceEvidenceModel(context);
+  const workflows = performanceWorkflowCards(context);
+  const events = runEventRows();
+  const latestDecision = events.find((event) => event.type === "decision");
+  const latestFill = events.find((event) => event.type === "fill");
+  const latestReject = events.find((event) => event.type === "order" && eventStatusIsBad(event));
+  const rollups = sortedStatusRollups();
+  const todayCard = snapshot.cards.find((card) => card.label === "Today") || null;
+  const drawdownCard = snapshot.cards.find((card) => card.label === "Max Drawdown") || null;
+  const tradeWorkflow = workflows.find((card) => card.label === "Inspect Trades") || {};
+  const rollupWorkflow = workflows.find((card) => card.label === "Open Rollups") || {};
+  const sourceHasAccountPath = Boolean(context.accountRows.length || context.allAccountRows.length);
+  let status = "bad";
+  let headline = "Performance evidence is not loaded yet";
+  let note = "Open Performance after telemetry or artifacts publish account snapshots, fills, or status-history rollups.";
+  if (latestReject) {
+    status = "bad";
+    headline = "Review rejected order before trusting performance";
+    note = `${text(latestReject.symbol)} ${text(latestReject.status)} is visible in recent events; inspect Runs before reading returns as final.`;
+  } else if (sourceHasAccountPath) {
+    status = "ok";
+    headline = "Account-backed performance is available";
+    note = `${numberText(context.accountRows.length || context.allAccountRows.length, 0)} account snapshot${(context.accountRows.length || context.allAccountRows.length) === 1 ? "" : "s"} support the selected Performance window.`;
+  } else if (rollups.length) {
+    status = "warn";
+    headline = "Status-history rollups are available";
+    note = `${numberText(rollups.length, 0)} persisted live/paper day row${rollups.length === 1 ? "" : "s"} can answer recent performance while source artifacts are limited.`;
+  } else if (context.source.has_data) {
+    status = "warn";
+    headline = "Performance source is limited";
+    note = "A summary or event-backed source is loaded, but account snapshots are missing for full equity/drawdown verification.";
+  }
+  const cards = [
+    {
+      status,
+      label: "Current Read",
+      title: headline,
+      note,
+    },
+    {
+      status: todayCard ? todayCard.status : "bad",
+      label: "Today",
+      title: todayCard ? todayCard.title : "n/a",
+      note: todayCard ? todayCard.note : "No today/latest-session return card is available.",
+    },
+    {
+      status: evidence.cards[0] ? evidence.cards[0].status : "bad",
+      label: "Evidence Chain",
+      title: evidence.headline,
+      note: evidence.cards[0] ? evidence.cards[0].note : evidence.note,
+    },
+    {
+      status: drawdownCard ? drawdownCard.status : "bad",
+      label: "Risk",
+      title: drawdownCard ? drawdownCard.title : "n/a",
+      note: drawdownCard ? drawdownCard.note : "No drawdown card is available.",
+    },
+    {
+      status: tradeWorkflow.status || "bad",
+      label: "Trades",
+      title: tradeWorkflow.title || "No Trades",
+      note: tradeWorkflow.detail || "No fill/trade pairing evidence is visible.",
+    },
+    {
+      status: rollupWorkflow.status || (rollups.length ? "ok" : "bad"),
+      label: "Rollups",
+      title: rollupWorkflow.title || `${numberText(rollups.length, 0)} rows`,
+      note: rollupWorkflow.detail || "No daily/month/year rollup evidence is visible.",
+    },
+  ];
+  const lines = [
+    {
+      status,
+      title: "1. Start With Overview",
+      detail: latestReject
+        ? `Overview and Runs show a rejected/canceled order state for ${text(latestReject.symbol)}; reconcile that before trusting PnL.`
+        : latestFill
+          ? `Overview should show the latest fill for ${text(latestFill.symbol)} and current account/position state.`
+          : latestDecision
+            ? `Overview should show the latest decision check (${shortTimestampAgeLabel(latestDecision.timestamp)}) even if no order fired.`
+            : "Overview tells you whether telemetry exists, whether it is fresh, and whether no-trade-today is simply the current state.",
+    },
+    {
+      status: sourceHasAccountPath ? "ok" : context.source.has_data || rollups.length ? "warn" : "bad",
+      title: "2. Read Performance Home",
+      detail: sourceHasAccountPath
+        ? `Performance Home uses ${numberText(context.accountRows.length || context.allAccountRows.length, 0)} account snapshots for equity, return, drawdown, and latest-session charts.`
+        : context.source.has_data ? "Performance can show source identity and event-backed summary, but account path metrics need account snapshots." : "Performance needs telemetry, status-history rollups, or loaded Workbench artifacts before it can answer returns.",
+    },
+    {
+      status: evidence.cards[0] ? evidence.cards[0].status : "bad",
+      title: "3. Check The Evidence Chain",
+      detail: evidence.lines.slice(0, 3).map((item) => `${item.title}: ${item.detail}`).join(" "),
+    },
+    {
+      status: context.rejections || context.approvalRequired ? "warn" : context.fills.length ? "ok" : context.source.has_data ? "warn" : "bad",
+      title: "4. Verify Trades And Orders",
+      detail: `${numberText(context.fills.length, 0)} fills in the selected window; ${numberText((context.ledger.stats || {}).closed_count || 0, 0)} closed trades; ${numberText(context.rejections, 0)} rejects; ${numberText(context.approvalRequired, 0)} approval holds.`,
+    },
+    {
+      status: rollups.length ? "ok" : context.source.has_data ? "warn" : "bad",
+      title: "5. Use Rollups For The Longer View",
+      detail: rollups.length
+        ? `${numberText(rollups.length, 0)} persisted status-history day rows can answer day/month/year performance independent of the currently selected artifact.`
+        : "Daily/month/year views need persisted status-history rollups or archived run rollups.",
+    },
+    {
+      status: evidence.next.status,
+      title: "Next Verification",
+      detail: `${evidence.next.label}: use ${evidence.next.href.replace("#", "")}, then return to Performance Home if the number still needs context.`,
+    },
+  ];
+  return { status, headline, note, cards, lines, evidence };
+}
+
+function helpPerformanceGuideText(model) {
+  return [
+    `Today's Performance Guide: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderHelpPerformanceGuide() {
+  if (
+    !$("help-performance-guide-title")
+    || !$("help-performance-guide-note")
+    || !$("help-performance-guide-cards")
+    || !$("help-performance-guide-body")
+    || !$("help-performance-guide-actions")
+  ) return;
+  const model = helpPerformanceGuideModel();
+  state.helpPerformanceGuideText = helpPerformanceGuideText(model);
+  $("help-performance-guide-title").textContent = model.headline;
+  $("help-performance-guide-note").textContent = model.note;
+  $("help-performance-guide-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-performance-guide-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("help-performance-guide-actions").innerHTML = [
+    `<button type="button" data-help-performance-guide-action="copy">Copy Guide</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="overview">Overview</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="performance">Performance Home</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="rollups">Rollups</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="trades">Trades</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="runs">Runs Evidence</button>`,
+    `<button type="button" class="secondary" data-help-performance-guide-action="operations">Operations</button>`,
+  ].join("");
+}
+
+function handleHelpPerformanceGuideAction(action) {
+  if (action === "copy") {
+    copyText(state.helpPerformanceGuideText || "No performance guide loaded").then(() => {
+      $("last-refresh").textContent = "Performance guide copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Performance guide copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "overview") return navigateToOverviewLens("home");
+  if (action === "performance") return navigateToPerformanceLens("home");
+  if (action === "rollups") return navigateToPerformanceLens("rollups");
+  if (action === "trades") return navigateToPerformanceLens("trades");
+  if (action === "runs") return navigateToRunsLens("events");
+  if (action === "operations") return navigateToOperationsLens("paper");
 }
 
 function publicationReviewModel(setupItems = helpSetupGapItems()) {
@@ -26947,6 +27161,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-task-navigator-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleHelpTaskNavigatorAction(target.dataset.helpTaskNavigatorAction || "");
+  });
+  $("help-performance-guide-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-performance-guide-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleHelpPerformanceGuideAction(target.dataset.helpPerformanceGuideAction || "");
   });
   $("help-publication-review-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-publication-review-action]") : null;
