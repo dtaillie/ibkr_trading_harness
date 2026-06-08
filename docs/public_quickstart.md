@@ -481,6 +481,10 @@ Start with Fetch Progress Review when a pull is running, partial, or failed:
 it summarizes active jobs, partial/failed manifests, symbol/chunk progress,
 ETA, rolling pace, retry/pacing pressure, output visibility, recovery state,
 and the focus job before the dense table.
+Read Fetch Action Summary first when you only need the next action. It
+prioritizes active fetches, failed/no-data/retry recovery, output-root
+visibility issues, selected output handoff, and filtered job state, then links
+to Jobs, Detail, Data Library, or Workbench.
 The Jobs table Activity column and Fetch Detail Last Activity row show the
 latest manifest event/progress timestamp and source, so active fetch freshness
 can be checked from the dashboard or CSV export without opening logs.

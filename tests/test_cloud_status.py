@@ -1171,6 +1171,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-health-note" in html
         assert "fetch-health-cards" in html
         assert "fetch-health-actions" in html
+        assert "fetch-action-note" in html
+        assert "fetch-action-cards" in html
+        assert "fetch-action-actions" in html
         assert "fetch-evidence-note" in html
         assert "fetch-evidence-cards" in html
         assert "fetch-evidence-body" in html

@@ -571,6 +571,10 @@ Start with Fetch Progress Review when a pull is active, partial, failed, or
 otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
 ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,
 and next action before the dense Jobs table.
+Read Fetch Action Summary first when you want the fastest route. It chooses
+between active-job inspection, failure/no-data/retry recovery, output-root
+visibility fixes, selected output handoff, and filtered job review, then links
+to Jobs, Detail, Data Library, or Workbench.
 In the Jobs table, the Activity column shows the latest explicit manifest event
 or progress timestamp and its source. For running jobs, treat a stale Activity
 age as evidence that the fetcher stopped updating its manifest even if the job

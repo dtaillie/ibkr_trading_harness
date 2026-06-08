@@ -324,10 +324,13 @@ Saved Data Preview Wall with summary cards, sparklines, and direct
 Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
 reads JSON manifests from configured manifest roots, summarizing historical-data
 pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.
-Fetch Progress Review gives a first-screen read on active, partial, and failed
-manifests, including symbol/chunk progress, ETA, rolling pace, retries, pacing
-waits, output visibility, recovery status, and the focus job before the dense
-table. Fetch Evidence separates root evidence, loaded-manifest evidence,
+Fetch Action Summary picks the first next action across active fetches,
+failed/no-data/retry recovery, output-root visibility issues, selected output
+handoff, and filtered job state. Fetch Progress Review gives a first-screen
+read on active, partial, and failed manifests, including symbol/chunk progress,
+ETA, rolling pace, retries, pacing waits, output visibility, recovery status,
+and the focus job before the dense table. Fetch Evidence separates root
+evidence, loaded-manifest evidence,
 recovery pressure, output visibility, and selected-detail evidence so missing
 or unusable outputs have a clear next verification step.
 When an output file is inside a configured data root, its row includes an Inspect
