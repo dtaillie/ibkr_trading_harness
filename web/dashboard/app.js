@@ -5677,6 +5677,90 @@ function metricTimestamp(metrics, keys) {
   return null;
 }
 
+function runtimeMarketDataModel(metrics = {}, latestRun = null) {
+  const timestamp = metricTimestamp(metrics, [
+    "latest_bar_time",
+    "latest_data_time",
+    "latest_market_data_time",
+    "last_bar_time",
+    "market_data_time",
+  ]);
+  const health = metrics.market_data_health || {};
+  const healthStatus = text(metrics.market_data_status || health.status || "").toLowerCase();
+  const reason = text(metrics.market_data_reason || health.reason || "");
+  const requested = Number(health.requested_symbol_count || 0);
+  const bars = Number(health.symbols_with_bars_count || 0);
+  const live = Number(health.symbols_with_live_prices_count || 0);
+  const hasStructuredHealth = Boolean(healthStatus && healthStatus !== "n/a");
+  const isBad = ["bad", "error"].includes(healthStatus);
+  const isWarn = healthStatus === "warn";
+  const coverage = requested
+    ? `${numberText(bars, 0)}/${numberText(requested, 0)} symbols with bars, ${numberText(live, 0)} live prices`
+    : "";
+  if (isBad || isWarn) {
+    return {
+      timestamp,
+      status: isBad ? "bad" : "warn",
+      title: isBad ? "feed issue" : "degraded",
+      value: isBad ? "feed issue" : "degraded",
+      detail: `${reason && reason !== "n/a" ? reason : "market_data_health"}${coverage ? `; ${coverage}.` : "."}`,
+      reason,
+      health,
+      hasStructuredHealth,
+    };
+  }
+  if (timestamp) {
+    return {
+      timestamp,
+      status: "ok",
+      title: timestampAgeLabel(timestamp),
+      value: timestampAgeLabel(timestamp),
+      detail: hasStructuredHealth && coverage
+        ? `Market data health ${healthStatus}; ${coverage}.`
+        : "Last bar/snapshot timestamp published by the runner.",
+      reason,
+      health,
+      hasStructuredHealth,
+    };
+  }
+  return {
+    timestamp: null,
+    status: latestRun ? "warn" : "bad",
+    title: "n/a",
+    value: "n/a",
+    detail: latestRun
+      ? "Runner summary does not publish latest bar or market-data time yet."
+      : "No current run is publishing market-data telemetry.",
+    reason,
+    health,
+    hasStructuredHealth,
+  };
+}
+
+function savedDataMetricModel() {
+  const index = state.dataSymbolIndex || {};
+  const catalog = state.dataCatalog || {};
+  const indexSymbols = Number(index.symbol_count || ((index.symbols || []).length));
+  const indexFiles = Number(index.file_count || ((index.files || []).length));
+  const catalogRows = (catalog.datasets || []).length;
+  if (index.index_error) {
+    return { value: `${numberText(catalogRows, 0)} files`, status: "warn", title: text(index.index_error) };
+  }
+  if (indexSymbols || indexFiles) {
+    const partial = index.index_complete === false ? "partial" : "complete";
+    return {
+      value: `${numberText(indexSymbols, 0)} symbols`,
+      status: index.index_complete === false ? "warn" : "ok",
+      title: `${numberText(indexFiles, 0)} indexed files; ${partial} root index.`,
+    };
+  }
+  return {
+    value: `${numberText(catalogRows, 0)} files`,
+    status: catalogRows ? "warn" : "bad",
+    title: catalogRows ? "Parsed catalog is loaded, but broad symbol index is not." : "No saved data is visible.",
+  };
+}
+
 function metricLatestRejection(metrics) {
   if (!metrics || !metrics.latest_rejection_time) return null;
   return {
@@ -5712,13 +5796,8 @@ function runtimeStatusItems() {
     supervisor && supervisor.generated_at,
     payload.generated_at,
   );
-  const marketTimestamp = metricTimestamp(metrics, [
-    "latest_bar_time",
-    "latest_data_time",
-    "latest_market_data_time",
-    "last_bar_time",
-    "market_data_time",
-  ]);
+  const marketData = runtimeMarketDataModel(metrics, latestRun);
+  const marketTimestamp = marketData.timestamp;
   const accountTimestamp = metricTimestamp(metrics, [
     "account_end_time",
     "latest_account_time",
@@ -5761,11 +5840,9 @@ function runtimeStatusItems() {
     },
     {
       label: "Latest Market Data",
-      value: timestampAgeLabel(marketTimestamp),
-      status: marketTimestamp ? "ok" : "warn",
-      detail: marketTimestamp
-        ? "Last bar/snapshot timestamp published by the runner."
-        : "Runner summary does not publish latest bar or market-data time yet.",
+      value: marketData.value,
+      status: marketData.status,
+      detail: marketData.detail,
     },
     {
       label: "Latest Account",
@@ -5823,13 +5900,8 @@ function paperMonitorItems() {
     "latest_account_timestamp",
     "account_snapshot_time",
   ]);
-  const marketTimestamp = metricTimestamp(metrics, [
-    "latest_bar_time",
-    "latest_data_time",
-    "latest_market_data_time",
-    "last_bar_time",
-    "market_data_time",
-  ]);
+  const marketData = runtimeMarketDataModel(metrics, latestRun);
+  const marketTimestamp = marketData.timestamp;
   const decisionTimestamp = firstPresent(metrics.last_decision_time, latestDecision && latestDecision.timestamp);
   const nextDecision = firstPresent(
     metrics.next_decision_time,
@@ -5873,8 +5945,10 @@ function paperMonitorItems() {
     },
     {
       label: "Observing Market",
-      status: observing ? (stale ? "warn" : "ok") : "bad",
-      detail: observing
+      status: marketData.status === "bad" ? "bad" : observing ? (stale ? "warn" : "ok") : "bad",
+      detail: marketData.status === "bad"
+        ? marketData.detail
+        : observing
         ? `Market data ${marketTimestamp ? timestampAgeLabel(marketTimestamp) : "n/a"}; latest decision ${decisionTimestamp ? timestampAgeLabel(decisionTimestamp) : "n/a"}.`
         : "No recent market-data or decision timestamp is available from the runner.",
     },
@@ -6950,21 +7024,7 @@ function renderOverviewCommandCenter() {
     : todayPerf.total_return_pct;
   const latestRun = latestTelemetryRun();
   const runMetrics = (latestRun && latestRun.metrics) || {};
-  const latestBarTime = metricTimestamp(runMetrics, [
-    "latest_bar_time",
-    "latest_data_time",
-    "latest_market_data_time",
-    "last_bar_time",
-    "market_data_time",
-  ]);
-  const marketDataHealth = runMetrics.market_data_health || {};
-  const marketDataHealthStatus = text(runMetrics.market_data_status || marketDataHealth.status || "").toLowerCase();
-  const marketDataHealthReason = text(runMetrics.market_data_reason || marketDataHealth.reason || "");
-  const marketDataHealthBad = ["bad", "error"].includes(marketDataHealthStatus);
-  const marketDataHealthWarn = marketDataHealthStatus === "warn";
-  const marketDataDetail = marketDataHealthReason && marketDataHealthReason !== "n/a"
-    ? `${marketDataHealthReason}; ${numberText(marketDataHealth.symbols_with_bars_count, 0)}/${numberText(marketDataHealth.requested_symbol_count, 0)} symbols with bars, ${numberText(marketDataHealth.symbols_with_live_prices_count, 0)} live prices.`
-    : latestBarTime ? text(latestBarTime) : "Runner has not published a latest bar timestamp.";
+  const marketData = runtimeMarketDataModel(runMetrics, latestRun);
   const glance = overviewGlanceModel();
   const primary = $("overview-command-primary");
   const secondary = $("overview-command-secondary");
@@ -7023,9 +7083,9 @@ function renderOverviewCommandCenter() {
     },
     {
       label: "Market Data",
-      title: marketDataHealthBad ? "feed issue" : latestBarTime ? timestampAgeLabel(latestBarTime) : "n/a",
-      status: marketDataHealthBad ? "bad" : marketDataHealthWarn ? "warn" : latestBarTime ? "ok" : runs.length ? "warn" : "bad",
-      detail: marketDataDetail,
+      title: marketData.title,
+      status: marketData.status,
+      detail: marketData.detail,
     },
   ];
   $("overview-command-cards").innerHTML = cards.map((card) => `
@@ -7827,7 +7887,10 @@ function renderMetrics() {
   $("metric-alerts").textContent = String(alerts.length);
   $("metric-alerts").className = alerts.length ? "status-warn" : "status-ok";
   $("metric-history").textContent = String(history.length);
-  $("metric-data").textContent = String((state.dataCatalog.datasets || []).length);
+  const dataMetric = savedDataMetricModel();
+  $("metric-data").textContent = dataMetric.value;
+  $("metric-data").className = statusClass(dataMetric.status);
+  $("metric-data").title = dataMetric.title;
   $("command-node").value = payload.node_id || $("command-node").value || "example-local-trader";
   if (supervisors.length && !$("command-supervisor").value) {
     $("command-supervisor").value = supervisors[0].id || "";
@@ -29235,7 +29298,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   renderDataStorageAudit();
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const catalogOffset = encodeURIComponent(selectedDataCatalogOffset());
-  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000));
+  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 20000));
   try {
     const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&offset=${catalogOffset}&preview_points=${dataCatalogPreviewPoints()}`);
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
