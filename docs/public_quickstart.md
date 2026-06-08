@@ -464,7 +464,9 @@ Symbol Browser's Selected Symbol strip summarizes the active symbol,
 selected saved file, coverage, and quality, with one-click Filter, Inspect,
 Workbench, Compare, and Diagnose actions. Use Copy data_roots YAML when Data Library finds
 suggested roots; paste the copied `dashboard.data_roots` block into an ignored
-local config and remove any paths you do not want scanned. Fetch Jobs shows
+local config and remove any paths you do not want scanned. For large roots, use
+Catalog Page Previous/Next to move through bounded catalog slices; Export CSV
+downloads the currently loaded page. Fetch Jobs shows
 historical-data pull manifests, status counts, retry/pacing summaries, no-data
 chunks, errors, produced output files, per-symbol progress, and output paths.
 Start with Fetch Progress Review when a pull is running, partial, or failed:

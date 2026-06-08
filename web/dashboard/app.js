@@ -18,6 +18,7 @@ const state = {
     diagnosticsError: "",
     diagnosticsRequested: false,
     catalogLimitTouched: false,
+    catalogOffset: 0,
     requestId: 0,
   },
   dataCompare: null,
@@ -387,6 +388,16 @@ function selectedDataCatalogLimit() {
   return $("data-catalog-limit").value || String(dataCatalogSettings().defaultLimit);
 }
 
+function selectedDataCatalogOffset() {
+  const offset = Number(dataLibraryLoadState().catalogOffset || 0);
+  return Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+}
+
+function setDataCatalogOffset(value) {
+  const offset = Number(value || 0);
+  dataLibraryLoadState().catalogOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+}
+
 function dataCatalogPreviewPoints() {
   return 8;
 }
@@ -402,9 +413,11 @@ function dataLibraryLoadState() {
       diagnosticsError: "",
       diagnosticsRequested: false,
       catalogLimitTouched: false,
+      catalogOffset: 0,
       requestId: 0,
     };
   }
+  if (!Number.isFinite(Number(state.dataLibrary.catalogOffset))) state.dataLibrary.catalogOffset = 0;
   return state.dataLibrary;
 }
 
@@ -11785,6 +11798,26 @@ function renderDataCatalog() {
   const filtered = filteredDataCatalog(datasets);
   const loadState = dataLibraryLoadState();
   const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
+  const offset = Number(catalog.offset ?? selectedDataCatalogOffset() ?? 0);
+  const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
+  const count = Number(catalog.count || datasets.length || 0);
+  const pageStart = count ? offset + 1 : offset;
+  const pageEnd = Number(catalog.page_end_offset ?? (offset + count));
+  if ($("data-catalog-page-status")) {
+    $("data-catalog-page-status").textContent = count
+      ? `Rows ${numberText(pageStart, 0)}-${numberText(pageEnd, 0)}`
+      : offset ? `Offset ${numberText(offset, 0)}` : "No rows";
+  }
+  if ($("data-catalog-page-note")) {
+    const scanLimit = Number(catalog.scan_limit || limit || 0);
+    $("data-catalog-page-note").textContent = [
+      limit ? `Page size ${numberText(limit, 0)}` : "",
+      scanLimit ? `scanned through ${numberText(scanLimit, 0)}` : "",
+      catalog.has_next_page ? "more rows available" : "end of current bounded scan",
+    ].filter(Boolean).join(" / ") || "Use pages to browse larger saved-data roots.";
+  }
+  if ($("data-catalog-prev-page")) $("data-catalog-prev-page").disabled = !catalog.has_previous_page || loadState.catalogLoading;
+  if ($("data-catalog-next-page")) $("data-catalog-next-page").disabled = !catalog.has_next_page || loadState.catalogLoading;
   renderDataFilterOptions(datasets);
   renderDataLibrarySummary();
   renderDataHome(filtered);
@@ -26416,9 +26449,10 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   renderDataMinuteHeatmap();
   renderDataStorageAudit();
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const catalogOffset = encodeURIComponent(selectedDataCatalogOffset());
   const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000));
   try {
-    const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&preview_points=${dataCatalogPreviewPoints()}`);
+    const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&offset=${catalogOffset}&preview_points=${dataCatalogPreviewPoints()}`);
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
     try {
       dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}`);
@@ -27203,7 +27237,8 @@ async function downloadCommandAuditCsv() {
 
 async function downloadDataCatalogCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
-  const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}`);
+  const catalogOffset = encodeURIComponent(selectedDataCatalogOffset());
+  const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}&offset=${catalogOffset}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -28208,8 +28243,23 @@ function init() {
   });
   $("data-catalog-limit").addEventListener("change", () => {
     dataLibraryLoadState().catalogLimitTouched = true;
+    setDataCatalogOffset(0);
     refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {
       $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+  });
+  $("data-catalog-prev-page").addEventListener("click", () => {
+    const catalog = state.dataCatalog || {};
+    setDataCatalogOffset(catalog.previous_offset ?? Math.max(0, selectedDataCatalogOffset() - Number(selectedDataCatalogLimit() || 0)));
+    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {
+      $("last-refresh").textContent = `Catalog page load failed: ${err.message}`;
+    });
+  });
+  $("data-catalog-next-page").addEventListener("click", () => {
+    const catalog = state.dataCatalog || {};
+    setDataCatalogOffset(catalog.next_offset ?? (selectedDataCatalogOffset() + Number(selectedDataCatalogLimit() || 0)));
+    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).catch((err) => {
+      $("last-refresh").textContent = `Catalog page load failed: ${err.message}`;
     });
   });
   $("data-storage-scan-limit").addEventListener("change", () => {

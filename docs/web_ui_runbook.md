@@ -330,6 +330,9 @@ If expected symbols are missing, check Catalog Scope before searching. A capped
 catalog means the dashboard loaded only the first bounded set of files; a
 hidden-filter state means the files may be loaded but excluded by current
 facets or text search.
+Use the Catalog Page controls to move through additional bounded catalog
+slices. Export CSV follows the current catalog page, so page first when you
+want to download a later slice of a large local cache.
 Use Data Source Map before searching if the catalog looks sparse: it summarizes
 which roots are scanned, which suggested roots are outside the config, whether
 files are hidden by caps, and whether parser/root errors explain missing data.

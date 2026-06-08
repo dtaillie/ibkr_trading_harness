@@ -1041,6 +1041,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-catalog-health-cards" in html
         assert "data-catalog-scan-note" in html
         assert "data-catalog-scan-body" in html
+        assert "data-catalog-page-status" in html
+        assert "data-catalog-prev-page" in html
+        assert "data-catalog-next-page" in html
         assert "data-storage-scan-limit" in html
         assert "export-data-catalog-scan-csv" in html
         assert "export-data-storage-audit-csv" in html
@@ -2594,6 +2597,63 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["catalog_matches"][0]["storage_contract_status"] == "warn"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_paginates_data_catalog(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for symbol, close in (("AAA", 10), ("BBB", 20), ("CCC", 30)):
+        (data_root / f"{symbol}_5min_sample.csv").write_text(
+            "\n".join(
+                [
+                    "timestamp,open,high,low,close,volume",
+                    f"2026-01-02T14:30:00Z,{close},{close + 1},{close - 1},{close},100",
+                    f"2026-01-02T14:35:00Z,{close},{close + 1},{close - 1},{close + 0.5},110",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_catalog?limit=2&offset=0&preview_points=2", timeout=5) as resp:
+            first_page = json.loads(resp.read().decode("utf-8"))
+        assert first_page["offset"] == 0
+        assert first_page["limit"] == 2
+        assert first_page["scan_limit"] == 2
+        assert first_page["count"] == 2
+        assert first_page["page_start_offset"] == 0
+        assert first_page["page_end_offset"] == 2
+        assert first_page["has_previous_page"] is False
+        assert first_page["previous_offset"] is None
+        assert first_page["has_next_page"] is True
+        assert first_page["next_offset"] == 2
+        assert [row["symbol"] for row in first_page["datasets"]] == ["AAA", "BBB"]
+
+        with request.urlopen(f"{base}/data_catalog?limit=2&offset=2&preview_points=2", timeout=5) as resp:
+            second_page = json.loads(resp.read().decode("utf-8"))
+        assert second_page["offset"] == 2
+        assert second_page["scan_limit"] == 4
+        assert second_page["count"] == 1
+        assert second_page["page_start_offset"] == 2
+        assert second_page["page_end_offset"] == 3
+        assert second_page["has_previous_page"] is True
+        assert second_page["previous_offset"] == 0
+        assert second_page["has_next_page"] is False
+        assert second_page["next_offset"] is None
+        assert [row["symbol"] for row in second_page["datasets"]] == ["CCC"]
+
+        with request.urlopen(f"{base}/data_catalog_export?limit=2&offset=2", timeout=5) as resp:
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(exported) == 1
+        assert exported[0]["symbol"] == "CCC"
     finally:
         server.shutdown()
         server.server_close()

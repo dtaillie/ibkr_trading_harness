@@ -2800,15 +2800,20 @@ def build_data_catalog(
     data_roots: list[Path],
     *,
     limit: int = 50,
+    offset: int = 0,
     preview_points: int = 80,
 ) -> dict[str, Any]:
     if preview_points < 2 or preview_points > 500:
         raise ValueError("preview_points must be between 2 and 500")
+    if offset < 0:
+        raise ValueError("offset must be at least 0")
     datasets = []
     errors = []
-    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit)
+    scan_limit = max(limit, offset + limit)
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=scan_limit)
+    page_files = files[offset:offset + limit]
     root_summary_by_path = {str(row["path"]): row for row in root_summaries}
-    for path in files:
+    for path in page_files:
         root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
         root_key = display_path(root)
         root_summary = root_summary_by_path.get(root_key)
@@ -2859,6 +2864,8 @@ def build_data_catalog(
     skipped_candidate_count_total = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
     scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
+    page_end_offset = offset + len(page_files)
+    has_next_page = len(files) > offset + limit or bool(scan_capped_root_count)
     root_inventory = build_data_catalog_root_inventory(
         root_summaries,
         dataset_count=len(datasets),
@@ -2905,6 +2912,14 @@ def build_data_catalog(
         "size_bytes_total": sum(int(item.get("size_bytes") or 0) for item in datasets),
         "latest_modified_at": max(modified_values) if modified_values else None,
         "limit": limit,
+        "offset": offset,
+        "scan_limit": scan_limit,
+        "page_start_offset": offset,
+        "page_end_offset": page_end_offset,
+        "previous_offset": max(0, offset - limit) if offset > 0 else None,
+        "next_offset": page_end_offset if has_next_page else None,
+        "has_previous_page": offset > 0,
+        "has_next_page": has_next_page,
         "preview_points": preview_points,
     }
 
@@ -3831,8 +3846,8 @@ def build_data_storage_audit_csv(
     return out.getvalue()
 
 
-def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200) -> str:
-    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2)
+def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200, offset: int = 0) -> str:
+    catalog = build_data_catalog(data_roots, limit=limit, offset=offset, preview_points=2)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_CATALOG_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -11091,8 +11106,10 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=self.data_catalog_default_limit,
                     maximum=self.data_catalog_max_limit,
                 )
+                max_offset = max(0, self.data_catalog_max_limit - limit)
+                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=max_offset)
                 preview_points = int(params.get("preview_points", ["80"])[0])
-                payload = build_data_catalog(self.data_roots, limit=limit, preview_points=preview_points)
+                payload = build_data_catalog(self.data_roots, limit=limit, offset=offset, preview_points=preview_points)
                 payload["default_limit"] = self.data_catalog_default_limit
                 payload["max_limit"] = self.data_catalog_max_limit
             except (TypeError, ValueError) as exc:
@@ -11149,7 +11166,9 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=self.data_catalog_default_limit,
                     maximum=self.data_catalog_max_limit,
                 )
-                csv_body = build_data_catalog_csv(self.data_roots, limit=limit)
+                max_offset = max(0, self.data_catalog_max_limit - limit)
+                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=max_offset)
+                csv_body = build_data_catalog_csv(self.data_roots, limit=limit, offset=offset)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

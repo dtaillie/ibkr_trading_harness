@@ -82,7 +82,9 @@ This roadmap is broader context; the queue is the current execution order.
   and adjustment metadata.
 - Keep data-catalog quality scoring visible before simulation: timestamp
   parseability, missing close data, duplicate timestamps, gaps, and volume
-  availability should be summarized before a dataset is selected.
+  availability should be summarized before a dataset is selected. Large local
+  roots should be browsable in bounded pages instead of forcing users to raise
+  the scan limit just to find later files.
 - Add fetch-job manifests with status, ETA, activity freshness, failure counts,
   retry counts, and resumability.
 - Add consistent paper/live mode gates so a strategy cannot accidentally submit

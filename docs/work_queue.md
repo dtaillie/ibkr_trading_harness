@@ -1045,6 +1045,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Storage Audit now has a user-selectable bounded per-root disk
       scan limit up to 50,000 files, and shows multiple hidden file samples so
       users can inspect what exists on disk beyond the catalog-visible rows.
+  - browse large configured roots without only raising the catalog limit
+    - partial; `/data_catalog` and `/data_catalog_export` now accept a bounded
+      `offset`, return page metadata, and Data Library exposes Previous / Next
+      catalog-page controls so users can inspect larger saved-data roots in
+      chunks within the configured scan cap.
 - Add a backend storage audit command and matching dashboard panel:
   - done; `scripts/audit_data_storage.py`, the storage-audit endpoint, and the
     Data Library panel compare configured/suggested root files with
