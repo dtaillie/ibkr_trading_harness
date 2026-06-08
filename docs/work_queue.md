@@ -2410,9 +2410,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     public status/artifact sanitizers now preserve only explicit public-safe
     execution fields such as decision/submit bid/ask, limit/cap price,
     avg-fill/fill price, fill/submission timestamps, and spread bps while still
-    excluding raw metadata and private strategy diagnostics. Runner/broker code
-    still needs to publish complete quote/spread rows before the review can be
-    considered fully covered.
+    excluding raw metadata and private strategy diagnostics. The generic plugin
+    runner now publishes runner-estimated quote/spread context from the latest
+    bar close for order, fill, rejection, approval, and plugin-contract rows
+    when `execution.sim_quote_spread_bps` or `execution.quote_spread_bps` is
+    configured. Broker-native bid/ask/NBBO capture remains adapter-specific
+    future work before live execution A/B tests are fully covered.
 - Run A/B paper tests before changing defaults away from market orders.
 - Keep crypto order handling separate from stock execution algos.
 

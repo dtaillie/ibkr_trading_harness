@@ -227,7 +227,10 @@ missed/rejected/canceled/held order rate, order type mix, decision-time and
 submit-time bid/ask coverage, limit/cap price coverage, fill-price evidence, and
 spread evidence. Missing rows are instrumentation gaps: the panel does not infer
 bid/ask, average fill, or spread capture when runners have not published those
-public-safe fields.
+public-safe fields. Generic plugin-runner rows may include
+`runner_estimated_from_bar_close` quote context when
+`execution.sim_quote_spread_bps` or `execution.quote_spread_bps` is configured;
+use that for public-safe review coverage, not as proof of broker-native NBBO.
 Use the Runs workflow cards first when you know the review job: Current State,
 Open Orders, Positions, Event Timeline, Run Search, or Loaded Artifacts. They
 route directly into the focused Runs, Performance, or Workbench views behind

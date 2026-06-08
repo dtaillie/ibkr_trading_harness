@@ -246,6 +246,7 @@ def test_simulated_paper_fills_order_intent(tmp_path):
         output_dir=output_dir,
         plugin="tests.fixtures.order_once_plugin:create_strategy",
         strategy={"symbol": "SPY", "cash_quantity": 1000},
+        execution={"sim_quote_spread_bps": 10},
     )
 
     result = run_from_config(config_path, mode_override="simulated-paper")
@@ -272,6 +273,21 @@ def test_simulated_paper_fills_order_intent(tmp_path):
     assert result.max_position_count == 1
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["tag"] == "fixture_buy_once"
+    assert fills[0]["quote_source"] == "runner_estimated_from_bar_close"
+    assert fills[0]["decision_bid"] == pytest.approx(99.95)
+    assert fills[0]["decision_ask"] == pytest.approx(100.05)
+    assert fills[0]["submit_bid"] == pytest.approx(99.95)
+    assert fills[0]["submit_ask"] == pytest.approx(100.05)
+    assert fills[0]["avg_fill_price"] == pytest.approx(100.0)
+    assert fills[0]["fill_price"] == pytest.approx(100.0)
+    assert fills[0]["effective_spread_bps"] == pytest.approx(0.0)
+    orders = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert orders[0]["quote_source"] == "runner_estimated_from_bar_close"
+    assert orders[0]["decision_spread_bps"] == pytest.approx(10.0)
+    assert orders[0]["submit_spread_bps"] == pytest.approx(10.0)
+    contract = json.loads((output_dir / "plugin_contract.json").read_text())
+    assert contract["execution"]["quote_source"] == "runner_estimated_from_bar_close"
+    assert contract["execution"]["quote_spread_bps"] == pytest.approx(10.0)
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[0]["cash"] == pytest.approx(9000.0)
     assert account[0]["equity"] == pytest.approx(10000.0)
@@ -1139,6 +1155,7 @@ def test_paper_mode_can_use_file_broker_adapter(tmp_path):
         output_dir=output_dir,
         plugin="tests.fixtures.order_once_plugin:create_strategy",
         strategy={"symbol": "SPY", "quantity": 2, "cash_quantity": None},
+        execution={"sim_quote_spread_bps": 8},
         broker={
             "adapter": "file",
             "account_mode": "paper",
@@ -1159,6 +1176,14 @@ def test_paper_mode_can_use_file_broker_adapter(tmp_path):
     fills = [json.loads(line) for line in (output_dir / "fills.jsonl").read_text().splitlines()]
     assert fills[0]["simulated"] is False
     assert fills[0]["price"] == pytest.approx(100.0)
+    assert fills[0]["quote_source"] == "runner_estimated_from_bar_close"
+    assert fills[0]["decision_bid"] == pytest.approx(101.9592)
+    assert fills[0]["decision_ask"] == pytest.approx(102.0408)
+    assert fills[0]["avg_fill_price"] == pytest.approx(100.0)
+    assert fills[0]["effective_spread_bps"] == pytest.approx(-392.156862745)
+    orders = [json.loads(line) for line in (output_dir / "orders.jsonl").read_text().splitlines()]
+    assert orders[0]["submit_bid"] == pytest.approx(101.9592)
+    assert orders[0]["submit_ask"] == pytest.approx(102.0408)
     account = [json.loads(line) for line in (output_dir / "account.jsonl").read_text().splitlines()]
     assert account[-1]["cash"] == pytest.approx(800.0)
     assert account[-1]["equity"] == pytest.approx(1004.0)
@@ -1402,6 +1427,25 @@ def test_validate_config_file_rejects_unsupported_order_type(tmp_path):
 
     assert "execution.allowed_order_types" in str(exc.value)
     assert "limit" in str(exc.value)
+
+
+def test_validate_config_file_rejects_negative_quote_spread(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        execution={"sim_quote_spread_bps": -1},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "execution.sim_quote_spread_bps" in str(exc.value)
 
 
 def test_runner_rejects_order_above_notional_limit(tmp_path):

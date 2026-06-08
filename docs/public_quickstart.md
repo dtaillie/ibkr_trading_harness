@@ -684,8 +684,12 @@ public-safe execution-quality fields from recent status or loaded artifacts:
 decision/submit bid/ask, order type, limit/cap price, fill time, average fill,
 effective spread evidence, and missed/rejected/canceled/held order rate. If
 those fields are missing, treat that as a runner/broker instrumentation gap, not
-as proof of good execution. If a plugin wants public-safe
-strategy drilldowns in the dashboard, publish only sanitized fields under
+as proof of good execution. The generic plugin runner can publish
+runner-estimated bid/ask around the latest bar close when
+`execution.sim_quote_spread_bps` or `execution.quote_spread_bps` is configured;
+that gives public-safe review coverage, but it is not broker-native NBBO. If a
+plugin wants public-safe strategy drilldowns in the dashboard, publish only
+sanitized fields under
 `StrategyDecision.diagnostics["dashboard"]`; the dashboard allowlists fields
 such as `signal_label`, `signal_value`, `threshold`, `threshold_distance`,
 `near_threshold`, `expected_hold_minutes`, `active_exit_rule`, `exit_state`,

@@ -60,6 +60,10 @@ execution:
   sim_buy_slippage_bps: 0
   sim_sell_slippage_bps: 0
   sim_market_impact_bps_per_10k: 0
+  # Public-safe quote context for execution-quality review. The generic runner
+  # estimates bid/ask around the latest bar close; broker-native NBBO capture
+  # belongs in private/live adapters.
+  sim_quote_spread_bps: 0
   sim_commission_bps: 0
   sim_commission_per_share: 0
   sim_min_commission: 0

@@ -530,6 +530,8 @@ def validate_config(
     validate_nonnegative_float(execution_cfg.get("sim_buy_slippage_bps"), "execution.sim_buy_slippage_bps", errors)
     validate_nonnegative_float(execution_cfg.get("sim_sell_slippage_bps"), "execution.sim_sell_slippage_bps", errors)
     validate_nonnegative_float(execution_cfg.get("sim_market_impact_bps_per_10k"), "execution.sim_market_impact_bps_per_10k", errors)
+    validate_nonnegative_float(execution_cfg.get("sim_quote_spread_bps"), "execution.sim_quote_spread_bps", errors)
+    validate_nonnegative_float(execution_cfg.get("quote_spread_bps"), "execution.quote_spread_bps", errors)
     validate_nonnegative_float(execution_cfg.get("sim_commission_bps"), "execution.sim_commission_bps", errors)
     validate_nonnegative_float(execution_cfg.get("sim_commission_per_share"), "execution.sim_commission_per_share", errors)
     validate_nonnegative_float(execution_cfg.get("sim_min_commission"), "execution.sim_min_commission", errors)
@@ -1389,6 +1391,8 @@ def plugin_contract_artifact(
             "max_orders_per_run": execution_cfg.get("max_orders_per_run"),
             "max_notional_per_order": execution_cfg.get("max_notional_per_order"),
             "max_gross_exposure_pct": execution_cfg.get("max_gross_exposure_pct"),
+            "quote_source": "runner_estimated_from_bar_close",
+            "quote_spread_bps": configured_quote_spread_bps(execution_cfg),
         },
         "broker": {
             "adapter": adapter,
@@ -1856,6 +1860,78 @@ def estimate_intent_notional(intent: OrderIntent, price: float | None) -> float 
     return None
 
 
+def configured_quote_spread_bps(execution_cfg: dict[str, Any]) -> float:
+    for key in ("sim_quote_spread_bps", "quote_spread_bps"):
+        value = finite_float(execution_cfg.get(key))
+        if value is not None:
+            return max(0.0, value)
+    return 0.0
+
+
+def estimated_quote_context(
+    *,
+    price: float | None,
+    execution_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    mid = finite_float(price)
+    if mid is None or mid <= 0:
+        return {"quote_source": "unavailable"}
+    spread_bps = configured_quote_spread_bps(execution_cfg)
+    half_spread = mid * spread_bps / 10000.0 / 2.0
+    bid = mid - half_spread
+    ask = mid + half_spread
+    return {
+        "quote_source": "runner_estimated_from_bar_close",
+        "decision_mid": mid,
+        "decision_bid": bid,
+        "decision_ask": ask,
+        "decision_spread_bps": spread_bps,
+        "submit_mid": mid,
+        "submit_bid": bid,
+        "submit_ask": ask,
+        "submit_spread_bps": spread_bps,
+    }
+
+
+def metadata_limit_price(intent: OrderIntent) -> float | None:
+    metadata = intent.metadata if isinstance(intent.metadata, dict) else {}
+    for key in ("limit_price", "lmt_price", "entry_limit_price", "cap_price", "price_cap"):
+        value = finite_float(metadata.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def order_execution_context(intent: OrderIntent, *, price: float | None, execution_cfg: dict[str, Any]) -> dict[str, Any]:
+    context = estimated_quote_context(price=price, execution_cfg=execution_cfg)
+    context["current_price"] = finite_float(price)
+    context["reference_price"] = finite_float(price)
+    limit_price = metadata_limit_price(intent)
+    if limit_price is not None:
+        context["limit_price"] = limit_price
+    return context
+
+
+def fill_execution_context(
+    intent: OrderIntent,
+    *,
+    price: float | None,
+    fill: dict[str, Any],
+    execution_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    context = order_execution_context(intent, price=price, execution_cfg=execution_cfg)
+    fill_price = finite_float(fill.get("price"))
+    if fill_price is not None:
+        context["fill_price"] = fill_price
+        context["avg_fill_price"] = fill_price
+    mid = finite_float(context.get("submit_mid") or context.get("decision_mid"))
+    side = str(intent.side or "").lower()
+    if fill_price is not None and mid is not None and mid > 0 and side in {"buy", "sell"}:
+        signed_distance = (fill_price - mid) if side == "buy" else (mid - fill_price)
+        context["effective_spread_bps"] = signed_distance / mid * 20000.0
+    return context
+
+
 def short_notional_by_symbol(positions: dict[str, float], prices: dict[str, float]) -> dict[str, float]:
     return {
         symbol: abs(float(qty)) * float(prices.get(symbol, 0.0))
@@ -2174,6 +2250,7 @@ def run_from_config(
         record = {
             "timestamp": now,
             **intent_record(intent, status="rejected", reason=reason),
+            **order_execution_context(intent, price=final_prices.get(intent.symbol), execution_cfg=execution_cfg),
         }
         append_jsonl(output_dir / "orders.jsonl", record)
         latest_rejection = {
@@ -2303,9 +2380,15 @@ def run_from_config(
             if isinstance(intent.metadata, dict):
                 observed_intent_metadata_keys.update(public_key_list(intent.metadata))
             orders += 1
+            order_context = order_execution_context(
+                intent,
+                price=final_prices.get(intent.symbol),
+                execution_cfg=execution_cfg,
+            )
             append_jsonl(output_dir / "orders.jsonl", {
                 "timestamp": now,
                 **intent_record(intent, status="observed" if mode in {"replay", "shadow"} else "pending"),
+                **order_context,
             })
             max_orders = execution_cfg.get("max_orders_per_run")
             if max_orders is not None and accepted_orders >= int(max_orders):
@@ -2361,6 +2444,7 @@ def run_from_config(
                     append_jsonl(output_dir / "orders.jsonl", {
                         "timestamp": now,
                         **intent_record(intent, status="approval_required", reason=reason),
+                        **order_context,
                     })
                     log.warning("%s held: %s", intent.symbol, reason)
                     continue
@@ -2386,6 +2470,12 @@ def run_from_config(
                 continue
 
             fills += 1
+            fill.update(fill_execution_context(
+                intent,
+                price=final_prices.get(intent.symbol),
+                fill=fill,
+                execution_cfg=execution_cfg,
+            ))
             append_jsonl(output_dir / "fills.jsonl", fill)
             plugin.on_fill(fill, context)
             if simulated is not None:
