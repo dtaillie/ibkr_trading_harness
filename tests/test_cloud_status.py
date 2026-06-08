@@ -1134,6 +1134,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-detail-range-preset" in html
         assert "data-detail-chart-style" in html
         assert "data-detail-timezone" in html
+        assert "data-detail-action-note" in html
+        assert "data-detail-action-cards" in html
+        assert "data-detail-action-actions" in html
         assert "data-detail-range-stats" in html
         assert "data-missing-intervals-note" in html
         assert "data-missing-intervals-body" in html

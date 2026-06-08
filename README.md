@@ -353,7 +353,11 @@ Library. Individual datasets can be
 inspected offline with date-range controls, sampled or full-in-range viewing,
 close-price paths, volume bars, null counts, gap rows, price/return stats,
 volume stats, and a compact ok/warn/bad quality summary before they are used
-in a replay config. The saved-data table also has a Replay column that combines
+in a replay config. Data Detail starts with an Action Summary that picks the
+first move across opening the typed symbol's best file, fixing catalog/root
+visibility, reloading the current range, focusing the largest gap, sending the
+file to Workbench, comparing sibling files, or exporting the range. The
+saved-data table also has a Replay column that combines
 quality, storage-contract metadata, missing intervals, timezone, and adjustment
 metadata into one per-file readiness read, with a matching Replay filter and
 Replay-first sort for large local catalogs. Fetch Detail output rows show the

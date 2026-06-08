@@ -1334,6 +1334,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       move, candle direction balance, bar movement, median/max volume, gap
       pressure, and viewer sampling/full-state, so saved history is readable
       before opening raw metadata tables.
+    - partial; Data Detail now starts with an Action Summary before the wide
+      viewer controls, choosing between opening the best typed symbol file,
+      fixing catalog/root visibility, reloading the current view, focusing the
+      largest gap, sending the opened file to Workbench, comparing sibling
+      symbol files, or exporting the selected range.
 - Add data coverage diagnostics:
   - coverage heatmap by symbol/date
     - partial; Data Library now renders recent date-bin coverage by symbol

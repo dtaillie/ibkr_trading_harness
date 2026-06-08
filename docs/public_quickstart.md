@@ -662,6 +662,10 @@ quality summary without exporting full bar data. From Data Detail, Export
 Range CSV downloads the selected date range as bounded bar data, while Export
 Missing CSV downloads inferred missing expected timestamps for the selected
 saved file so gap audits can be reviewed offline.
+Start with Data Detail Action Summary before tuning the wide viewer controls:
+it chooses between opening the typed symbol's best file, fixing catalog/root
+visibility, reloading the selected range, focusing the largest gap, sending the
+file to Workbench, comparing sibling files, or exporting the range.
 Data Detail also has quick range presets for full file, last day, last week,
 last month, and last three months before manual Start/End tuning. Its range
 stats show close return, OHLC high/low span, open-to-close move, candle

@@ -332,6 +332,11 @@ works offline from saved CSV/parquet files and shows:
 - gap/null/duplicate warnings
 - sampled or bounded full-in-range views
 
+Start with Data Detail Action Summary. It appears before the wide viewer form
+and chooses the next action: open the best file for the typed symbol, diagnose
+catalog/root visibility, reload the selected range, focus the largest gap,
+send the opened file to Workbench, compare sibling files, or export the range.
+
 Start with Data Home when the catalog is large. Saved Data Preview Wall shows
 sampled close-path sparklines for the top visible files with a summary of
 scope, replay readiness, coverage, sampled-return leader, and direct Inspect,

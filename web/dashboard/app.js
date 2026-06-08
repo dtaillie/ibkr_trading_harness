@@ -16491,6 +16491,210 @@ function renderEndpointMap() {
     : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }
 
+function dataDetailActionSummaryModel(detail = {}, timezoneMode = "utc") {
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const typedSymbol = ($("data-detail-symbol") && $("data-detail-symbol").value.trim().toUpperCase()) || "";
+  const opened = Boolean(detail && detail.path);
+  const symbol = opened ? text(detail.symbol).toUpperCase() : typedSymbol;
+  const best = symbol ? bestCatalogDatasetForSymbol(symbol) : null;
+  const matchingFiles = symbol
+    ? datasets.filter((dataset) => text(dataset.symbol).toUpperCase() === symbol && dataset.path)
+    : [];
+  if (!opened) {
+    const catalogStatus = datasets.length ? "ok" : "bad";
+    const symbolStatus = symbol ? best ? "ok" : "warn" : "warn";
+    const note = datasets.length
+      ? symbol
+        ? best
+          ? `Best ${symbol} file is ready to open: ${text(best.bar_size)} from ${text(best.source)}.`
+          : `${symbol} is not visible in the loaded catalog; diagnose roots, filters, or fetch output.`
+        : "Enter a scanned symbol, pick a catalog row, or browse the symbol directory."
+      : "No catalog rows are loaded; refresh Data Library or configure data roots.";
+    return {
+      note,
+      cards: [
+        {
+          status: catalogStatus,
+          label: "Catalog",
+          title: datasets.length ? `${numberText(datasets.length, 0)} files` : "No Files",
+          note: datasets.length ? "Saved files are available for offline inspection." : "Load or configure saved-data roots first.",
+        },
+        {
+          status: symbolStatus,
+          label: "Symbol",
+          title: symbol || "Choose One",
+          note: symbol ? `${numberText(matchingFiles.length, 0)} matching scanned file${matchingFiles.length === 1 ? "" : "s"}.` : "Use Jump to Symbol or Browse.",
+        },
+        {
+          status: best ? "ok" : "warn",
+          label: "Best File",
+          title: best ? `${text(best.bar_size)} ${text(best.source)}` : "None Selected",
+          note: best ? `${numberText(best.rows, 0)} rows; ${text(best.quality_status || "unknown")} quality.` : "Open a catalog file before charting or replay handoff.",
+        },
+        {
+          status: best ? "ok" : datasets.length ? "warn" : "bad",
+          label: "Next Move",
+          title: best ? "Open Best File" : datasets.length ? "Browse Data" : "Fix Roots",
+          note: best ? "Open the file and inspect chart, gaps, and metadata." : datasets.length ? "Browse or diagnose the symbol before opening detail." : "Use Diagnostics to explain missing roots or scanner state.",
+        },
+      ],
+      actions: [
+        { action: "open-best", label: "Open", title: "Open Best File", disabled: !best },
+        { action: "browse", label: "Browse", title: "Browse Catalog", disabled: !datasets.length },
+        { action: "diagnostics", label: "Diagnose", title: "Open Diagnostics", disabled: false },
+      ],
+    };
+  }
+  const coverage = detail.coverage || {};
+  const quality = detail.quality || {};
+  const viewer = detail.viewer || {};
+  const qualityStatus = text(quality.quality_status || "unknown");
+  const contractStatus = text(detail.storage_contract_status || "unknown");
+  const warnings = Array.isArray(quality.quality_warnings) ? quality.quality_warnings : [];
+  const contractWarnings = Array.isArray(detail.storage_contract_warnings) ? detail.storage_contract_warnings : [];
+  const duplicateRows = finiteNumber(coverage.duplicate_timestamps) || 0;
+  const missingIntervals = finiteNumber(coverage.estimated_missing_intervals) || 0;
+  const nullRows = Object.values(quality.null_counts || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const largestGap = largestDataDetailGap(detail);
+  const viewerStatus = text(viewer.status || (viewer.sampled ? "sampled" : "full"));
+  const chartBad = viewerStatus === "empty_range" || viewerStatus === "unavailable";
+  const blocked = qualityStatus === "bad" || contractStatus === "bad" || duplicateRows > 0 || chartBad;
+  const review = !blocked && (
+    qualityStatus === "warn" ||
+    contractStatus === "warn" ||
+    warnings.length ||
+    contractWarnings.length ||
+    nullRows > 0 ||
+    missingIntervals > 0 ||
+    viewer.sampled
+  );
+  const readinessStatus = blocked ? "bad" : review ? "warn" : "ok";
+  const nextTitle = chartBad
+    ? "Reload Or Widen Range"
+    : blocked
+      ? "Fix Before Replay"
+      : largestGap
+        ? "Inspect Largest Gap"
+        : review
+          ? "Review Warnings"
+          : "Use In Workbench";
+  const nextNote = chartBad
+    ? "The selected range has no usable chart rows; reload after widening the range or use Full file."
+    : blocked
+      ? "Bad quality, metadata, duplicate timestamps, or chart availability blocks a clean replay handoff."
+      : largestGap
+        ? "Focus the largest gap before deciding whether the selected range is usable."
+        : review
+          ? "Warnings do not necessarily block inspection, but review them before simulation."
+          : "This saved file and range are ready for Workbench or comparison.";
+  return {
+    note: `${text(detail.symbol)} ${text(detail.bar_size)} / ${text(detail.source)} / ${timeRangeLabel(viewer.first_timestamp || coverage.first_timestamp, viewer.last_timestamp || coverage.last_timestamp, timezoneMode)}.`,
+    cards: [
+      {
+        status: readinessStatus,
+        label: "Replay Readiness",
+        title: blocked ? "Blocked" : review ? "Review" : "Ready",
+        note: nextNote,
+      },
+      {
+        status: chartBad ? "bad" : viewer.sampled ? "warn" : "ok",
+        label: "Viewer",
+        title: chartBad ? "No Rows" : viewer.sampled ? "Sampled" : "Full",
+        note: `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} filtered rows.`,
+      },
+      {
+        status: missingIntervals || largestGap ? "warn" : "ok",
+        label: "Gaps",
+        title: largestGap ? interval(largestGap.gap_seconds) : missingIntervals ? `${numberText(missingIntervals, 0)} missing` : "None",
+        note: missingIntervals ? `${numberText(missingIntervals, 0)} estimated missing interval${missingIntervals === 1 ? "" : "s"}.` : "No returned gap pressure in this detail response.",
+      },
+      {
+        status: duplicateRows ? "bad" : nullRows ? "warn" : "ok",
+        label: "Integrity",
+        title: `${numberText(duplicateRows, 0)} dup / ${numberText(nullRows, 0)} null`,
+        note: duplicateRows ? "Duplicate timestamps should be fixed before replay." : nullRows ? "Nulls need review before replay." : "No duplicate/null pressure reported.",
+      },
+      {
+        status: contractStatus === "bad" ? "bad" : contractStatus === "warn" ? "warn" : "ok",
+        label: "Metadata",
+        title: contractStatus,
+        note: contractWarnings.length ? contractWarnings.slice(0, 2).join("; ") : "Storage-contract metadata is acceptable.",
+      },
+      {
+        status: readinessStatus,
+        label: "Next Move",
+        title: nextTitle,
+        note: nextNote,
+      },
+    ],
+    actions: [
+      { action: "reload", label: "Reload", title: "Reload View", disabled: false },
+      { action: "gap", label: "Gap", title: "Focus Largest Gap", disabled: !largestGap },
+      { action: "workbench", label: "Workbench", title: "Use In Workbench", disabled: false },
+      { action: "compare", label: "Compare", title: "Compare Symbol", disabled: matchingFiles.length < 2 },
+      { action: "export-range", label: "Export", title: "Export Range CSV", disabled: false },
+    ],
+  };
+}
+
+function renderDataDetailActionSummary(detail = {}, timezoneMode = "utc") {
+  if (!$("data-detail-action-note") || !$("data-detail-action-cards") || !$("data-detail-action-actions")) return;
+  const model = dataDetailActionSummaryModel(detail, timezoneMode);
+  $("data-detail-action-note").textContent = model.note;
+  $("data-detail-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-detail-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-data-detail-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+async function handleDataDetailAction(action) {
+  if (action === "open-best") {
+    await loadDataDetailForSymbol();
+    return;
+  }
+  if (action === "browse") {
+    navigateToDataLens("browse");
+    return;
+  }
+  if (action === "diagnostics") {
+    navigateToDataLens("diagnostics");
+    return;
+  }
+  if (action === "reload") {
+    await reloadDataDetail({ preventDefault() {} });
+    return;
+  }
+  if (action === "gap") {
+    await focusDataDetailLargestGap();
+    return;
+  }
+  if (action === "workbench") {
+    useDataDetailInWorkbench();
+    return;
+  }
+  if (action === "compare") {
+    const detail = state.dataDetail || {};
+    const symbol = text(detail.symbol).toUpperCase();
+    if (symbol && symbol !== "N/A") $("data-symbol-browser-input").value = symbol;
+    renderSymbolBrowser();
+    await compareSelectedSymbolDatasets();
+    navigateToDataLens("compare");
+    return;
+  }
+  if (action === "export-range") {
+    await downloadDataDetailRangeCsv();
+  }
+}
+
 function renderDataDetail() {
   const detail = state.dataDetail || {};
   const coverage = detail.coverage || {};
@@ -16511,6 +16715,7 @@ function renderDataDetail() {
   $("data-detail-viewer-note").textContent = detail.path
     ? `${numberText(viewer.sampled_points, 0)} plotted / ${numberText(viewer.filtered_rows, 0)} in range / ${numberText(viewer.available_rows, 0)} available rows, ${viewer.sampled ? "sampled" : "full"} ${timezoneLabel(timezoneMode)} view`
     : "Select a dataset to inspect saved history offline.";
+  renderDataDetailActionSummary(detail, timezoneMode);
   $("copy-data-path").disabled = !detail.path;
   $("copy-data-root-flag").disabled = !detail.path;
   $("copy-data-replay-command").disabled = !detail.path;
@@ -29602,6 +29807,15 @@ function init() {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
+  $("data-detail-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest("button[data-data-detail-action]")
+      : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleDataDetailAction(target.dataset.dataDetailAction || "").catch((err) => {
+      $("data-detail-action-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-detail-assistant-actions").addEventListener("click", (event) => {
     const target = event.target;
     const button = target instanceof HTMLElement
@@ -29618,6 +29832,9 @@ function init() {
     loadDataDetailForSymbol().catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("data-detail-symbol").addEventListener("input", () => {
+    renderDataDetailActionSummary(state.dataDetail || {}, $("data-detail-timezone").value || "utc");
   });
   $("data-compare-timezone").addEventListener("change", renderDataCompare);
   $("data-compare-filter").addEventListener("input", renderDataCompareControls);
