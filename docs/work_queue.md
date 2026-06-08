@@ -198,6 +198,10 @@ strategy-private.
     Generic plugin runs now publish latest market-data and account timestamps;
     private/specialized runners still need the same generic fields where
     missing.
+  - partial; `scripts/build_runtime_status_bridge.py` now converts legacy
+    CSV/JSON paper-runner session folders into the generic dashboard telemetry
+    contract, and the local ignored status config publishes bridged crypto,
+    stock, supervisor, and Gateway state into `/status`.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
@@ -484,6 +488,11 @@ strategy-private.
     daily/month/year rollups and include them in artifact JSON exports.
     Specialized/private runners still need to publish the same generic artifact
     if they do not use `live/plugin_runner.py`.
+  - partial; legacy/local paper runs can now be bridged into generic
+    `summary.json`, `runner_status.json`, `decisions.jsonl`, `orders.jsonl`,
+    `fills.jsonl`, and `account.jsonl` artifacts so status-history rollups and
+    current-run views do not show empty states just because the runner predates
+    the generic plugin contract.
   - partial; Performance now also renders Live/Paper Period Rollups for
     month/year summaries from status-history equity snapshots, with node count,
     snapshot count, observed sanitized activity, and alerts.

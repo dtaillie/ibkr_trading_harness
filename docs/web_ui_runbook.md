@@ -22,6 +22,34 @@ Open `http://127.0.0.1:8765/`. Top-level pages can be deep-linked with hashes
 such as `#overview`, `#performance`, `#data`, `#fetch`, `#workbench`,
 `#runs`, `#operations`, and `#help`.
 
+## Publish Current Runtime Status
+
+If the dashboard opens but says disconnected or no data while a runner is
+active, check whether the runner is writing the generic dashboard artifacts:
+`summary.json`, `runner_status.json`, `decisions.jsonl`, `orders.jsonl`,
+`fills.jsonl`, and `account.jsonl`. Older/local runners may instead write CSV
+session folders. Bridge those folders into the generic contract before
+publishing status:
+
+```bash
+python3 scripts/build_runtime_status_bridge.py
+python3 scripts/publish_status.py --config config/cloud_status_local.yaml
+```
+
+For local monitoring, `config/cloud_status_local.yaml` should publish to the
+same `dashboard.state_dir` read by `scripts/cloud_status_server.py`, commonly
+`paper_logs/cloud_status_server/latest_status.json`, and can also post to the
+local receiver endpoint:
+
+```yaml
+publish:
+  file: paper_logs/cloud_status_server/latest_status.json
+  endpoint: http://127.0.0.1:8765/status
+```
+
+Run the bridge/publisher from a user-systemd timer when you want the dashboard
+to refresh while paper services run unattended.
+
 Use the topbar task selector when you know the job but not the page: choose
 items such as Monitor today's run, Find saved data, Build a simulation, Check
 runtime health, or Publish safely. The dashboard routes that task to the

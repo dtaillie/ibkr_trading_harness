@@ -73,6 +73,7 @@ COPY_FILES = [
     "scripts/audit_workbench_contracts.py",
     "scripts/approve_order_preview.py",
     "scripts/build_zerohash_crypto_universe.py",
+    "scripts/build_runtime_status_bridge.py",
     "scripts/cloud_status_server.py",
     "scripts/command_worker.py",
     "scripts/export_public_repo.py",
@@ -104,6 +105,7 @@ COPY_FILES = [
     "tests/test_public_docs_audit.py",
     "tests/test_workbench_contract_audit.py",
     "tests/test_public_publish_check.py",
+    "tests/test_runtime_status_bridge.py",
     "tests/test_strategy_plugin_example.py",
     "tests/test_public_readiness_audit.py",
 ]
