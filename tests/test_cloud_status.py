@@ -2869,6 +2869,49 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         server.server_close()
 
 
+def test_cloud_status_server_filters_broad_data_symbol_index_past_scan_cap(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for idx in range(12):
+        symbol = f"AAA{idx:02d}"
+        (data_root / f"{symbol}_1min_sample.csv").write_text(
+            "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+            encoding="utf-8",
+        )
+    target_path = data_root / "ZZZ_1min_sample.csv"
+    target_path.write_text(
+        "timestamp,close\n2026-01-02T14:30:00Z,200\n",
+        encoding="utf-8",
+    )
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:
+            capped = json.loads(resp.read().decode("utf-8"))
+        assert capped["index_complete"] is False
+        assert "ZZZ" not in {row["symbol"] for row in capped["symbols"]}
+
+        with request.urlopen(f"{base}/data_symbol_index?limit=5&q=ZZZ", timeout=5) as resp:
+            filtered = json.loads(resp.read().decode("utf-8"))
+        assert filtered["filter_active"] is True
+        assert filtered["filters"] == {"query": "zzz"}
+        assert filtered["file_count"] == 1
+        assert filtered["symbol_count"] == 1
+        assert filtered["symbols"][0]["symbol"] == "ZZZ"
+        assert filtered["filter_skipped_count_total"] >= 5
+
+        with request.urlopen(f"{base}/data_symbol_index_export?limit=5&q=ZZZ", timeout=5) as resp:
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert any(row["row_type"] == "symbol" and row["symbol"] == "ZZZ" for row in exported)
+        assert any(row["row_type"] == "file" and row["path"].endswith("ZZZ_1min_sample.csv") for row in exported)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_symbol_summaries_group_canonical_crypto_symbols(tmp_path):
     data_root = tmp_path / "data"
     crypto_root = data_root / "crypto"

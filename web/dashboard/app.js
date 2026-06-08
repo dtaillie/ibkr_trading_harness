@@ -12277,6 +12277,35 @@ function rootIndexFilterState() {
   };
 }
 
+function rootIndexServerQueryParams() {
+  const filters = rootIndexFilterState();
+  const params = new URLSearchParams();
+  params.set("limit", String(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000)));
+  if (filters.text) params.set("q", filters.text);
+  if (filters.asset) params.set("asset_class", filters.asset);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.bar) params.set("bar_size", filters.bar);
+  if (filters.session) params.set("storage_session", filters.session);
+  return params;
+}
+
+async function refreshRootIndexFromServerFilters() {
+  const params = rootIndexServerQueryParams();
+  const activeFilterCount = Array.from(params.keys()).filter((key) => key !== "limit").length;
+  $("data-root-index-note").textContent = activeFilterCount
+    ? "Searching configured roots with server-side filters..."
+    : "Refreshing the default Root Index from configured roots...";
+  const payload = await fetchJson(`/data_symbol_index?${params.toString()}`);
+  state.dataSymbolIndex = payload || { symbols: [], files: [], errors: [] };
+  renderRootIndexBrowser();
+  renderDataCatalog();
+  renderDataCoverage();
+  renderPageIntro();
+  $("last-refresh").textContent = activeFilterCount
+    ? `Root Index server search loaded: ${numberText((state.dataSymbolIndex.symbols || []).length, 0)} symbol${(state.dataSymbolIndex.symbols || []).length === 1 ? "" : "s"}`
+    : "Root Index refreshed from configured roots";
+}
+
 function syncRootIndexOptions(symbols = []) {
   const makeSelect = (id, values) => {
     const select = $(id);
@@ -12362,6 +12391,11 @@ function renderRootIndexBrowser() {
   const parsedMatches = rows.filter((item) => parsedSymbols.has(text(item.symbol).toUpperCase()));
   const indexError = text(index.index_error || ((index.errors || [])[0] || {}).error || "");
   const capped = index.index_complete === false || Number(index.scan_capped_root_count || 0) > 0;
+  const serverFilters = index.filters || {};
+  const serverFilterActive = Boolean(index.filter_active);
+  const serverFilterLabels = Object.entries(serverFilters)
+    .filter(([_key, value]) => text(value) !== "n/a")
+    .map(([key, value]) => `${key}=${text(value)}`);
   const activeFilters = [
     filters.text ? `search "${filters.text}"` : "",
     filters.asset ? `asset ${filters.asset}` : "",
@@ -12372,7 +12406,7 @@ function renderRootIndexBrowser() {
   $("data-root-index-note").textContent = indexError !== "n/a"
     ? `Root index failed: ${indexError}`
     : symbols.length
-      ? `${numberText(rows.length, 0)} matched / ${numberText(symbols.length, 0)} candidate symbols inferred from filenames and paths${capped ? "; scan capped" : ""}.`
+      ? `${numberText(rows.length, 0)} matched / ${numberText(symbols.length, 0)} candidate symbols inferred from filenames and paths${capped ? "; scan capped" : ""}${serverFilterActive ? "; server-filtered" : ""}.`
       : "No root-index symbols loaded; configure data roots or refresh Data Library.";
   const cards = [
     {
@@ -12385,7 +12419,9 @@ function renderRootIndexBrowser() {
       label: "Matched Now",
       status: rows.length ? "ok" : symbols.length ? "warn" : "bad",
       title: numberText(rows.length, 0),
-      note: activeFilters.length ? activeFilters.join(" / ") : "No Root Index filters active.",
+      note: serverFilterActive
+        ? `Server: ${serverFilterLabels.join(" / ") || "active"}; skipped ${numberText(index.filter_skipped_count_total || 0, 0)} nonmatching supported files.`
+        : activeFilters.length ? activeFilters.join(" / ") : "No Root Index filters active.",
     },
     {
       label: "Also Parsed",
@@ -12418,7 +12454,7 @@ function renderRootIndexBrowser() {
             <div class="action-card status-${escapeHtml(model.status)}">
               <span>${escapeHtml(model.title)}</span>
               <strong>${escapeHtml(text(root.display_path || root.path))}</strong>
-              <small>${escapeHtml(model.note)} Unsupported ${escapeHtml(numberText(root.unsupported_file_count || 0, 0))}; scan ${escapeHtml(numberText(root.scan_duration_ms || 0, 1))}ms.</small>
+              <small>${escapeHtml(model.note)}${Number(root.filter_skipped_count || 0) ? ` Skipped ${escapeHtml(numberText(root.filter_skipped_count, 0))} by server filter.` : ""} Unsupported ${escapeHtml(numberText(root.unsupported_file_count || 0, 0))}; scan ${escapeHtml(numberText(root.scan_duration_ms || 0, 1))}ms.</small>
             </div>
           `;
         }).join("")
@@ -29982,8 +30018,8 @@ async function downloadDataSymbolDirectoryCsv() {
 }
 
 async function downloadDataSymbolIndexCsv() {
-  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000));
-  const body = await fetchText(`/data_symbol_index_export?limit=${symbolIndexLimit}`);
+  const params = rootIndexServerQueryParams();
+  const body = await fetchText(`/data_symbol_index_export?${params.toString()}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -30563,6 +30599,13 @@ function init() {
     $("data-root-index-limit").value = "50";
     renderRootIndexBrowser();
     $("last-refresh").textContent = "Root Index filters cleared";
+  });
+  $("data-root-index-server-search").addEventListener("click", () => {
+    refreshRootIndexFromServerFilters().catch((err) => {
+      state.dataSymbolIndex = { symbols: [], files: [], errors: [{ error: err.message }], index_error: err.message };
+      renderRootIndexBrowser();
+      $("last-refresh").textContent = `Root Index server search failed: ${err.message}`;
+    });
   });
   $("data-root-index-body").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement

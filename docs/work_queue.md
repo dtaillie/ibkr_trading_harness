@@ -264,6 +264,10 @@ strategy-private.
       actions for filename/path-inferred rows. The browser also shows per-root
       index coverage cards for missing roots, caps, unsupported files, and
       scan duration.
+      Root Index Browser can now send symbol/source/bar/session filters to the
+      server with Search Roots, so capped large roots can be searched for
+      matching filenames/paths beyond the first bounded default batch, and the
+      filtered CSV export preserves the same search criteria.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

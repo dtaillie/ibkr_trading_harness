@@ -1042,6 +1042,25 @@ def parse_status_timestamp(raw: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def first_query_value(params: dict[str, list[str]], key: str) -> str:
+    values = params.get(key) or []
+    return str(values[0]) if values else ""
+
+
+def parse_data_symbol_index_filters(params: dict[str, list[str]]) -> dict[str, str]:
+    query = normalize_symbol_index_filter_value(first_query_value(params, "q") or first_query_value(params, "query"))
+    filters = {
+        "query": query,
+        "asset_class": normalize_symbol_index_filter_value(first_query_value(params, "asset_class") or first_query_value(params, "asset")),
+        "source": normalize_symbol_index_filter_value(first_query_value(params, "source")),
+        "bar_size": normalize_symbol_index_filter_value(
+            normalize_bar_size(first_query_value(params, "bar_size") or first_query_value(params, "bar")) or first_query_value(params, "bar_size") or first_query_value(params, "bar")
+        ),
+        "storage_session": normalize_symbol_index_filter_value(first_query_value(params, "storage_session") or first_query_value(params, "session")),
+    }
+    return {key: value for key, value in filters.items() if value}
+
+
 def nonterminal_order_count(recent_events: dict[str, Any]) -> int:
     orders = recent_events.get("orders") if isinstance(recent_events, dict) else []
     if not isinstance(orders, list):
@@ -2071,9 +2090,60 @@ def dashboard_server_settings(
     return settings
 
 
-def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[list[Path], list[dict[str, Any]]]:
+def normalize_symbol_index_filter_value(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def candidate_matches_symbol_index_filters(path: Path, filters: dict[str, str] | None) -> bool:
+    filters = filters or {}
+    if not filters:
+        return True
+    symbol = infer_symbol_from_path(path)
+    asset_class = infer_asset_class(path, symbol)
+    canonical = canonical_symbol(symbol, asset_class)
+    path_text = "/".join(path.parts)
+    source = infer_data_source(path)
+    bar_size = infer_bar_size_from_text(path_text)
+    storage_session = storage_session_from_path(path, asset_class=asset_class) or ("24_7" if asset_class == "crypto" else "unknown")
+    adjustment_status = adjustment_status_from_path(path) or ("not_applicable" if asset_class == "crypto" else "unknown")
+    query = filters.get("query", "")
+    if query:
+        haystack = normalize_symbol_index_filter_value(" ".join([
+            path.name,
+            display_path(path),
+            symbol or "",
+            canonical or "",
+            asset_class,
+            source,
+            bar_size or "",
+            storage_session,
+            adjustment_status,
+        ]))
+        if query not in haystack:
+            return False
+    exact_checks = (
+        ("asset_class", asset_class),
+        ("source", source),
+        ("bar_size", bar_size or ""),
+        ("storage_session", storage_session),
+    )
+    for key, actual in exact_checks:
+        expected = filters.get(key, "")
+        if expected and normalize_symbol_index_filter_value(actual) != expected:
+            return False
+    return True
+
+
+def scan_data_file_candidates(
+    data_roots: list[Path],
+    *,
+    limit: int,
+    filters: dict[str, str] | None = None,
+) -> tuple[list[Path], list[dict[str, Any]]]:
     files: list[Path] = []
     root_summaries: list[dict[str, Any]] = []
+    filters = {key: value for key, value in (filters or {}).items() if value}
+    filter_active = bool(filters)
     for root in data_roots:
         started = time.monotonic()
         resolved = root.resolve()
@@ -2084,11 +2154,15 @@ def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[li
             "is_dir": resolved.is_dir() if resolved.exists() else False,
             "catalog_limit": limit,
             "candidate_count": 0,
+            "supported_file_seen_count": 0,
+            "filter_skipped_count": 0,
             "parsed_count": 0,
             "parse_error_count": 0,
             "unsupported_file_count": 0,
             "scan_capped": False,
             "not_scanned_reason": None,
+            "filter_active": filter_active,
+            "filters": filters,
             "sample_errors": [],
             "sample_unsupported_files": [],
         }
@@ -2118,6 +2192,10 @@ def scan_data_file_candidates(data_roots: list[Path], *, limit: int) -> tuple[li
                             "path": display_path(path),
                             "reason": f"unsupported extension {path.suffix.lower() or 'none'}",
                         })
+                    continue
+                summary["supported_file_seen_count"] += 1
+                if not candidate_matches_symbol_index_filters(path, filters):
+                    summary["filter_skipped_count"] += 1
                     continue
                 if len(files) >= limit:
                     summary["scan_capped"] = True
@@ -2948,8 +3026,14 @@ def summarize_data_file_candidate(path: Path, *, root: Path) -> dict[str, Any]:
     }
 
 
-def build_data_symbol_index(data_roots: list[Path], *, limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT) -> dict[str, Any]:
-    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit)
+def build_data_symbol_index(
+    data_roots: list[Path],
+    *,
+    limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
+    filters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    filters = {key: value for key, value in (filters or {}).items() if value}
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit, filters=filters)
     file_rows: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     for path in files:
@@ -3020,12 +3104,16 @@ def build_data_symbol_index(data_roots: list[Path], *, limit: int = DEFAULT_DATA
         "files": file_rows[:500],
         "errors": errors,
         "limit": limit,
+        "filters": filters,
+        "filter_active": bool(filters),
         "file_count": len(file_rows),
         "symbol_count": len(symbol_rows),
         "error_count": len(errors),
         "scan_capped_root_count": sum(1 for row in root_summaries if row.get("scan_capped")),
         "not_scanned_root_count": sum(1 for row in root_summaries if row.get("not_scanned_reason")),
         "candidate_count_total": sum(int(row.get("candidate_count") or 0) for row in root_summaries),
+        "supported_file_seen_count_total": sum(int(row.get("supported_file_seen_count") or 0) for row in root_summaries),
+        "filter_skipped_count_total": sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries),
         "unsupported_file_count_total": sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries),
         "size_bytes_total": sum(int(row.get("size_bytes") or 0) for row in file_rows),
         "latest_modified_at": max([str(row.get("modified_at")) for row in file_rows if row.get("modified_at")] or [None]),
@@ -3866,8 +3954,13 @@ def build_data_symbol_directory_csv(data_roots: list[Path], *, limit: int = 200)
     return out.getvalue()
 
 
-def build_data_symbol_index_csv(data_roots: list[Path], *, limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT) -> str:
-    index = build_data_symbol_index(data_roots, limit=limit)
+def build_data_symbol_index_csv(
+    data_roots: list[Path],
+    *,
+    limit: int = DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
+    filters: dict[str, str] | None = None,
+) -> str:
+    index = build_data_symbol_index(data_roots, limit=limit, filters=filters)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_INDEX_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -11127,7 +11220,11 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
                     maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
                 )
-                payload = build_data_symbol_index(self.data_roots, limit=limit)
+                payload = build_data_symbol_index(
+                    self.data_roots,
+                    limit=limit,
+                    filters=parse_data_symbol_index_filters(params),
+                )
                 payload["default_limit"] = DEFAULT_DATA_SYMBOL_INDEX_LIMIT
                 payload["max_limit"] = DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT
             except (TypeError, ValueError) as exc:
@@ -11145,7 +11242,11 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
                     maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
                 )
-                csv_body = build_data_symbol_index_csv(self.data_roots, limit=limit)
+                csv_body = build_data_symbol_index_csv(
+                    self.data_roots,
+                    limit=limit,
+                    filters=parse_data_symbol_index_filters(params),
+                )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

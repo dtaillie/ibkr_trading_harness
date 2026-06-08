@@ -134,9 +134,13 @@ replace the current Browse filters and jump to the matching table rows. On Data
 Home, use Root Index first when the catalog looks too small; it counts
 candidate files and symbols inferred from configured-root filenames/paths
 without parsing every dataset. Use Root Index Browser to search those
-candidate symbols, inspect a supported sample file, jump into parsed-catalog
-search, diagnose missing symbols, or copy sample paths; use Export Root Index
-CSV when you want that
+loaded candidate symbols, inspect a supported sample file, jump into
+parsed-catalog search, diagnose missing symbols, or copy sample paths. If the
+Root Index says the scan is capped and the loaded candidates still do not
+include a symbol you expect, enter a symbol/source/bar/session filter and click
+Search Roots. That sends the filters to the server so large roots are searched
+for matching filenames/paths instead of filtering only the first bounded batch.
+Use Export Root Index CSV when you want the current broader or filtered
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.
 In the Browse lens, type a ticker into Symbol Browser and read Symbol

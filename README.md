@@ -398,9 +398,12 @@ from configured-root filenames/paths without parsing every CSV/parquet file, so
 users can tell when the quality catalog is only a bounded parsed sample of a
 larger on-disk universe. Root Index Browser searches those candidate symbols
 inside the dashboard, routes them into parsed-catalog search or diagnostics,
-opens supported sample files in Data Detail, copies sample paths, and shows
-root-level cap/unavailable/unsupported-file coverage; Export Root Index CSV
-downloads that candidate universe for offline review. Symbol Visibility in the
+opens supported sample files in Data Detail, copies sample paths, and can send
+symbol/source/bar/session filters back to the server with Search Roots when the
+default root-index scan is capped. It also shows root-level
+cap/unavailable/unsupported-file coverage; Export Root Index CSV downloads the
+current broader or filtered candidate universe for offline review. Symbol
+Visibility in the
 Browse lens explains whether a typed symbol is catalog-visible, hidden by
 facets, only root-index-visible, or still needs diagnostics/fetch evidence.
 Saved-data coverage and quality

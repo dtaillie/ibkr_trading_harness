@@ -430,11 +430,14 @@ storage-contract state, then filters the saved-data table with one click. Data
 Home also shows a Root Index count that infers candidate files and symbols from
 configured-root filenames/paths without parsing every dataset, which is useful
 when the parsed catalog looks too small. Use Root Index Browser to search that
-candidate universe in the dashboard, route symbols into parsed-catalog search
-or diagnostics, inspect a supported sample file, and copy sample paths. Use
-the Root Index root cards to spot capped, unavailable, or unsupported-file
-roots. Use Export Root Index CSV to review
-that broader candidate universe offline. In the Browse lens, Symbol Visibility
+loaded candidate universe in the dashboard, route symbols into parsed-catalog
+search or diagnostics, inspect a supported sample file, and copy sample paths.
+If the root-index scan is capped, enter a symbol/source/bar/session filter and
+click Search Roots to ask the server to scan large roots for matching
+filenames/paths beyond the first bounded batch. Use the Root Index root cards
+to spot capped, unavailable, or unsupported-file roots. Use Export Root Index
+CSV to review that broader or filtered candidate universe offline. In the
+Browse lens, Symbol Visibility
 updates as you type a ticker and explains whether the symbol is visible now,
 hidden by facets, only present in the root index, or needs diagnostics/fetch
 evidence. Start with Catalog Scope when a
