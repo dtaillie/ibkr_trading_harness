@@ -538,7 +538,10 @@ dense event rows. Operations shows node health, Gateway reachability,
 supervisors, remote-control audit health, alerts, queued commands, and command
 results. Operations Action Summary picks the first operational route across
 paper readiness, Gateway/API, remote-node freshness, command audit/control
-queue, and local alerts before the deeper readiness and evidence panels. The
+queue, and local alerts before the deeper readiness and evidence panels.
+Operations Remote starts with a Remote Action Summary that routes missing
+snapshots, stale heartbeats, Gateway/API blockers, alerts, open orders, stale
+feed timestamps, active filters, or healthy report/export review. The
 Supervisor Action Summary sits above the supervisor table and summarizes local
 supervisor/job state, stale heartbeats, failed or paused jobs, and pause/restart
 marker availability before preparing `supervisor_status` or `run_supervisor_once`

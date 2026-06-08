@@ -28099,6 +28099,214 @@ function handleRemoteReportAction(action) {
   });
 }
 
+function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
+  const staleNodes = staleRemoteNodes(nodes);
+  const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
+  const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
+  const gatewayDown = (nodes || []).filter((node) => node.gateway_reachable === false);
+  const staleData = (nodes || []).filter((node) => {
+    const millis = timestampMillis(node.latest_data_time);
+    return millis !== null && ((Date.now() - millis) / 1000) > 900;
+  });
+  const staleAccounts = (nodes || []).filter((node) => {
+    const millis = timestampMillis(node.latest_account_time);
+    return millis !== null && ((Date.now() - millis) / 1000) > 900;
+  });
+  const newest = newestRemoteNode(nodes);
+  const activeFilters = [
+    $("remote-filter-text").value ? `search ${$("remote-filter-text").value}` : "",
+    $("remote-filter-status").value ? `status ${$("remote-filter-status").value}` : "",
+    $("remote-filter-mode").value ? `mode ${$("remote-filter-mode").value}` : "",
+  ].filter(Boolean);
+  const issueCount = staleNodes.length + gatewayDown.length + alertNodes.length + orderNodes.length + staleData.length + staleAccounts.length;
+  let status = "bad";
+  let title = "No Remote Nodes";
+  let note = "No authenticated status snapshots are loaded. Start the status publisher or point the dashboard at the receiver.";
+  let primaryAction = "diagnostics";
+  if (nodes.length) {
+    status = staleNodes.length || gatewayDown.length ? "bad" : alertNodes.length || orderNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
+    if (staleNodes.length) {
+      title = "Review Stale Heartbeats";
+      note = `${numberText(staleNodes.length, 0)} node${staleNodes.length === 1 ? "" : "s"} have stale or missing heartbeats.`;
+      primaryAction = "stale";
+    } else if (gatewayDown.length) {
+      title = "Review Gateway/API";
+      note = `${numberText(gatewayDown.length, 0)} node${gatewayDown.length === 1 ? "" : "s"} report Gateway/API unreachable.`;
+      primaryAction = "detail";
+    } else if (alertNodes.length) {
+      title = "Review Remote Alerts";
+      note = `${numberText(alertNodes.length, 0)} node${alertNodes.length === 1 ? "" : "s"} have alert rows in latest snapshots.`;
+      primaryAction = "alerts";
+    } else if (orderNodes.length) {
+      title = "Review Open Orders";
+      note = `${numberText(orderNodes.length, 0)} node${orderNodes.length === 1 ? "" : "s"} show non-terminal order telemetry.`;
+      primaryAction = "orders";
+    } else if (staleData.length || staleAccounts.length) {
+      title = "Review Feed Freshness";
+      note = `${numberText(staleData.length, 0)} stale data timestamp${staleData.length === 1 ? "" : "s"} / ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`;
+      primaryAction = "detail";
+    } else if (activeFilters.length && filteredNodes.length < nodes.length) {
+      title = "Filters Are Active";
+      note = `${numberText(filteredNodes.length, 0)} of ${numberText(nodes.length, 0)} nodes shown; clear filters for the full cloud view.`;
+      primaryAction = "clear";
+    } else {
+      title = "Remote Monitoring Ready";
+      note = "Remote snapshots are fresh with no visible alerts, open orders, or Gateway/API blockers.";
+      primaryAction = "report";
+    }
+  }
+  const cards = [
+    {
+      label: "Inspect First",
+      status,
+      title,
+      note,
+    },
+    {
+      label: "Coverage",
+      status: nodes.length ? filteredNodes.length ? "ok" : "warn" : "bad",
+      title: `${numberText(filteredNodes.length, 0)} / ${numberText(nodes.length, 0)}`,
+      note: activeFilters.length ? activeFilters.join(" / ") : "No remote filters are active.",
+    },
+    {
+      label: "Heartbeat",
+      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "bad",
+      title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
+      note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No heartbeat loaded.",
+    },
+    {
+      label: "Gateway/API",
+      status: gatewayDown.length ? "bad" : nodes.length ? "ok" : "bad",
+      title: gatewayDown.length ? `${numberText(gatewayDown.length, 0)} down` : nodes.length ? "Reachable" : "Unknown",
+      note: gatewayDown.length ? gatewayDown.slice(0, 3).map((node) => text(node.node_id)).join(", ") : "No Gateway/API blocker in latest snapshots.",
+    },
+    {
+      label: "Alerts / Orders",
+      status: alertNodes.length || orderNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      title: `${numberText(alertNodes.length, 0)} / ${numberText(orderNodes.length, 0)}`,
+      note: `${numberText(issueCount, 0)} total remote monitoring issue bucket${issueCount === 1 ? "" : "s"}.`,
+    },
+    {
+      label: "Next Move",
+      status,
+      title: primaryAction === "report" ? "Copy Report" : primaryAction === "clear" ? "Clear Filters" : "Drill Down",
+      note: title,
+    },
+  ];
+  const actionTitles = {
+    stale: "Sort Stale",
+    alerts: "Sort Alerts",
+    orders: "Sort Orders",
+    detail: "Open Detail",
+    clear: "Clear Filters",
+    report: "Remote Report",
+    status: "Status Check",
+    export: "Export CSV",
+    control: "Control",
+    diagnostics: "Diagnostics",
+    runbook: "Cloud Runbook",
+  };
+  const actionLabels = {
+    stale: "Primary",
+    alerts: "Primary",
+    orders: "Primary",
+    detail: "Primary",
+    clear: "Primary",
+    report: "Primary",
+    diagnostics: nodes.length ? "Setup" : "Primary",
+    status: "Read-only",
+    export: "CSV",
+    control: "Queue",
+    runbook: "Docs",
+  };
+  const actions = [
+    primaryAction,
+    "detail",
+    "status",
+    "report",
+    "export",
+    "control",
+    "diagnostics",
+    "runbook",
+  ].filter((action, index, list) => list.indexOf(action) === index).map((action) => ({
+    action,
+    title: actionTitles[action] || action,
+    label: actionLabels[action] || "Open",
+    disabled: ["detail", "status", "report", "export"].includes(action) && !nodes.length,
+  }));
+  return { status, title, note, cards, actions, newest };
+}
+
+function renderRemoteActionSummary(nodes = [], filteredNodes = []) {
+  if (!$("remote-action-note") || !$("remote-action-cards") || !$("remote-action-actions")) return;
+  const model = remoteActionSummaryModel(nodes, filteredNodes);
+  $("remote-action-note").textContent = `${model.title}: ${model.note}`;
+  $("remote-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("remote-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-remote-action="${escapeHtml(action.action)}"${action.disabled ? " disabled" : ""}>
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleRemoteAction(action) {
+  const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const newest = newestRemoteNode(nodes);
+  if (action === "stale" || action === "alerts" || action === "orders" || action === "clear") {
+    $("remote-filter-text").value = "";
+    $("remote-filter-status").value = "";
+    $("remote-filter-mode").value = "";
+    $("remote-filter-sort").value = action === "stale"
+      ? "heartbeat_asc"
+      : action === "alerts"
+        ? "alerts_desc"
+        : action === "orders"
+          ? "orders_desc"
+          : "heartbeat_desc";
+    renderRemoteNodes();
+    $("last-refresh").textContent = action === "clear" ? "Remote node filters cleared" : `Remote nodes sorted for ${action}`;
+    return;
+  }
+  if (action === "detail") {
+    loadRemoteNodeDetail(text((newest || {}).node_id)).catch((err) => {
+      $("last-refresh").textContent = `Remote node detail failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "status") {
+    prepareRequestStatusCommand(text((newest || {}).node_id));
+    return;
+  }
+  if (action === "report") {
+    const target = $("remote-report-body") || $("remote-report-note");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "export") {
+    downloadRemoteNodesCsv().catch((err) => {
+      $("last-refresh").textContent = `Remote nodes CSV export failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "control") return navigateToOperationsLens("control");
+  if (action === "runbook") {
+    window.location.href = "/docs/cloud_monitoring_deployment.md";
+    return;
+  }
+  navigateToOperationsLens("diagnostics");
+  window.setTimeout(() => {
+    const target = $("cloud-readiness-note") || $("gateway-list");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, 50);
+}
+
 function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
@@ -28118,6 +28326,7 @@ function renderRemoteNodes() {
   $("remote-open-order-count").textContent = numberText(openOrderTotal, 0);
   $("remote-open-order-count").className = statusClass(openOrderTotal ? "warn" : nodes.length ? "ok" : "unknown");
   $("remote-open-order-note").textContent = nodes.length ? `${numberText(openOrderTotal, 0)} non-terminal order event${openOrderTotal === 1 ? "" : "s"}` : "Sanitized order telemetry only";
+  renderRemoteActionSummary(nodes, filteredNodes);
   renderRemoteNodesHealth(nodes, filteredNodes);
   renderRemoteNodesAssistant(nodes, filteredNodes);
   renderRemoteNodesReport(nodes, filteredNodes);
@@ -30353,6 +30562,11 @@ function init() {
   $("remote-filter-status").addEventListener("change", renderRemoteNodes);
   $("remote-filter-mode").addEventListener("change", renderRemoteNodes);
   $("remote-filter-sort").addEventListener("change", renderRemoteNodes);
+  $("remote-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleRemoteAction(target.dataset.remoteAction || "");
+  });
   $("remote-nodes-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-remote-nodes-action]") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;

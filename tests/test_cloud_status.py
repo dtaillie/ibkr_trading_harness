@@ -1337,6 +1337,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "paper-observation-detail" in html
         assert "paper-monitor-guide" in html
         assert "remote-nodes-note" in html
+        assert "remote-action-note" in html
+        assert "remote-action-cards" in html
+        assert "remote-action-actions" in html
         assert "remote-node-count" in html
         assert "remote-alert-count" in html
         assert "remote-open-order-count" in html
@@ -1347,6 +1350,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-filter-status" in html
         assert "remote-filter-mode" in html
         assert "remote-filter-sort" in html
+        assert "Oldest heartbeat" in html
         assert "remote-nodes-body" in html
         assert "remote-node-detail-note" in html
         assert "remote-node-health-report-note" in html

@@ -2082,6 +2082,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     heartbeat, alerting nodes, open-order nodes, Gateway/API issues, and active
     filters, with direct actions to sort risky nodes first, open newest detail,
     prepare a read-only status check, clear filters, or export CSV.
+  - partial; Operations Remote now starts with a Remote Action Summary that
+    chooses the first cloud-monitoring route across missing snapshots, stale
+    heartbeats, Gateway/API blockers, alerts, open-order telemetry, stale data
+    or account timestamps, active filters, and healthy report/export review.
+    It also exposes Oldest heartbeat sorting so stale-first triage is visible
+    from the regular sort control.
   - partial; the seeded dashboard smoke now asserts the Remote Nodes Assistant
     markup and action handlers, so the remote-monitoring triage surface cannot
     disappear from the public UI without failing the render contract gate.

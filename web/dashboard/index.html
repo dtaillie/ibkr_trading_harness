@@ -3607,6 +3607,14 @@
           <span id="remote-nodes-note" class="section-note">Latest read-only cloud monitoring snapshots by node</span>
         </span>
       </div>
+      <section class="nested-section remote-action-summary-panel" aria-label="Remote nodes action summary">
+        <div class="section-head">
+          <h2>Remote Action Summary</h2>
+          <span id="remote-action-note" class="section-note">Refresh Remote Nodes to summarize cloud monitoring next actions.</span>
+        </div>
+        <div id="remote-action-cards" class="action-card-grid"></div>
+        <div id="remote-action-actions" class="hero-actions"></div>
+      </section>
       <div class="data-library-summary">
         <div class="data-library-card">
           <span class="eyebrow">Nodes</span>
@@ -3664,6 +3672,7 @@
           <span>Sort</span>
           <select id="remote-filter-sort">
             <option value="heartbeat_desc" selected>Newest heartbeat</option>
+            <option value="heartbeat_asc">Oldest heartbeat</option>
             <option value="alerts_desc">Most alerts</option>
             <option value="orders_desc">Most open orders</option>
             <option value="equity_desc">Highest equity</option>

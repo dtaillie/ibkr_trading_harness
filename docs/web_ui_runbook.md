@@ -285,15 +285,19 @@ Context card can explain the latest threshold/signal state without raw strategy
 payloads.
 Use Paper Monitor Health and the checklist next for blockers and specific
 fixes.
-In Operations Remote, Remote Node Detail shows bounded artifact evidence for
-published runs when the status publisher can see a generic runner output
-directory. This evidence is limited to expected public artifact filenames,
-presence, byte counts, modified times, and JSONL row counts. It is useful for
-answering "did the remote runner produce the files I need to inspect locally?"
-without posting raw logs, raw artifacts, credentials, or private diagnostics to
-the receiver. Read Remote Node Health Report first when a node is selected; it
-turns heartbeat, Gateway/API, account/data feed age, run health, activity,
-bounded artifact evidence, cloud boundary, and next action into copyable rows.
+In Operations Remote, start with Remote Action Summary. It picks the first
+cloud-monitoring route across missing snapshots, stale heartbeats, Gateway/API
+blockers, alerts, open orders, stale feed timestamps, active filters, or
+healthy report/export review. Remote Node Detail shows bounded artifact
+evidence for published runs when the status publisher can see a generic runner
+output directory. This evidence is limited to expected public artifact
+filenames, presence, byte counts, modified times, and JSONL row counts. It is
+useful for answering "did the remote runner produce the files I need to inspect
+locally?" without posting raw logs, raw artifacts, credentials, or private
+diagnostics to the receiver. Read Remote Node Health Report first when a node
+is selected; it turns heartbeat, Gateway/API, account/data feed age, run
+health, activity, bounded artifact evidence, cloud boundary, and next action
+into copyable rows.
 
 ## Review a Completed Fetch
 
