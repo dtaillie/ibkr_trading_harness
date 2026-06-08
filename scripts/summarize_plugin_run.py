@@ -368,6 +368,9 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     )
     if not isinstance(latest_signal_context, dict):
         latest_signal_context = {}
+    market_data_health = summary.get("market_data_health") or runner_status.get("market_data_health") or {}
+    if not isinstance(market_data_health, dict):
+        market_data_health = {}
 
     rejected_orders = [row for row in orders if row.get("status") == "rejected"]
     latest_rejection = rejected_orders[-1] if rejected_orders else {}
@@ -405,6 +408,9 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
         "account_end_time": summary.get("account_end_time", performance["account_end_time"]),
         "latest_data_time": summary.get("latest_data_time") or summary.get("latest_market_data_time") or summary.get("latest_bar_time"),
         "latest_bar_time": summary.get("latest_bar_time") or summary.get("latest_data_time") or summary.get("latest_market_data_time"),
+        "market_data_health": market_data_health,
+        "market_data_status": summary.get("market_data_status") or market_data_health.get("status"),
+        "market_data_reason": summary.get("market_data_reason") or market_data_health.get("reason"),
         "next_check_time": summary.get("next_check_time") or runner_status.get("next_check_time"),
         "next_expected_decision_time": summary.get("next_expected_decision_time") or runner_status.get("next_expected_decision_time"),
         "next_check_reason": summary.get("next_check_reason") or runner_status.get("next_check_reason"),

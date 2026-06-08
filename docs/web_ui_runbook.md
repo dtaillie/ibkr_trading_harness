@@ -208,6 +208,10 @@ runner is publishing telemetry, whether Gateway/API is reachable, what mode is
 active, and when the latest decision/account/bar timestamps were published.
 Generic plugin-runner status also includes latest rejected-order time, symbol,
 status, and reason when an order is rejected.
+When a run publishes `market_data_health`, Overview's Market Data card uses that
+structured feed status before falling back to a timestamp. A bad feed status
+should show the reason and symbol coverage, and Operations Alerts should include
+`market_data_health_bad` or `market_data_health_warn`.
 Read Strategy Health Report on Overview Home for the fastest copyable summary:
 telemetry, runtime loop, alerts/orders, execution state, account/positions,
 saved data, Workbench readiness, and the next inspection action.

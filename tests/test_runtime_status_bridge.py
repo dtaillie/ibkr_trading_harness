@@ -110,6 +110,22 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
         ],
     )
     write_json(
+        session / "data_health.json",
+        {
+            "schema_version": 1,
+            "status": "bad",
+            "reason": "historical_timeouts_no_live_prices",
+            "requested_symbol_count": 2,
+            "symbols_with_bars_count": 0,
+            "symbols_without_bars_count": 2,
+            "symbols_with_live_prices_count": 0,
+            "historical_fetch": {
+                "timeout_like_count": 2,
+                "status_counts": {"no_bars": 2},
+            },
+        },
+    )
+    write_json(
         tmp_path / "crypto_state.json",
         {
             "last_run_at": "2026-01-02T15:06:00+00:00",
@@ -137,6 +153,9 @@ def test_runtime_bridge_builds_crypto_generic_artifacts(tmp_path):
     assert metrics["orders"] == 2
     assert metrics["fills"] == 2
     assert metrics["final_equity"] == 35100
+    assert metrics["market_data_status"] == "bad"
+    assert metrics["market_data_reason"] == "historical_timeouts_no_live_prices"
+    assert metrics["market_data_health"]["historical_fetch"]["timeout_like_count"] == 2
     assert metrics["artifact_files"]["performance_rollups"] is True
     assert metrics["artifact_files"]["order_previews"] is True
     assert order_previews == []

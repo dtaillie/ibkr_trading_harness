@@ -217,6 +217,12 @@ strategy-private.
     fields, raise explicit `supervisor_job_missed_window` alerts, and the
     Operations supervisor table summarizes missed/running/due/waiting jobs
     directly instead of forcing users to infer "disconnected/no data" from logs.
+  - partial; crypto market-data failures now have structured public-safe health
+    evidence. The private crypto runner writes `data_health.json`; the runtime
+    bridge also infers health for legacy `no_bar_data` sessions, the publisher
+    raises `market_data_health_bad` alerts, and Overview's Market Data card
+    shows the feed-health reason and symbol coverage instead of only a stale
+    timestamp.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

@@ -549,6 +549,22 @@ def run_operational_alerts(
     )
     if data_freshness is not None:
         extra["data_freshness"] = data_freshness
+    market_data_health = metrics.get("market_data_health")
+    if isinstance(market_data_health, dict) and market_data_health:
+        extra["market_data_health"] = market_data_health
+        health_status = str(market_data_health.get("status") or "").lower()
+        if health_status in {"bad", "error"}:
+            alerts.append({
+                "level": "warn",
+                "kind": "market_data_health_bad",
+                "message": f"{run_id}: market data health is {health_status} ({market_data_health.get('reason') or 'unknown'})",
+            })
+        elif health_status == "warn":
+            alerts.append({
+                "level": "warn",
+                "kind": "market_data_health_warn",
+                "message": f"{run_id}: market data health warning ({market_data_health.get('reason') or 'unknown'})",
+            })
     account_freshness = alert_on_timestamp_age(
         alerts,
         run_id=run_id,

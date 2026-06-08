@@ -6957,6 +6957,14 @@ function renderOverviewCommandCenter() {
     "last_bar_time",
     "market_data_time",
   ]);
+  const marketDataHealth = runMetrics.market_data_health || {};
+  const marketDataHealthStatus = text(runMetrics.market_data_status || marketDataHealth.status || "").toLowerCase();
+  const marketDataHealthReason = text(runMetrics.market_data_reason || marketDataHealth.reason || "");
+  const marketDataHealthBad = ["bad", "error"].includes(marketDataHealthStatus);
+  const marketDataHealthWarn = marketDataHealthStatus === "warn";
+  const marketDataDetail = marketDataHealthReason && marketDataHealthReason !== "n/a"
+    ? `${marketDataHealthReason}; ${numberText(marketDataHealth.symbols_with_bars_count, 0)}/${numberText(marketDataHealth.requested_symbol_count, 0)} symbols with bars, ${numberText(marketDataHealth.symbols_with_live_prices_count, 0)} live prices.`
+    : latestBarTime ? text(latestBarTime) : "Runner has not published a latest bar timestamp.";
   const glance = overviewGlanceModel();
   const primary = $("overview-command-primary");
   const secondary = $("overview-command-secondary");
@@ -7015,9 +7023,9 @@ function renderOverviewCommandCenter() {
     },
     {
       label: "Market Data",
-      title: latestBarTime ? timestampAgeLabel(latestBarTime) : "n/a",
-      status: latestBarTime ? "ok" : runs.length ? "warn" : "bad",
-      detail: latestBarTime ? text(latestBarTime) : "Runner has not published a latest bar timestamp.",
+      title: marketDataHealthBad ? "feed issue" : latestBarTime ? timestampAgeLabel(latestBarTime) : "n/a",
+      status: marketDataHealthBad ? "bad" : marketDataHealthWarn ? "warn" : latestBarTime ? "ok" : runs.length ? "warn" : "bad",
+      detail: marketDataDetail,
     },
   ];
   $("overview-command-cards").innerHTML = cards.map((card) => `

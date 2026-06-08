@@ -847,6 +847,31 @@ def test_collect_status_warns_on_stale_supervisor(tmp_path):
     assert any(alert["kind"] == "supervisor_stale" for alert in payload["alerts"])
 
 
+def test_collect_status_warns_on_bad_market_data_health(tmp_path):
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        summary_extra={
+            "market_data_health": {
+                "status": "bad",
+                "reason": "historical_timeouts_no_live_prices",
+                "requested_symbol_count": 18,
+                "symbols_with_bars_count": 0,
+                "symbols_with_live_prices_count": 0,
+            }
+        },
+    )
+
+    payload = collect_status({
+        "node_id": "test-node",
+        "runs": [{"id": "example", "path": str(run_dir)}],
+    })
+
+    assert payload["status"] == "warn"
+    assert payload["runs"][0]["market_data_health"]["reason"] == "historical_timeouts_no_live_prices"
+    assert any(alert["kind"] == "market_data_health_bad" for alert in payload["alerts"])
+
+
 def test_collect_status_warns_on_supervisor_missed_window(tmp_path):
     supervisor_state = tmp_path / "supervisor" / "status.json"
     supervisor_state.parent.mkdir(parents=True)

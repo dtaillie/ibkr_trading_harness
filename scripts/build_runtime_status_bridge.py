@@ -621,6 +621,25 @@ def account_from_crypto_signal(
     }
 
 
+def inferred_crypto_data_health(row: dict[str, str]) -> dict[str, Any]:
+    latest_data_time = row.get("latest_data_time")
+    reason = str(first_value(row.get("action_reason"), row.get("reason"), "") or "")
+    if latest_data_time or reason not in {"stale_data", "no_bar_data"}:
+        return {}
+    symbols = split_symbols(row.get("target_symbols"))
+    return {
+        "schema_version": 1,
+        "status": "bad",
+        "reason": "no_bars_or_live_prices",
+        "requested_symbol_count": len(symbols),
+        "symbols_with_bars_count": 0,
+        "symbols_without_bars_count": len(symbols),
+        "symbols_with_live_prices_count": 0,
+        "symbols_without_bars_sample": symbols[:20],
+        "inferred_from_legacy_signal": True,
+    }
+
+
 def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, max_sessions: int) -> dict[str, Any]:
     state = read_json(state_path)
     decisions: list[dict[str, Any]] = []
@@ -631,10 +650,18 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
     symbols: set[str] = set()
     modes = Counter()
     signal_rows_by_session: list[tuple[Path, dict[str, str]]] = []
+    latest_data_health: dict[str, Any] = {}
 
     for session in session_dirs(sessions_root, max_sessions=max_sessions):
+        data_health = read_json(session / "data_health.json")
+        if data_health:
+            latest_data_health = data_health
         signal_rows = read_csv_rows(session / "signal.csv")
         for row in signal_rows:
+            if not data_health:
+                inferred_health = inferred_crypto_data_health(row)
+                if inferred_health:
+                    latest_data_health = inferred_health
             signal_rows_by_session.append((session, row))
             if row.get("latest_data_time"):
                 data_times.append(row["latest_data_time"])
@@ -767,6 +794,10 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         "latest_signal_value": parse_float(latest_signal.get("signal")),
         "next_check_reason": "scheduled_runner",
     }
+    if latest_data_health:
+        summary["market_data_health"] = latest_data_health
+        summary["market_data_status"] = latest_data_health.get("status")
+        summary["market_data_reason"] = latest_data_health.get("reason")
     write_run_artifacts(
         out_dir,
         summary=summary,
@@ -776,6 +807,7 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
             "latest_signal_reason": summary["latest_signal_reason"],
             "latest_signal_value": summary["latest_signal_value"],
             "next_check_reason": "scheduled_runner",
+            "market_data_health": latest_data_health,
         },
         decisions=decisions,
         orders=orders,
