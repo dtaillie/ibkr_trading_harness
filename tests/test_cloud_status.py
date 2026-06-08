@@ -6786,10 +6786,16 @@ def test_command_worker_poll_once_round_trip(tmp_path):
         assert results[0]["post_result"]["status"] == "ok"
         assert results[0]["result"]["decisions"] == 1
         audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
-        assert audit_rows[0]["event"] == "command_result"
+        assert [row["event"] for row in audit_rows] == ["command_received", "command_result"]
         assert audit_rows[0]["result"]["command_id"]
+        assert audit_rows[0]["result"]["status"] == "received"
+        assert audit_rows[0]["result"]["param_keys"] == ["run_id"]
+        assert "params" not in audit_rows[0]["result"]
+        assert audit_rows[1]["result"]["command_id"]
         assert audit_rows[0]["prev_hash"] == ""
         assert audit_rows[0]["record_hash"] == audit_record_hash(audit_rows[0])
+        assert audit_rows[1]["prev_hash"] == audit_rows[0]["record_hash"]
+        assert audit_rows[1]["record_hash"] == audit_record_hash(audit_rows[1])
         with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
             pending = json.loads(resp.read().decode("utf-8"))
         assert pending["commands"] == []
@@ -6838,10 +6844,20 @@ def test_command_worker_poll_once_rejects_commands_over_local_limit(tmp_path):
         assert [result["status"] for result in results] == ["completed", "rejected"]
         assert "worker command limit exceeded" in results[1]["error"]
         audit_rows = [json.loads(line) for line in audit_log.read_text().splitlines()]
-        assert [row["result"]["status"] for row in audit_rows] == ["completed", "rejected"]
+        assert [row["event"] for row in audit_rows] == [
+            "command_received",
+            "command_result",
+            "command_received",
+            "command_result",
+        ]
+        assert [row["result"]["status"] for row in audit_rows] == ["received", "completed", "received", "rejected"]
         assert audit_rows[0]["record_hash"] == audit_record_hash(audit_rows[0])
         assert audit_rows[1]["prev_hash"] == audit_rows[0]["record_hash"]
         assert audit_rows[1]["record_hash"] == audit_record_hash(audit_rows[1])
+        assert audit_rows[2]["prev_hash"] == audit_rows[1]["record_hash"]
+        assert audit_rows[2]["record_hash"] == audit_record_hash(audit_rows[2])
+        assert audit_rows[3]["prev_hash"] == audit_rows[2]["record_hash"]
+        assert audit_rows[3]["record_hash"] == audit_record_hash(audit_rows[3])
         with request.urlopen(f"{base}/commands?node_id=test-node", timeout=5) as resp:
             pending = json.loads(resp.read().decode("utf-8"))
         assert pending["commands"] == []

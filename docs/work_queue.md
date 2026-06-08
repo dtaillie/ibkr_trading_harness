@@ -2257,10 +2257,12 @@ QQQ show up, treat that as a bug until proven otherwise.
   local safety gates before expanding remote commands.
   - partial; command worker now enforces a local command cap, action risk
     metadata, explicit local enable markers for launcher actions, and local
-    hash-chained audit records for completed/rejected commands and poll
-    failures. The status publisher now verifies that local audit hash chain,
-    emits a warning on tampering/broken rows, and Operations shows local audit
-    integrity beside remote-control freshness. Operations Home and its
+    hash-chained audit records for received commands, completed/rejected
+    command results, result-post status, and poll failures. The received rows
+    keep only command id, node, action class, status, and parameter names, not
+    parameter values. The status publisher now verifies that local audit hash
+    chain, emits a warning on tampering/broken rows, and Operations shows local
+    audit integrity beside remote-control freshness. Operations Home and its
     Command Audit workflow card now also factor local worker-audit integrity
     into first-screen audit health.
   - progress; local command-worker audit rows can now be HMAC-signed with
@@ -2367,6 +2369,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     stronger local-confirmation path instead of reusing the public example
     command surface.
 - Write immutable audit records locally and remotely for every command.
+  - progress; local command-worker polling now appends hash-chained
+    `command_received` rows before execution for every fetched command,
+    including commands later rejected by local per-poll caps. The existing
+    `command_result` rows then record completed/rejected/failed status and
+    result-post status, so the local audit proves both receipt and outcome
+    without storing raw command parameter values.
   - progress; server-side command polling now appends hash-chained
     `command_pending_returned` rows for every pending command returned by
     `/commands`, so the remote audit covers queue, pending-return, cancel,

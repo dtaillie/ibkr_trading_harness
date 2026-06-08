@@ -820,6 +820,10 @@ the status publisher verifies the chain on each publish using
 `remote_control.audit.max_integrity_records` from the status config. Operations
 shows the local integrity state beside remote-control freshness and raises a
 warning if the local audit chain is broken or unreadable.
+For each fetched command, the worker writes a sanitized `command_received` row
+before local execution and a `command_result` row after execution/post-result
+handling. The received row stores command id, node, action class, status, and
+parameter names only, not parameter values.
 
 For stronger local tamper evidence, set `audit.signature_env` in the command
 worker config and set the same env var name as

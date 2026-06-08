@@ -260,6 +260,10 @@ local chain on each publish, bounded by
 `remote_control.audit.max_integrity_records`, and the Operations page reports
 local audit integrity beside remote-control freshness. Broken or unreadable
 local audit rows raise a `remote_control_audit_integrity` warning.
+Each fetched command gets a local `command_received` row before execution and a
+`command_result` row after execution/post-result handling. The received row is
+sanitized to command id, node, action class, status, and parameter names only,
+so local audit evidence does not copy raw command parameter values.
 Optionally set `audit.signature_env` in the worker config and the same
 `remote_control.audit.signature_env` in the publisher config to HMAC-sign local
 worker audit rows. The Operations page reports the local signature state, and a

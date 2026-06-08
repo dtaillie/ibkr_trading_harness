@@ -229,6 +229,20 @@ def append_audit(config: dict[str, Any], record: dict[str, Any]) -> None:
         f.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
+def sanitized_received_command(command: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    params = command.get("params") if isinstance(command.get("params"), dict) else {}
+    action = str(command.get("action") or "")
+    return {
+        "command_id": str(command.get("command_id") or ""),
+        "node_id": str(command.get("node_id") or config.get("node_id") or "local-trader"),
+        "action": action,
+        "action_class": action_class(action),
+        "status": "received",
+        "received_at": utc_now(),
+        "param_keys": sorted(str(key) for key in params),
+    }
+
+
 def configured_path(mapping: dict[str, Any], key: str, *, kind: str) -> Path:
     if key not in mapping:
         raise ValueError(f"{kind} id is not configured: {key}")
@@ -518,6 +532,7 @@ def poll_once(config: dict[str, Any]) -> list[dict[str, Any]]:
     if max_commands < 1:
         max_commands = 1
     for command in commands:
+        append_audit(config, {"event": "command_received", "result": sanitized_received_command(command, config)})
         if len(results) >= max_commands:
             result = rejected_result(command, config, f"worker command limit exceeded: max_commands_per_poll={max_commands}")
         else:
