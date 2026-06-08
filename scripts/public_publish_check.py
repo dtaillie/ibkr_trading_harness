@@ -35,6 +35,11 @@ def build_checks(*, include_screenshots: bool = False) -> list[Check]:
             [sys.executable, "scripts/public_readiness_audit.py", "--fail-on-review"],
         ),
         Check(
+            "public_docs_audit",
+            "Check required public README, publication, blog, privacy, quickstart, and cloud boundary copy.",
+            [sys.executable, "scripts/audit_public_docs.py"],
+        ),
+        Check(
             "cloud_examples_audit",
             "Check hosted/cloud example boundary placeholders.",
             [sys.executable, "scripts/audit_cloud_examples.py"],

@@ -500,6 +500,9 @@ layout screenshot checks.
 The private source tree can regenerate this public subset with
 `scripts/export_public_repo.py --force`. Repeated exports preserve the
 destination repo's `.git` directory, so history and remotes survive refreshes.
+The publish gate also runs `scripts/audit_public_docs.py`, which verifies that
+the README, quickstart, publication checklist, blog draft, privacy guide, and
+cloud runbook still contain required public/private boundary language.
 
 ## Documentation
 

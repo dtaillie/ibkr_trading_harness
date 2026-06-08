@@ -2217,6 +2217,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     default/seeded/empty dashboard smokes, accessibility, and optional
     screenshot layout checks. Help, README, and publication-readiness docs
     point to it before the manual inspection step.
+  - partial; `scripts/audit_public_docs.py` now checks that the exported
+    README, quickstart, publication-readiness checklist, blog draft,
+    configuration privacy guide, and cloud deployment runbook retain required
+    public/private boundary language, and `scripts/public_publish_check.py`
+    runs that docs audit as part of the default gate.
   - partial; Help Boundary now includes a Publish Readiness panel that explains
     the exported public candidate, consolidated publish gate, required manual
     review, private boundary, and direct links to publication, quickstart,
