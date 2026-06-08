@@ -302,6 +302,10 @@ recent decision/order/fill events, execution issues, account boundary,
 loaded artifacts, active filters, and the next verification route. It also
 starts with an Action Summary that tells users whether to inspect open orders,
 execution issues, positions, fills/results, quiet runners, or artifacts first.
+Runs State starts with a State Action Summary that routes account/order proof
+toward open-order reconciliation, position review, event issues, Performance,
+saved artifacts, status history, or Operations setup before the lower state
+tables.
 Operations Remote starts with a Remote Action Summary that routes missing
 snapshots, stale heartbeats, Gateway/API blockers, alerts, open orders, stale
 data/account timestamps, active filters, or healthy monitoring toward the next

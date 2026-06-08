@@ -235,6 +235,10 @@ Read Runs Evidence on Runs Home before the dense tables when you need the proof
 chain. It separates current run source, recent decision/order/fill rows,
 execution issues, account-boundary evidence, loaded artifacts, active filters,
 and the next verification route.
+In Runs State, start with State Action Summary. It chooses whether to reconcile
+open orders, review positions, inspect event issues, open Performance, load
+artifacts, read status history, or visit Operations setup before you scan the
+account boundary and state tables.
 Start with Event Flow Report on Runs Home or Runs Events when you need the
 plain-language path through the recent timeline: it explains active filters,
 execution issues, decision/order/fill mix, latest event, run/symbol coverage,

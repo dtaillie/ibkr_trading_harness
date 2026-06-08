@@ -24359,6 +24359,200 @@ function accountBoundaryAuthority(mode, source) {
   return ["bad", "Unknown", "Mode is unavailable; verify the runner source before interpreting account state."];
 }
 
+function runsStateActionSummaryModel() {
+  const source = latestArtifactPerformance();
+  const summary = source.summary || {};
+  const perf = source.performance || {};
+  const accountRows = source.account || [];
+  const accountRow = latestAccountRow(accountRows);
+  const positions = nonzeroPositionsFromSource(source);
+  const mode = perf.mode ?? summary.mode;
+  const authority = accountBoundaryAuthority(mode, source);
+  const runs = (state.status && state.status.runs) || [];
+  const history = state.history || [];
+  const orders = currentOpenOrderRows();
+  const events = runEventRows();
+  const fills = events.filter((event) => event.type === "fill");
+  const badEvents = events.filter(eventStatusIsBad);
+  const artifacts = state.configArtifacts || {};
+  const savedRuns = (state.configRuns && state.configRuns.runs) || [];
+  const artifactLoaded = Boolean(artifacts.run_id || artifacts.draft_id);
+  const latestRun = runs[0] || null;
+  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const accountFreshness = accountRow && accountRow.timestamp ? shortTimestampAgeLabel(accountRow.timestamp) : "n/a";
+  let status = "bad";
+  let title = "No Account State Proof";
+  let note = "Publish runner telemetry or load a saved artifact with account snapshots before trusting positions or order state.";
+  let primaryAction = "operations";
+  if (orders.length) {
+    status = "warn";
+    title = "Reconcile Open Orders";
+    note = `${numberText(orders.length, 0)} non-terminal order event${orders.length === 1 ? "" : "s"} visible; compare with broker state before trusting results.`;
+    primaryAction = "orders";
+  } else if (String(mode || "").replace("-", "_").toLowerCase() === "live") {
+    status = "bad";
+    title = "Live Account State";
+    note = "Live mode is visible in the selected source; verify account authority and operations before taking action.";
+    primaryAction = "operations";
+  } else if (badEvents.length) {
+    status = "bad";
+    title = "Execution Issues";
+    note = `${numberText(badEvents.length, 0)} rejected, canceled, failed, or error event${badEvents.length === 1 ? "" : "s"} visible in recent telemetry.`;
+    primaryAction = "events";
+  } else if (positions.length) {
+    status = "warn";
+    title = "Review Open Positions";
+    note = `${positions.slice(0, 4).map((position) => text(position.symbol)).join(", ")}${positions.length > 4 ? "..." : ""} open in the selected/current account source.`;
+    primaryAction = "positions";
+  } else if (accountRows.length) {
+    status = "ok";
+    title = "Account Source Ready";
+    note = `Latest account snapshot ${accountFreshness}; no managed positions or open-order events are visible.`;
+    primaryAction = fills.length ? "performance" : "events";
+  } else if (source.has_data) {
+    status = "warn";
+    title = "Source Has No Account Rows";
+    note = `${text(source.label)} is loaded, but no account snapshots are available to prove positions or cash.`;
+    primaryAction = artifactLoaded ? "artifacts" : "runs";
+  } else if (runs.length || history.length) {
+    status = "warn";
+    title = "Telemetry Without Account Proof";
+    note = `${numberText(runs.length, 0)} current run${runs.length === 1 ? "" : "s"} and ${numberText(history.length, 0)} status snapshot${history.length === 1 ? "" : "s"} loaded, but no account rows are selected.`;
+    primaryAction = "runs";
+  } else if (savedRuns.length) {
+    status = "warn";
+    title = "Load Saved Run Artifacts";
+    note = `${numberText(savedRuns.length, 0)} saved run${savedRuns.length === 1 ? "" : "s"} visible; load artifacts to inspect account/order evidence.`;
+    primaryAction = "artifacts";
+  }
+  const cards = [
+    {
+      label: "Inspect First",
+      status,
+      title,
+      note,
+    },
+    {
+      label: "Order Authority",
+      status: authority[0],
+      title: authority[1],
+      note: authority[2],
+    },
+    {
+      label: "Account Source",
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      title: accountRows.length ? `${numberText(accountRows.length, 0)} rows` : source.has_data ? "partial" : "missing",
+      note: accountRows.length
+        ? `${text(source.label)} latest ${accountFreshness}.`
+        : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "No account-bearing source is selected.",
+    },
+    {
+      label: "Orders / Positions",
+      status: orders.length || positions.length ? "warn" : accountRows.length ? "ok" : "bad",
+      title: `${numberText(orders.length, 0)} / ${numberText(positions.length, 0)}`,
+      note: orders.length
+        ? `${text(orders[0].symbol)} ${text(orders[0].status)} is latest non-terminal order.`
+        : positions.length ? "Open managed positions need hold/exit review." : "No open-order events or nonzero positions visible.",
+    },
+    {
+      label: "Current Run",
+      status: runs.length ? (latestRun && (latestRun.freshness || {}).stale ? "warn" : "ok") : history.length || savedRuns.length || artifactLoaded ? "warn" : "bad",
+      title: runs.length ? text(latestRun.id) : artifactLoaded ? "artifact" : history.length ? "history" : "none",
+      note: latestRun
+        ? `${text(latestRun.status)} / ${text(latestMetrics.mode)} / age ${age((latestRun.freshness || {}).age_seconds)}.`
+        : artifactLoaded ? `${text(artifacts.run_id || artifacts.draft_id)} loaded.` : `${numberText(history.length, 0)} status snapshots / ${numberText(savedRuns.length, 0)} saved runs.`,
+    },
+    {
+      label: "Next Move",
+      status,
+      title: primaryAction === "orders" ? "Orders" : primaryAction === "positions" ? "Positions" : primaryAction === "performance" ? "Performance" : "Drill Down",
+      note: title,
+    },
+  ];
+  const actionTitles = {
+    orders: "Open Orders",
+    positions: "Positions",
+    events: "Events",
+    performance: "Performance",
+    artifacts: "Artifacts",
+    runs: "Run Search",
+    history: "Status History",
+    operations: "Operations",
+  };
+  const actionLabels = {
+    orders: "Primary",
+    positions: "Primary",
+    events: primaryAction === "events" ? "Primary" : "Timeline",
+    performance: primaryAction === "performance" ? "Primary" : "Results",
+    artifacts: primaryAction === "artifacts" ? "Primary" : "Saved",
+    runs: primaryAction === "runs" ? "Primary" : "Search",
+    history: "Proof",
+    operations: primaryAction === "operations" ? "Primary" : "Setup",
+  };
+  const actions = [
+    primaryAction,
+    "orders",
+    "positions",
+    "events",
+    "performance",
+    "artifacts",
+    "runs",
+    "history",
+    "operations",
+  ].filter((action, index, list) => list.indexOf(action) === index).map((action) => ({
+    action,
+    title: actionTitles[action] || action,
+    label: actionLabels[action] || "Open",
+    disabled: (action === "performance" && !fills.length && !artifactLoaded)
+      || (action === "artifacts" && !artifactLoaded && !savedRuns.length)
+      || (action === "orders" && !orders.length)
+      || (action === "positions" && !positions.length),
+  }));
+  return { status, title, note, cards, actions };
+}
+
+function renderRunsStateActionSummary() {
+  if (!$("runs-state-action-note") || !$("runs-state-action-cards") || !$("runs-state-action-actions")) return;
+  const model = runsStateActionSummaryModel();
+  $("runs-state-action-note").textContent = `${model.title}: ${model.note}`;
+  $("runs-state-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("runs-state-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-runs-state-action="${escapeHtml(action.action)}"${action.disabled ? " disabled" : ""}>
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handleRunsStateAction(action) {
+  if (action === "orders") {
+    const target = $("current-orders-body") || $("current-orders-note");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "positions") {
+    const target = $("current-positions-grid") || $("current-positions-note");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  if (action === "events") return navigateToRunsLens("events");
+  if (action === "performance") return navigateToPerformanceLens("home");
+  if (action === "artifacts") return navigateToWorkbenchLens("artifacts");
+  if (action === "runs") return navigateToRunsLens("runs");
+  if (action === "history") {
+    const target = $("history-body");
+    if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    return;
+  }
+  navigateToOperationsLens("paper");
+}
+
 function renderRunsAccountBoundary() {
   if (!$("runs-account-boundary-cards") || !$("runs-account-boundary-note")) return;
   const source = latestArtifactPerformance();
@@ -24455,6 +24649,7 @@ function renderRunsAccountBoundary() {
       <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+  renderRunsStateActionSummary();
 }
 
 function terminalOrderStatus(status) {
@@ -30609,6 +30804,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-evidence-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleRunsEvidenceAction(target.dataset.runsEvidenceAction || "");
+  });
+  $("runs-state-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-runs-state-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handleRunsStateAction(target.dataset.runsStateAction || "");
   });
   $("run-events-filter-text").addEventListener("input", renderRunEvents);
   $("run-events-filter-type").addEventListener("change", renderRunEvents);

@@ -2031,7 +2031,8 @@ section {
 }
 
 #paper-action-actions button,
-#remote-action-actions button {
+#remote-action-actions button,
+#runs-state-action-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -2041,13 +2042,15 @@ section {
 }
 
 #paper-action-actions button span,
-#remote-action-actions button span {
+#remote-action-actions button span,
+#runs-state-action-actions button span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 #paper-action-actions button b,
-#remote-action-actions button b {
+#remote-action-actions button b,
+#runs-state-action-actions button b {
   flex: 0 0 auto;
   font-size: 12px;
 }
@@ -3792,6 +3795,7 @@ section {
 .operations-evidence-panel,
 .paper-action-summary-panel,
 .remote-action-summary-panel,
+.runs-state-action-summary-panel,
 .supervisor-action-summary-panel,
 .runs-action-summary-panel,
 .runs-evidence-panel {
@@ -3818,6 +3822,7 @@ section {
 .operations-evidence-panel .section-note,
 .paper-action-summary-panel .section-note,
 .remote-action-summary-panel .section-note,
+.runs-state-action-summary-panel .section-note,
 .supervisor-action-summary-panel .section-note,
 .runs-action-summary-panel .section-note,
 .runs-evidence-panel .section-note {

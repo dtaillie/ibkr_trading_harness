@@ -567,6 +567,11 @@ strategy-private.
       selected source type, live/paper/simulated/replay authority, account
       snapshot freshness, managed positions, current telemetry, open-order
       signals, and the next verification action.
+    - partial; Runs State now starts with a State Action Summary that chooses
+      the first reconciliation route across open-order events, live-account
+      caution, execution issues, open positions, missing account snapshots,
+      status-history-only telemetry, saved artifacts, and setup gaps before
+      users read the account boundary cards or state tables.
     - partial; Runs now defaults to a Home lens for triage while State, Runs,
       and Events lenses carry account state, run search, and timeline tables.
 - Add strategy drilldowns:

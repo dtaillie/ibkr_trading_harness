@@ -1446,6 +1446,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runs-evidence-cards" in html
         assert "runs-evidence-body" in html
         assert "runs-evidence-actions" in html
+        assert "runs-state-action-note" in html
+        assert "runs-state-action-cards" in html
+        assert "runs-state-action-actions" in html
         assert "operations-lens-title" in html
         assert "operations-lens-note" in html
         assert "operations-lens-home" in html
