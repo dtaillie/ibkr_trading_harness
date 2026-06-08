@@ -40,6 +40,10 @@ run drilldowns, and operations diagnostics. The Current Setup Gaps panel is
 state-aware: after refresh it points at missing telemetry, disabled or
 unreachable Gateway checks, unreadable data roots, catalog caps, missing fetch
 manifests, and missing Workbench drafts.
+Use the Guided Tour on Help Home when you are learning the app from scratch. It
+walks in order through current health, performance, saved data, simulation,
+run evidence, and operations/public-boundary review, marking each step ready,
+warning, or blocked from the current public-safe dashboard state.
 The Help Task Navigator turns the current dashboard state into a copyable route
 map for monitoring, performance, saved data, fetch recovery, simulation, run
 events, operations, and public/private publishing boundaries. The Today's

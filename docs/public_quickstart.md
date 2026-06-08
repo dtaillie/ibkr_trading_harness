@@ -348,6 +348,10 @@ runs, saved-data count, and alerts in view while you move between pages.
 Use Data Library Diagnostics > Catalog Scan Report when a saved symbol is
 missing. It summarizes parser errors, unsupported/skipped files, scan caps,
 Storage Audit visibility, and the next recovery action before the raw table.
+Use Help Home's Guided Tour when you are learning the dashboard order. It walks
+through current health, performance, saved data, simulation, run evidence, and
+operations/public-boundary review, and marks each step ready, warning, or
+blocked from the current public-safe dashboard state.
 Use Help Task Navigator when the next action is unclear. It reads the current
 public-safe dashboard state and links directly to monitoring, performance,
 saved data, fetch recovery, simulation, run-event, operations, and publishing

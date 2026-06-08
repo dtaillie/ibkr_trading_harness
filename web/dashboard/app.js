@@ -1820,6 +1820,7 @@ function renderHelpSetupGaps() {
     </a>
   `).join("");
   renderHelpWorkflowLauncher(items);
+  renderHelpGuidedTour(items);
   renderHelpNextAssistant(items);
   renderHelpTaskNavigator(items);
   renderHelpPerformanceGuide();
@@ -1985,6 +1986,144 @@ function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
     workflows.find((card) => card.label === "Publish Safely"),
   ].filter(Boolean);
   return { title, note, primary, supportCards, actions };
+}
+
+function helpGuidedTourModel(setupItems = helpSetupGapItems()) {
+  const runs = (state.status && state.status.runs) || [];
+  const events = runEventRows();
+  const openOrders = currentOpenOrderRows();
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const workbenchRuns = (state.configRuns && state.configRuns.runs) || [];
+  const artifacts = state.configArtifacts || {};
+  const artifactLoaded = Boolean(artifacts.run_id || artifacts.draft_id);
+  const badSetup = setupItems.filter((item) => item.status === "bad");
+  const warnSetup = setupItems.filter((item) => item.status === "warn");
+  const badEvents = events.filter(eventStatusIsBad);
+  const fills = events.filter((event) => event.type === "fill");
+  const tour = [
+    {
+      step: "1",
+      label: "Current Health",
+      title: runs.length ? "Telemetry Visible" : badSetup.length ? "Fix Setup First" : "Confirm Runner",
+      status: runs.length ? "ok" : badSetup.length ? "bad" : "warn",
+      note: runs.length
+        ? `${numberText(runs.length, 0)} current run${runs.length === 1 ? "" : "s"} publishing; start with Overview Home.`
+        : badSetup.length ? `${text(badSetup[0].label)} is blocking the first read.` : "No current run list is visible; use Overview and Operations to confirm state.",
+      href: runs.length ? "#overview" : badSetup.length ? badSetup[0].href : "#operations/diagnostics",
+      cta: runs.length ? "Overview" : badSetup.length ? "Fix Gap" : "Diagnostics",
+    },
+    {
+      step: "2",
+      label: "Performance Read",
+      title: accountRows.length ? "Account-Backed" : source.has_data ? "Limited Evidence" : "Needs Source",
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      note: accountRows.length
+        ? `${numberText(accountRows.length, 0)} account snapshot${accountRows.length === 1 ? "" : "s"} support equity, return, and drawdown views.`
+        : source.has_data ? `${text(source.label)} is available, but account-snapshot depth is limited.` : "Load current telemetry or a saved artifact before trusting returns.",
+      href: source.has_data ? "#performance" : "#performance/diagnostics",
+      cta: "Performance",
+    },
+    {
+      step: "3",
+      label: "Saved Data",
+      title: datasets.length ? `${numberText(datasets.length, 0)} Files` : manifests.length ? "Fetches Exist" : "No Catalog",
+      status: datasets.length > 2 ? "ok" : datasets.length || manifests.length ? "warn" : "bad",
+      note: datasets.length
+        ? "Use Data Home, Browse, Inspect, and Compare to prove historical files before simulation."
+        : manifests.length ? "Fetch manifests exist; use Fetch Jobs to connect outputs to Data Library visibility." : "Configure data roots or fetch history before Workbench replay.",
+      href: datasets.length ? "#data" : manifests.length ? "#fetch" : "#data/diagnostics",
+      cta: datasets.length ? "Data" : manifests.length ? "Fetch Jobs" : "Data Setup",
+    },
+    {
+      step: "4",
+      label: "Simulation Path",
+      title: drafts.length || workbenchRuns.length || artifactLoaded ? "Workbench Ready" : datasets.length ? "Create Draft" : "Needs Data",
+      status: drafts.length || workbenchRuns.length || artifactLoaded ? "ok" : datasets.length ? "warn" : "bad",
+      note: drafts.length
+        ? `${numberText(drafts.length, 0)} draft${drafts.length === 1 ? "" : "s"} can be validated or run.`
+        : workbenchRuns.length || artifactLoaded ? "Saved runs or loaded artifacts are available for review." : datasets.length ? "Select saved files, preview alignment, then generate a replay draft." : "Workbench should wait until saved data is visible.",
+      href: datasets.length || drafts.length ? "#workbench/builder" : "#workbench",
+      cta: "Workbench",
+    },
+    {
+      step: "5",
+      label: "Run Evidence",
+      title: badEvents.length ? "Issues First" : fills.length ? "Fills Visible" : events.length ? "Timeline Ready" : runs.length ? "Await Events" : "No Timeline",
+      status: badEvents.length ? "bad" : fills.length || events.length ? "ok" : runs.length ? "warn" : "bad",
+      note: badEvents.length
+        ? `${numberText(badEvents.length, 0)} issue event${badEvents.length === 1 ? "" : "s"} need Runs review.`
+        : fills.length ? `${numberText(fills.length, 0)} fill event${fills.length === 1 ? "" : "s"} visible; connect executions to results.` : events.length ? `${numberText(events.length, 0)} event${events.length === 1 ? "" : "s"} visible for decision/order/fill proof.` : "Runs needs current telemetry or loaded artifacts.",
+      href: badEvents.length || events.length ? "#runs/events" : "#runs",
+      cta: "Runs",
+    },
+    {
+      step: "6",
+      label: "Operate Safely",
+      title: openOrders.length ? "Orders Need Review" : warnSetup.length ? "Warnings Exist" : "Boundary Clear",
+      status: openOrders.length ? "warn" : warnSetup.length ? "warn" : "ok",
+      note: openOrders.length
+        ? `${numberText(openOrders.length, 0)} open/non-terminal order event${openOrders.length === 1 ? "" : "s"} visible; review state before action.`
+        : warnSetup.length ? `${text(warnSetup[0].label)} warning remains; use Operations or Help Boundary.` : "Use Operations for service state and Help Boundary before public publishing.",
+      href: openOrders.length ? "#runs/state" : warnSetup.length ? warnSetup[0].href : "#operations/paper",
+      cta: openOrders.length ? "State" : warnSetup.length ? "Review" : "Operations",
+    },
+  ];
+  const firstBad = tour.find((item) => item.status === "bad");
+  const firstWarn = tour.find((item) => item.status === "warn");
+  const next = firstBad || firstWarn || tour[0];
+  const readyCount = tour.filter((item) => item.status === "ok").length;
+  const headline = firstBad
+    ? `Start at step ${firstBad.step}: ${firstBad.label}`
+    : firstWarn ? `Review step ${firstWarn.step}: ${firstWarn.label}` : "Tour is ready end to end";
+  const note = firstBad || firstWarn
+    ? next.note
+    : "Current dashboard evidence supports the full path from monitoring through data, simulation, run evidence, operations, and publication boundary.";
+  return { headline, note, readyCount, next, tour };
+}
+
+function renderHelpGuidedTour(setupItems = helpSetupGapItems()) {
+  if (!$("help-tour-title") || !$("help-tour-note") || !$("help-tour-cards") || !$("help-tour-actions")) return;
+  const model = helpGuidedTourModel(setupItems);
+  $("help-tour-title").textContent = model.headline;
+  $("help-tour-note").textContent = `${numberText(model.readyCount, 0)} of ${numberText(model.tour.length, 0)} steps ready. ${model.note}`;
+  $("help-tour-cards").innerHTML = model.tour.map((item) => `
+    <a class="action-card workflow-card status-${escapeHtml(item.status)}" href="${escapeHtml(item.href)}">
+      <span>${escapeHtml(item.step)}. ${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.title)}</strong>
+      <small>${escapeHtml(item.note)}</small>
+      <div class="workflow-card-foot">
+        <em>${statusText(item.status)}</em>
+        <b>${escapeHtml(item.cta)}</b>
+      </div>
+    </a>
+  `).join("");
+  $("help-tour-actions").innerHTML = [
+    `<a class="help-next-action primary-help-action status-${escapeHtml(model.next.status)}" href="${escapeHtml(model.next.href)}">
+      <span>
+        <strong>${escapeHtml(`Next: ${model.next.label}`)}</strong>
+        <small>${escapeHtml(model.next.note)}</small>
+      </span>
+      <b>${escapeHtml(model.next.cta)}</b>
+    </a>`,
+    `<a class="help-next-action status-ok" href="#help/pages">
+      <span>
+        <strong>Page Guide</strong>
+        <small>Read what each top-level page is responsible for.</small>
+      </span>
+      <b>Pages</b>
+    </a>`,
+    `<a class="help-next-action status-ok" href="#help/boundary">
+      <span>
+        <strong>Public Boundary</strong>
+        <small>Check what stays private before publishing or writing about the project.</small>
+      </span>
+      <b>Boundary</b>
+    </a>`,
+  ].join("");
 }
 
 function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {

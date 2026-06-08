@@ -143,7 +143,9 @@ python3 scripts/publish_status.py \
 
 Open `http://127.0.0.1:8765/` for the operational dashboard.
 The Help view is the easiest first screen for a new local copy: it recommends
-one next route from current setup state, shows a copyable Task Navigator for
+one next route from current setup state, includes a Guided Tour for current
+health, performance, saved data, simulation, run evidence, and operations,
+shows a copyable Task Navigator for
 monitoring, performance, saved data, fetch recovery, simulation, run events,
 operations, and publishing boundaries, and now includes a Today's Performance
 Guide that explains the Overview -> Performance -> Runs evidence path for

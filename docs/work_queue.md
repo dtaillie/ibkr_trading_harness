@@ -631,6 +631,10 @@ strategy-private.
       Monitor Today, Read Performance, Inspect Data, Build Simulation,
       Troubleshoot, and Publish Safely, giving first-time users a compact route
       into the right dashboard page before reading the longer guide sections.
+    - partial; Help Home now includes a state-aware Guided Tour that walks a
+      new user through current health, performance, saved data, simulation,
+      run evidence, and operations/public-boundary review in order, marking
+      each step ready, warning, or blocked.
     - partial; Help Home now adds a state-aware Next Step assistant that
       recommends one primary route from setup blockers, telemetry, saved data,
       draft availability, and performance evidence before showing workflow

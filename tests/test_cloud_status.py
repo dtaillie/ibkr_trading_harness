@@ -1015,6 +1015,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-source-map-note" in html
         assert "data-source-map" in html
         assert "help-start-panel" in html
+        assert "help-tour-title" in html
+        assert "help-tour-note" in html
+        assert "help-tour-cards" in html
+        assert "help-tour-actions" in html
         assert "help-workflows" in html
         assert "help-performance-guide-title" in html
         assert "help-performance-guide-note" in html
