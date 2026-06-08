@@ -396,9 +396,9 @@ archived account artifacts by UTC day with return, equity, orders, fills,
 rejects, and artifact drilldown; Period Rollups group the same archived rows by
 month and year. Data Library shows
 configured data roots, saved-data coverage, root-scan diagnostics, historical
-previews, a Data Home Saved Data Preview Wall with sparklines and direct
-Inspect/Compare/Workbench actions, and a shortlist with direct Inspect, Filter,
-and Compare actions for the best currently visible files. Use Saved Data
+previews, a Data Home Saved Data Preview Wall with summary cards, sparklines,
+and direct Inspect/Compare/Workbench actions, and a shortlist with direct
+Inspect, Filter, and Compare actions for the best currently visible files. Use Saved Data
 Explorer in Browse
 when you want the broad saved-data map first: it groups the bounded parsed
 catalog by asset, source, bar size, storage session, quality, and

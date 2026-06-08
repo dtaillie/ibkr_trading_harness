@@ -1237,6 +1237,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Home now includes a Saved Data Preview Wall with sampled
       close-path sparklines, range/source/bar/readiness context, and direct
       Inspect/Compare/Workbench actions for the top visible saved files.
+    - partial; Saved Data Preview Wall now includes a Preview Summary strip
+      that explains visible preview scope, replay readiness, coverage window,
+      sampled-return leader, active filter pressure, and the next move before
+      users inspect individual preview cards.
     - partial; Data Home now includes a Universe Coverage panel summarizing the
       scanned symbol universe by file/row count, latest saved timestamp,
       sources, assets, bar sizes, storage sessions, replay-readiness, and

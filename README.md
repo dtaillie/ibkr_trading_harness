@@ -316,8 +316,8 @@ Home includes a Historical Inventory Evidence panel and Data Visibility Report
 that summarize parsed catalog files, root-index candidates, saved history
 matrix groups, filters, catalog caps, root visibility, parser skips, replay
 readiness, and fetch-output visibility before users open dense tables, plus a
-Saved Data Preview Wall with sparklines and direct Inspect/Compare/Workbench
-actions for visible saved files. The Fetch Jobs view
+Saved Data Preview Wall with summary cards, sparklines, and direct
+Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
 reads JSON manifests from configured manifest roots, summarizing historical-data
 pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.
 Fetch Progress Review gives a first-screen read on active, partial, and failed

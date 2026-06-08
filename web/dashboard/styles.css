@@ -1056,6 +1056,10 @@ button[disabled] {
   gap: 10px;
 }
 
+.data-preview-summary {
+  margin-bottom: 10px;
+}
+
 .data-preview-card {
   display: grid;
   gap: 10px;

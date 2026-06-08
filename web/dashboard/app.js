@@ -13669,6 +13669,7 @@ function renderDataPreviewWall(filteredRows = []) {
   if (!container || !$("data-preview-wall-note")) return;
   const rows = recommendedDataRows(filteredRows).slice(0, 8);
   const total = (filteredRows.length ? filteredRows : (state.dataCatalog.datasets || [])).length;
+  renderDataPreviewSummary(rows, total, filteredRows);
   $("data-preview-wall-note").textContent = rows.length
     ? `${numberText(rows.length, 0)} preview${rows.length === 1 ? "" : "s"} from ${numberText(total, 0)} visible saved file${total === 1 ? "" : "s"}`
     : "No saved files are currently visible for preview";
@@ -13703,6 +13704,103 @@ function renderDataPreviewWall(filteredRows = []) {
       </div>
     `;
   }).join("");
+}
+
+function renderDataPreviewSummary(rows = [], total = 0, filteredRows = []) {
+  const container = $("data-preview-summary");
+  if (!container) return;
+  const catalogRows = state.dataCatalog.datasets || [];
+  const activeFilters = dataFilterSummary();
+  if (!rows.length) {
+    container.innerHTML = `
+      <div class="action-card status-bad">
+        <span>Preview Summary</span>
+        <strong>No Previewable Files</strong>
+        <small>Configure data roots, refresh the catalog, clear filters, or run a fetch job before using saved-data previews.</small>
+      </div>
+    `;
+    return;
+  }
+  const symbols = new Set(rows.map((dataset) => text(dataset.symbol)).filter((item) => item !== "n/a"));
+  const sourceCounts = countBy(rows, "source");
+  const barCounts = countBy(rows, "bar_size");
+  const readinessCounts = rows.reduce((counts, dataset) => {
+    const status = dataReplayReadinessModel(dataset).status;
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {});
+  const returns = rows.map((dataset) => ({
+    dataset,
+    value: previewCloseReturn(dataset.preview || []),
+  })).filter((item) => Number.isFinite(item.value));
+  const leader = returns.slice().sort((left, right) => Number(right.value || 0) - Number(left.value || 0))[0] || null;
+  const previewable = rows.filter((dataset) => (dataset.preview || []).length >= 2);
+  const range = rows.reduce((acc, dataset) => {
+    const first = timestampMillis(dataset.first_timestamp);
+    const last = timestampMillis(dataset.last_timestamp);
+    if (first !== null) acc.first = acc.first === null ? first : Math.min(acc.first, first);
+    if (last !== null) acc.last = acc.last === null ? last : Math.max(acc.last, last);
+    return acc;
+  }, { first: null, last: null });
+  const rangeText = range.first !== null && range.last !== null
+    ? `${new Date(range.first).toISOString().slice(0, 10)} to ${new Date(range.last).toISOString().slice(0, 10)}`
+    : "n/a";
+  const ready = Number(readinessCounts.ok || 0);
+  const review = Number(readinessCounts.warn || 0);
+  const blocked = Number(readinessCounts.bad || 0);
+  const scopeStatus = activeFilters.length ? "warn" : "ok";
+  const readinessStatus = blocked ? "bad" : review ? "warn" : "ok";
+  const previewStatus = previewable.length ? "ok" : "warn";
+  const nextStatus = blocked ? "warn" : previewable.length ? "ok" : "warn";
+  const nextTitle = blocked
+    ? "Review Blockers"
+    : previewable.length >= 2 ? "Compare Or Inspect" : "Inspect First";
+  const nextNote = blocked
+    ? `${numberText(blocked, 0)} previewed file${blocked === 1 ? "" : "s"} have replay-blocking readiness.`
+    : previewable.length >= 2
+      ? "Use preview cards to inspect individual files or compare symbols with visible sampled paths."
+      : "Only one sampled path is available; inspect it before sending to Workbench.";
+  const cards = [
+    {
+      status: scopeStatus,
+      label: "Preview Scope",
+      title: `${numberText(symbols.size, 0)} symbols`,
+      note: `${numberText(rows.length, 0)} shown / ${numberText(total, 0)} visible files${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`,
+    },
+    {
+      status: readinessStatus,
+      label: "Replay Readiness",
+      title: `${numberText(ready, 0)} ready`,
+      note: `${numberText(review, 0)} review / ${numberText(blocked, 0)} blocked among previewed files.`,
+    },
+    {
+      status: previewStatus,
+      label: "Coverage Preview",
+      title: rangeText,
+      note: `${numberText(previewable.length, 0)} sampled close path${previewable.length === 1 ? "" : "s"}; sources ${countSummary(sourceCounts)}; bars ${countSummary(barCounts)}.`,
+    },
+    {
+      status: leader ? Number(leader.value) >= 0 ? "ok" : "bad" : "warn",
+      label: "Preview Leader",
+      title: leader ? text(leader.dataset.symbol) : "n/a",
+      note: leader
+        ? `Sampled close return ${pctText(leader.value)} from ${text(leader.dataset.source)} ${text(leader.dataset.bar_size)}.`
+        : "No sampled preview return is available in the current card set.",
+    },
+    {
+      status: nextStatus,
+      label: "Next Move",
+      title: nextTitle,
+      note: `${nextNote} Catalog has ${numberText(catalogRows.length, 0)} total bounded rows loaded.`,
+    },
+  ];
+  container.innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
 }
 
 function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
