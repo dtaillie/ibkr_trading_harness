@@ -836,6 +836,26 @@ def test_validate_config_file_rejects_loop_for_replay(tmp_path):
     assert not output_dir.exists()
 
 
+def test_validate_config_file_rejects_nonpositive_loop_runtime(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={"loop": True, "max_runtime_seconds": 0},
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path, mode_override="shadow")
+
+    assert "runner.max_runtime_seconds must be > 0" in str(exc.value)
+    assert not output_dir.exists()
+
+
 def test_shadow_loop_records_bounded_iterations(tmp_path):
     bars_path = tmp_path / "bars.csv"
     config_path = tmp_path / "config.yaml"
@@ -881,6 +901,52 @@ def test_shadow_loop_records_bounded_iterations(tmp_path):
     assert status["next_check_time"] is None
     assert status["next_expected_decision_time"] is None
     assert status["next_check_reason"] == "max_loop_iterations_reached"
+
+
+def test_shadow_loop_stops_at_max_runtime(tmp_path, monkeypatch):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        plugin="examples.strategies.no_edge_template:create_strategy",
+        runner={
+            "loop": True,
+            "loop_interval_seconds": 0,
+            "max_runtime_seconds": 0.1,
+            "skip_duplicate_latest": False,
+        },
+    )
+    times = iter([0.0, 0.0, 0.2])
+
+    def fake_monotonic():
+        return next(times, 0.2)
+
+    monkeypatch.setattr(plugin_runner.time, "monotonic", fake_monotonic)
+
+    result = run_from_config(config_path, mode_override="shadow")
+
+    assert result.loop_enabled is True
+    assert result.loop_iterations == 1
+    assert result.decisions == 1
+    assert result.stopped_by_runtime is True
+    assert result.max_runtime_seconds == pytest.approx(0.1)
+    assert result.next_check_reason == "max_runtime_seconds_reached"
+    summary = json.loads((output_dir / "summary.json").read_text())
+    assert summary["stopped_by_runtime"] is True
+    assert summary["max_runtime_seconds"] == pytest.approx(0.1)
+    assert summary["next_check_reason"] == "max_runtime_seconds_reached"
+    status = json.loads((output_dir / "runner_status.json").read_text())
+    assert status["state"] == "completed"
+    assert status["loop"]["max_runtime_seconds"] == pytest.approx(0.1)
+    assert status["loop"]["stopped_by_runtime"] is True
+    assert status["next_check_reason"] == "max_runtime_seconds_reached"
+    contract = json.loads((output_dir / "plugin_contract.json").read_text())
+    assert contract["runner"]["max_runtime_seconds"] == pytest.approx(0.1)
+    assert contract["runner"]["stopped_by_runtime"] is True
 
 
 def test_shadow_loop_publishes_next_check_while_sleeping(tmp_path, monkeypatch):

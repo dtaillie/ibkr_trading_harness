@@ -156,7 +156,9 @@ class RunnerResult:
     latest_signal_value: float | None = None
     next_order_condition: str | None = None
     stopped_by_control: bool = False
+    stopped_by_runtime: bool = False
     stop_marker: str | None = None
+    max_runtime_seconds: float | None = None
 
 
 class ConfigValidationError(ValueError):
@@ -435,6 +437,7 @@ def validate_config(
     max_steps_override: int | None = None,
     loop_override: bool | None = None,
     max_loop_iterations_override: int | None = None,
+    max_runtime_seconds_override: float | None = None,
     check_files: bool = True,
     check_plugin: bool = True,
 ) -> list[str]:
@@ -477,9 +480,12 @@ def validate_config(
     validate_bool(runner_cfg.get("loop"), "runner.loop", errors)
     validate_nonnegative_float(runner_cfg.get("loop_interval_seconds"), "runner.loop_interval_seconds", errors)
     validate_positive_int(runner_cfg.get("max_loop_iterations"), "runner.max_loop_iterations", errors)
+    validate_nonnegative_float(runner_cfg.get("max_runtime_seconds"), "runner.max_runtime_seconds", errors, positive=True)
     validate_bool(runner_cfg.get("skip_duplicate_latest"), "runner.skip_duplicate_latest", errors)
     if max_loop_iterations_override is not None:
         validate_positive_int(max_loop_iterations_override, "--max-loop-iterations", errors)
+    if max_runtime_seconds_override is not None:
+        validate_nonnegative_float(max_runtime_seconds_override, "--max-runtime-seconds", errors, positive=True)
     loop_enabled = bool(loop_override) if loop_override is not None else bool(runner_cfg.get("loop", False))
     if loop_enabled and normalized_mode not in {"shadow", "paper"}:
         errors.append("runner.loop is only supported for shadow or paper mode")
@@ -651,6 +657,7 @@ def validate_config_file(
     max_steps_override: int | None = None,
     loop_override: bool | None = None,
     max_loop_iterations_override: int | None = None,
+    max_runtime_seconds_override: float | None = None,
 ) -> dict[str, Any]:
     config = read_config(config_path)
     errors = validate_config(
@@ -660,6 +667,7 @@ def validate_config_file(
         max_steps_override=max_steps_override,
         loop_override=loop_override,
         max_loop_iterations_override=max_loop_iterations_override,
+        max_runtime_seconds_override=max_runtime_seconds_override,
     )
     if errors:
         raise ConfigValidationError(errors)
@@ -1442,8 +1450,10 @@ def plugin_contract_artifact(
         "runner": {
             "history_bars": runner_cfg.get("history_bars"),
             "max_steps": runner_cfg.get("max_steps"),
+            "max_runtime_seconds": result.max_runtime_seconds,
             "loop_enabled": result.loop_enabled,
             "loop_iterations": result.loop_iterations,
+            "stopped_by_runtime": result.stopped_by_runtime,
             "session_enabled": result.session_enabled,
             "session_status": result.session_status,
         },
@@ -2135,6 +2145,7 @@ def run_from_config(
     loop: bool | None = None,
     loop_interval_seconds: float | None = None,
     max_loop_iterations: int | None = None,
+    max_runtime_seconds: float | None = None,
 ) -> RunnerResult:
     config = validate_config_file(
         config_path,
@@ -2142,6 +2153,7 @@ def run_from_config(
         max_steps_override=max_steps,
         loop_override=loop,
         max_loop_iterations_override=max_loop_iterations,
+        max_runtime_seconds_override=max_runtime_seconds,
     )
     runner_cfg = config.get("runner") or {}
     execution_cfg = config.get("execution") or {}
@@ -2170,6 +2182,10 @@ def run_from_config(
         raise ValueError("loop_interval_seconds must be >= 0")
     if max_loop_iterations is None and runner_cfg.get("max_loop_iterations") is not None:
         max_loop_iterations = int(runner_cfg["max_loop_iterations"])
+    if max_runtime_seconds is None and runner_cfg.get("max_runtime_seconds") is not None:
+        max_runtime_seconds = float(runner_cfg["max_runtime_seconds"])
+    if max_runtime_seconds is not None and max_runtime_seconds <= 0:
+        raise ValueError("max_runtime_seconds must be > 0")
     if loop_enabled and mode not in {"shadow", "paper"}:
         raise ValueError("runner.loop is only supported for shadow or paper mode")
     skip_duplicate_latest = bool(runner_cfg.get("skip_duplicate_latest", True))
@@ -2226,6 +2242,8 @@ def run_from_config(
     if control_cfg.get("stop_marker") is not None:
         stop_marker = Path(str(control_cfg["stop_marker"]))
     stopped_by_control = False
+    stopped_by_runtime = False
+    runtime_deadline = time.monotonic() + max_runtime_seconds if loop_enabled and max_runtime_seconds is not None else None
     runner_status_path = output_dir / "runner_status.json"
     run_started_at = datetime.now(timezone.utc)
     latest_error: dict[str, str] | None = None
@@ -2288,8 +2306,10 @@ def run_from_config(
                 "enabled": loop_enabled,
                 "iterations": loop_iterations,
                 "max_iterations": max_loop_iterations,
+                "max_runtime_seconds": max_runtime_seconds,
                 "interval_seconds": loop_interval,
                 "skip_duplicate_latest": skip_duplicate_latest,
+                "stopped_by_runtime": stopped_by_runtime,
             },
             "session": {
                 "enabled": session_cfg is not None,
@@ -2664,6 +2684,9 @@ def run_from_config(
         last_decision_time = now.isoformat()
         update_runner_status("idle", note="outside configured session")
 
+    def runtime_limit_reached() -> bool:
+        return runtime_deadline is not None and time.monotonic() >= runtime_deadline
+
     try:
         if not loop_enabled:
             panels = load_panels(config.get("data") or {})
@@ -2682,6 +2705,11 @@ def run_from_config(
                     stopped_by_control = True
                     log.info("Loop stopped by control marker: %s", stop_marker)
                     update_runner_status("stopped", note=f"stop marker exists: {stop_marker}")
+                    break
+                if runtime_limit_reached():
+                    stopped_by_runtime = True
+                    set_next_check(None, "max_runtime_seconds_reached")
+                    update_runner_status("completed", note="max_runtime_seconds reached")
                     break
                 loop_iterations += 1
                 panels = load_panels(config.get("data") or {})
@@ -2707,13 +2735,23 @@ def run_from_config(
                     set_next_check(None, "max_loop_iterations_reached")
                     update_runner_status("completed", note="max_loop_iterations reached")
                     break
+                if runtime_limit_reached():
+                    stopped_by_runtime = True
+                    set_next_check(None, "max_runtime_seconds_reached")
+                    update_runner_status("completed", note="max_runtime_seconds reached")
+                    break
                 if loop_interval > 0:
+                    sleep_seconds = loop_interval
+                    if runtime_deadline is not None:
+                        sleep_seconds = max(0.0, min(loop_interval, runtime_deadline - time.monotonic()))
+                    if sleep_seconds <= 0:
+                        continue
                     set_next_check(
-                        datetime.now(timezone.utc) + timedelta(seconds=loop_interval),
+                        datetime.now(timezone.utc) + timedelta(seconds=sleep_seconds),
                         "sleeping_until_next_loop",
                     )
                     update_runner_status("sleeping", note="waiting for next loop interval")
-                    time.sleep(loop_interval)
+                    time.sleep(sleep_seconds)
     except Exception as exc:
         latest_error = {"type": type(exc).__name__, "message": str(exc)}
         set_next_check(None, "failed")
@@ -2744,6 +2782,8 @@ def run_from_config(
 
     if stopped_by_control:
         set_next_check(None, "stopped_by_control")
+    elif stopped_by_runtime:
+        set_next_check(None, "max_runtime_seconds_reached")
     elif not loop_enabled:
         set_next_check(None, "one_shot_completed")
     elif max_loop_iterations is not None and loop_iterations >= max_loop_iterations:
@@ -2808,7 +2848,9 @@ def run_from_config(
         latest_signal_value=latest_signal_value,
         next_order_condition=next_order_condition,
         stopped_by_control=stopped_by_control,
+        stopped_by_runtime=stopped_by_runtime,
         stop_marker=str(stop_marker) if stop_marker is not None else None,
+        max_runtime_seconds=max_runtime_seconds,
     )
     write_json(performance_rollups_path, account_rollup_artifact(account_records, result))
     write_json(output_dir / "summary.json", asdict(result))
@@ -2894,6 +2936,12 @@ def main() -> None:
         default=None,
         help="Optional safety bound for --loop, useful for smoke tests.",
     )
+    parser.add_argument(
+        "--max-runtime-seconds",
+        type=float,
+        default=None,
+        help="Optional wall-clock safety bound for --loop.",
+    )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args()
 
@@ -2909,6 +2957,7 @@ def main() -> None:
                 max_steps_override=args.max_steps,
                 loop_override=args.loop if args.loop else None,
                 max_loop_iterations_override=args.max_loop_iterations,
+                max_runtime_seconds_override=args.max_runtime_seconds,
             )
             log.info("Config valid: %s", args.config)
             return
@@ -2924,6 +2973,7 @@ def main() -> None:
             loop=args.loop if args.loop else None,
             loop_interval_seconds=args.loop_interval_seconds,
             max_loop_iterations=args.max_loop_iterations,
+            max_runtime_seconds=args.max_runtime_seconds,
         )
     except Exception as exc:
         log.error("Runner failed: %s", exc)

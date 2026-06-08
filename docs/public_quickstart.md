@@ -155,14 +155,16 @@ and copyable operator notes.
 For long-running observation or paper sessions, enable the generic loop in an
 ignored local config or pass `--loop`. Loop mode is restricted to `shadow` and
 `paper`, reloads the latest data each interval, skips duplicate latest bars by
-default, and can be bounded with `--max-loop-iterations` for smoke tests:
+default, and can be bounded with `--max-loop-iterations` for smoke tests or
+`--max-runtime-seconds` for wall-clock caps:
 
 ```bash
 python3 live/plugin_runner.py \
   --config config/plugin_runner.yaml \
   --mode shadow \
   --loop \
-  --loop-interval-seconds 60
+  --loop-interval-seconds 60 \
+  --max-runtime-seconds 3600
 ```
 
 Loop configs can also define `runner.session` with an IANA timezone, local

@@ -98,9 +98,10 @@ python3 live/plugin_runner.py \
 
 Loop mode is available for `shadow` and `paper`. It skips duplicate latest bars
 by default and writes `loop_enabled` / `loop_iterations` into `summary.json`.
-Use `--max-loop-iterations` for dry runs or service smoke tests. If the config
-sets `control.stop_marker`, creating that file stops a loop cleanly before the
-next data/plugin/broker pass.
+Use `--max-loop-iterations` for dry runs or service smoke tests, and
+`--max-runtime-seconds` when a loop should stop after a wall-clock cap. If the
+config sets `control.stop_marker`, creating that file stops a loop cleanly
+before the next data/plugin/broker pass.
 
 Use an ignored local config such as `config/plugin_runner.yaml` for any real
 strategy plugin or broker settings.
@@ -168,6 +169,8 @@ its final summary/artifacts.
 - Allowed symbols, sides, order types, cash/notional, and exposure caps are set.
 - Long-running loop configs have the intended `runner.session` timezone,
   start/end, weekday list, and outside-session behavior.
+- Long-running loop configs have the intended `runner.max_runtime_seconds` or
+  an external supervisor/service restart policy.
 - Long-running loop configs have an intended `control.stop_marker` path.
 - If shorts are allowed, `shortable_symbols` and short-notional caps are set.
 - Simulated-paper cost settings are realistic enough for the asset class:

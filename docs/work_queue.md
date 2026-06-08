@@ -2111,8 +2111,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     `outside_session: idle`; outside-window loop iterations write visible idle
     decision artifacts without evaluating the plugin or broker. Loop configs
     can also set `control.stop_marker` for a clean operator-requested loop exit
-    before the next data/plugin/broker pass. Generic runner executions now
-    maintain a public-safe `runner_status.json` heartbeat/status artifact with
+    before the next data/plugin/broker pass. Loop configs can now also set
+    `runner.max_runtime_seconds`, or pass `--max-runtime-seconds`, as a
+    wall-clock safety bound; summaries, `runner_status.json`, and
+    `plugin_contract.json` report when that cap stops a loop. Generic runner
+    executions now maintain a public-safe `runner_status.json` heartbeat/status artifact with
     lifecycle state, loop/session counters, latest data time, stop/pause marker
     presence, and final result pointers. Generic runner executions now also
     write `plugin_contract.json`, a public-safe contract artifact with plugin
