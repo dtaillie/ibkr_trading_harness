@@ -313,7 +313,9 @@ paper readiness, Gateway/API, remote-node freshness, command audit/control
 queue, and local alerts. Its Operations Evidence panel then separates local
 runner/paper proof, Gateway/API proof, remote snapshots, command-audit state,
 control queue pressure, alerts, and the next operational drilldown before users
-open the lower tables.
+open the lower tables. Operations Paper starts with a Paper Action Summary that
+routes current paper-monitor checks to Gateway diagnostics, the paper checklist,
+Runs/Orders, Performance, or the Gateway runbook.
 Operations Control includes Command Safety Review before the raw command form,
 summarizing target-node state, read-only/control/launcher action classes,
 confirmation requirements, pending/failed command pressure, audit integrity,

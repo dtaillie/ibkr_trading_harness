@@ -269,6 +269,9 @@ Use Operations workflow cards first when the task is operational: Paper
 Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, or
 Diagnostics. They route into the Paper, Remote, Control, or Diagnostics lenses
 without scanning the full operations surface.
+In Operations Paper, read Paper Action Summary first when you need the shortest
+route. It chooses between Gateway diagnostics, the paper checklist, Runs/Orders,
+Performance, or the Gateway runbook from the current readiness checks.
 In Operations Paper, read Observation Packet before the longer checklist. It
 separates the runner heartbeat, Gateway/API, market-data feed, account feed,
 decision loop, order context, and mode safety, which answers whether the paper

@@ -25855,11 +25855,156 @@ function renderPaperMonitor() {
     : warnCount
       ? `${warnCount} paper-monitor warning${warnCount === 1 ? "" : "s"}`
       : `${okCount} paper-monitor checks ready`;
+  renderPaperActionSummary(items);
   renderPaperMonitorHealth(items);
   renderPaperObservationPacket();
   $("paper-monitor-guide").innerHTML = items.map((item) => (
     `<div class="check-item status-${escapeHtml(item.status)}"><span>${escapeHtml(item.status)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`
   )).join("");
+}
+
+function paperActionSummaryModel(items = paperMonitorItems()) {
+  const observation = paperObservationPacketModel();
+  const blockers = items.filter((item) => item.status === "bad");
+  const warnings = items.filter((item) => item.status === "warn");
+  const ready = items.filter((item) => item.status === "ok");
+  const firstIssue = blockers[0] || warnings[0] || null;
+  const gatewayItem = items.find((item) => item.label === "Gateway/API") || {};
+  const accountItem = items.find((item) => item.label === "Account Freshness") || {};
+  const modeItem = items.find((item) => item.label === "Config And Mode") || {};
+  const observingItem = items.find((item) => item.label === "Observing Market") || {};
+  const orderItem = items.find((item) => item.label === "Order Context") || {};
+  const latestRun = latestTelemetryRun();
+  const events = runEventRows();
+  const fills = events.filter((event) => event.type === "fill");
+  const badEvents = events.filter(eventStatusIsBad);
+  const openOrders = currentOpenOrderRows();
+  let title = "Paper Monitor Ready";
+  let note = "Gateway, mode, observation, account, and order-context checks have no visible blockers.";
+  let status = "ok";
+  let primaryAction = "runs";
+  if (blockers.length) {
+    status = "bad";
+    title = `${numberText(blockers.length, 0)} Paper Blocker${blockers.length === 1 ? "" : "s"}`;
+    note = `${text(firstIssue.label)}: ${text(firstIssue.detail)}`;
+    primaryAction = text(firstIssue.label).toLowerCase().includes("gateway")
+      ? "gateway"
+      : text(firstIssue.label).toLowerCase().includes("observing")
+        ? "guide"
+        : text(firstIssue.label).toLowerCase().includes("config")
+          ? "runs"
+          : "guide";
+  } else if (warnings.length) {
+    status = "warn";
+    title = `${numberText(warnings.length, 0)} Paper Warning${warnings.length === 1 ? "" : "s"}`;
+    note = `${text(firstIssue.label)}: ${text(firstIssue.detail)}`;
+    primaryAction = text(firstIssue.label).toLowerCase().includes("account")
+      ? "performance"
+      : text(firstIssue.label).toLowerCase().includes("order")
+        ? "runs"
+        : "guide";
+  } else if (fills.length || badEvents.length || openOrders.length) {
+    status = badEvents.length ? "bad" : openOrders.length ? "warn" : "ok";
+    title = badEvents.length ? "Review Execution" : openOrders.length ? "Review Open Orders" : "Review Fills";
+    note = badEvents.length
+      ? `${numberText(badEvents.length, 0)} rejected, canceled, failed, or error event${badEvents.length === 1 ? "" : "s"} visible.`
+      : openOrders.length
+        ? `${numberText(openOrders.length, 0)} non-terminal order event${openOrders.length === 1 ? "" : "s"} visible.`
+        : `${numberText(fills.length, 0)} fill event${fills.length === 1 ? "" : "s"} visible; inspect performance/trades.`;
+    primaryAction = badEvents.length || openOrders.length ? "runs" : "performance";
+  } else if (!latestRun) {
+    status = "bad";
+    title = "No Paper Telemetry";
+    note = "No current runner is publishing telemetry; start or publish a paper/shadow runner.";
+    primaryAction = "guide";
+  }
+  const cards = [
+    {
+      label: "Readiness",
+      status,
+      title,
+      note: `${numberText(ready.length, 0)} / ${numberText(items.length, 0)} checks ready.`,
+    },
+    {
+      label: "Gateway/API",
+      status: gatewayItem.status || "warn",
+      title: gatewayItem.status === "ok" ? "Reachable" : gatewayItem.status === "bad" ? "Down" : "Review",
+      note: gatewayItem.detail || "No Gateway/API check loaded.",
+    },
+    {
+      label: "Observer",
+      status: observation.status,
+      title: observation.title,
+      note: observation.note,
+    },
+    {
+      label: "Mode / Account",
+      status: modeItem.status === "ok" && accountItem.status === "ok" ? "ok" : modeItem.status === "bad" ? "bad" : "warn",
+      title: modeItem.status === "ok" ? "Paper/Shadow" : "Review",
+      note: `${modeItem.detail || "Mode unavailable"} ${accountItem.detail || ""}`.trim(),
+    },
+    {
+      label: "Order Context",
+      status: badEvents.length ? "bad" : openOrders.length ? "warn" : orderItem.status || "warn",
+      title: badEvents.length ? `${numberText(badEvents.length, 0)} issues` : openOrders.length ? `${numberText(openOrders.length, 0)} open` : orderItem.status === "ok" ? "Visible" : "Missing",
+      note: badEvents.length
+        ? `${text(badEvents[0].symbol)} ${text(badEvents[0].status)} ${text(badEvents[0].detail)}`
+        : openOrders.length ? `${text(openOrders[0].symbol)} ${text(openOrders[0].status)} ${timestampAgeLabel(openOrders[0].timestamp)}.` : orderItem.detail || "No order context loaded.",
+    },
+    {
+      label: "Next Move",
+      status,
+      title,
+      note,
+    },
+  ];
+  const actions = [
+    { action: primaryAction, label: "Primary", title: primaryAction === "gateway" ? "Gateway Diagnostics" : primaryAction === "performance" ? "Open Performance" : primaryAction === "runs" ? "Open Runs" : "Review Checks", disabled: false },
+    { action: "guide", label: "Checks", title: "Review Checklist", disabled: false },
+    { action: "gateway", label: "Gateway", title: "Gateway Diagnostics", disabled: false },
+    { action: "runs", label: "Runs", title: "Runs / Orders", disabled: false },
+    { action: "performance", label: "Performance", title: "Performance", disabled: false },
+    { action: "runbook", label: "Runbook", title: "Gateway Runbook", disabled: false },
+  ];
+  return { status, title, note, cards, actions, observingItem };
+}
+
+function renderPaperActionSummary(items = paperMonitorItems()) {
+  if (!$("paper-action-note") || !$("paper-action-cards") || !$("paper-action-actions")) return;
+  const model = paperActionSummaryModel(items);
+  $("paper-action-note").textContent = `${model.title}: ${model.note}`;
+  $("paper-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("paper-action-actions").innerHTML = model.actions.map((action) => `
+    <button type="button" class="${action.disabled ? "secondary" : ""}" data-paper-action="${escapeHtml(action.action)}" ${action.disabled ? "disabled" : ""}>
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handlePaperAction(action) {
+  if (action === "gateway") {
+    navigateToOperationsLens("diagnostics");
+    window.setTimeout(() => {
+      const target = $("gateway-list");
+      if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+    return;
+  }
+  if (action === "runs") return navigateToRunsLens("events");
+  if (action === "performance") return navigateToPerformanceLens("home");
+  if (action === "runbook") {
+    window.location.href = "/docs/ibkr_gateway_runbook.md";
+    return;
+  }
+  const target = action === "observation" ? $("paper-observation-detail") : $("paper-monitor-guide");
+  if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function paperObservationPacketModel() {
@@ -30157,6 +30302,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-operations-evidence-action]") : null;
     if (!(target instanceof HTMLButtonElement) || target.disabled) return;
     handleOperationsEvidenceAction(target.dataset.operationsEvidenceAction || "");
+  });
+  $("paper-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-paper-action]") : null;
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+    handlePaperAction(target.dataset.paperAction || "guide");
   });
   $("control-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-control-assistant-action]") : null;

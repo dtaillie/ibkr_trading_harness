@@ -335,6 +335,9 @@ paper/shadow loop is actively waiting for its next evaluation or has already
 stopped. Generic runner summaries also expose public-safe
 `next_order_condition` and latest signal fields derived from allowlisted
 `diagnostics.dashboard` keys, not raw strategy diagnostics.
+Start with Paper Action Summary above those cards when you want the shortest
+route to Gateway diagnostics, checklist review, Runs/Orders, Performance, or
+the Gateway runbook.
 Before queueing any command, open Operations Control and read Command Safety
 Review. It summarizes target-node state, command risk classes, confirmation
 requirements, pending/failed commands, audit integrity, retention, selected

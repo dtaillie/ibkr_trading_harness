@@ -1988,6 +1988,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     runner heartbeat, Gateway/API, market-data feed, account feed, decision
     loop, order context, and mode safety so users can tell whether a paper
     runner is actively observing/evaluating before reading the full checklist.
+  - partial; Operations Paper now starts with a Paper Action Summary that
+    chooses between Gateway diagnostics, checklist review, Runs/Orders,
+    Performance, or the Gateway runbook from the current paper-monitor checks
+    before users scan the health cards and Observation Packet.
   - partial; Operations Home now also includes workflow cards for Paper
     Monitor, Gateway/API, Remote Nodes, Command Audit, Control Queue, and
     Diagnostics, giving users a job-oriented route into paper readiness,

@@ -2030,6 +2030,25 @@ section {
   font-size: 12px;
 }
 
+#paper-action-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  text-align: left;
+}
+
+#paper-action-actions button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#paper-action-actions button b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 .task-field,
 .task-field select {
   min-width: 170px;
@@ -3768,6 +3787,7 @@ section {
 .data-inventory-evidence-panel,
 .operations-action-summary-panel,
 .operations-evidence-panel,
+.paper-action-summary-panel,
 .supervisor-action-summary-panel,
 .runs-action-summary-panel,
 .runs-evidence-panel {
@@ -3792,6 +3812,7 @@ section {
 .data-inventory-evidence-panel .section-note,
 .operations-action-summary-panel .section-note,
 .operations-evidence-panel .section-note,
+.paper-action-summary-panel .section-note,
 .supervisor-action-summary-panel .section-note,
 .runs-action-summary-panel .section-note,
 .runs-evidence-panel .section-note {
