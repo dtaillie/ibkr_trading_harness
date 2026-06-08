@@ -183,9 +183,13 @@ Open Performance Home for the fuller Current Strategy Report. It turns the
 selected source into copyable rows for source freshness, equity and return,
 risk, trades, execution issues, evidence depth, and the next action before you
 open charts, trades, or rollup tables.
-The Current Scoreboard immediately below the Performance Home band is the
-fastest scan: source, today, recent, month, all-available return, drawdown, and
-readiness are shown before the denser review and chart sections.
+Start with Performance Action Summary when you want the next click. It picks
+between creating source evidence, switching an empty selected period to All,
+reviewing execution issues, opening rollups for drawdown/risk, inspecting
+trades, loading benchmark data, or reading the evidence chain.
+The Current Scoreboard below that is the fastest numeric scan: source, today,
+recent, month, all-available return, drawdown, and readiness are shown before
+the denser review and chart sections.
 Read Performance Evidence next when a number looks surprising: it states
 whether the selected result is account-backed, event-backed, summary-only,
 rollup-only, or benchmarked, and links to the next verification page.

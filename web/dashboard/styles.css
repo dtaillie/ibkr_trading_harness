@@ -1973,6 +1973,25 @@ section {
   font-size: 12px;
 }
 
+#performance-action-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  text-align: left;
+}
+
+#performance-action-actions button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#performance-action-actions button b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 .task-field,
 .task-field select {
   min-width: 170px;
@@ -3697,6 +3716,7 @@ section {
 }
 
 .performance-evidence-panel,
+.performance-action-summary-panel,
 .workbench-evidence-panel,
 .workbench-action-summary-panel,
 .fetch-evidence-panel,
@@ -3718,6 +3738,7 @@ section {
 }
 
 .performance-evidence-panel .section-note,
+.performance-action-summary-panel .section-note,
 .workbench-evidence-panel .section-note,
 .workbench-action-summary-panel .section-note,
 .fetch-evidence-panel .section-note,

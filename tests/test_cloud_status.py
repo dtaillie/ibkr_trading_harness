@@ -971,6 +971,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-scoreboard-note" in html
         assert "performance-scoreboard-cards" in html
         assert "performance-scoreboard-actions" in html
+        assert "performance-action-note" in html
+        assert "performance-action-cards" in html
+        assert "performance-action-actions" in html
         assert "performance-workflows" in html
         assert "performance-review-note" in html
         assert "performance-review-cards" in html

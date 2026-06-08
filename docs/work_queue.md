@@ -443,6 +443,10 @@ strategy-private.
     the home band, using the same sanitized status-history/account evidence to
     show source, today, recent, month, all-available return, drawdown, and
     readiness before the denser review, evidence, chart, and trade sections.
+  - partial; Performance Home now includes a Performance Action Summary that
+    picks the first route across missing source evidence, empty selected
+    periods, execution issues, drawdown/risk review, missing trade rows,
+    missing period rollups, benchmark context, and trade inspection.
   - partial; Performance Home now includes a Performance Evidence panel that
     separates account-backed, event-backed, summary-only, rollup-only, and
     benchmarked results, with copyable evidence rows and drilldowns to rollups,

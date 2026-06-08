@@ -7873,6 +7873,22 @@ function renderPerformance() {
     rejections,
     approvalRequired,
   });
+  renderPerformanceActionSummary({
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    mode,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  });
   renderPerformanceScoreboard({
     source,
     window,
@@ -8441,6 +8457,196 @@ function renderPerformanceHome(context) {
     </div>
   `).join("");
   renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
+}
+
+function performanceActionSummaryModel(context) {
+  const {
+    source,
+    window,
+    accountRows,
+    allAccountRows,
+    periodPerf,
+    fills,
+    ledger,
+    latestAccount,
+    decisions,
+    orders,
+    fillCount,
+    rejections,
+    approvalRequired,
+  } = context;
+  const benchmark = state.performanceBenchmarkDetail || {};
+  const statusRollups = (state.statusEquityRollups && state.statusEquityRollups.rollups) || [];
+  const runRollups = (state.performanceRollups && state.performanceRollups.rollups) || [];
+  const issueCount = Number(rejections || 0) + Number(approvalRequired || 0);
+  const totalReturn = finiteNumber(periodPerf.total_return_pct);
+  const drawdown = finiteNumber(periodPerf.max_drawdown_pct);
+  const accountTotal = Number((allAccountRows || []).length || 0);
+  const selectedAccounts = Number((accountRows || []).length || 0);
+  const hasRollups = statusRollups.length || runRollups.length;
+  const hasTrades = Number(ledger.stats.closed_count || 0) || Number(ledger.stats.open_count || 0) || fills.length;
+  const hasActivity = Number(decisions || 0) || Number(orders || 0) || Number(fillCount || 0) || issueCount;
+  let priority = {
+    action: "workbench",
+    label: "Workbench",
+    title: "Create Evidence",
+    note: "No performance source is loaded. Run a replay/simulated-paper draft or publish runner telemetry first.",
+    status: "bad",
+  };
+  if (source.has_data && !selectedAccounts && accountTotal) {
+    priority = {
+      action: "period-all",
+      label: "All Period",
+      title: "Selected Period Empty",
+      note: `${window.label} has no account snapshots, but ${numberText(accountTotal, 0)} account snapshot${accountTotal === 1 ? "" : "s"} exist outside the window.`,
+      status: "warn",
+    };
+  } else if (source.has_data && !selectedAccounts && !hasActivity) {
+    priority = {
+      action: "evidence",
+      label: "Evidence",
+      title: "Summary Only",
+      note: "The selected source has headline data but no account, fill, decision, or order evidence for this window.",
+      status: "warn",
+    };
+  } else if (issueCount) {
+    priority = {
+      action: "orders",
+      label: "Orders",
+      title: "Execution Review",
+      note: `${numberText(rejections, 0)} rejection${rejections === 1 ? "" : "s"} and ${numberText(approvalRequired, 0)} approval hold${approvalRequired === 1 ? "" : "s"} are visible.`,
+      status: "warn",
+    };
+  } else if (drawdown !== null && Math.abs(drawdown) >= 8) {
+    priority = {
+      action: "rollups",
+      label: "Rollups",
+      title: "Risk Review",
+      note: `Drawdown is ${pctText(drawdown)} in the selected evidence; inspect rollups and risk continuity first.`,
+      status: Math.abs(drawdown) >= 20 ? "bad" : "warn",
+    };
+  } else if (source.has_data && !hasTrades) {
+    priority = {
+      action: "trades",
+      label: "Trades",
+      title: "No Trade Rows",
+      note: "Performance has a source, but no paired trade rows are available for win/loss or fill-level behavior.",
+      status: "warn",
+    };
+  } else if (source.has_data && !hasRollups) {
+    priority = {
+      action: "rollups",
+      label: "Rollups",
+      title: "No Period History",
+      note: "Daily/monthly/yearly rollups are missing, so longer-period continuity is not yet visible.",
+      status: "warn",
+    };
+  } else if (source.has_data && !benchmark.path) {
+    priority = {
+      action: "benchmark",
+      label: "Benchmark",
+      title: "Add Market Context",
+      note: "Load a saved Data Library file to compare normalized strategy return against a benchmark.",
+      status: "warn",
+    };
+  } else if (source.has_data) {
+    priority = {
+      action: "trades",
+      label: "Trades",
+      title: totalReturn !== null && totalReturn >= 0 ? "Inspect Positive Window" : "Inspect Current Window",
+      note: "Source, account path, execution, rollups, and benchmark context are available. Inspect trades or charts next.",
+      status: totalReturn !== null && totalReturn < 0 ? "warn" : "ok",
+    };
+  }
+  const cards = [
+    {
+      status: source.has_data ? selectedAccounts ? "ok" : "warn" : "bad",
+      label: "Source",
+      title: source.has_data ? text(source.label) : "No Source",
+      note: source.has_data
+        ? `${numberText(selectedAccounts, 0)} selected account snapshot${selectedAccounts === 1 ? "" : "s"} / ${numberText(accountTotal, 0)} total.`
+        : "Publish telemetry, run a draft, or open a saved artifact.",
+    },
+    {
+      status: totalReturn === null ? "warn" : totalReturn >= 0 ? "ok" : "bad",
+      label: "Return",
+      title: pctText(totalReturn),
+      note: `${window.label}; drawdown ${pctText(drawdown)}.`,
+      className: signedValueClass(totalReturn),
+    },
+    {
+      status: issueCount ? "warn" : source.has_data ? "ok" : "bad",
+      label: "Execution",
+      title: issueCount ? `${numberText(issueCount, 0)} issue${issueCount === 1 ? "" : "s"}` : `${numberText(fillCount, 0)} fills`,
+      note: `${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approvals.`,
+    },
+    {
+      status: hasTrades ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Trades",
+      title: hasTrades ? `${numberText(ledger.stats.closed_count, 0)} closed` : "No Rows",
+      note: hasTrades ? `${numberText(ledger.stats.wins, 0)} wins / ${numberText(ledger.stats.losses, 0)} losses.` : "Load fills or artifacts for trade-level stats.",
+    },
+    {
+      status: hasRollups ? "ok" : source.has_data ? "warn" : "bad",
+      label: "Rollups",
+      title: hasRollups ? `${numberText(statusRollups.length + runRollups.length, 0)} rows` : "Missing",
+      note: hasRollups ? "Daily/period continuity is available." : "Status-history or run rollups are not loaded.",
+    },
+    {
+      status: priority.status,
+      label: "Next Move",
+      title: priority.title,
+      note: priority.note,
+    },
+  ];
+  const actions = [
+    priority,
+    { action: "trades", label: "Trades", title: "Open Trades", status: hasTrades ? "ok" : "warn" },
+    { action: "rollups", label: "Rollups", title: "Open Rollups", status: hasRollups ? "ok" : "warn" },
+    { action: "orders", label: "Orders", title: "Review Orders", status: issueCount ? "warn" : "ok" },
+    { action: "benchmark", label: "Benchmark", title: "Load Benchmark", status: benchmark.path ? "ok" : "warn" },
+    { action: "evidence", label: "Evidence", title: "Review Evidence", status: source.has_data ? "ok" : "bad" },
+  ];
+  return {
+    note: `${text(source.label)} / ${window.label}; priority: ${priority.title}. Latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}.`,
+    cards,
+    actions,
+  };
+}
+
+function renderPerformanceActionSummary(context) {
+  if (!$("performance-action-note") || !$("performance-action-cards") || !$("performance-action-actions")) return;
+  const model = performanceActionSummaryModel(context);
+  $("performance-action-note").textContent = model.note;
+  $("performance-action-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong class="${escapeHtml(card.className || statusClass(card.status))}">${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("performance-action-actions").innerHTML = model.actions.map((action, index) => `
+    <button type="button" class="${index ? "secondary" : ""}" data-performance-action="${escapeHtml(action.action)}">
+      <span>${escapeHtml(action.title)}</span>
+      <b>${escapeHtml(action.label)}</b>
+    </button>
+  `).join("");
+}
+
+function handlePerformanceAction(action) {
+  if (action === "period-all") {
+    $("performance-period").value = "all";
+    renderPerformance();
+    $("last-refresh").textContent = "Performance period switched to All";
+    return;
+  }
+  if (action === "trades") return navigateToPerformanceLens("trades");
+  if (action === "rollups") return navigateToPerformanceLens("rollups");
+  if (action === "orders") return navigateToRunsLens("state");
+  if (action === "benchmark") return navigateToDataLens("browse");
+  if (action === "workbench") return navigateToWorkbenchLens("home");
+  const target = $("performance-evidence-note");
+  if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function renderPerformanceScoreboard(context) {
@@ -30143,6 +30349,11 @@ function init() {
   $("performance-trade-filter-state").addEventListener("change", renderPerformance);
   $("performance-trade-filter-side").addEventListener("change", renderPerformance);
   $("performance-trade-filter-symbol").addEventListener("input", renderPerformance);
+  $("performance-action-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handlePerformanceAction(target.dataset.performanceAction || "");
+  });
   $("performance-trade-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-trade-action]") : null;
     if (!(target instanceof HTMLElement)) return;
