@@ -556,6 +556,11 @@ Open Operations Diagnostics before exposing a receiver beyond localhost. Cloud
 Deployment Readiness summarizes remote monitoring evidence, command-audit
 integrity, local-only trading authority, authentication, network boundary,
 retention, current alerts, and the remaining manual provider hardening review.
+Open Help > Boundary > Cloud Access Guide when the question is whether a task
+belongs in the cloud. It explains cloud checking versus cloud running, routes
+to Remote Nodes, Command Control, Cloud Readiness, and the cloud runbook, and
+keeps broker sessions, credentials, private strategies, data roots, and order
+authority on the local trading machine.
 Open Operations Control before queueing any command. Command Safety Review
 summarizes the target node, read-only/control/launcher action classes,
 confirmation requirements, pending and failed command pressure, audit

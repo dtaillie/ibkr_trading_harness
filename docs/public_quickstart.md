@@ -319,6 +319,11 @@ read Cloud Deployment Readiness. It summarizes remote-monitor evidence,
 command-audit integrity, local-only trading authority, authentication, network
 boundary, retention, current alerts, and the remaining manual provider
 hardening review.
+Open Help > Boundary > Cloud Access Guide when deciding what belongs in the
+cloud. It separates cloud checking from cloud running: hosted receivers can
+display sanitized snapshots and queue audited low-risk requests, while the
+local supervisor/runner keeps Gateway, data, credentials, private strategies,
+and order authority on the trading machine.
 On Operations Home, read Operations Evidence when the question is what proof is
 available right now. It separates local runner/paper observation, Gateway/API
 reachability, remote snapshots, command-audit integrity, control queue state,

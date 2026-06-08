@@ -1033,6 +1033,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "help-mode-boundary-cards" in html
         assert "help-mode-boundary-body" in html
         assert "help-mode-boundary-actions" in html
+        assert "help-cloud-access-title" in html
+        assert "help-cloud-access-note" in html
+        assert "help-cloud-access-cards" in html
+        assert "help-cloud-access-body" in html
+        assert "help-cloud-access-actions" in html
         assert "help-public-checklist" in html
         assert "help-publish-readiness" in html
         assert "help-publish-note" in html

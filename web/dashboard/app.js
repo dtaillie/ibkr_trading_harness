@@ -1825,6 +1825,7 @@ function renderHelpSetupGaps() {
   renderHelpTaskNavigator(items);
   renderHelpPerformanceGuide();
   renderHelpModeBoundary();
+  renderHelpCloudAccessGuide();
   renderPublicationReviewAssistant(items);
   renderHelpWorkbenchQuickstart();
 }
@@ -2793,6 +2794,185 @@ function handleHelpModeBoundaryAction(action) {
   if (action === "runs") return navigateToRunsLens("state");
   if (action === "operations") return navigateToOperationsLens("paper");
   if (action === "boundary") return navigateToHelpLens("boundary");
+}
+
+function helpCloudAccessGuideModel() {
+  const status = state.status || {};
+  const gateway = status.gateway || {};
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const staleNodes = staleRemoteNodes(remoteNodes);
+  const remoteAlerts = remoteNodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
+  const remoteOpenOrders = remoteNodes.reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
+  const commandAudit = state.commandAudit || {};
+  const auditEvents = commandAudit.events || [];
+  const integrity = commandAudit.integrity || {};
+  const localRemote = status.remote_control || {};
+  const localIntegrity = localRemote.integrity || {};
+  const commands = state.commands || [];
+  const results = state.results || [];
+  const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
+  const failedResults = results.filter((result) => commandStatusIsFailed(result.status));
+  const supervisors = (status.supervisors || []);
+  const supervisorJobs = supervisors.reduce((sum, supervisor) => sum + Number((supervisor.jobs || []).length || supervisor.job_count || 0), 0);
+  const latestRun = latestTelemetryRun();
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const remoteStatus = !remoteNodes.length ? "warn" : staleNodes.length || remoteAlerts ? "warn" : "ok";
+  const auditStatus = ["broken", "invalid", "error"].includes(String(integrity.status || "").toLowerCase())
+    || ["bad", "invalid", "failed"].includes(String(integrity.signature_status || "").toLowerCase())
+    || ["broken", "error"].includes(String(localIntegrity.status || "").toLowerCase())
+    || ["bad", "invalid", "failed"].includes(String(localIntegrity.signature_status || "").toLowerCase())
+    ? "bad"
+    : auditEvents.length ? "ok" : localRemote.enabled ? "warn" : "warn";
+  const controlStatus = failedResults.length || auditStatus === "bad"
+    ? "bad"
+    : pendingCommands.length || !auditEvents.length ? "warn" : "ok";
+  const localRunnerStatus = latestRun || supervisors.length
+    ? "ok"
+    : "warn";
+  const cloudCheckingReady = remoteNodes.length && !staleNodes.length && !remoteAlerts;
+  const headline = auditStatus === "bad" || gatewayStatus === "bad"
+    ? "Cloud access needs local review"
+    : cloudCheckingReady && controlStatus !== "bad"
+      ? "Cloud checking is visible; keep order authority local"
+      : "Cloud checking is a local-first setup task";
+  const note = remoteNodes.length
+    ? `${numberText(remoteNodes.length, 0)} remote node${remoteNodes.length === 1 ? "" : "s"}, ${numberText(staleNodes.length, 0)} stale, ${numberText(remoteAlerts, 0)} alert${remoteAlerts === 1 ? "" : "s"}, and ${numberText(auditEvents.length, 0)} command-audit event${auditEvents.length === 1 ? "" : "s"} are visible.`
+    : "No remote nodes are visible yet. Publish sanitized status from the trading machine before relying on cloud checking.";
+  const cards = [
+    {
+      status: remoteStatus,
+      label: "Cloud Checking",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} nodes` : "Not Publishing",
+      note: remoteNodes.length
+        ? `${numberText(staleNodes.length, 0)} stale / ${numberText(remoteAlerts, 0)} alerts / ${numberText(remoteOpenOrders, 0)} open orders.`
+        : "Start the status publisher or post a sanitized snapshot to a hosted/local receiver.",
+    },
+    {
+      status: gatewayStatus,
+      label: "Local Gateway",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Not Checked",
+      note: gateway.enabled ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === undefined || gateway.latency_ms === null ? "" : `${gateway.latency_ms}ms`}` : "Broker connectivity stays on the trading machine.",
+    },
+    {
+      status: localRunnerStatus,
+      label: "Local Running",
+      title: latestRun ? text(latestRun.run_id || latestRun.name || "runner") : supervisors.length ? `${numberText(supervisors.length, 0)} supervisor` : "No Local Proof",
+      note: latestRun
+        ? `Latest telemetry mode ${text((latestRun.metrics || {}).mode || latestRun.mode)}; cloud should only observe sanitized status.`
+        : supervisors.length ? `${numberText(supervisorJobs, 0)} supervised job${supervisorJobs === 1 ? "" : "s"} visible.` : "Run jobs locally or through the local supervisor before expecting remote status.",
+    },
+    {
+      status: controlStatus,
+      label: "Cloud Commands",
+      title: pendingCommands.length ? `${numberText(pendingCommands.length, 0)} pending` : failedResults.length ? `${numberText(failedResults.length, 0)} failed` : auditEvents.length ? "Audited" : "No Audit",
+      note: `${numberText(commands.length, 0)} queued / ${numberText(results.length, 0)} results; receiver ${text(integrity.status || "n/a")} / local ${text(localIntegrity.status || "n/a")}.`,
+    },
+    {
+      status: "ok",
+      label: "Authority Boundary",
+      title: "Local First",
+      note: "Broker login, credentials, raw logs, private strategies, and live/paper order authority stay local.",
+    },
+    {
+      status: "warn",
+      label: "Hosted Hardening",
+      title: "Manual Review",
+      note: "Token auth, VPN/proxy/firewall allowlists, TLS, and bounded retention still need provider-specific review.",
+    },
+  ];
+  const lines = [
+    {
+      status: remoteStatus,
+      title: "Cloud Checking",
+      detail: remoteNodes.length
+        ? "Use Operations > Remote to inspect sanitized status snapshots, heartbeat freshness, equity, positions, open orders, recent activity counts, and alerts."
+        : "Cloud checking starts when the trading machine publishes sanitized status snapshots with scripts/publish_status.py or the status-publisher service.",
+    },
+    {
+      status: localRunnerStatus,
+      title: "Cloud Running",
+      detail: "The public-safe model is local running with remote visibility: the local supervisor/plugin runner owns jobs, Gateway, data, credentials, and broker authority. The hosted receiver should not directly run broker sessions.",
+    },
+    {
+      status: controlStatus,
+      title: "Remote Commands",
+      detail: "Remote commands are queued requests that a local command worker polls and validates. Keep them low-risk, audited, rate-limited, and behind local enable markers; high-risk live controls are rejected fail-closed.",
+    },
+    {
+      status: auditStatus,
+      title: "Audit Evidence",
+      detail: `${numberText(auditEvents.length, 0)} receiver event${auditEvents.length === 1 ? "" : "s"}; receiver integrity ${text(integrity.status || "n/a")}; receiver signature ${text(integrity.signature_status || "n/a")}; local integrity ${text(localIntegrity.status || "n/a")}.`,
+    },
+    {
+      status: "ok",
+      title: "Public/Private Boundary",
+      detail: "Public examples can show the harness, receiver, status publishing, sanitized monitoring, and command audit. Private strategy configs, account IDs, credentials, logs, and tuned signals stay in ignored local files.",
+    },
+    {
+      status: "warn",
+      title: "Before Internet Exposure",
+      detail: "Read Cloud Deployment Readiness, run the cloud-example audit, confirm provider firewall/proxy/TLS/retention settings, and prefer private networking or allowlisted access.",
+    },
+  ];
+  return { headline, note, cards, lines };
+}
+
+function helpCloudAccessGuideText(model) {
+  return [
+    `Cloud Access Guide: ${model.headline}`,
+    `Context: ${model.note}`,
+    ...model.cards.map((card) => `${card.label} [${card.status}]: ${card.title} - ${card.note}`),
+    ...model.lines.map((line) => `${line.title} [${line.status}]: ${line.detail}`),
+  ].join("\n");
+}
+
+function renderHelpCloudAccessGuide() {
+  if (
+    !$("help-cloud-access-title")
+    || !$("help-cloud-access-note")
+    || !$("help-cloud-access-cards")
+    || !$("help-cloud-access-body")
+    || !$("help-cloud-access-actions")
+  ) return;
+  const model = helpCloudAccessGuideModel();
+  state.helpCloudAccessGuideText = helpCloudAccessGuideText(model);
+  $("help-cloud-access-title").textContent = model.headline;
+  $("help-cloud-access-note").textContent = model.note;
+  $("help-cloud-access-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("help-cloud-access-body").innerHTML = model.lines.map((line) => `
+    <article class="performance-report-line status-${escapeHtml(line.status)}">
+      <strong>${escapeHtml(line.title)}</strong>
+      <span>${escapeHtml(line.detail)}</span>
+    </article>
+  `).join("");
+  $("help-cloud-access-actions").innerHTML = [
+    `<button type="button" data-help-cloud-access-action="copy">Copy Guide</button>`,
+    `<button type="button" class="secondary" data-help-cloud-access-action="remote">Remote Nodes</button>`,
+    `<button type="button" class="secondary" data-help-cloud-access-action="control">Command Control</button>`,
+    `<button type="button" class="secondary" data-help-cloud-access-action="diagnostics">Cloud Readiness</button>`,
+    `<a class="secondary" href="/docs/cloud_monitoring_deployment.md" target="_blank" rel="noreferrer">Cloud Runbook</a>`,
+    `<a class="secondary" href="/docs/service_restart_runbook.md" target="_blank" rel="noreferrer">Restart Runbook</a>`,
+  ].join("");
+}
+
+function handleHelpCloudAccessAction(action) {
+  if (action === "copy") {
+    copyText(state.helpCloudAccessGuideText || "No cloud access guide loaded").then(() => {
+      $("last-refresh").textContent = "Cloud access guide copied";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Cloud access guide copy failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "remote") return navigateToOperationsLens("remote");
+  if (action === "control") return navigateToOperationsLens("control");
+  if (action === "diagnostics") return navigateToOperationsLens("diagnostics");
 }
 
 function publicationReviewModel(setupItems = helpSetupGapItems()) {
@@ -28856,6 +29036,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-mode-boundary-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
     handleHelpModeBoundaryAction(target.dataset.helpModeBoundaryAction || "");
+  });
+  $("help-cloud-access-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-help-cloud-access-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleHelpCloudAccessAction(target.dataset.helpCloudAccessAction || "");
   });
   $("help-publication-review-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-publication-review-action]") : null;

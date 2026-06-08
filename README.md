@@ -258,7 +258,12 @@ stores the latest status and serves a small workbench dashboard from
 Operations Diagnostics view includes a Cloud Deployment Readiness report for
 remote-monitor evidence, command-audit integrity, local-only trading authority,
 auth, network boundary, retention, alerts, and manual provider hardening. The
-dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
+Help Boundary view also includes a Cloud Access Guide that separates cloud
+checking from cloud running: hosted receivers can show sanitized status and
+queue audited low-risk requests, while the local supervisor/runner keeps
+Gateway, data, credentials, private strategies, and order authority on the
+trading machine.
+The dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
 Workbench, Runs, Operations, and Help views instead of one long status page.
 Overview surfaces current health checks, setup checklist state, open positions,
 latest bar/rejection telemetry, new-activity cues since the prior refresh, and a latest decision/order/fill

@@ -652,6 +652,11 @@ strategy-private.
       from the selected source, latest telemetry mode, Gateway/API state,
       account snapshots, and open-order events, with direct routes to the
       evidence pages.
+    - partial; Help Boundary now includes a state-aware Cloud Access Guide that
+      separates cloud checking from cloud running, summarizes remote nodes,
+      Gateway, local runner/supervisor evidence, command queue/audit state,
+      hosted hardening, and local trading authority, and routes users to
+      Remote Nodes, Command Control, Cloud Readiness, and runbooks.
 - Add a short web UI README/runbook:
   - how to start the local dashboard
   - how to configure data roots
@@ -2021,6 +2026,10 @@ QQQ show up, treat that as a bug until proven otherwise.
     local-only trading authority, authentication, network boundary, retention,
     and current alerts in copyable rows while clearly marking provider/network
     hardening as manual review.
+  - partial; Help Boundary now includes a Cloud Access Guide that translates
+    remote-node, command-audit, Gateway, local-runner, and hosted-hardening
+    signals into a user-facing distinction between cloud checking and cloud
+    running, keeping broker sessions and order authority local.
 - Add read-only remote monitoring pages:
   - current strategy state
   - account/paper equity
