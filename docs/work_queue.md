@@ -261,6 +261,12 @@ strategy-private.
     backend/UI contract gap where run artifacts existed but dashboard panels had
     to hunt through nested raw metrics and could render `n/a`, disconnected, or
     no-data states.
+  - partial; the dashboard now normalizes current-run telemetry client-side
+    before rendering the topbar, Overview, backend pipeline, paper-monitor
+    checks, and Runs tables. These surfaces consume the same top-level
+    `/status` aliases as the backend contract, so a publisher that emits
+    sanitized `mode`, counts, latest timestamps, or feed-health fields no
+    longer looks disconnected just because nested raw metrics are sparse.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

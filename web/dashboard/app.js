@@ -1407,7 +1407,7 @@ function topbarStatusModel() {
   const summary = (source && source.summary) || {};
   const perf = (source && source.performance) || {};
   const latestRun = latestTelemetryRun();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const latestAccount = latestAccountRow((source && source.account) || []);
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const runs = payload.runs || [];
@@ -2607,7 +2607,7 @@ function helpModeBoundaryModel() {
   const summary = source.summary || {};
   const perf = source.performance || {};
   const latestRun = latestTelemetryRun();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const gateway = ((state.status || {}).gateway) || {};
   const openOrders = currentOpenOrderRows();
   const accountRows = source.account || [];
@@ -2863,7 +2863,7 @@ function helpCloudAccessGuideModel() {
       label: "Local Running",
       title: latestRun ? text(latestRun.run_id || latestRun.name || "runner") : supervisors.length ? `${numberText(supervisors.length, 0)} supervisor` : "No Local Proof",
       note: latestRun
-        ? `Latest telemetry mode ${text((latestRun.metrics || {}).mode || latestRun.mode)}; cloud should only observe sanitized status.`
+        ? `Latest telemetry mode ${text(normalizedRunMetrics(latestRun).mode || latestRun.mode)}; cloud should only observe sanitized status.`
         : supervisors.length ? `${numberText(supervisorJobs, 0)} supervised job${supervisorJobs === 1 ? "" : "s"} visible.` : "Run jobs locally or through the local supervisor before expecting remote status.",
     },
     {
@@ -3272,8 +3272,10 @@ function latestTelemetryRun() {
   const runs = (state.status && state.status.runs) || [];
   if (!runs.length) return null;
   return runs.slice().sort((a, b) => {
-    const aTime = String((a.metrics || {}).last_decision_time || a.generated_at || "");
-    const bTime = String((b.metrics || {}).last_decision_time || b.generated_at || "");
+    const aMetrics = normalizedRunMetrics(a);
+    const bMetrics = normalizedRunMetrics(b);
+    const aTime = String(aMetrics.last_decision_time || a.latest_decision_time || a.generated_at || "");
+    const bTime = String(bMetrics.last_decision_time || b.latest_decision_time || b.generated_at || "");
     return bTime.localeCompare(aTime);
   })[0];
 }
@@ -5674,6 +5676,68 @@ function firstPresent(...values) {
   return null;
 }
 
+function normalizedRunMetrics(run = {}) {
+  const metrics = { ...((run && run.metrics) || {}) };
+  const copyIfPresent = (target, ...values) => {
+    const value = firstPresent(metrics[target], ...values);
+    if (value !== null && value !== undefined && value !== "") metrics[target] = value;
+  };
+  for (const field of [
+    "mode",
+    "decisions",
+    "orders",
+    "fills",
+    "rejections",
+    "final_equity",
+    "final_positions",
+    "realized_pnl",
+    "unrealized_pnl",
+    "total_pnl",
+    "total_commission",
+    "latest_rejection_time",
+    "latest_rejection_symbol",
+    "latest_rejection_status",
+    "latest_rejection_reason",
+    "next_check_time",
+    "next_expected_decision_time",
+    "next_check_reason",
+    "next_order_condition",
+    "latest_signal_reason",
+    "latest_signal_label",
+    "latest_signal_value",
+  ]) {
+    copyIfPresent(field, run[field]);
+  }
+  copyIfPresent("final_cash", run.final_cash, run.cash);
+  copyIfPresent("cash", run.cash, run.final_cash);
+  copyIfPresent("last_decision_time", run.latest_decision_time, run.last_decision_time);
+  copyIfPresent("account_end_time", run.latest_account_time, run.account_end_time);
+  copyIfPresent("latest_account_time", run.latest_account_time, run.account_end_time);
+  copyIfPresent("latest_data_time", run.latest_data_time, run.latest_market_data_time, run.latest_bar_time);
+  copyIfPresent("latest_bar_time", run.latest_bar_time, run.latest_data_time, run.latest_market_data_time);
+  copyIfPresent("position_count", run.position_count);
+  copyIfPresent("open_order_count", run.open_order_count);
+  copyIfPresent("approval_required_orders", run.approval_required_orders);
+  copyIfPresent("approval_hold_count", run.approval_hold_count);
+  const health = { ...((metrics.market_data_health && typeof metrics.market_data_health === "object") ? metrics.market_data_health : {}) };
+  const healthField = (target, ...values) => {
+    const value = firstPresent(health[target], ...values);
+    if (value !== null && value !== undefined && value !== "") health[target] = value;
+  };
+  healthField("status", run.market_data_status, metrics.market_data_status);
+  healthField("reason", run.market_data_reason, metrics.market_data_reason);
+  healthField("requested_symbol_count", run.market_data_requested_symbol_count);
+  healthField("symbols_with_bars_count", run.market_data_symbols_with_bars_count);
+  healthField("symbols_without_bars_count", run.market_data_symbols_without_bars_count);
+  healthField("symbols_with_live_prices_count", run.market_data_symbols_with_live_prices_count);
+  healthField("timeout_like_count", run.market_data_timeout_like_count);
+  healthField("skipped_after_timeouts_count", run.market_data_skipped_after_timeouts_count);
+  if (Object.keys(health).length) metrics.market_data_health = health;
+  copyIfPresent("market_data_status", run.market_data_status, health.status);
+  copyIfPresent("market_data_reason", run.market_data_reason, health.reason);
+  return metrics;
+}
+
 function metricTimestamp(metrics, keys) {
   for (const key of keys) {
     const value = metrics ? metrics[key] : null;
@@ -5849,7 +5913,7 @@ function backendPipelineModel() {
   const alerts = payload.alerts || [];
   const activity = runtimeActivityModel();
   const latestRun = latestTelemetryRun();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const marketData = runtimeMarketDataModel(metrics, latestRun);
   const inventory = symbolInventoryModel();
   const fetchManifests = state.fetchManifests || {};
@@ -6018,7 +6082,7 @@ function runtimeStatusItems() {
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
   const supervisor = latestSupervisor();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const freshness = (latestRun && latestRun.freshness) || {};
   const supervisorFreshness = (supervisor && supervisor.freshness) || {};
   const activity = runtimeActivityModel();
@@ -6129,7 +6193,7 @@ function paperMonitorItems() {
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
   const supervisor = latestSupervisor();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const freshness = (latestRun && latestRun.freshness) || {};
   const supervisorFreshness = (supervisor && supervisor.freshness) || {};
   const activity = runtimeActivityModel();
@@ -7126,7 +7190,7 @@ function renderOverview() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
-  const runMetrics = (latestRun && latestRun.metrics) || {};
+  const runMetrics = normalizedRunMetrics(latestRun);
   const performance = latestArtifactPerformance();
   const perf = performance.performance || {};
   const summary = performance.summary || {};
@@ -7273,7 +7337,7 @@ function renderOverviewCommandCenter() {
     ? latestDay.daily_return_pct
     : todayPerf.total_return_pct;
   const latestRun = latestTelemetryRun();
-  const runMetrics = (latestRun && latestRun.metrics) || {};
+  const runMetrics = normalizedRunMetrics(latestRun);
   const marketData = runtimeMarketDataModel(runMetrics, latestRun);
   const activity = runtimeActivityModel();
   const glance = overviewGlanceModel();
@@ -7546,7 +7610,7 @@ function overviewHealthReportModel() {
   const runs = payload.runs || [];
   const alerts = payload.alerts || [];
   const latestRun = latestTelemetryRun();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const source = latestArtifactPerformance();
   const accountRows = source.account || [];
   const latestAccount = latestAccountRow(accountRows);
@@ -23815,7 +23879,7 @@ function renderRuns() {
   $("runs-table-note").textContent = `${numberText(visibleRuns.length, 0)} shown / ${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}`;
   $("runs-body").innerHTML = visibleRuns.length
     ? visibleRuns.map((run) => {
-        const metrics = run.metrics || {};
+        const metrics = normalizedRunMetrics(run);
         return row([
           escapeHtml(run.id),
           statusText(run.status),
@@ -23842,7 +23906,7 @@ function runsFilterState() {
 }
 
 function runMetricsNumber(run, key) {
-  return Number(((run || {}).metrics || {})[key] || 0);
+  return Number(normalizedRunMetrics(run)[key] || 0);
 }
 
 function runsNestedCount(rows, getter) {
@@ -23886,7 +23950,7 @@ function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
   ].filter(Boolean);
   const hidden = Math.max(0, runs.length - visibleRuns.length);
   const statusCounts = runsNestedCount(visibleRuns, (run) => run.status);
-  const modeCounts = runsNestedCount(visibleRuns, (run) => (run.metrics || {}).mode);
+  const modeCounts = runsNestedCount(visibleRuns, (run) => normalizedRunMetrics(run).mode);
   const staleRuns = visibleRuns.filter((run) => (run.freshness || {}).stale);
   const decisions = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "decisions"), 0);
   const orders = visibleRuns.reduce((sum, run) => sum + runMetricsNumber(run, "orders"), 0);
@@ -23944,7 +24008,7 @@ function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
   const recommendations = recommendedRuns(visibleRuns);
   $("runs-search-actions").innerHTML = recommendations.length
     ? recommendations.map((run) => {
-        const metrics = run.metrics || {};
+        const metrics = normalizedRunMetrics(run);
         const runRejects = Number(metrics.rejections || 0);
         const runFills = Number(metrics.fills || 0);
         const status = runRejects ? "bad" : (run.freshness || {}).stale ? "warn" : runFills ? "ok" : "warn";
@@ -23999,7 +24063,7 @@ function renderRunsFilterOptions(runs) {
     if (options.includes(current)) select.value = current;
   };
   makeOptions("runs-filter-status", runs.map((run) => run.status));
-  makeOptions("runs-filter-mode", runs.map((run) => (run.metrics || {}).mode));
+  makeOptions("runs-filter-mode", runs.map((run) => normalizedRunMetrics(run).mode));
 }
 
 function filteredRuns(runs) {
@@ -24007,7 +24071,7 @@ function filteredRuns(runs) {
   const status = $("runs-filter-status").value || "";
   const mode = $("runs-filter-mode").value || "";
   return (runs || []).filter((run) => {
-    const metrics = run.metrics || {};
+    const metrics = normalizedRunMetrics(run);
     if (status && text(run.status) !== status) return false;
     if (mode && text(metrics.mode) !== mode) return false;
     if (!query) return true;
@@ -24027,7 +24091,7 @@ function filteredRuns(runs) {
 }
 
 function runSortMetric(run, sortMode) {
-  const metrics = run.metrics || {};
+  const metrics = normalizedRunMetrics(run);
   if (sortMode === "age_asc" || sortMode === "age_desc") return Number((run.freshness || {}).age_seconds);
   if (sortMode === "decisions_desc") return Number(metrics.decisions);
   if (sortMode === "fills_desc") return Number(metrics.fills);
@@ -24067,7 +24131,7 @@ function renderRunsTriage() {
   const positions = nonzeroPositionsFromSource(source);
   const events = runEventRows();
   const latestRun = runs[0] || null;
-  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const latestMetrics = normalizedRunMetrics(latestRun);
   const fills = events.filter((event) => event.type === "fill");
   const rejectedOrders = events.filter((event) => event.type === "order" && eventStatusIsBad(event));
   const latestEvent = events[0] || null;
@@ -24185,7 +24249,7 @@ function renderRunsReviewPanel() {
   const fills = events.filter((event) => event.type === "fill");
   const badEvents = events.filter(eventStatusIsBad);
   const latestRun = runs[0] || null;
-  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const latestMetrics = normalizedRunMetrics(latestRun);
   const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
   const savedRuns = (state.configRuns && state.configRuns.runs) || [];
   const accountRow = latestAccountRow(source.account || []);
@@ -24314,7 +24378,7 @@ function runsActionSummaryModel() {
   const savedRuns = (state.configRuns && state.configRuns.runs) || [];
   const artifactLoaded = Boolean(artifacts.run_id || artifacts.draft_id);
   const latestRun = runs[0] || null;
-  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const latestMetrics = normalizedRunMetrics(latestRun);
   const latestEvent = events[0] || null;
   let status = "bad";
   let title = "Start With State";
@@ -24482,7 +24546,7 @@ function runsEvidenceModel() {
     ($("runs-filter-mode") || {}).value ? `run mode ${$("runs-filter-mode").value}` : "",
   ].filter(Boolean);
   const latestRun = runs[0] || null;
-  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const latestMetrics = normalizedRunMetrics(latestRun);
   let statusValue = "bad";
   let headline = "No run evidence loaded";
   let next = { action: "state", label: "Review State" };
@@ -24816,7 +24880,7 @@ function runsStateActionSummaryModel() {
   const savedRuns = (state.configRuns && state.configRuns.runs) || [];
   const artifactLoaded = Boolean(artifacts.run_id || artifacts.draft_id);
   const latestRun = runs[0] || null;
-  const latestMetrics = (latestRun && latestRun.metrics) || {};
+  const latestMetrics = normalizedRunMetrics(latestRun);
   const accountFreshness = accountRow && accountRow.timestamp ? shortTimestampAgeLabel(accountRow.timestamp) : "n/a";
   let status = "bad";
   let title = "No Account State Proof";
@@ -26672,7 +26736,7 @@ function paperObservationPacketModel() {
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
   const supervisor = latestSupervisor();
-  const metrics = (latestRun && latestRun.metrics) || {};
+  const metrics = normalizedRunMetrics(latestRun);
   const freshness = (latestRun && latestRun.freshness) || {};
   const supervisorFreshness = (supervisor && supervisor.freshness) || {};
   const events = runEventRows();
