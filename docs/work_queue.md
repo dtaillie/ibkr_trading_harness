@@ -304,6 +304,10 @@ strategy-private.
     - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
       block from visible manifest roots, giving users the matching config fix
       for fetch-history visibility.
+    - partial; the dashboard backend now serves `/fetch_jobs` as an alias for
+      `/fetch_manifests` and exposes `/fetch_manifest_roots`, so scripts and
+      users looking for "jobs" or root diagnostics do not hit a confusing 404
+      when the Fetch Jobs page itself is backed by fetch manifests.
     - partial; Fetch Jobs now includes a contextual Fetch Workflow checklist
       that turns root readability, loaded jobs, filters, selected outputs, Data
       Library visibility, and recovery/export state into concrete next actions.

@@ -700,6 +700,10 @@ diagnostics.
 Fetch Jobs reads JSON manifests from `dashboard.fetch_manifest_roots`. Use it
 to inspect completed and active fetches, failed symbols, no-data chunks, output
 files, and generated data-detail links for files under configured data roots.
+The canonical API route is `/fetch_manifests`; `/fetch_jobs` is also served as
+an alias for scripts or users who think in job terminology. Use
+`/fetch_manifest_roots` when you only need configured root readability and
+manifest counts.
 Start with Fetch Progress Review when a pull is active, partial, failed, or
 otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
 ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,

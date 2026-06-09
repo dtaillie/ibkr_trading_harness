@@ -1659,6 +1659,8 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_storage_audit_export") in endpoints
         assert ("POST", "/data_compare") in endpoints
         assert ("GET", "/fetch_manifests") in endpoints
+        assert ("GET", "/fetch_jobs") in endpoints
+        assert ("GET", "/fetch_manifest_roots") in endpoints
         assert ("GET", "/fetch_manifests_export") in endpoints
         assert ("GET", "/fetch_manifest_detail") in endpoints
         assert ("GET", "/fetch_manifest_detail_export") in endpoints
@@ -2384,6 +2386,17 @@ def test_cloud_status_server_serves_fetch_manifests(tmp_path):
         assert payload["status_counts"] == {"completed": 1, "running": 1}
         assert payload["kind_counts"] == {"stock_history": 2}
         assert payload["roots"][0]["manifest_count"] == 2
+        with request.urlopen(f"{base}/fetch_jobs?limit=5", timeout=5) as resp:
+            alias_payload = json.loads(resp.read().decode("utf-8"))
+        assert alias_payload["count"] == payload["count"]
+        assert alias_payload["total"] == payload["total"]
+        assert alias_payload["status_counts"] == payload["status_counts"]
+        with request.urlopen(f"{base}/fetch_manifest_roots", timeout=5) as resp:
+            roots_payload = json.loads(resp.read().decode("utf-8"))
+        assert roots_payload["count"] == 1
+        assert roots_payload["manifest_count_total"] == 2
+        assert roots_payload["roots"][0]["manifest_count"] == 2
+        assert roots_payload["roots"][0]["exists"] is True
         by_job = {item["job_id"]: item for item in payload["manifests"]}
         active = by_job["stock_history_running"]
         assert active["status"] == "running"

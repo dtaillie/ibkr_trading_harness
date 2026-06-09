@@ -636,6 +636,20 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/fetch_jobs",
+        "category": "data",
+        "description": "Alias for /fetch_manifests for users looking for fetch jobs.",
+        "response": "JSON fetch-job manifest summaries",
+    },
+    {
+        "method": "GET",
+        "path": "/fetch_manifest_roots",
+        "category": "data",
+        "description": "List configured fetch manifest roots and manifest counts.",
+        "response": "JSON fetch-manifest root summaries",
+    },
+    {
+        "method": "GET",
         "path": "/fetch_manifests_export",
         "category": "data",
         "description": "Download historical-data fetch job manifest summaries.",
@@ -11800,7 +11814,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 content_type="text/csv; charset=utf-8",
             )
             return
-        if parsed.path == "/fetch_manifests":
+        if parsed.path in {"/fetch_manifests", "/fetch_jobs"}:
             if not self.require_auth():
                 return
             try:
@@ -11809,6 +11823,18 @@ class StatusHandler(BaseHTTPRequestHandler):
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/fetch_manifest_roots":
+            if not self.require_auth():
+                return
+            roots = [fetch_manifest_root_row(root) for root in self.fetch_manifest_roots]
+            payload = {
+                "generated_at": utc_now(),
+                "roots": roots,
+                "count": len(roots),
+                "manifest_count_total": sum(int(root.get("manifest_count") or 0) for root in roots),
+            }
             json_response(self, 200, payload)
             return
         if parsed.path == "/fetch_manifests_export":
