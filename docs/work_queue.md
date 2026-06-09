@@ -1070,6 +1070,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     cards surface overlapping-root counts. This explains cases such as
     `cache/ibkr` appearing unscanned because its parent `cache` consumed the
     global scan cap first.
+  - partial; configured parent roots now defer files that live under explicitly
+    configured child roots, and `/data_catalog`, `/data_symbol_index`, scan CSV
+    exports, and Data Library diagnostics expose
+    `deferred_to_child_root_count`. This lets broad roots such as `cache` and
+    operational child roots such as `cache/ibkr` be diagnosed separately instead
+    of making child-root data look missing or hidden behind the parent scan.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

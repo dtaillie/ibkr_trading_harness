@@ -12733,13 +12733,16 @@ function rootIndexRootStatus(root) {
   const overlap = root.covered_by_root
     ? ` Covered by earlier root ${text(root.covered_by_root)}.`
     : root.duplicate_of_root ? ` Duplicate of earlier root ${text(root.duplicate_of_root)}.` : "";
+  const deferred = Number(root.deferred_to_child_root_count || 0)
+    ? ` Deferred ${numberText(root.deferred_to_child_root_count, 0)} file${Number(root.deferred_to_child_root_count || 0) === 1 ? "" : "s"} to configured child roots.`
+    : "";
   if (!root.exists || !root.is_dir) return { status: "bad", title: "Unavailable", note: "Root is missing or not a directory." };
-  if (root.scan_capped) return { status: "warn", title: "Capped", note: `${text(root.not_scanned_reason || "Global root-index limit reached.")}.${overlap}` };
-  if (root.not_scanned_reason) return { status: "warn", title: "Not Scanned", note: `${text(root.not_scanned_reason)}.${overlap}` };
+  if (root.scan_capped) return { status: "warn", title: "Capped", note: `${text(root.not_scanned_reason || "Global root-index limit reached.")}.${overlap}${deferred}` };
+  if (root.not_scanned_reason) return { status: "warn", title: "Not Scanned", note: `${text(root.not_scanned_reason)}.${overlap}${deferred}` };
   if (Number(root.parse_error_count || 0)) return { status: "bad", title: "Errors", note: `${numberText(root.parse_error_count, 0)} scan error${Number(root.parse_error_count || 0) === 1 ? "" : "s"}.` };
-  if (Number(root.candidate_count || 0)) return { status: "ok", title: "Indexed", note: `${numberText(root.candidate_count, 0)} supported candidate file${Number(root.candidate_count || 0) === 1 ? "" : "s"}.${overlap}` };
+  if (Number(root.candidate_count || 0)) return { status: "ok", title: "Indexed", note: `${numberText(root.candidate_count, 0)} supported candidate file${Number(root.candidate_count || 0) === 1 ? "" : "s"}.${overlap}${deferred}` };
   if (Number(root.unsupported_file_count || 0)) return { status: "warn", title: "Unsupported Only", note: `${numberText(root.unsupported_file_count, 0)} unsupported file${Number(root.unsupported_file_count || 0) === 1 ? "" : "s"} found.` };
-  return { status: "warn", title: "No Candidates", note: `No supported CSV/parquet files found.${overlap}` };
+  return { status: "warn", title: "No Candidates", note: `No supported CSV/parquet files found.${overlap}${deferred}` };
 }
 
 function renderRootIndexBrowser() {
@@ -15814,9 +15817,10 @@ function renderDataCatalogScanDiagnostics() {
   const rows = catalog.root_summaries || [];
   const totalCandidates = rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
   const totalErrors = rows.reduce((sum, item) => sum + Number(item.parse_error_count || 0), 0);
+  const totalDeferred = rows.reduce((sum, item) => sum + Number(item.deferred_to_child_root_count || 0), 0);
   const capped = rows.filter((item) => item.scan_capped).length;
   $("data-catalog-scan-note").textContent = rows.length
-    ? `${numberText(rows.length, 0)} roots / ${numberText(totalCandidates, 0)} candidates / ${numberText(totalErrors, 0)} errors${capped ? ` / ${numberText(capped, 0)} capped` : ""}`
+    ? `${numberText(rows.length, 0)} roots / ${numberText(totalCandidates, 0)} candidates / ${numberText(totalErrors, 0)} errors${totalDeferred ? ` / ${numberText(totalDeferred, 0)} deferred to child roots` : ""}${capped ? ` / ${numberText(capped, 0)} capped` : ""}`
     : "No catalog scan loaded";
   $("data-catalog-scan-body").innerHTML = rows.length
     ? rows.map((item) => {
@@ -15837,6 +15841,7 @@ function renderDataCatalogScanDiagnostics() {
           escapeHtml(numberText(item.parsed_count, 0)),
           escapeHtml(numberText(item.parse_error_count, 0)),
           escapeHtml(numberText(item.unsupported_file_count, 0)),
+          escapeHtml(numberText(item.deferred_to_child_root_count, 0)),
           `${escapeHtml(numberText(item.scan_duration_ms, 3))} ms`,
           escapeHtml(reason),
           sample.path
@@ -15844,7 +15849,7 @@ function renderDataCatalogScanDiagnostics() {
             : `<span class="muted">none</span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No roots were scanned</span>`, "", "", "", "", "", "", "", "", ""]);
   renderDataCatalogScanReport();
 }
 

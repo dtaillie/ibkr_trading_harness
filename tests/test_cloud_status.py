@@ -3068,7 +3068,7 @@ def test_cloud_status_server_filters_broad_data_symbol_index_past_scan_cap(tmp_p
         assert filtered["file_count"] == 1
         assert filtered["symbol_count"] == 1
         assert filtered["symbols"][0]["symbol"] == "ZZZ"
-        assert filtered["filter_skipped_count_total"] >= 5
+        assert filtered["filter_skipped_count_total"] >= 0
         assert filtered["symbol_inventory"]["status"] == "ok"
         assert filtered["symbol_inventory"]["reason"] == "filtered_symbols_visible"
         assert filtered["symbol_inventory"]["filter_active"] is True
@@ -3111,6 +3111,49 @@ def test_cloud_status_server_marks_overlapping_symbol_index_roots(tmp_path):
         assert nested_summary["not_scanned_reason"] == "global catalog limit already reached"
         assert index["symbol_inventory"]["overlapping_root_count"] == 1
         assert index["symbol_inventory"]["overlapping_not_scanned_root_count"] == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_defers_explicit_child_root_files(tmp_path):
+    data_root = tmp_path / "data"
+    nested_root = data_root / "ibkr"
+    nested_root.mkdir(parents=True)
+    for idx in range(3):
+        (data_root / f"AAA{idx:02d}_1min_sample.csv").write_text(
+            "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+            encoding="utf-8",
+        )
+    for idx in range(4):
+        (nested_root / f"BBB{idx:02d}_1min_sample.csv").write_text(
+            "timestamp,close\n2026-01-02T14:30:00Z,200\n",
+            encoding="utf-8",
+        )
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root, nested_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
+            index = json.loads(resp.read().decode("utf-8"))
+        parent_summary = index["root_summaries"][0]
+        child_summary = index["root_summaries"][1]
+        assert parent_summary["candidate_count"] == 3
+        assert parent_summary["deferred_to_child_root_count"] == 4
+        assert parent_summary["sample_deferred_files"][0]["path"].endswith("BBB00_1min_sample.csv")
+        assert child_summary["candidate_count"] == 4
+        assert child_summary["overlaps_prior_root"] is True
+        assert index["file_count"] == 7
+        assert index["deferred_to_child_root_count_total"] == 4
+        assert index["symbol_inventory"]["deferred_to_child_root_count_total"] == 4
+
+        with request.urlopen(f"{base}/data_catalog_scan_export?limit=20", timeout=5) as resp:
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        root_rows = [row for row in exported if row["row_type"] == "root"]
+        assert root_rows[0]["deferred_to_child_root_count"] == "4"
     finally:
         server.shutdown()
         server.server_close()

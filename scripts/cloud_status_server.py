@@ -2332,6 +2332,27 @@ def iter_data_candidate_paths(root: Path, filters: dict[str, str]) -> Iterable[P
             yield path
 
 
+def explicit_child_roots(root: Path, configured_roots: Iterable[Path]) -> list[Path]:
+    resolved = root.resolve()
+    children = []
+    for candidate in configured_roots:
+        child = candidate.resolve()
+        if child != resolved and child.is_relative_to(resolved):
+            children.append(child)
+    return sorted(children, key=lambda item: (len(item.parts), str(item)))
+
+
+def path_is_under_any(path: Path, roots: Iterable[Path]) -> bool:
+    resolved = path.resolve()
+    return any(resolved.is_relative_to(root.resolve()) for root in roots)
+
+
+def most_specific_data_root(path: Path, data_roots: Iterable[Path]) -> Path:
+    resolved = path.resolve()
+    matches = [root.resolve() for root in data_roots if resolved.is_relative_to(root.resolve())]
+    return max(matches, key=lambda root: len(root.parts)) if matches else resolved.parent
+
+
 def scan_data_file_candidates(
     data_roots: list[Path],
     *,
@@ -2343,10 +2364,12 @@ def scan_data_file_candidates(
     filters = {key: value for key, value in (filters or {}).items() if value}
     filter_active = bool(filters)
     prior_roots: list[Path] = []
+    configured_roots = [root.resolve() for root in data_roots]
     seen_files: set[Path] = set()
     for root in prioritized_data_roots(data_roots, filters):
         started = time.monotonic()
         resolved = root.resolve()
+        child_roots = explicit_child_roots(resolved, configured_roots)
         covered_by = next((prior for prior in prior_roots if resolved != prior and resolved.is_relative_to(prior)), None)
         duplicate_of = next((prior for prior in prior_roots if resolved == prior), None)
         summary: dict[str, Any] = {
@@ -2361,6 +2384,7 @@ def scan_data_file_candidates(
             "candidate_count": 0,
             "supported_file_seen_count": 0,
             "filter_skipped_count": 0,
+            "deferred_to_child_root_count": 0,
             "parsed_count": 0,
             "parse_error_count": 0,
             "unsupported_file_count": 0,
@@ -2370,6 +2394,7 @@ def scan_data_file_candidates(
             "filters": filters,
             "sample_errors": [],
             "sample_unsupported_files": [],
+            "sample_deferred_files": [],
         }
         root_summaries.append(summary)
         prior_roots.append(resolved)
@@ -2400,6 +2425,14 @@ def scan_data_file_candidates(
                         })
                     continue
                 resolved_path = path.resolve()
+                if child_roots and path_is_under_any(resolved_path, child_roots):
+                    summary["deferred_to_child_root_count"] += 1
+                    if len(summary["sample_deferred_files"]) < 5:
+                        summary["sample_deferred_files"].append({
+                            "path": display_path(resolved_path),
+                            "reason": "deferred to explicitly configured child data root",
+                        })
+                    continue
                 if resolved_path in seen_files:
                     continue
                 summary["supported_file_seen_count"] += 1
@@ -3104,7 +3137,7 @@ def build_data_catalog(
     page_files = files[offset:offset + limit]
     root_summary_by_path = {str(row["path"]): row for row in root_summaries}
     for path in page_files:
-        root = next((candidate for candidate in data_roots if path.is_relative_to(candidate)), path.parent)
+        root = most_specific_data_root(path, data_roots)
         root_key = display_path(root)
         root_summary = root_summary_by_path.get(root_key)
         try:
@@ -3153,6 +3186,7 @@ def build_data_catalog(
     unsupported_file_count_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
     skipped_candidate_count_total = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
     filter_skipped_count_total = sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries)
+    deferred_to_child_root_count_total = sum(int(row.get("deferred_to_child_root_count") or 0) for row in root_summaries)
     scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
     page_end_offset = offset + len(page_files)
@@ -3179,6 +3213,7 @@ def build_data_catalog(
         "unsupported_file_count_total": unsupported_file_count_total,
         "skipped_candidate_count_total": skipped_candidate_count_total,
         "filter_skipped_count_total": filter_skipped_count_total,
+        "deferred_to_child_root_count_total": deferred_to_child_root_count_total,
         "scan_capped_root_count": scan_capped_root_count,
         "not_scanned_root_count": not_scanned_root_count,
         "catalog_complete": (
@@ -3254,7 +3289,7 @@ def build_data_symbol_index(
     errors: list[dict[str, Any]] = []
     for path in files:
         resolved_path = path.resolve()
-        root = next((candidate.resolve() for candidate in data_roots if resolved_path.is_relative_to(candidate.resolve())), resolved_path.parent)
+        root = most_specific_data_root(resolved_path, data_roots)
         try:
             file_rows.append(summarize_data_file_candidate(resolved_path, root=root))
         except Exception as exc:
@@ -3339,6 +3374,7 @@ def build_data_symbol_index(
         "candidate_count_total": sum(int(row.get("candidate_count") or 0) for row in root_summaries),
         "supported_file_seen_count_total": sum(int(row.get("supported_file_seen_count") or 0) for row in root_summaries),
         "filter_skipped_count_total": sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries),
+        "deferred_to_child_root_count_total": sum(int(row.get("deferred_to_child_root_count") or 0) for row in root_summaries),
         "unsupported_file_count_total": sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries),
         "size_bytes_total": sum(int(row.get("size_bytes") or 0) for row in file_rows),
         "latest_modified_at": max([str(row.get("modified_at")) for row in file_rows if row.get("modified_at")] or [None]),
@@ -3389,6 +3425,7 @@ def build_data_catalog_root_inventory(
     parse_error_count = sum(int(row.get("parse_error_count") or 0) for row in root_summaries)
     unsupported_file_count = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
     skipped_candidate_count = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
+    deferred_to_child_root_count = sum(int(row.get("deferred_to_child_root_count") or 0) for row in root_summaries)
     capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
     candidate_count = sum(int(row.get("candidate_count") or 0) for row in root_summaries)
@@ -3426,6 +3463,7 @@ def build_data_catalog_root_inventory(
         "parse_error_count": parse_error_count,
         "unsupported_file_count": unsupported_file_count,
         "skipped_candidate_count": skipped_candidate_count,
+        "deferred_to_child_root_count": deferred_to_child_root_count,
         "capped_root_count": capped_root_count,
         "not_scanned_root_count": not_scanned_root_count,
         "catalog_limit": limit,
@@ -3440,6 +3478,7 @@ def build_data_catalog_root_inventory(
                 "parsed_count": row.get("parsed_count"),
                 "parse_error_count": row.get("parse_error_count"),
                 "unsupported_file_count": row.get("unsupported_file_count"),
+                "deferred_to_child_root_count": row.get("deferred_to_child_root_count"),
                 "scan_capped": row.get("scan_capped"),
             }
             for row in issue_rows[:5]
@@ -3885,6 +3924,7 @@ DATA_CATALOG_SCAN_EXPORT_FIELDS = (
     "parsed_count",
     "parse_error_count",
     "unsupported_file_count",
+    "deferred_to_child_root_count",
     "skipped_candidate_count",
     "scan_duration_ms",
     "scan_capped",
@@ -8574,6 +8614,7 @@ def build_data_symbol_inventory(
     supported_seen_total = sum(int(row.get("supported_file_seen_count") or 0) for row in root_summaries)
     unsupported_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
     filter_skipped_total = sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries)
+    deferred_total = sum(int(row.get("deferred_to_child_root_count") or 0) for row in root_summaries)
     overlapping_root_count = sum(1 for row in root_summaries if row.get("overlaps_prior_root"))
     overlapping_not_scanned_root_count = sum(
         1 for row in root_summaries
@@ -8629,6 +8670,7 @@ def build_data_symbol_inventory(
         "candidate_count_total": candidate_count_total,
         "supported_file_seen_count_total": supported_seen_total,
         "filter_skipped_count_total": filter_skipped_total,
+        "deferred_to_child_root_count_total": deferred_total,
         "unsupported_file_count_total": unsupported_total,
         "overlapping_root_count": overlapping_root_count,
         "overlapping_not_scanned_root_count": overlapping_not_scanned_root_count,
