@@ -1231,6 +1231,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-root-index-summary" in html
         assert "data-root-index-roots" in html
         assert "data-root-index-detail-note" in html
+        assert "export-data-root-index-detail-csv" in html
         assert "data-root-index-detail-body" in html
         assert "data-root-index-body" in html
         assert "data-symbol-directory-filter" in html
@@ -1694,6 +1695,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data_history_matrix" in js
         assert "data_history_matrix_export" in js
         assert "data_symbol_index_detail" in js
+        assert "data_symbol_index_detail_export" in js
+        assert "function downloadRootIndexDetailCsv" in js
         assert "function loadRootIndexDetail" in js
         assert "function runDataCatalogServerSearch" in js
         assert "Catalog scan searched for" in js
@@ -1750,6 +1753,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_symbol_index") in endpoints
         assert ("GET", "/data_symbol_index_detail") in endpoints
+        assert ("GET", "/data_symbol_index_detail_export") in endpoints
         assert ("GET", "/data_symbol_index_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_symbol_directory") in endpoints
@@ -3346,6 +3350,15 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
             filtered_detail = json.loads(resp.read().decode("utf-8"))
         assert filtered_detail["file_count"] == 1
         assert filtered_detail["files"][0]["bar_size"] == "5min"
+
+        with request.urlopen(f"{base}/data_symbol_index_detail_export?symbol=SYM00&limit=20", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="data_symbol_index_detail_SYM00.csv"'
+            detail_csv_body = resp.read().decode("utf-8")
+        detail_exported = list(csv.DictReader(io.StringIO(detail_csv_body)))
+        assert len(detail_exported) == 2
+        assert {row["bar_size"] for row in detail_exported} == {"1min", "5min"}
+        assert all(row["row_type"] == "file" for row in detail_exported)
 
         with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
             cached_index = json.loads(resp.read().decode("utf-8"))

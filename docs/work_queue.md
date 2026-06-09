@@ -360,6 +360,10 @@ strategy-private.
       Scan as the main Browse controls, so moving from a root-index candidate
       to parsed catalog rows updates the catalog, Symbol Directory, and Saved
       History Matrix scope instead of only repainting stale local rows.
+      Root Index candidate-file drilldowns can now export the selected
+      symbol's bounded candidate paths through `/data_symbol_index_detail_export`
+      and the Export Files CSV action, so root-index-only file evidence can be
+      reviewed offline before parser/catalog work.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

@@ -554,6 +554,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_index_detail_export",
+        "category": "data",
+        "description": "Download bounded filename/path-inferred candidate files for one saved-data symbol.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_index_export",
         "category": "data",
         "description": "Download the broad filename/path-inferred saved-data symbol index.",
@@ -4735,6 +4742,25 @@ def build_data_symbol_index_csv(
             for field in DATA_SYMBOL_INDEX_EXPORT_FIELDS
         } | {"row_type": "symbol"})
     for row in index.get("files", []):
+        writer.writerow({
+            field: compact_csv_value(row.get(field))
+            for field in DATA_SYMBOL_INDEX_EXPORT_FIELDS
+        } | {"row_type": "file"})
+    return out.getvalue()
+
+
+def build_data_symbol_index_detail_csv(
+    data_roots: list[Path],
+    *,
+    symbol: str,
+    limit: int = DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT,
+    filters: dict[str, str] | None = None,
+) -> str:
+    detail = build_data_symbol_index_detail(data_roots, symbol=symbol, limit=limit, filters=filters)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_INDEX_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in detail.get("files", []):
         writer.writerow({
             field: compact_csv_value(row.get(field))
             for field in DATA_SYMBOL_INDEX_EXPORT_FIELDS
@@ -12570,6 +12596,35 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_index_detail_export":
+            if not self.require_auth():
+                return
+            try:
+                symbol = str(params.get("symbol", [""])[0] or "").strip().upper()
+                limit = parse_int_param(
+                    params,
+                    "limit",
+                    default=DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT,
+                    maximum=DEFAULT_DATA_SYMBOL_INDEX_DETAIL_MAX_LIMIT,
+                )
+                csv_body = build_data_symbol_index_detail_csv(
+                    self.data_roots,
+                    symbol=symbol,
+                    limit=limit,
+                    filters=parse_data_symbol_index_filters(params),
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            safe_symbol = re.sub(r"[^A-Za-z0-9_.-]+", "_", symbol or "symbol").strip("_") or "symbol"
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename=f"data_symbol_index_detail_{safe_symbol}.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_symbol_index_export":
             if not self.require_auth():

@@ -13127,6 +13127,7 @@ function renderRootIndexDetail() {
   const detail = state.dataSymbolIndexDetail || {};
   const files = detail.files || [];
   const symbol = text(detail.symbol || "");
+  if ($("export-data-root-index-detail-csv")) $("export-data-root-index-detail-csv").disabled = !symbol || symbol === "n/a" || !files.length;
   if (!symbol || symbol === "n/a") {
     $("data-root-index-detail-note").textContent = "Select Show Files for a root-index symbol.";
     $("data-root-index-detail-summary").innerHTML = "";
@@ -31761,6 +31762,27 @@ async function downloadDataCatalogScanCsv() {
   $("last-refresh").textContent = `Catalog scan CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function downloadRootIndexDetailCsv() {
+  const detail = state.dataSymbolIndexDetail || {};
+  const symbol = text(detail.symbol || "");
+  if (!symbol || symbol === "n/a" || !(detail.files || []).length) {
+    $("last-refresh").textContent = "Select a Root Index symbol with candidate files before exporting";
+    return;
+  }
+  const params = rootIndexDetailServerQueryParams(symbol);
+  const body = await fetchText(`/data_symbol_index_detail_export?${params.toString()}`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${symbol}_root_index_files.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Root Index candidate files CSV exported for ${symbol}: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDataStorageAuditCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
@@ -32157,6 +32179,11 @@ function init() {
       : null;
     if (!(target instanceof HTMLElement)) return;
     handleRootIndexDetailAction(target).catch((err) => {
+      $("data-root-index-detail-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("export-data-root-index-detail-csv").addEventListener("click", () => {
+    downloadRootIndexDetailCsv().catch((err) => {
       $("data-root-index-detail-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
