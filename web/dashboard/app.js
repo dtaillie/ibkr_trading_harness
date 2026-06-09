@@ -14583,6 +14583,11 @@ function dataActionSummaryModel(filteredRows = []) {
   const fetchTotals = fetchManifestVisibilityTotals(manifests);
   const loadState = dataLibraryLoadState();
   const firstCatalogLoad = loadState.catalogLoading && !loadState.catalogLoaded && datasets.length === 0;
+  const backend = dataBackendStatusModel();
+  const backendRows = backend.rows || [];
+  const backendIssues = backendRows.filter((item) => item.status !== "ok");
+  const backendUnprobed = !backendRows.length && !loadState.catalogLoading && !loadState.diagnosticsLoading;
+  const firstBackendIssue = backendIssues[0] || null;
   const catalogRows = Number(catalog.count || datasets.length || 0);
   const filteredCount = Number((filteredRows || []).length || 0);
   const filters = dataFilterSummary();
@@ -14612,7 +14617,19 @@ function dataActionSummaryModel(filteredRows = []) {
   let primaryHref = "#data/diagnostics";
   let primaryLabel = "Open Diagnostics";
 
-  if (firstCatalogLoad) {
+  if (backendUnprobed) {
+    status = "warn";
+    headline = "Data backend checks have not run";
+    note = "Run Check Data APIs before treating empty saved-data panels as missing files or bad roots.";
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Check Data APIs";
+  } else if (firstBackendIssue && !firstCatalogLoad) {
+    status = "warn";
+    headline = "Data backend needs review";
+    note = `${text(firstBackendIssue.label)} reported ${text(firstBackendIssue.status)}; refresh backend checks before changing roots or fetch jobs.`;
+    primaryHref = "#data/diagnostics";
+    primaryLabel = "Check Data APIs";
+  } else if (firstCatalogLoad) {
     status = "warn";
     headline = "Saved-data scan is running";
     note = `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"} are scanning; this summary will update when catalog rows load.`;
@@ -14680,6 +14697,12 @@ function dataActionSummaryModel(filteredRows = []) {
       label: "Next Move",
       title: headline,
       detail: note,
+    },
+    {
+      status: backend.status,
+      label: "Backend Check",
+      title: backend.title,
+      detail: backend.note,
     },
     {
       status: catalogRows ? hiddenByFilters ? "warn" : "ok" : "bad",

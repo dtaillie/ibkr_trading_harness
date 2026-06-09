@@ -318,6 +318,9 @@ strategy-private.
     evidence in a Backend Status panel with Check Data APIs, Open API Health,
     Copy Report, and Export CSV actions, so "no data" investigation starts
     where the empty data panels appear.
+    Data Library Action Summary now treats missing or degraded backend endpoint
+    evidence as the first next action, routing users to Check Data APIs before
+    they change roots, raise limits, or assume saved files are missing.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

@@ -1700,6 +1700,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "async function checkDashboardDataApis" in js
         assert "Checking Data Library backend APIs" in js
         assert "function renderDataBackendStatus" in js
+        assert "Backend Check" in js
+        assert "Data backend checks have not run" in js
+        assert "Data backend needs review" in js
         assert "data-data-backend-status-action" in js
         assert "Open API Health" in js
         assert "dashboard_api_health.csv" in js
