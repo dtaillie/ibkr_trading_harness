@@ -305,6 +305,10 @@ strategy-private.
     `/data_storage_audit`, preserving successful rows and naming the first
     failing diagnostics call when large-cache coverage or audit panels cannot
     load.
+    Dashboard API Health can now copy the current endpoint-health report and
+    export the visible required/optional/data endpoint rows as CSV, so
+    disconnected/no-data investigations can be shared without screenshots or
+    raw browser inspection.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

@@ -1668,6 +1668,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "dashboard-api-health-note" in html
         assert "dashboard-api-health-cards" in html
         assert "dashboard-api-health-body" in html
+        assert "copy-dashboard-api-health-report" in html
+        assert "export-dashboard-api-health-csv" in html
         assert "export-data-symbol-batch-csv" in html
         assert "copy-symbol-batch-report" in html
 
@@ -1688,6 +1690,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function fetchOptionalJson" in js
         assert "API Contracts" in js
         assert "function renderDashboardApiHealth" in js
+        assert "function dashboardApiHealthReportText" in js
+        assert "function downloadDashboardApiHealthCsv" in js
+        assert "dashboard_api_health.csv" in js
         assert "Required Status" in js
         assert "Data Endpoints" in js
         assert "function dataEndpointContract" in js

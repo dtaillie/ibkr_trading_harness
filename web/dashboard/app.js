@@ -6282,6 +6282,8 @@ function renderDashboardApiHealth() {
   const model = dashboardApiHealthModel();
   $("dashboard-api-health-note").textContent = `${model.title}: ${model.note}`;
   $("dashboard-api-health-note").className = `section-note ${statusClass(model.status)}`;
+  if ($("copy-dashboard-api-health-report")) $("copy-dashboard-api-health-report").disabled = !model.rows.length;
+  if ($("export-dashboard-api-health-csv")) $("export-dashboard-api-health-csv").disabled = !model.rows.length;
   $("dashboard-api-health-cards").innerHTML = model.cards.map((card) => `
     <div class="action-card status-${escapeHtml(card.status)}">
       <span>${escapeHtml(card.label)}</span>
@@ -6296,6 +6298,48 @@ function renderDashboardApiHealth() {
       escapeHtml(item.detail),
     ])).join("")
     : row([`<span class="muted">No dashboard API refresh evidence has been recorded yet.</span>`, "", ""]);
+}
+
+function dashboardApiHealthReportText() {
+  const model = dashboardApiHealthModel();
+  const lines = [
+    "Dashboard API Health",
+    `Status: ${model.title}`,
+    `Summary: ${model.note}`,
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "Endpoint rows:",
+  ];
+  for (const item of model.rows || []) {
+    lines.push(`- ${text(item.label)} [${text(item.status)}]: ${text(item.detail)}`);
+  }
+  return lines.join("\n");
+}
+
+function copyDashboardApiHealthReport() {
+  copyText(dashboardApiHealthReportText()).then(() => {
+    $("last-refresh").textContent = "Dashboard API health report copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Copy Dashboard API health report failed: ${err.message}`;
+  });
+}
+
+function downloadDashboardApiHealthCsv() {
+  const model = dashboardApiHealthModel();
+  const lines = [
+    csvLine(["label", "status", "detail"]),
+    ...model.rows.map((item) => csvLine([item.label, item.status, item.detail])),
+  ];
+  const blob = new Blob([`${lines.join("\n")}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "dashboard_api_health.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Dashboard API health CSV exported: ${new Date().toLocaleString()}`;
 }
 
 function runtimeActivityModel() {
@@ -32403,6 +32447,8 @@ function init() {
   $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-task-go").addEventListener("click", () => startDashboardTask($("dashboard-task").value));
   $("dashboard-task").addEventListener("change", () => startDashboardTask($("dashboard-task").value));
+  $("copy-dashboard-api-health-report").addEventListener("click", copyDashboardApiHealthReport);
+  $("export-dashboard-api-health-csv").addEventListener("click", downloadDashboardApiHealthCsv);
   $("page-route-crumbs").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("[data-route-action]") : null;
     if (!(target instanceof HTMLElement)) return;
