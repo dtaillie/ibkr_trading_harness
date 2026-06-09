@@ -1193,8 +1193,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       session inventory, replay-readiness counts, quality/storage-contract
       counts, scan-cache metadata, and dashboard fallback to client grouping.
       `/data_history_matrix_export` now provides the same grouped matrix as a
-      server-generated CSV, while the dashboard keeps browser-row export as a
-      fallback for active local filters.
+      server-generated CSV. The dashboard now sends the same server-side
+      symbol/source/bar/session filters to that export and only falls back to
+      browser rows if the endpoint fails, so filtered downloads match the
+      backend inventory scope.
     - partial; Saved History Matrix rows now provide direct Browse, Inspect,
       Compare, and Workbench actions for the grouped asset/source/bar/session
       slice, so users can move from inventory review to charting or simulation

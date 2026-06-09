@@ -2870,6 +2870,10 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert matrix_exported[0]["session"] == "rth"
         assert matrix_exported[0]["status"] == "warn"
         assert matrix_exported[0]["storage_contract_counts"] == '{"warn": 1}'
+        with request.urlopen(f"{base}/data_history_matrix_export?limit=5&source=missing_source", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            missing_matrix_csv_body = resp.read().decode("utf-8")
+        assert list(csv.DictReader(io.StringIO(missing_matrix_csv_body))) == []
 
         with request.urlopen(f"{base}/data_symbol_directory_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

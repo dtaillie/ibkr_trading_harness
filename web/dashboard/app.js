@@ -31360,24 +31360,22 @@ function downloadSymbolCoverageLedgerCsv() {
 async function downloadDataHistoryMatrixCsv() {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
-  if (!activeFilters.length) {
-    try {
-      const params = dataHistoryMatrixServerQueryParams();
-      const body = await fetchText(`/data_history_matrix_export?${params.toString()}`);
-      const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "data_history_matrix.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      $("last-refresh").textContent = `Saved history matrix CSV exported from server: ${new Date().toLocaleString()}`;
-      return;
-    } catch (err) {
-      $("data-history-matrix-note").innerHTML = `<span class="status-warn">Server matrix export failed, using current browser rows: ${escapeHtml(err.message)}</span>`;
-    }
+  try {
+    const params = dataHistoryMatrixServerQueryParams();
+    const body = await fetchText(`/data_history_matrix_export?${params.toString()}`);
+    const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "data_history_matrix.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    $("last-refresh").textContent = `Saved history matrix CSV exported from server: ${new Date().toLocaleString()}`;
+    return;
+  } catch (err) {
+    $("data-history-matrix-note").innerHTML = `<span class="status-warn">Server matrix export failed, using current browser rows: ${escapeHtml(err.message)}</span>`;
   }
   const rows = activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
   const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
