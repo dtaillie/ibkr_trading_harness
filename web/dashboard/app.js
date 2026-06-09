@@ -12857,6 +12857,8 @@ function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
   const totalRootScanMs = roots.reduce((sum, root) => sum + Number(root.scan_duration_ms || 0), 0);
   const slowestRoot = roots.slice().sort((left, right) => Number(right.scan_duration_ms || 0) - Number(left.scan_duration_ms || 0))[0] || null;
   const loadState = dataLibraryLoadState();
+  const indexCache = index.scan_cache || {};
+  const catalogCache = (state.dataCatalog || {}).scan_cache || {};
   return {
     rootCount: roots.length,
     totalRootScanMs,
@@ -12865,6 +12867,10 @@ function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
     clientSymbolIndexFetchMs: loadState.lastSymbolIndexFetchMs,
     clientTotalFetchMs: loadState.lastDataLibraryFetchMs,
     symbolIndexLimit: loadState.lastSymbolIndexLimit || Number(index.limit || 0),
+    indexCacheStatus: text(indexCache.status || "n/a"),
+    indexCacheAgeSeconds: Number(indexCache.age_seconds || 0),
+    indexCacheTtlSeconds: Number(indexCache.ttl_seconds || 0),
+    catalogCacheStatus: text(catalogCache.status || "n/a"),
   };
 }
 
@@ -12929,7 +12935,7 @@ function renderRootIndexBrowser() {
       label: "Scan Time",
       status: scanStats.clientSymbolIndexFetchMs > 15000 || scanStats.totalRootScanMs > 15000 ? "warn" : symbols.length ? "ok" : "bad",
       title: scanStats.clientSymbolIndexFetchMs ? durationMsText(scanStats.clientSymbolIndexFetchMs) : durationMsText(scanStats.totalRootScanMs),
-      note: `${numberText(scanStats.rootCount, 0)} roots; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")} ${durationMsText((scanStats.slowestRoot || {}).scan_duration_ms)}.`,
+      note: `${numberText(scanStats.rootCount, 0)} roots; server cache ${scanStats.indexCacheStatus}${scanStats.indexCacheStatus === "hit" ? ` age ${numberText(scanStats.indexCacheAgeSeconds, 1)}s` : ""}; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")} ${durationMsText((scanStats.slowestRoot || {}).scan_duration_ms)}.`,
     },
   ];
   $("data-root-index-summary").innerHTML = cards.map((card) => `
@@ -14115,7 +14121,7 @@ function rootIndexSpotlightModel(filteredRows = []) {
       label: "Refresh Cost",
       status: scanStats.clientSymbolIndexFetchMs > 15000 || scanStats.totalRootScanMs > 15000 ? "warn" : inventory.fileCount ? "ok" : "bad",
       title: scanStats.clientSymbolIndexFetchMs ? durationMsText(scanStats.clientSymbolIndexFetchMs) : durationMsText(scanStats.totalRootScanMs),
-      note: `Root-index limit ${numberText(scanStats.symbolIndexLimit, 0)}; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest root ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")}.`,
+      note: `Root-index limit ${numberText(scanStats.symbolIndexLimit, 0)}; catalog cache ${scanStats.catalogCacheStatus}; root-index cache ${scanStats.indexCacheStatus}; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest root ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")}.`,
     },
     {
       label: "Sources",
@@ -29929,13 +29935,14 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   try {
     const totalStarted = performance.now();
     const catalogParams = dataCatalogServerQueryParams();
+    if (force) catalogParams.set("refresh", "1");
     const catalogStarted = performance.now();
     const dataCatalog = await fetchJson(`/data_catalog?${catalogParams.toString()}`);
     loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
     const indexStarted = performance.now();
     try {
-      dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}`);
+      dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}${force ? "&refresh=1" : ""}`);
     } catch (indexErr) {
       dataSymbolIndex = { symbols: [], files: [], errors: [{ error: indexErr.message }], index_error: indexErr.message };
     }
@@ -29953,7 +29960,9 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderOverview();
     renderMetrics();
     renderPageIntro();
-    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)}`;
+    const catalogCacheStatus = text((state.dataCatalog.scan_cache || {}).status || "n/a");
+    const indexCacheStatus = text((state.dataSymbolIndex.scan_cache || {}).status || "n/a");
+    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} (${catalogCacheStatus}) / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)} (${indexCacheStatus})`;
     if (includeDiagnostics || loadState.diagnosticsRequested) {
       await refreshDataDiagnostics({ force });
     }

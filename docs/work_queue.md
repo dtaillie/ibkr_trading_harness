@@ -267,6 +267,12 @@ strategy-private.
     `/status` aliases as the backend contract, so a publisher that emits
     sanitized `mode`, counts, latest timestamps, or feed-health fields no
     longer looks disconnected just because nested raw metrics are sparse.
+  - partial; expensive Data Library JSON scans (`/data_catalog` and
+    `/data_symbol_index`) now use a short server-side cache with visible
+    `scan_cache` hit/miss/bypass metadata, and the dashboard's force-refresh
+    path sends `refresh=1`. This keeps large saved-data roots from making the
+    UI feel API-disconnected during repeated refreshes while preserving an
+    explicit fresh-scan action.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
@@ -1099,6 +1105,9 @@ QQQ show up, treat that as a bug until proven otherwise.
     Index Browser cards. Slow large-cache refreshes now show catalog time, root
     index time, total server root-scan time, root-index limit, and the slowest
     root instead of looking like a disconnected or stalled UI.
+  - partial; Saved Universe and Root Index Browser now also show server
+    scan-cache status, and the refresh footer reports catalog/root-index cache
+    status alongside client fetch time.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

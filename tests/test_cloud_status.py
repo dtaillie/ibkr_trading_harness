@@ -3008,10 +3008,22 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
             catalog = json.loads(resp.read().decode("utf-8"))
         assert catalog["count"] == 3
         assert catalog["scan_capped_root_count"] == 1
+        assert catalog["scan_cache"]["status"] == "miss"
+
+        with request.urlopen(f"{base}/data_catalog?limit=3&preview_points=2", timeout=5) as resp:
+            cached_catalog = json.loads(resp.read().decode("utf-8"))
+        assert cached_catalog["count"] == 3
+        assert cached_catalog["scan_cache"]["status"] == "hit"
+
+        with request.urlopen(f"{base}/data_catalog?limit=3&preview_points=2&refresh=1", timeout=5) as resp:
+            refreshed_catalog = json.loads(resp.read().decode("utf-8"))
+        assert refreshed_catalog["count"] == 3
+        assert refreshed_catalog["scan_cache"]["status"] == "bypass"
 
         with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
             index = json.loads(resp.read().decode("utf-8"))
         assert index["file_count"] == 12
+        assert index["scan_cache"]["status"] == "miss"
         assert index["symbol_count"] == 12
         assert index["index_complete"] is True
         assert index["symbol_inventory"]["status"] == "ok"
@@ -3026,6 +3038,11 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         assert index["symbols"][0]["file_count"] == 1
         assert index["symbols"][0]["sample_paths"][0].endswith("_1min_sample.csv")
         assert len(index["files"]) == 12
+
+        with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
+            cached_index = json.loads(resp.read().decode("utf-8"))
+        assert cached_index["file_count"] == 12
+        assert cached_index["scan_cache"]["status"] == "hit"
 
         with request.urlopen(f"{base}/data_symbol_index_export?limit=20", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

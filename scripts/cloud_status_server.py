@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import hashlib
 import hmac
@@ -18,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections import Counter, deque
 from datetime import datetime, timezone
@@ -97,6 +99,9 @@ DEFAULT_DATA_CATALOG_MAX_LIMIT = 1000
 DEFAULT_DATA_CATALOG_MAX_OFFSET = 200000
 DEFAULT_DATA_SYMBOL_INDEX_LIMIT = 5000
 DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT = 20000
+DATA_LIBRARY_CACHE_TTL_SECONDS = 60.0
+DATA_LIBRARY_CACHE: dict[str, dict[str, Any]] = {}
+DATA_LIBRARY_CACHE_LOCK = threading.Lock()
 PUBLIC_DOCS = {
     "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
@@ -2099,6 +2104,59 @@ def parse_fetch_manifest_roots(raw_roots: list[Path] | None) -> list[Path]:
         path = root if root.is_absolute() else ROOT / root
         out.append(path.resolve())
     return out
+
+
+def truthy_param(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def data_library_cache_key(endpoint: str, data_roots: list[Path], params: dict[str, Any]) -> str:
+    root_key = [str(path.resolve()) for path in data_roots]
+    return json.dumps({
+        "endpoint": endpoint,
+        "roots": root_key,
+        "params": params,
+    }, sort_keys=True, default=str)
+
+
+def cached_data_library_payload(
+    endpoint: str,
+    data_roots: list[Path],
+    params: dict[str, Any],
+    builder: Any,
+    *,
+    bypass: bool = False,
+    ttl_seconds: float = DATA_LIBRARY_CACHE_TTL_SECONDS,
+) -> dict[str, Any]:
+    key = data_library_cache_key(endpoint, data_roots, params)
+    now = time.monotonic()
+    if not bypass:
+        with DATA_LIBRARY_CACHE_LOCK:
+            entry = DATA_LIBRARY_CACHE.get(key)
+            if entry:
+                age = now - float(entry.get("created_monotonic") or 0.0)
+                if age <= ttl_seconds:
+                    payload = copy.deepcopy(entry["payload"])
+                    payload["scan_cache"] = {
+                        "status": "hit",
+                        "age_seconds": round(age, 3),
+                        "ttl_seconds": ttl_seconds,
+                    }
+                    return payload
+
+    payload = builder()
+    with DATA_LIBRARY_CACHE_LOCK:
+        DATA_LIBRARY_CACHE[key] = {
+            "created_monotonic": now,
+            "payload": copy.deepcopy(payload),
+        }
+    payload = copy.deepcopy(payload)
+    payload["scan_cache"] = {
+        "status": "bypass" if bypass else "miss",
+        "age_seconds": 0.0,
+        "ttl_seconds": ttl_seconds,
+    }
+    return payload
 
 
 def parse_plugin_registry_paths(raw_paths: list[Path] | None) -> list[Path]:
@@ -11569,12 +11627,24 @@ class StatusHandler(BaseHTTPRequestHandler):
                 offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=DEFAULT_DATA_CATALOG_MAX_OFFSET)
                 preview_points = int(params.get("preview_points", ["80"])[0])
                 filters = parse_data_symbol_index_filters(params)
-                payload = build_data_catalog(
+                bypass_cache = truthy_param(params.get("refresh", [""])[0])
+                payload = cached_data_library_payload(
+                    "data_catalog",
                     self.data_roots,
-                    limit=limit,
-                    offset=offset,
-                    preview_points=preview_points,
-                    filters=filters,
+                    {
+                        "limit": limit,
+                        "offset": offset,
+                        "preview_points": preview_points,
+                        "filters": filters,
+                    },
+                    lambda: build_data_catalog(
+                        self.data_roots,
+                        limit=limit,
+                        offset=offset,
+                        preview_points=preview_points,
+                        filters=filters,
+                    ),
+                    bypass=bypass_cache,
                 )
                 payload["default_limit"] = self.data_catalog_default_limit
                 payload["max_limit"] = self.data_catalog_max_limit
@@ -11594,10 +11664,21 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
                     maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
                 )
-                payload = build_data_symbol_index(
+                filters = parse_data_symbol_index_filters(params)
+                bypass_cache = truthy_param(params.get("refresh", [""])[0])
+                payload = cached_data_library_payload(
+                    "data_symbol_index",
                     self.data_roots,
-                    limit=limit,
-                    filters=parse_data_symbol_index_filters(params),
+                    {
+                        "limit": limit,
+                        "filters": filters,
+                    },
+                    lambda: build_data_symbol_index(
+                        self.data_roots,
+                        limit=limit,
+                        filters=filters,
+                    ),
+                    bypass=bypass_cache,
                 )
                 payload["default_limit"] = DEFAULT_DATA_SYMBOL_INDEX_LIMIT
                 payload["max_limit"] = DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT
