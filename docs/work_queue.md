@@ -356,6 +356,10 @@ strategy-private.
       list bounded matching CSV/parquet paths, inspect a candidate in Data
       Detail, or copy the exact path without depending on the parsed catalog
       row being visible.
+      Root Index Browser's catalog handoff now uses the same backend Search
+      Scan as the main Browse controls, so moving from a root-index candidate
+      to parsed catalog rows updates the catalog, Symbol Directory, and Saved
+      History Matrix scope instead of only repainting stale local rows.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

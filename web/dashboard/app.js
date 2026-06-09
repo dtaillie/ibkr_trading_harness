@@ -13287,7 +13287,7 @@ function renderRootIndexBrowser() {
           samplePaths.length
             ? jsonDrilldown(samplePaths, samplePaths.slice(0, 2).join(" | "))
             : `<span class="muted">none</span>`,
-          `<span class="button-pair"><button type="button" class="secondary root-index-show-files" data-symbol="${escapeHtml(symbol)}">Show Files</button><button type="button" class="secondary root-index-inspect-sample" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(samplePaths[0] || "")}"${samplePaths.length ? "" : " disabled"}>Inspect Sample</button><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-show-files" data-symbol="${escapeHtml(symbol)}">Show Files</button><button type="button" class="secondary root-index-inspect-sample" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(samplePaths[0] || "")}"${samplePaths.length ? "" : " disabled"}>Inspect Sample</button><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Scan</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
         ]);
       }).join("")
     : row([symbols.length ? `<span class="muted">No root-index symbols match the current filters.</span>` : `<span class="muted">No root-index symbols loaded.</span>`, "", "", "", "", "", "", "", ""]);
@@ -13315,9 +13315,8 @@ async function handleRootIndexBrowserAction(target) {
     $("data-filter-text").value = symbol;
     $("data-symbol-browser-input").value = symbol;
     state.manifestPathFilter = null;
-    renderDataCatalog();
     navigateToDataLens("browse");
-    $("last-refresh").textContent = `Parsed catalog searched for ${symbol}`;
+    await runDataCatalogServerSearch(`Catalog scan searched for ${symbol}`);
     return;
   }
   if (target.classList.contains("root-index-diagnose")) {
@@ -13866,6 +13865,15 @@ function previewDataCatalogServerFilters(message) {
   setDataCatalogOffset(0);
   renderDataCatalog();
   $("last-refresh").textContent = `${message}; local preview only. Use Search Scan to apply this scope to backend catalog, Symbol Directory, and History Matrix.`;
+}
+
+async function runDataCatalogServerSearch(statusPrefix = "Catalog scan filtered") {
+  setDataCatalogOffset(0);
+  await refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true });
+  const serverFilters = dataCatalogServerFilterLabels();
+  $("last-refresh").textContent = serverFilters.length
+    ? `${statusPrefix}: ${serverFilters.join(" / ")}`
+    : "Catalog scan refreshed without server filters";
 }
 
 function catalogScopeIsCapped(catalog = {}) {
@@ -32096,13 +32104,7 @@ function init() {
   $("data-filter-replay").addEventListener("change", handleDataServerFilterControlChange);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-filter-server-search").addEventListener("click", () => {
-    setDataCatalogOffset(0);
-    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).then(() => {
-      const serverFilters = dataCatalogServerFilterLabels();
-      $("last-refresh").textContent = serverFilters.length
-        ? `Catalog scan filtered: ${serverFilters.join(" / ")}`
-        : "Catalog scan refreshed without server filters";
-    }).catch((err) => {
+    runDataCatalogServerSearch("Catalog scan filtered").catch((err) => {
       $("last-refresh").textContent = `Catalog scan search failed: ${err.message}`;
     });
   });
