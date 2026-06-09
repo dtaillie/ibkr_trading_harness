@@ -309,6 +309,11 @@ strategy-private.
     export the visible required/optional/data endpoint rows as CSV, so
     disconnected/no-data investigations can be shared without screenshots or
     raw browser inspection.
+    The same panel now has a Check Data APIs action that forces a fresh
+    Data Library refresh with diagnostics enabled, so Operations Diagnostics
+    can actively probe catalog, symbol-directory, history-matrix, root-index,
+    coverage, gap, minute-heatmap, and storage-audit backends without requiring
+    users to navigate through Data Library first.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

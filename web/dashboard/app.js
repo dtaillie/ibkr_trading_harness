@@ -6247,8 +6247,8 @@ function dashboardApiHealthModel() {
     {
       status,
       label: "Optional APIs",
-      title: total ? `${numberText(loaded, 0)} / ${numberText(total, 0)}` : "n/a",
-      note: failed ? `${numberText(failed, 0)} optional failure${failed === 1 ? "" : "s"} preserved as degraded panels.` : "Optional panels loaded without blocking the page.",
+      title: total ? `${numberText(loaded + dataLoaded, 0)} / ${numberText(total, 0)}` : "n/a",
+      note: failed ? `${numberText(failed, 0)} optional issue${failed === 1 ? "" : "s"} preserved as degraded panels.` : "Optional panels loaded without blocking the page.",
     },
     {
       status: (state.dataLibrary || {}).catalogError ? "warn" : "ok",
@@ -6280,8 +6280,10 @@ function dashboardApiHealthModel() {
 function renderDashboardApiHealth() {
   if (!$("dashboard-api-health-note") || !$("dashboard-api-health-cards") || !$("dashboard-api-health-body")) return;
   const model = dashboardApiHealthModel();
+  const loadState = dataLibraryLoadState();
   $("dashboard-api-health-note").textContent = `${model.title}: ${model.note}`;
   $("dashboard-api-health-note").className = `section-note ${statusClass(model.status)}`;
+  if ($("check-dashboard-data-apis")) $("check-dashboard-data-apis").disabled = Boolean(loadState.catalogLoading || loadState.diagnosticsLoading);
   if ($("copy-dashboard-api-health-report")) $("copy-dashboard-api-health-report").disabled = !model.rows.length;
   if ($("export-dashboard-api-health-csv")) $("export-dashboard-api-health-csv").disabled = !model.rows.length;
   $("dashboard-api-health-cards").innerHTML = model.cards.map((card) => `
@@ -6340,6 +6342,19 @@ function downloadDashboardApiHealthCsv() {
   link.remove();
   URL.revokeObjectURL(url);
   $("last-refresh").textContent = `Dashboard API health CSV exported: ${new Date().toLocaleString()}`;
+}
+
+async function checkDashboardDataApis() {
+  $("last-refresh").textContent = "Checking Data Library backend APIs...";
+  if ($("check-dashboard-data-apis")) $("check-dashboard-data-apis").disabled = true;
+  try {
+    await refreshDataLibrary({ includeDiagnostics: true, force: true });
+    $("last-refresh").textContent = `Data API checks completed: ${new Date().toLocaleString()}`;
+  } catch (err) {
+    $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
+  } finally {
+    renderDashboardApiHealth();
+  }
 }
 
 function runtimeActivityModel() {
@@ -32447,6 +32462,11 @@ function init() {
   $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-task-go").addEventListener("click", () => startDashboardTask($("dashboard-task").value));
   $("dashboard-task").addEventListener("change", () => startDashboardTask($("dashboard-task").value));
+  $("check-dashboard-data-apis").addEventListener("click", () => {
+    checkDashboardDataApis().catch((err) => {
+      $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
+    });
+  });
   $("copy-dashboard-api-health-report").addEventListener("click", copyDashboardApiHealthReport);
   $("export-dashboard-api-health-csv").addEventListener("click", downloadDashboardApiHealthCsv);
   $("page-route-crumbs").addEventListener("click", (event) => {
