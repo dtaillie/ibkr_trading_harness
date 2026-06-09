@@ -25,6 +25,7 @@ const state = {
   dataCompareSelectedPaths: [],
   dataCompareSelectionCleared: false,
   symbolDiagnostic: null,
+  symbolBatchDiagnostic: null,
   symbolTypeaheadActiveIndex: 0,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   runtimeSessions: { sessions: [], errors: [] },
@@ -17373,6 +17374,61 @@ function renderSymbolDiagnostic() {
     : row([`<span class="muted">No fetch manifest clues for this symbol</span>`, "", "", "", ""]);
 }
 
+function renderSymbolBatchDiagnostic() {
+  if (!$("data-symbol-batch-note") || !$("data-symbol-batch-cards") || !$("data-symbol-batch-body")) return;
+  const payload = state.symbolBatchDiagnostic || {};
+  const rows = payload.rows || [];
+  const statusCounts = payload.status_counts || {};
+  const diagnosticCounts = payload.diagnostic_status_counts || {};
+  $("data-symbol-batch-note").textContent = payload.requested_count
+    ? `${numberText(payload.visible_count || 0, 0)} visible / ${numberText(payload.missing_count || 0, 0)} need action across ${numberText(payload.requested_count, 0)} checked symbol${payload.requested_count === 1 ? "" : "s"}.`
+    : "Paste up to 50 symbols to check catalog-visible, configured-but-limited, unconfigured, parse-error, fetch-error, or missing states.";
+  const cards = [
+    {
+      label: "Checked",
+      status: payload.requested_count ? "ok" : "warn",
+      title: numberText(payload.requested_count || 0, 0),
+      note: payload.truncated ? `Input was capped at ${numberText(payload.max_symbols, 0)} symbols.` : "Duplicate symbols are removed before checking.",
+    },
+    {
+      label: "Visible",
+      status: Number(payload.visible_count || 0) ? "ok" : rows.length ? "warn" : "bad",
+      title: numberText(payload.visible_count || 0, 0),
+      note: "Symbols with at least one current parsed catalog row.",
+    },
+    {
+      label: "Need Action",
+      status: Number(payload.missing_count || 0) ? "warn" : rows.length ? "ok" : "warn",
+      title: numberText(payload.missing_count || 0, 0),
+      note: countSummary(statusCounts),
+    },
+    {
+      label: "Diagnostics",
+      status: rows.length ? "ok" : "warn",
+      title: countSummary(diagnosticCounts),
+      note: `Catalog limit ${numberText(payload.catalog_limit || selectedDataCatalogLimit(), 0)}.`,
+    },
+  ];
+  $("data-symbol-batch-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-symbol-batch-body").innerHTML = rows.length
+    ? rows.map((item) => row([
+        escapeHtml(item.symbol),
+        statusText(item.status === "visible" ? "ok" : item.status === "not_found" ? "bad" : "warn", { suffix: ` ${text(item.status)}` }),
+        escapeHtml(numberText(item.visible_match_count, 0)),
+        escapeHtml(numberText(item.configured_candidate_count, 0)),
+        escapeHtml(numberText(item.unconfigured_match_count, 0)),
+        escapeHtml(text(item.message)),
+        escapeHtml(text(item.action)),
+      ])).join("")
+    : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", ""]);
+}
+
 function symbolDiagnosticReportText(diagnostic = {}) {
   if (!diagnostic || !diagnostic.symbol) return "No symbol diagnostic loaded.";
   const summary = diagnostic.diagnostic_summary || {};
@@ -30054,6 +30110,7 @@ function renderAll() {
   renderDataMinuteHeatmap();
   renderDataStorageAudit();
   renderSymbolDiagnostic();
+  renderSymbolBatchDiagnostic();
   renderFetchJobs();
   renderFetchManifestDetail();
   renderConfigBuilder();
@@ -30592,6 +30649,21 @@ async function diagnoseDataSymbol(event) {
   renderSymbolVisibilityExplainer();
   if (activeView() === "data") applyDataLens("diagnostics");
   $("last-refresh").textContent = `Symbol diagnostic loaded: ${new Date().toLocaleString()}`;
+}
+
+async function diagnoseSymbolUniverse(event) {
+  event.preventDefault();
+  const symbols = $("data-symbol-batch-input").value.trim();
+  if (!symbols) {
+    $("data-symbol-batch-note").innerHTML = `<span class="status-bad">Enter one or more symbols</span>`;
+    return;
+  }
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const response = await fetchJson(`/data_symbol_diagnostics?symbols=${encodeURIComponent(symbols)}&limit=${catalogLimit}&max_symbols=50`);
+  state.symbolBatchDiagnostic = response;
+  renderSymbolBatchDiagnostic();
+  if (activeView() === "data") applyDataLens("diagnostics");
+  $("last-refresh").textContent = `Universe visibility check loaded: ${new Date().toLocaleString()}`;
 }
 
 async function loadFetchManifestDetail(jobId) {
@@ -32449,6 +32521,11 @@ function init() {
   $("data-symbol-diagnostic-form").addEventListener("submit", (event) => {
     diagnoseDataSymbol(event).catch((err) => {
       $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-symbol-batch-form").addEventListener("submit", (event) => {
+    diagnoseSymbolUniverse(event).catch((err) => {
+      $("data-symbol-batch-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("copy-symbol-diagnostic-report").addEventListener("click", copySymbolDiagnosticReport);

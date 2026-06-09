@@ -1739,6 +1739,36 @@
       </section>
       <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
+          <h2>Universe Visibility Check</h2>
+          <span id="data-symbol-batch-note" class="section-note">Paste symbols to check saved-data visibility in bulk</span>
+        </div>
+        <form id="data-symbol-batch-form" class="diagnostic-form">
+          <label>
+            <span>Symbols</span>
+            <textarea id="data-symbol-batch-input" rows="3" placeholder="AAPL, MSFT, NVDA, BTC-USD"></textarea>
+          </label>
+          <button type="submit">Check Universe</button>
+        </form>
+        <div id="data-symbol-batch-cards" class="action-card-grid"></div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Status</th>
+                <th>Visible</th>
+                <th>Configured</th>
+                <th>Unconfigured</th>
+                <th>Issue</th>
+                <th>Next Step</th>
+              </tr>
+            </thead>
+            <tbody id="data-symbol-batch-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="nested-section" data-data-lens="diagnostics">
+        <div class="section-head">
           <h2>Gap Summary</h2>
           <span class="button-pair">
             <button id="export-data-gap-summary-csv" class="secondary" type="button">Export Gap CSV</button>

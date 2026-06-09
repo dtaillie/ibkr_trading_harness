@@ -1255,6 +1255,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "export-data-minute-heatmap-csv" in html
         assert "data-minute-heatmap-body" in html
         assert "data-symbol-diagnostic-form" in html
+        assert "data-symbol-batch-form" in html
+        assert "data-symbol-batch-input" in html
+        assert "data-symbol-batch-cards" in html
+        assert "data-symbol-batch-body" in html
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
         assert "data-detail-symbol" in html
@@ -1680,6 +1684,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Required Status" in js
         assert "function renderRuntimeSessionDetail" in js
         assert "runtime_session_detail" in js
+        assert "function renderSymbolBatchDiagnostic" in js
+        assert "data_symbol_diagnostics" in js
     finally:
         server.shutdown()
         server.server_close()
@@ -1725,6 +1731,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_missing_intervals_export") in endpoints
         assert ("GET", "/data_minute_heatmap_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
+        assert ("GET", "/data_symbol_diagnostics") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
         assert ("GET", "/data_storage_audit_export") in endpoints
         assert ("POST", "/data_compare") in endpoints
@@ -2875,6 +2882,16 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["catalog_matches"][0]["storage_contract_status"] == "warn"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+        with request.urlopen(f"{base}/data_symbol_diagnostics?symbols=SPY,MISSING&limit=5&max_symbols=10", timeout=5) as resp:
+            batch = json.loads(resp.read().decode("utf-8"))
+        assert batch["requested_count"] == 2
+        assert batch["visible_count"] == 1
+        assert batch["missing_count"] == 1
+        assert batch["status_counts"]["visible"] == 1
+        assert batch["status_counts"]["not_found"] == 1
+        assert [row["symbol"] for row in batch["rows"]] == ["SPY", "MISSING"]
+        assert batch["rows"][0]["visible_match_count"] == 1
+        assert batch["rows"][1]["action"] == "Fetch the symbol or add the directory containing it to dashboard.data_roots."
     finally:
         server.shutdown()
         server.server_close()

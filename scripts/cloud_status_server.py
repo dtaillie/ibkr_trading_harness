@@ -642,6 +642,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_diagnostics",
+        "category": "data",
+        "description": "Run bounded visibility diagnostics for a pasted symbol universe.",
+        "response": "JSON batch symbol visibility diagnoses",
+    },
+    {
+        "method": "GET",
         "path": "/data_detail_export",
         "category": "data",
         "description": "Download the current saved-data detail date range as normalized CSV.",
@@ -5032,22 +5039,25 @@ def build_data_symbol_diagnostic(
     data_roots: list[Path],
     fetch_manifest_roots: list[Path],
     catalog_limit: int = 200,
+    catalog: dict[str, Any] | None = None,
+    catalog_scope_paths: set[str] | None = None,
 ) -> dict[str, Any]:
     cleaned = symbol.strip().upper()
     if not cleaned:
         raise ValueError("symbol is required")
     if not re.match(r"^[A-Z0-9][A-Z0-9.-]{0,31}$", cleaned):
         raise ValueError("symbol must look like a ticker, e.g. SPY or BTC-USD")
-    catalog = build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
+    catalog = catalog or build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
     wanted = normalize_symbol(cleaned)
     catalog_matches = [
         row for row in catalog["datasets"]
         if normalize_symbol(str(row.get("symbol") or "")) == wanted
     ]
-    catalog_scope_paths = {
-        display_path(path)
-        for path in data_file_candidates(data_roots, limit=catalog_limit)
-    }
+    if catalog_scope_paths is None:
+        catalog_scope_paths = {
+            display_path(path)
+            for path in data_file_candidates(data_roots, limit=catalog_limit)
+        }
 
     configured_candidates = [
         {
@@ -5203,6 +5213,83 @@ def build_data_symbol_diagnostic(
                 if root.exists() and root.is_dir() and data_file_count(root, limit=1000)
             ],
         },
+    }
+
+
+def parse_symbol_universe(raw: str, *, max_symbols: int = 50) -> list[str]:
+    symbols: list[str] = []
+    seen: set[str] = set()
+    for item in re.split(r"[\s,;]+", raw.strip().upper()):
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        if cleaned in seen:
+            continue
+        if not re.match(r"^[A-Z0-9][A-Z0-9.-]{0,31}$", cleaned):
+            raise ValueError(f"invalid symbol: {cleaned}")
+        symbols.append(cleaned)
+        seen.add(cleaned)
+        if len(symbols) >= max_symbols:
+            break
+    if not symbols:
+        raise ValueError("symbols are required")
+    return symbols
+
+
+def build_data_symbol_diagnostics(
+    raw_symbols: str,
+    *,
+    data_roots: list[Path],
+    fetch_manifest_roots: list[Path],
+    catalog_limit: int = 200,
+    max_symbols: int = 50,
+) -> dict[str, Any]:
+    symbols = parse_symbol_universe(raw_symbols, max_symbols=max_symbols)
+    catalog = build_data_catalog(data_roots, limit=catalog_limit, preview_points=2)
+    catalog_scope_paths = {
+        display_path(path)
+        for path in data_file_candidates(data_roots, limit=catalog_limit)
+    }
+    diagnostics = [
+        build_data_symbol_diagnostic(
+            symbol,
+            data_roots=data_roots,
+            fetch_manifest_roots=fetch_manifest_roots,
+            catalog_limit=catalog_limit,
+            catalog=catalog,
+            catalog_scope_paths=catalog_scope_paths,
+        )
+        for symbol in symbols
+    ]
+    rows = [
+        {
+            "symbol": item.get("symbol"),
+            "status": item.get("status"),
+            "diagnostic_status": (item.get("diagnostic_summary") or {}).get("status"),
+            "message": item.get("message"),
+            "action": item.get("action"),
+            "visible_match_count": (item.get("diagnostic_summary") or {}).get("visible_match_count"),
+            "configured_candidate_count": (item.get("diagnostic_summary") or {}).get("configured_candidate_count"),
+            "unconfigured_match_count": (item.get("diagnostic_summary") or {}).get("unconfigured_match_count"),
+            "parse_error_count": (item.get("diagnostic_summary") or {}).get("parse_error_count"),
+            "limit_blocked_count": (item.get("diagnostic_summary") or {}).get("limit_blocked_count"),
+            "fetch_error_count": (item.get("diagnostic_summary") or {}).get("fetch_error_count"),
+        }
+        for item in diagnostics
+    ]
+    return {
+        "generated_at": utc_now(),
+        "symbols": symbols,
+        "requested_count": len(symbols),
+        "max_symbols": max_symbols,
+        "truncated": len(re.split(r"[\s,;]+", raw_symbols.strip())) > len(symbols),
+        "catalog_limit": catalog_limit,
+        "rows": rows,
+        "diagnostics": diagnostics,
+        "status_counts": count_values(rows, "status"),
+        "diagnostic_status_counts": count_values(rows, "diagnostic_status"),
+        "visible_count": sum(1 for row in rows if row.get("status") == "visible"),
+        "missing_count": sum(1 for row in rows if row.get("status") != "visible"),
     }
 
 
@@ -12341,6 +12428,29 @@ class StatusHandler(BaseHTTPRequestHandler):
                     data_roots=self.data_roots,
                     fetch_manifest_roots=self.fetch_manifest_roots,
                     catalog_limit=catalog_limit,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_diagnostics":
+            if not self.require_auth():
+                return
+            raw_symbols = str(params.get("symbols", [""])[0]).strip()
+            try:
+                catalog_limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                max_symbols = parse_int_param(params, "max_symbols", default=50, minimum=1, maximum=50)
+                payload = build_data_symbol_diagnostics(
+                    raw_symbols,
+                    data_roots=self.data_roots,
+                    fetch_manifest_roots=self.fetch_manifest_roots,
+                    catalog_limit=catalog_limit,
+                    max_symbols=max_symbols,
                 )
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})

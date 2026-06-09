@@ -354,6 +354,11 @@ strategy-private.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.
+    - partial; Data Diagnostics now includes a bounded Universe Visibility
+      Check backed by `/data_symbol_diagnostics`, so pasted watchlists or
+      strategy universes can be checked for catalog-visible, configured,
+      unconfigured, parse-error, fetch-error, catalog-limited, and missing
+      states in one pass instead of diagnosing one ticker at a time.
     - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
       block from visible manifest roots, giving users the matching config fix
       for fetch-history visibility.
