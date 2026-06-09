@@ -1800,6 +1800,18 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                             "latest_signal_label": "Example score",
                             "latest_signal_value": 0.8,
                             "next_order_condition": "Example score threshold distance -0.2",
+                            "market_data_health": {
+                                "status": "bad",
+                                "reason": "historical_timeouts_no_live_prices",
+                                "requested_symbol_count": 18,
+                                "symbols_with_bars_count": 0,
+                                "symbols_with_live_prices_count": 0,
+                                "symbols_without_bars_count": 18,
+                                "historical_fetch": {
+                                    "timeout_like_count": 3,
+                                    "skipped_after_timeouts_count": 15,
+                                },
+                            },
                             "rejections": 1,
                         },
                         "recent_events": {
@@ -1890,6 +1902,14 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert by_node["test-node"]["latest_signal_reason"] == "near_breakout"
         assert by_node["test-node"]["latest_signal_value"] == 0.8
         assert by_node["test-node"]["next_order_condition"] == "Example score threshold distance -0.2"
+        assert by_node["test-node"]["market_data_status"] == "bad"
+        assert by_node["test-node"]["market_data_reason"] == "historical_timeouts_no_live_prices"
+        assert by_node["test-node"]["market_data_requested_symbol_count"] == 18
+        assert by_node["test-node"]["market_data_symbols_with_bars_count"] == 0
+        assert by_node["test-node"]["market_data_symbols_with_live_prices_count"] == 0
+        assert by_node["test-node"]["market_data_symbols_without_bars_count"] == 18
+        assert by_node["test-node"]["market_data_timeout_like_count"] == 3
+        assert by_node["test-node"]["market_data_skipped_after_timeouts_count"] == 15
 
         with request.urlopen(f"{base}/remote_nodes_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
@@ -1909,6 +1929,10 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert csv_by_node["test-node"]["latest_signal_reason"] == "near_breakout"
         assert csv_by_node["test-node"]["latest_signal_value"] == "0.8"
         assert csv_by_node["test-node"]["next_order_condition"] == "Example score threshold distance -0.2"
+        assert csv_by_node["test-node"]["market_data_status"] == "bad"
+        assert csv_by_node["test-node"]["market_data_reason"] == "historical_timeouts_no_live_prices"
+        assert csv_by_node["test-node"]["market_data_timeout_like_count"] == "3.0"
+        assert csv_by_node["test-node"]["market_data_skipped_after_timeouts_count"] == "15.0"
 
         with request.urlopen(f"{base}/remote_node_detail?node_id=test-node&limit=2", timeout=5) as resp:
             detail = json.loads(resp.read().decode("utf-8"))
@@ -1924,6 +1948,10 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert detail["runs"][0]["next_check_reason"] == "sleeping_until_next_loop"
         assert detail["runs"][0]["latest_signal_reason"] == "near_breakout"
         assert detail["runs"][0]["next_order_condition"] == "Example score threshold distance -0.2"
+        assert detail["runs"][0]["market_data_status"] == "bad"
+        assert detail["runs"][0]["market_data_reason"] == "historical_timeouts_no_live_prices"
+        assert detail["runs"][0]["market_data_timeout_like_count"] == 3
+        assert detail["runs"][0]["market_data_skipped_after_timeouts_count"] == 15
         assert detail["runs"][0]["recent_orders"][0]["status"] == "Submitted"
         assert detail["runs"][0]["artifact_evidence"]["existing_count"] == 4
         assert detail["runs"][0]["artifact_evidence"]["jsonl_row_count"] == 9

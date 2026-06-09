@@ -71,6 +71,11 @@ tries live snapshots first, then bounds the historical sweep with
 `data.historical_request_timeout_seconds` and
 `data.historical_max_consecutive_timeouts`, so repeated no-data responses should
 show as explicit feed-health evidence instead of a long silent backend stall.
+Remote Nodes and Remote Node Detail carry the bounded form of those fields as
+`market_data_status`, `market_data_reason`, coverage counts, timeout-like count,
+and skipped-after-timeouts count. Use the Feed column/card to distinguish a
+broker/API outage from an authenticated session that is simply receiving no
+usable market data.
 
 For local monitoring, `config/cloud_status_local.yaml` should publish to the
 same `dashboard.state_dir` read by `scripts/cloud_status_server.py`, commonly

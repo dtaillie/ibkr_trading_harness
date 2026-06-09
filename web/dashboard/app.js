@@ -5737,6 +5737,57 @@ function runtimeMarketDataModel(metrics = {}, latestRun = null) {
   };
 }
 
+function remoteNodeMarketDataModel(node = {}) {
+  const statusValue = text(node.market_data_status || "").toLowerCase();
+  const reason = text(node.market_data_reason || "");
+  const requested = Number(node.market_data_requested_symbol_count || 0);
+  const bars = Number(node.market_data_symbols_with_bars_count || 0);
+  const live = Number(node.market_data_symbols_with_live_prices_count || 0);
+  const timeouts = Number(node.market_data_timeout_like_count || 0);
+  const skipped = Number(node.market_data_skipped_after_timeouts_count || 0);
+  const latestMillis = timestampMillis(node.latest_data_time);
+  const stale = latestMillis !== null && ((Date.now() - latestMillis) / 1000) > 900;
+  const coverage = requested
+    ? `${numberText(bars, 0)}/${numberText(requested, 0)} bars, ${numberText(live, 0)} live`
+    : "";
+  const timeoutDetail = timeouts || skipped
+    ? `${numberText(timeouts, 0)} timeout-like / ${numberText(skipped, 0)} skipped`
+    : "";
+  if (["bad", "error"].includes(statusValue)) {
+    return {
+      status: "bad",
+      title: "Feed issue",
+      detail: [reason || "market data health bad", coverage, timeoutDetail].filter(Boolean).join("; "),
+    };
+  }
+  if (statusValue === "warn") {
+    return {
+      status: "warn",
+      title: "Feed warning",
+      detail: [reason || "market data degraded", coverage, timeoutDetail].filter(Boolean).join("; "),
+    };
+  }
+  if (stale) {
+    return {
+      status: "warn",
+      title: "Stale feed",
+      detail: `${timestampAgeLabel(node.latest_data_time)}${coverage ? `; ${coverage}` : ""}`,
+    };
+  }
+  if (node.latest_data_time) {
+    return {
+      status: "ok",
+      title: "Current",
+      detail: `${timestampAgeLabel(node.latest_data_time)}${coverage ? `; ${coverage}` : ""}`,
+    };
+  }
+  return {
+    status: "warn",
+    title: "Unknown",
+    detail: reason || "No market-data timestamp or health summary published.",
+  };
+}
+
 function symbolInventoryModel() {
   const index = state.dataSymbolIndex || {};
   const inventory = index.symbol_inventory || {};
@@ -28383,6 +28434,8 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
   const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
   const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
   const gatewayDown = (nodes || []).filter((node) => node.gateway_reachable === false);
+  const feedIssueNodes = (nodes || []).filter((node) => ["bad", "error"].includes(text(node.market_data_status || "").toLowerCase()));
+  const feedWarnNodes = (nodes || []).filter((node) => text(node.market_data_status || "").toLowerCase() === "warn");
   const staleData = (nodes || []).filter((node) => {
     const millis = timestampMillis(node.latest_data_time);
     return millis !== null && ((Date.now() - millis) / 1000) > 900;
@@ -28395,8 +28448,8 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
   const alertTotal = (nodes || []).reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
   const orderTotal = (nodes || []).reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
   const statusCounts = countBy(nodes || [], "status");
-  const issueCount = staleNodes.length + alertNodes.length + orderNodes.length + gatewayDown.length + staleData.length + staleAccounts.length;
-  const status = !nodes.length ? "bad" : gatewayDown.length || staleNodes.length ? "bad" : alertNodes.length || orderNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
+  const issueCount = staleNodes.length + alertNodes.length + orderNodes.length + gatewayDown.length + feedIssueNodes.length + feedWarnNodes.length + staleData.length + staleAccounts.length;
+  const status = !nodes.length ? "bad" : gatewayDown.length || staleNodes.length || feedIssueNodes.length ? "bad" : alertNodes.length || orderNodes.length || feedWarnNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
   const headline = !nodes.length
     ? "No remote monitoring snapshots"
     : status === "ok"
@@ -28460,15 +28513,17 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
       detail: `${numberText(orderTotal, 0)} non-terminal order event${orderTotal === 1 ? "" : "s"} across ${numberText(orderNodes.length, 0)} node${orderNodes.length === 1 ? "" : "s"}.`,
     },
     {
-      status: staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "bad",
+      status: feedIssueNodes.length ? "bad" : feedWarnNodes.length || staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "bad",
       title: "Data And Account",
-      detail: `${numberText(staleData.length, 0)} stale data timestamp${staleData.length === 1 ? "" : "s"}; ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
+      detail: `${numberText(feedIssueNodes.length, 0)} feed issue${feedIssueNodes.length === 1 ? "" : "s"}; ${numberText(feedWarnNodes.length, 0)} feed warning${feedWarnNodes.length === 1 ? "" : "s"}; ${numberText(staleData.length, 0)} stale data timestamp${staleData.length === 1 ? "" : "s"}; ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
     },
   ];
   const nextAction = !nodes.length
     ? "Start the status publisher or point the dashboard at the remote receiver."
     : gatewayDown.length || staleNodes.length
       ? "Open newest/stale node detail and verify the trading machine service state."
+      : feedIssueNodes.length || feedWarnNodes.length
+        ? "Open node detail and inspect the market-data health reason before treating the runner as disconnected."
       : alertNodes.length || orderNodes.length
         ? "Inspect node detail before issuing any remote controls."
         : "Remote monitoring is readable; export CSV or inspect detail when needed.";
@@ -28545,6 +28600,8 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
   const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
   const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
   const gatewayDown = (nodes || []).filter((node) => node.gateway_reachable === false);
+  const feedIssueNodes = (nodes || []).filter((node) => ["bad", "error"].includes(text(node.market_data_status || "").toLowerCase()));
+  const feedWarnNodes = (nodes || []).filter((node) => text(node.market_data_status || "").toLowerCase() === "warn");
   const staleData = (nodes || []).filter((node) => {
     const millis = timestampMillis(node.latest_data_time);
     return millis !== null && ((Date.now() - millis) / 1000) > 900;
@@ -28559,13 +28616,13 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
     $("remote-filter-status").value ? `status ${$("remote-filter-status").value}` : "",
     $("remote-filter-mode").value ? `mode ${$("remote-filter-mode").value}` : "",
   ].filter(Boolean);
-  const issueCount = staleNodes.length + gatewayDown.length + alertNodes.length + orderNodes.length + staleData.length + staleAccounts.length;
+  const issueCount = staleNodes.length + gatewayDown.length + alertNodes.length + orderNodes.length + feedIssueNodes.length + feedWarnNodes.length + staleData.length + staleAccounts.length;
   let status = "bad";
   let title = "No Remote Nodes";
   let note = "No authenticated status snapshots are loaded. Start the status publisher or point the dashboard at the receiver.";
   let primaryAction = "diagnostics";
   if (nodes.length) {
-    status = staleNodes.length || gatewayDown.length ? "bad" : alertNodes.length || orderNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
+    status = staleNodes.length || gatewayDown.length || feedIssueNodes.length ? "bad" : alertNodes.length || orderNodes.length || feedWarnNodes.length || staleData.length || staleAccounts.length ? "warn" : "ok";
     if (staleNodes.length) {
       title = "Review Stale Heartbeats";
       note = `${numberText(staleNodes.length, 0)} node${staleNodes.length === 1 ? "" : "s"} have stale or missing heartbeats.`;
@@ -28573,6 +28630,10 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
     } else if (gatewayDown.length) {
       title = "Review Gateway/API";
       note = `${numberText(gatewayDown.length, 0)} node${gatewayDown.length === 1 ? "" : "s"} report Gateway/API unreachable.`;
+      primaryAction = "detail";
+    } else if (feedIssueNodes.length || feedWarnNodes.length) {
+      title = "Review Market Data";
+      note = `${numberText(feedIssueNodes.length, 0)} feed issue${feedIssueNodes.length === 1 ? "" : "s"} / ${numberText(feedWarnNodes.length, 0)} feed warning${feedWarnNodes.length === 1 ? "" : "s"}.`;
       primaryAction = "detail";
     } else if (alertNodes.length) {
       title = "Review Remote Alerts";
@@ -28623,9 +28684,9 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
     },
     {
       label: "Alerts / Orders",
-      status: alertNodes.length || orderNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      status: feedIssueNodes.length ? "bad" : alertNodes.length || orderNodes.length || feedWarnNodes.length ? "warn" : nodes.length ? "ok" : "bad",
       title: `${numberText(alertNodes.length, 0)} / ${numberText(orderNodes.length, 0)}`,
-      note: `${numberText(issueCount, 0)} total remote monitoring issue bucket${issueCount === 1 ? "" : "s"}.`,
+      note: `${numberText(issueCount, 0)} total issue bucket${issueCount === 1 ? "" : "s"}; ${numberText(feedIssueNodes.length + feedWarnNodes.length, 0)} market-data.`,
     },
     {
       label: "Next Move",
@@ -28772,22 +28833,26 @@ function renderRemoteNodes() {
   renderRemoteNodesAssistant(nodes, filteredNodes);
   renderRemoteNodesReport(nodes, filteredNodes);
   $("remote-nodes-body").innerHTML = filteredNodes.length
-    ? filteredNodes.map((node) => row([
-        escapeHtml(node.node_id),
-        statusText(node.status),
-        escapeHtml(timestampAgeLabel(node.received_at || node.generated_at)),
-        statusText(node.gateway_reachable),
-        escapeHtml(text(node.mode)),
-        escapeHtml(money(node.final_equity)),
-        escapeHtml(numberText(node.position_count, 0)),
-        escapeHtml(numberText(node.open_order_count, 0)),
-        escapeHtml(`${numberText(node.decision_count, 0)}D / ${numberText(node.order_count, 0)}O / ${numberText(node.fill_count, 0)}F / ${numberText(node.rejection_count, 0)}R`),
-        escapeHtml(timestampAgeLabel(node.latest_account_time)),
-        escapeHtml(timestampAgeLabel(node.latest_data_time)),
-        escapeHtml(numberText(node.alert_count, 0)),
-        `<span class="button-pair"><button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button><button type="button" class="secondary request-remote-status" data-node-id="${escapeHtml(node.node_id)}">Status</button></span>`,
-      ])).join("")
-    : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", ""]);
+    ? filteredNodes.map((node) => {
+        const feed = remoteNodeMarketDataModel(node);
+        return row([
+          escapeHtml(node.node_id),
+          statusText(node.status),
+          escapeHtml(timestampAgeLabel(node.received_at || node.generated_at)),
+          statusText(node.gateway_reachable),
+          escapeHtml(text(node.mode)),
+          escapeHtml(money(node.final_equity)),
+          escapeHtml(numberText(node.position_count, 0)),
+          escapeHtml(numberText(node.open_order_count, 0)),
+          escapeHtml(`${numberText(node.decision_count, 0)}D / ${numberText(node.order_count, 0)}O / ${numberText(node.fill_count, 0)}F / ${numberText(node.rejection_count, 0)}R`),
+          escapeHtml(timestampAgeLabel(node.latest_account_time)),
+          escapeHtml(timestampAgeLabel(node.latest_data_time)),
+          `<span title="${escapeHtml(feed.detail)}">${statusText(feed.status)} ${escapeHtml(feed.title)}</span>`,
+          escapeHtml(numberText(node.alert_count, 0)),
+          `<span class="button-pair"><button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button><button type="button" class="secondary request-remote-status" data-node-id="${escapeHtml(node.node_id)}">Status</button></span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
@@ -28800,6 +28865,8 @@ function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
   const gatewayDown = nodes.filter((node) => node.gateway_reachable === false);
   const alertTotal = nodes.reduce((sum, node) => sum + Number(node.alert_count || 0), 0);
   const openOrders = nodes.reduce((sum, node) => sum + Number(node.open_order_count || 0), 0);
+  const feedIssueNodes = nodes.filter((node) => ["bad", "error"].includes(text(node.market_data_status || "").toLowerCase()));
+  const feedWarnNodes = nodes.filter((node) => text(node.market_data_status || "").toLowerCase() === "warn");
   const staleData = nodes.filter((node) => {
     const millis = timestampMillis(node.latest_data_time);
     if (millis === null) return false;
@@ -28839,10 +28906,10 @@ function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
       note: openOrders ? "Verify broker state on the local trading machine before issuing controls." : "No non-terminal remote order events.",
     },
     {
-      status: staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "warn",
-      label: "Data/Account",
-      title: staleData.length || staleAccounts.length ? "Review" : nodes.length ? "Current" : "Unknown",
-      note: `${numberText(staleData.length, 0)} stale data / ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
+      status: feedIssueNodes.length ? "bad" : feedWarnNodes.length || staleData.length || staleAccounts.length ? "warn" : nodes.length ? "ok" : "warn",
+      label: "Feed/Account",
+      title: feedIssueNodes.length ? "Feed Issue" : feedWarnNodes.length || staleData.length || staleAccounts.length ? "Review" : nodes.length ? "Current" : "Unknown",
+      note: `${numberText(feedIssueNodes.length, 0)} feed issue / ${numberText(feedWarnNodes.length, 0)} feed warning / ${numberText(staleAccounts.length, 0)} stale account timestamp${staleAccounts.length === 1 ? "" : "s"}.`,
     },
     {
       status: filteredNodes.length ? "ok" : nodes.length ? "warn" : "bad",
@@ -29043,8 +29110,10 @@ function renderRemoteNodeDetail() {
   }
   renderRemoteNodeRunHealth(detail, runs, activity);
   renderRemoteNodeBoundaryPolicy(detail);
+  const summaryFeed = remoteNodeMarketDataModel(summary);
   const pairs = detail.node_id
     ? [
+        ["Market Feed", `${summaryFeed.title}: ${summaryFeed.detail}`],
         ["Node", text(detail.node_id)],
         ["Status", text(summary.status)],
         ["Heartbeat", timestampAgeLabel(summary.received_at || summary.generated_at)],
@@ -29071,15 +29140,19 @@ function renderRemoteNodeDetail() {
       ])).join("")
     : row([`<span class="muted">${activity.length ? "No remote activity matches this filter." : "No sanitized recent decisions, orders, or fills in the latest run summaries."}</span>`, "", "", "", "", ""]);
   $("remote-node-runs-body").innerHTML = runs.length
-    ? runs.map((runItem) => row([
-        escapeHtml(runItem.id),
-        statusText(runItem.status),
-        escapeHtml(text(runItem.mode)),
-        escapeHtml(money(runItem.final_equity)),
-        escapeHtml(`${numberText(runItem.decisions, 0)}D / ${numberText(runItem.orders, 0)}O / ${numberText(runItem.fills, 0)}F / ${numberText(runItem.rejections, 0)}R`),
-        escapeHtml(timestampAgeLabel(runItem.last_decision_time)),
-      ])).join("")
-    : row([`<span class="muted">No latest run summaries in this node snapshot.</span>`, "", "", "", "", ""]);
+    ? runs.map((runItem) => {
+        const feed = remoteNodeMarketDataModel(runItem);
+        return row([
+          escapeHtml(runItem.id),
+          statusText(runItem.status),
+          escapeHtml(text(runItem.mode)),
+          escapeHtml(money(runItem.final_equity)),
+          escapeHtml(`${numberText(runItem.decisions, 0)}D / ${numberText(runItem.orders, 0)}O / ${numberText(runItem.fills, 0)}F / ${numberText(runItem.rejections, 0)}R`),
+          `<span title="${escapeHtml(feed.detail)}">${statusText(feed.status)} ${escapeHtml(feed.title)}</span>`,
+          escapeHtml(timestampAgeLabel(runItem.last_decision_time)),
+        ]);
+      }).join("")
+    : row([`<span class="muted">No latest run summaries in this node snapshot.</span>`, "", "", "", "", "", ""]);
   if ($("remote-node-artifacts-note")) {
     $("remote-node-artifacts-note").textContent = artifactRows.length
       ? `${numberText(artifactRows.length, 0)} bounded run artifact evidence summar${artifactRows.length === 1 ? "y" : "ies"}; categories, file names, row counts, and sizes only.`

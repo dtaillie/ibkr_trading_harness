@@ -1099,6 +1099,32 @@ def latest_run_for_status(row: dict[str, Any]) -> dict[str, Any]:
     return ordered[0] if ordered else {}
 
 
+def summarize_market_data_health_for_remote(metrics: dict[str, Any]) -> dict[str, Any]:
+    health = metrics.get("market_data_health")
+    if not isinstance(health, dict) or not health:
+        return {
+            "market_data_status": metrics.get("market_data_status"),
+            "market_data_reason": metrics.get("market_data_reason"),
+            "market_data_requested_symbol_count": None,
+            "market_data_symbols_with_bars_count": None,
+            "market_data_symbols_with_live_prices_count": None,
+            "market_data_symbols_without_bars_count": None,
+            "market_data_timeout_like_count": None,
+            "market_data_skipped_after_timeouts_count": None,
+        }
+    historical = health.get("historical_fetch") if isinstance(health.get("historical_fetch"), dict) else {}
+    return {
+        "market_data_status": health.get("status") or metrics.get("market_data_status"),
+        "market_data_reason": health.get("reason") or metrics.get("market_data_reason"),
+        "market_data_requested_symbol_count": finite_float(health.get("requested_symbol_count")),
+        "market_data_symbols_with_bars_count": finite_float(health.get("symbols_with_bars_count")),
+        "market_data_symbols_with_live_prices_count": finite_float(health.get("symbols_with_live_prices_count")),
+        "market_data_symbols_without_bars_count": finite_float(health.get("symbols_without_bars_count")),
+        "market_data_timeout_like_count": finite_float(historical.get("timeout_like_count")),
+        "market_data_skipped_after_timeouts_count": finite_float(historical.get("skipped_after_timeouts_count")),
+    }
+
+
 def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
     gateway = row.get("gateway") or {}
     alerts = row.get("alerts") or []
@@ -1110,6 +1136,7 @@ def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
     decision_count = len(recent_events.get("decisions") or []) if isinstance(recent_events, dict) else 0
     order_count = len(recent_events.get("orders") or []) if isinstance(recent_events, dict) else 0
     fill_count = len(recent_events.get("fills") or []) if isinstance(recent_events, dict) else 0
+    market_data = summarize_market_data_health_for_remote(metrics)
     return {
         "node_id": row.get("node_id"),
         "status": row.get("status"),
@@ -1131,6 +1158,7 @@ def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
         "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
         "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_market_data_time") or metrics.get("latest_bar_time"),
         "latest_bar_time": metrics.get("latest_bar_time") or metrics.get("latest_data_time") or metrics.get("latest_market_data_time"),
+        **market_data,
         "latest_decision_time": metrics.get("last_decision_time"),
         "next_check_time": metrics.get("next_check_time"),
         "next_expected_decision_time": metrics.get("next_expected_decision_time"),
@@ -1167,6 +1195,14 @@ REMOTE_NODES_EXPORT_FIELDS = (
     "latest_account_time",
     "latest_data_time",
     "latest_bar_time",
+    "market_data_status",
+    "market_data_reason",
+    "market_data_requested_symbol_count",
+    "market_data_symbols_with_bars_count",
+    "market_data_symbols_with_live_prices_count",
+    "market_data_symbols_without_bars_count",
+    "market_data_timeout_like_count",
+    "market_data_skipped_after_timeouts_count",
     "latest_decision_time",
     "next_check_time",
     "next_expected_decision_time",
@@ -1207,6 +1243,14 @@ REMOTE_NODE_DETAIL_EXPORT_FIELDS = (
     "latest_account_time",
     "latest_data_time",
     "latest_bar_time",
+    "market_data_status",
+    "market_data_reason",
+    "market_data_requested_symbol_count",
+    "market_data_symbols_with_bars_count",
+    "market_data_symbols_with_live_prices_count",
+    "market_data_symbols_without_bars_count",
+    "market_data_timeout_like_count",
+    "market_data_skipped_after_timeouts_count",
     "latest_decision_time",
     "next_check_time",
     "next_expected_decision_time",
@@ -1359,6 +1403,14 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
             "latest_account_time": summary.get("latest_account_time"),
             "latest_data_time": summary.get("latest_data_time"),
             "latest_bar_time": summary.get("latest_bar_time"),
+            "market_data_status": summary.get("market_data_status"),
+            "market_data_reason": summary.get("market_data_reason"),
+            "market_data_requested_symbol_count": summary.get("market_data_requested_symbol_count"),
+            "market_data_symbols_with_bars_count": summary.get("market_data_symbols_with_bars_count"),
+            "market_data_symbols_with_live_prices_count": summary.get("market_data_symbols_with_live_prices_count"),
+            "market_data_symbols_without_bars_count": summary.get("market_data_symbols_without_bars_count"),
+            "market_data_timeout_like_count": summary.get("market_data_timeout_like_count"),
+            "market_data_skipped_after_timeouts_count": summary.get("market_data_skipped_after_timeouts_count"),
             "latest_decision_time": summary.get("latest_decision_time"),
             "next_check_time": summary.get("next_check_time"),
             "next_expected_decision_time": summary.get("next_expected_decision_time"),
@@ -1412,6 +1464,14 @@ def build_remote_node_detail_csv(state_dir: Path, node_id: str, *, limit: int = 
             "latest_account_time": run.get("latest_account_time"),
             "latest_data_time": run.get("latest_data_time"),
             "latest_bar_time": run.get("latest_bar_time"),
+            "market_data_status": run.get("market_data_status"),
+            "market_data_reason": run.get("market_data_reason"),
+            "market_data_requested_symbol_count": run.get("market_data_requested_symbol_count"),
+            "market_data_symbols_with_bars_count": run.get("market_data_symbols_with_bars_count"),
+            "market_data_symbols_with_live_prices_count": run.get("market_data_symbols_with_live_prices_count"),
+            "market_data_symbols_without_bars_count": run.get("market_data_symbols_without_bars_count"),
+            "market_data_timeout_like_count": run.get("market_data_timeout_like_count"),
+            "market_data_skipped_after_timeouts_count": run.get("market_data_skipped_after_timeouts_count"),
             "latest_decision_time": run.get("last_decision_time"),
             "next_check_time": run.get("next_check_time"),
             "next_expected_decision_time": run.get("next_expected_decision_time"),
@@ -1563,6 +1623,7 @@ def sanitize_remote_artifact_evidence(evidence: dict[str, Any] | None) -> dict[s
 def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
     metrics = run.get("metrics") or {}
     recent = run.get("recent_events") or {}
+    market_data = summarize_market_data_health_for_remote(metrics)
     return {
         "id": run.get("id"),
         "status": run.get("status"),
@@ -1580,6 +1641,7 @@ def sanitize_remote_run(run: dict[str, Any]) -> dict[str, Any]:
         "position_count": nonzero_position_count(metrics.get("final_positions") or {}),
         "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_bar_time"),
         "latest_bar_time": metrics.get("latest_bar_time") or metrics.get("latest_data_time"),
+        **market_data,
         "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
         "last_decision_time": metrics.get("last_decision_time"),
         "next_check_time": metrics.get("next_check_time"),

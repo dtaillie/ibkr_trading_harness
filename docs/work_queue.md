@@ -229,6 +229,12 @@ strategy-private.
     `historical_max_consecutive_timeouts`. This keeps the backend from spending
     many minutes in per-symbol timeouts while the UI appears disconnected, and
     the emitted health payload shows timeout and skipped-symbol counts.
+  - partial; Remote Nodes summaries, CSV exports, and node detail now preserve
+    bounded market-data health fields (`market_data_status`, reason, coverage,
+    timeout-like count, and skipped-after-timeouts count). The Remote Nodes
+    table and detail pages show a Feed column/card so "Gateway reachable but
+    IBKR returned no usable bars/prices" is visible without opening raw status
+    JSON.
   - partial; `scripts/publish_status.py` now derives a top-level
     `runtime_activity` summary from supervised jobs, active child processes,
     fresh/stale runs, missed windows, and next start times. Overview and
