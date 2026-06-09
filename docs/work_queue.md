@@ -1094,6 +1094,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     counts, source/bar breakdowns, top indexed symbols, and direct Root Index
     browse/export/diagnostic actions. This makes large saved universes visible
     even when the parsed quality catalog is intentionally bounded or filtered.
+  - partial; Data Library now records client-side catalog/root-index fetch
+    durations and surfaces server root-scan timing in Saved Universe and Root
+    Index Browser cards. Slow large-cache refreshes now show catalog time, root
+    index time, total server root-scan time, root-index limit, and the slowest
+    root instead of looking like a disconnected or stalled UI.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

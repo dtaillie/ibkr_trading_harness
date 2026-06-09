@@ -290,6 +290,13 @@ function interval(value) {
   return `${Math.round(number / 86400)}d`;
 }
 
+function durationMsText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "n/a";
+  if (number < 1000) return `${numberText(number, 1)}ms`;
+  return interval(number / 1000);
+}
+
 function statusClass(value) {
   if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
   if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
@@ -414,6 +421,10 @@ function dataLibraryLoadState() {
       diagnosticsRequested: false,
       catalogLimitTouched: false,
       catalogOffset: 0,
+      lastCatalogFetchMs: null,
+      lastSymbolIndexFetchMs: null,
+      lastDataLibraryFetchMs: null,
+      lastSymbolIndexLimit: null,
       requestId: 0,
     };
   }
@@ -12809,6 +12820,22 @@ function rootIndexRootStatus(root) {
   return { status: "warn", title: "No Candidates", note: `No supported CSV/parquet files found.${overlap}${deferred}` };
 }
 
+function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
+  const roots = index.root_summaries || [];
+  const totalRootScanMs = roots.reduce((sum, root) => sum + Number(root.scan_duration_ms || 0), 0);
+  const slowestRoot = roots.slice().sort((left, right) => Number(right.scan_duration_ms || 0) - Number(left.scan_duration_ms || 0))[0] || null;
+  const loadState = dataLibraryLoadState();
+  return {
+    rootCount: roots.length,
+    totalRootScanMs,
+    slowestRoot,
+    clientCatalogFetchMs: loadState.lastCatalogFetchMs,
+    clientSymbolIndexFetchMs: loadState.lastSymbolIndexFetchMs,
+    clientTotalFetchMs: loadState.lastDataLibraryFetchMs,
+    symbolIndexLimit: loadState.lastSymbolIndexLimit || Number(index.limit || 0),
+  };
+}
+
 function renderRootIndexBrowser() {
   if (!$("data-root-index-note") || !$("data-root-index-summary") || !$("data-root-index-body")) return;
   const index = state.dataSymbolIndex || {};
@@ -12819,6 +12846,7 @@ function renderRootIndexBrowser() {
   const parsedMatches = rows.filter((item) => parsedSymbols.has(text(item.symbol).toUpperCase()));
   const indexError = text(index.index_error || ((index.errors || [])[0] || {}).error || "");
   const capped = index.index_complete === false || Number(index.scan_capped_root_count || 0) > 0;
+  const scanStats = rootIndexScanStats(index);
   const serverFilters = index.filters || {};
   const serverFilterActive = Boolean(index.filter_active);
   const serverFilterLabels = Object.entries(serverFilters)
@@ -12864,6 +12892,12 @@ function renderRootIndexBrowser() {
       status: index.latest_modified_at ? "ok" : symbols.length ? "warn" : "bad",
       title: index.latest_modified_at ? shortTimestampAgeLabel(index.latest_modified_at) : "n/a",
       note: index.latest_modified_at ? text(index.latest_modified_at) : "No modification timestamp found.",
+    },
+    {
+      label: "Scan Time",
+      status: scanStats.clientSymbolIndexFetchMs > 15000 || scanStats.totalRootScanMs > 15000 ? "warn" : symbols.length ? "ok" : "bad",
+      title: scanStats.clientSymbolIndexFetchMs ? durationMsText(scanStats.clientSymbolIndexFetchMs) : durationMsText(scanStats.totalRootScanMs),
+      note: `${numberText(scanStats.rootCount, 0)} roots; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")} ${durationMsText((scanStats.slowestRoot || {}).scan_duration_ms)}.`,
     },
   ];
   $("data-root-index-summary").innerHTML = cards.map((card) => `
@@ -14016,6 +14050,7 @@ function rootIndexSpotlightModel(filteredRows = []) {
   const partial = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
   const deferred = Number(inventory.raw.deferred_to_child_root_count_total || index.deferred_to_child_root_count_total || 0);
   const unsupported = Number(inventory.raw.unsupported_file_count_total || index.unsupported_file_count_total || 0);
+  const scanStats = rootIndexScanStats(index);
   let status = inventory.status;
   let headline = "No saved universe indexed";
   let note = "Refresh Data Library after configuring saved-data roots or running fetch jobs.";
@@ -14043,6 +14078,12 @@ function rootIndexSpotlightModel(filteredRows = []) {
       status: partial ? "warn" : inventory.fileCount ? "ok" : "bad",
       title: partial ? "Partial" : inventory.fileCount ? "Complete" : "Empty",
       note: `${numberText(inventory.scanCappedRootCount, 0)} capped roots / ${numberText(inventory.notScannedRootCount, 0)} not scanned / ${numberText(deferred, 0)} deferred to child roots.`,
+    },
+    {
+      label: "Refresh Cost",
+      status: scanStats.clientSymbolIndexFetchMs > 15000 || scanStats.totalRootScanMs > 15000 ? "warn" : inventory.fileCount ? "ok" : "bad",
+      title: scanStats.clientSymbolIndexFetchMs ? durationMsText(scanStats.clientSymbolIndexFetchMs) : durationMsText(scanStats.totalRootScanMs),
+      note: `Root-index limit ${numberText(scanStats.symbolIndexLimit, 0)}; server root scan ${durationMsText(scanStats.totalRootScanMs)}; slowest root ${text((scanStats.slowestRoot || {}).display_path || (scanStats.slowestRoot || {}).path || "n/a")}.`,
     },
     {
       label: "Sources",
@@ -29833,6 +29874,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   }
   const requestId = loadState.requestId + 1;
   loadState.requestId = requestId;
+  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 20000));
   loadState.catalogLoading = true;
   loadState.catalogError = "";
   loadState.diagnosticsLoaded = false;
@@ -29843,21 +29885,30 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
   state.dataMinuteHeatmap = { rows: [], errors: [] };
   state.dataStorageAudit = { configured_roots: [], suggested_roots: [], warnings: [] };
+  loadState.lastCatalogFetchMs = null;
+  loadState.lastSymbolIndexFetchMs = null;
+  loadState.lastDataLibraryFetchMs = null;
+  loadState.lastSymbolIndexLimit = Number(decodeURIComponent(symbolIndexLimit));
   renderDataCatalog();
   renderDataCoverage();
   renderDataGapSummary();
   renderDataMinuteHeatmap();
   renderDataStorageAudit();
-  const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 20000));
   try {
+    const totalStarted = performance.now();
     const catalogParams = dataCatalogServerQueryParams();
+    const catalogStarted = performance.now();
     const dataCatalog = await fetchJson(`/data_catalog?${catalogParams.toString()}`);
+    loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
+    const indexStarted = performance.now();
     try {
       dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}`);
     } catch (indexErr) {
       dataSymbolIndex = { symbols: [], files: [], errors: [{ error: indexErr.message }], index_error: indexErr.message };
     }
+    loadState.lastSymbolIndexFetchMs = performance.now() - indexStarted;
+    loadState.lastDataLibraryFetchMs = performance.now() - totalStarted;
     if (requestId !== loadState.requestId) return;
     state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
     state.dataSymbolIndex = dataSymbolIndex || { symbols: [], files: [], errors: [] };
@@ -29870,7 +29921,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderOverview();
     renderMetrics();
     renderPageIntro();
-    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()}`;
+    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)}`;
     if (includeDiagnostics || loadState.diagnosticsRequested) {
       await refreshDataDiagnostics({ force });
     }
