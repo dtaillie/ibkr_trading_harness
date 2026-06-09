@@ -3351,11 +3351,34 @@
                 <th>Bars</th>
                 <th>Modified</th>
                 <th>Path</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="runtime-sessions-body"></tbody>
           </table>
         </div>
+        <section class="nested-section">
+          <div class="section-head">
+            <h3>Session Detail</h3>
+            <span id="runtime-session-detail-note" class="section-note">Select a session to inspect bounded file evidence</span>
+          </div>
+          <div id="runtime-session-detail-cards" class="action-card-grid"></div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Category</th>
+                  <th>Rows</th>
+                  <th>Size</th>
+                  <th>Modified</th>
+                  <th>Path</th>
+                </tr>
+              </thead>
+              <tbody id="runtime-session-detail-body"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
       <div id="runs-workflows" class="runs-workflow-grid" aria-label="Runs workflows"></div>
       </div>

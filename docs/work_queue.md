@@ -270,6 +270,11 @@ strategy-private.
     `/runtime_sessions_export` and a Runs Home Export Sessions CSV button, so
     paper/shadow session inventories can be audited outside the browser just
     like Fetch Jobs, Data Library scans, Remote Nodes, and status rollups.
+  - partial; runtime sessions now have a bounded `/runtime_session_detail`
+    drilldown plus a Runs Home Inspect action. The detail view shows session
+    identity, file categories, sizes, modified times, CSV/JSONL row counts, and
+    an explicit public-safe boundary while excluding raw rows, logs,
+    credentials, and private strategy configuration.
   - partial; the dashboard now normalizes current-run telemetry client-side
     before rendering the topbar, Overview, backend pipeline, paper-monitor
     checks, and Runs tables. These surfaces consume the same top-level

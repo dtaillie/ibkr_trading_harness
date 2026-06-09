@@ -28,6 +28,7 @@ const state = {
   symbolTypeaheadActiveIndex: 0,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   runtimeSessions: { sessions: [], errors: [] },
+  runtimeSessionDetail: null,
   fetchManifestDetail: null,
   manifestPathFilter: null,
   workbenchStatus: {},
@@ -24292,8 +24293,68 @@ function renderRuntimeSessions() {
         escapeHtml(numberText(session.bar_file_count, 0)),
         escapeHtml(shortTimestampAgeLabel(session.latest_modified_at || session.modified_at)),
         escapeHtml(text(session.path)),
+        `<button type="button" class="secondary inspect-runtime-session" data-session-path="${escapeHtml(text(session.path))}">Inspect</button>`,
       ])).join("")
-    : row([`<span class="muted">No runtime sessions found. Fetch Jobs can still be empty while paper/shadow run telemetry exists in current status.</span>`, "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No runtime sessions found. Fetch Jobs can still be empty while paper/shadow run telemetry exists in current status.</span>`, "", "", "", "", "", "", "", "", "", ""]);
+  renderRuntimeSessionDetail();
+}
+
+function renderRuntimeSessionDetail() {
+  if (!$("runtime-session-detail-note") || !$("runtime-session-detail-cards") || !$("runtime-session-detail-body")) return;
+  const detail = state.runtimeSessionDetail || {};
+  const summary = detail.summary || {};
+  const files = detail.files || [];
+  if (!detail.path) {
+    $("runtime-session-detail-note").textContent = "Select a runtime session to inspect file categories, sizes, row counts, and public-safe boundary.";
+    $("runtime-session-detail-cards").innerHTML = "";
+    $("runtime-session-detail-body").innerHTML = row([`<span class="muted">No runtime session selected.</span>`, "", "", "", "", ""]);
+    return;
+  }
+  $("runtime-session-detail-note").textContent = `${text(summary.run_id)} / ${text(summary.session_id)}; raw file contents and private strategy config are excluded.`;
+  const categoryCounts = detail.category_counts || {};
+  const cards = [
+    {
+      label: "Files",
+      status: files.length ? "ok" : "warn",
+      title: numberText(files.length, 0),
+      note: `${bytes(files.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0))} across this session.`,
+    },
+    {
+      label: "Rows",
+      status: Number(detail.row_count_total || 0) ? "ok" : "warn",
+      title: numberText(detail.row_count_total || 0, 0),
+      note: "CSV and JSONL row counts only; parquet row counts are not read here.",
+    },
+    {
+      label: "Categories",
+      status: Object.keys(categoryCounts).length ? "ok" : "warn",
+      title: countSummary(categoryCounts),
+      note: "Manifest, signal, order, fill, market-data, account, log, and metadata buckets.",
+    },
+    {
+      label: "Boundary",
+      status: "ok",
+      title: "Public-safe",
+      note: "Raw rows, logs, credentials, and private strategy config are excluded.",
+    },
+  ];
+  $("runtime-session-detail-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("runtime-session-detail-body").innerHTML = files.length
+    ? files.map((file) => row([
+        escapeHtml(file.name),
+        statusText(file.category === "log" ? "warn" : "ok", { suffix: ` ${text(file.category)}` }),
+        escapeHtml(file.row_count === null || file.row_count === undefined ? text(file.row_count_status) : numberText(file.row_count, 0)),
+        escapeHtml(bytes(file.size_bytes)),
+        escapeHtml(shortTimestampAgeLabel(file.modified_at)),
+        escapeHtml(file.path),
+      ])).join("")
+    : row([`<span class="muted">No files are visible for this selected session.</span>`, "", "", "", "", ""]);
 }
 
 function runsFilterState() {
@@ -30824,6 +30885,14 @@ async function downloadRuntimeSessionsCsv() {
   $("last-refresh").textContent = `Runtime sessions CSV exported: ${new Date().toLocaleString()}`;
 }
 
+async function loadRuntimeSessionDetail(path) {
+  if (!path) throw new Error("No runtime session path selected");
+  const response = await fetchJson(`/runtime_session_detail?path=${encodeURIComponent(path)}`);
+  state.runtimeSessionDetail = response;
+  renderRuntimeSessionDetail();
+  $("last-refresh").textContent = `Runtime session detail loaded: ${new Date().toLocaleString()}`;
+}
+
 async function downloadDraftsCsv() {
   const body = await fetchText("/config_drafts_export");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -32184,6 +32253,13 @@ function init() {
   $("export-runtime-sessions-csv").addEventListener("click", () => {
     downloadRuntimeSessionsCsv().catch((err) => {
       $("last-refresh").textContent = `Runtime sessions CSV export failed: ${err.message}`;
+    });
+  });
+  $("runtime-sessions-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("inspect-runtime-session")) return;
+    loadRuntimeSessionDetail(target.dataset.sessionPath || "").catch((err) => {
+      $("runtime-session-detail-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("export-drafts-csv").addEventListener("click", () => {

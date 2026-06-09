@@ -8,6 +8,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib import error, request
+from urllib.parse import quote
 
 import pytest
 import yaml
@@ -1384,6 +1385,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime-sessions-note" in html
         assert "runtime-sessions-cards" in html
         assert "runtime-sessions-body" in html
+        assert "runtime-session-detail-note" in html
+        assert "runtime-session-detail-cards" in html
+        assert "runtime-session-detail-body" in html
         assert "export-runtime-sessions-csv" in html
         assert "overview-lens-title" in html
         assert "overview-lens-note" in html
@@ -1674,6 +1678,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "API Contracts" in js
         assert "function renderDashboardApiHealth" in js
         assert "Required Status" in js
+        assert "function renderRuntimeSessionDetail" in js
+        assert "runtime_session_detail" in js
     finally:
         server.shutdown()
         server.server_close()
@@ -1696,6 +1702,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/status_equity_rollups_snapshot") in endpoints
         assert ("GET", "/status_equity_rollups_export") in endpoints
         assert ("GET", "/runtime_sessions") in endpoints
+        assert ("GET", "/runtime_session_detail") in endpoints
         assert ("GET", "/runtime_sessions_export") in endpoints
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
@@ -2918,6 +2925,30 @@ def test_cloud_status_server_serves_runtime_sessions(tmp_path):
         assert session["fill_file_count"] == 1
         assert session["bar_file_count"] == 1
         assert session["manifest_path"].endswith("manifest.json")
+
+        with request.urlopen(f"{base}/runtime_session_detail?path={quote(session['path'])}", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+
+        assert detail["summary"]["run_id"] == "example_runner"
+        assert detail["summary"]["session_id"] == "2026-01-02_143000"
+        assert detail["file_count"] == 5
+        assert detail["category_counts"]["manifest"] == 1
+        assert detail["category_counts"]["signal"] == 1
+        assert detail["category_counts"]["order"] == 1
+        assert detail["category_counts"]["fill"] == 1
+        assert detail["category_counts"]["market_data"] == 1
+        assert detail["row_count_total"] == 3
+        assert "raw signal/order/fill rows" in detail["boundary_policy"]["excluded"]
+        file_rows = {item["name"]: item for item in detail["files"]}
+        assert file_rows["signals.csv"]["row_count"] == 1
+        assert file_rows["orders.csv"]["row_count"] == 1
+        assert file_rows["fills.csv"]["row_count"] == 1
+        assert file_rows["bars_1min.parquet"]["row_count_status"] == "unsupported"
+        assert "symbols_requested" not in json.dumps(detail)
+
+        with pytest.raises(error.HTTPError) as excinfo:
+            request.urlopen(f"{base}/runtime_session_detail?path={quote(str(data_root / 'not_a_session'))}", timeout=5)
+        assert excinfo.value.code == 400
 
         with request.urlopen(f"{base}/runtime_sessions_export?limit=10", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

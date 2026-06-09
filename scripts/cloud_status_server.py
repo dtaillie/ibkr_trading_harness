@@ -481,6 +481,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/runtime_session_detail",
+        "category": "telemetry",
+        "description": "Return bounded public-safe file/category detail for one runtime session folder.",
+        "response": "JSON runtime session file detail",
+    },
+    {
+        "method": "GET",
         "path": "/runtime_sessions_export",
         "category": "telemetry",
         "description": "Download bounded paper/shadow runtime session-folder evidence from configured data roots.",
@@ -5339,6 +5346,116 @@ def build_runtime_sessions(data_roots: list[Path], *, limit: int = 100) -> dict[
         "file_count_total": sum(int(item.get("file_count") or 0) for item in sessions),
         "csv_count_total": sum(int(item.get("csv_count") or 0) for item in sessions),
         "parquet_count_total": sum(int(item.get("parquet_count") or 0) for item in sessions),
+    }
+
+
+def runtime_session_category(path: Path) -> str:
+    name = path.name.lower()
+    if name == "manifest.json":
+        return "manifest"
+    if "data_health" in name or "health" in name:
+        return "data_health"
+    if "signal" in name or "decision" in name:
+        return "signal"
+    if "order" in name:
+        return "order"
+    if "fill" in name or "execution" in name:
+        return "fill"
+    if "bar" in name or "price" in name or "quote" in name:
+        return "market_data"
+    if "account" in name or "position" in name:
+        return "account"
+    if "log" in name or name.endswith(".out") or name.endswith(".err"):
+        return "log"
+    if name.endswith(".json") or name.endswith(".jsonl"):
+        return "metadata"
+    return "other"
+
+
+def bounded_text_row_count(path: Path, *, max_lines: int = 100_000) -> tuple[int | None, str]:
+    suffix = path.suffix.lower()
+    if suffix not in {".csv", ".jsonl"}:
+        return None, "unsupported"
+    count = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for count, _line in enumerate(handle, start=1):
+            if count > max_lines:
+                return max_lines, "truncated"
+    if suffix == ".csv":
+        return max(0, count - 1), "counted"
+    return count, "counted"
+
+
+def resolve_runtime_session_dir(raw_path: str, data_roots: list[Path]) -> Path:
+    if not raw_path:
+        raise ValueError("path is required")
+    candidate = Path(unquote(raw_path))
+    resolved = candidate.resolve() if candidate.is_absolute() else (ROOT / candidate).resolve()
+    session_dir = resolved.parent if resolved.name == "manifest.json" else resolved
+    manifest = session_dir / "manifest.json"
+    if not session_dir.exists() or not session_dir.is_dir() or not manifest.exists():
+        raise ValueError("runtime session not found")
+    parts = session_dir.parts
+    if "sessions" not in parts:
+        raise ValueError("path is not a runtime session directory")
+    configured_roots = [root.resolve() for root in data_roots]
+    if not any(session_dir.is_relative_to(root) for root in configured_roots):
+        raise ValueError("runtime session is outside configured data roots")
+    return session_dir
+
+
+def runtime_session_file_summary(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    row_count, row_count_status = bounded_text_row_count(path)
+    return {
+        "name": path.name,
+        "path": display_path(path),
+        "category": runtime_session_category(path),
+        "extension": path.suffix.lower() or "<none>",
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "row_count": row_count,
+        "row_count_status": row_count_status,
+    }
+
+
+def build_runtime_session_detail(raw_path: str, data_roots: list[Path]) -> dict[str, Any]:
+    session_dir = resolve_runtime_session_dir(raw_path, data_roots)
+    manifest = session_dir / "manifest.json"
+    summary = summarize_runtime_session(manifest, data_roots=data_roots)
+    files = [
+        runtime_session_file_summary(path)
+        for path in sorted(session_dir.iterdir(), key=lambda item: item.name.lower())
+        if path.is_file()
+    ]
+    row_count_total = sum(int(item.get("row_count") or 0) for item in files)
+    return {
+        "generated_at": utc_now(),
+        "summary": summary,
+        "path": display_path(session_dir),
+        "manifest_path": display_path(manifest),
+        "files": files,
+        "file_count": len(files),
+        "category_counts": count_values(files, "category"),
+        "extension_counts": count_values(files, "extension"),
+        "row_count_total": row_count_total,
+        "boundary_policy": {
+            "included": [
+                "session identity",
+                "bounded file names",
+                "file categories",
+                "file sizes",
+                "modified timestamps",
+                "CSV/JSONL row counts",
+            ],
+            "excluded": [
+                "raw manifest values",
+                "raw signal/order/fill rows",
+                "raw logs",
+                "credentials",
+                "private strategy configuration",
+            ],
+        },
     }
 
 
@@ -11774,6 +11891,17 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 limit = parse_limit(params, default=100, maximum=500)
                 payload = build_runtime_sessions(self.data_roots, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/runtime_session_detail":
+            if not self.require_auth():
+                return
+            try:
+                session_path = str(params.get("path", [""])[0] or "")
+                payload = build_runtime_session_detail(session_path, self.data_roots)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
