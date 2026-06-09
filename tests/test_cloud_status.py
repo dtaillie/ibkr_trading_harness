@@ -1349,6 +1349,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime-sessions-note" in html
         assert "runtime-sessions-cards" in html
         assert "runtime-sessions-body" in html
+        assert "export-runtime-sessions-csv" in html
         assert "overview-lens-title" in html
         assert "overview-lens-note" in html
         assert "overview-lens-home" in html
@@ -1653,6 +1654,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/status_equity_rollups_snapshot") in endpoints
         assert ("GET", "/status_equity_rollups_export") in endpoints
         assert ("GET", "/runtime_sessions") in endpoints
+        assert ("GET", "/runtime_sessions_export") in endpoints
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
@@ -2874,6 +2876,19 @@ def test_cloud_status_server_serves_runtime_sessions(tmp_path):
         assert session["fill_file_count"] == 1
         assert session["bar_file_count"] == 1
         assert session["manifest_path"].endswith("manifest.json")
+
+        with request.urlopen(f"{base}/runtime_sessions_export?limit=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="runtime_sessions.csv"'
+            exported = list(csv.DictReader(io.StringIO(resp.read().decode("utf-8"))))
+        assert len(exported) == 1
+        assert exported[0]["run_id"] == "example_runner"
+        assert exported[0]["session_id"] == "2026-01-02_143000"
+        assert exported[0]["runner"] == "example_public_runner"
+        assert exported[0]["file_count"] == "5"
+        assert exported[0]["csv_count"] == "3"
+        assert exported[0]["parquet_count"] == "1"
+        assert "signals.csv" in exported[0]["file_names"]
     finally:
         server.shutdown()
         server.server_close()

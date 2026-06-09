@@ -481,6 +481,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/runtime_sessions_export",
+        "category": "telemetry",
+        "description": "Download bounded paper/shadow runtime session-folder evidence from configured data roots.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/remote_nodes",
         "category": "telemetry",
         "description": "Return sanitized latest read-only monitoring summaries by node.",
@@ -4179,6 +4186,30 @@ FETCH_MANIFEST_EXPORT_FIELDS = (
     "size_bytes",
 )
 
+RUNTIME_SESSION_EXPORT_FIELDS = (
+    "run_id",
+    "session_id",
+    "runner",
+    "status",
+    "started_at",
+    "finished_at",
+    "modified_at",
+    "latest_modified_at",
+    "file_count",
+    "csv_count",
+    "parquet_count",
+    "json_count",
+    "signal_file_count",
+    "order_file_count",
+    "fill_file_count",
+    "bar_file_count",
+    "symbol_count",
+    "root",
+    "path",
+    "manifest_path",
+    "file_names",
+)
+
 
 FETCH_MANIFEST_DETAIL_EXPORT_FIELDS = (
     "row_type",
@@ -5309,6 +5340,16 @@ def build_runtime_sessions(data_roots: list[Path], *, limit: int = 100) -> dict[
         "csv_count_total": sum(int(item.get("csv_count") or 0) for item in sessions),
         "parquet_count_total": sum(int(item.get("parquet_count") or 0) for item in sessions),
     }
+
+
+def build_runtime_sessions_csv(data_roots: list[Path], *, limit: int = 500) -> str:
+    payload = build_runtime_sessions(data_roots, limit=limit)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=RUNTIME_SESSION_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in payload.get("sessions", []):
+        writer.writerow({field: compact_csv_value(row.get(field)) for field in RUNTIME_SESSION_EXPORT_FIELDS})
+    return out.getvalue()
 
 
 def fetch_manifest_recovery_guidance(
@@ -11737,6 +11778,23 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/runtime_sessions_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=500, maximum=1000)
+                csv_body = build_runtime_sessions_csv(self.data_roots, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="runtime_sessions.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_catalog":
             if not self.require_auth():
