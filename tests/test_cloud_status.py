@@ -1259,6 +1259,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-symbol-batch-input" in html
         assert "data-symbol-batch-cards" in html
         assert "data-symbol-batch-body" in html
+        assert "Best File" in html
         assert "data-symbol-candidates-body" in html
         assert "data-detail-form" in html
         assert "data-detail-symbol" in html
@@ -1690,6 +1691,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data_symbol_diagnostics" in js
         assert "data_symbol_diagnostics_export" in js
         assert "function copySymbolBatchDiagnosticReport" in js
+        assert "function inspectBatchSymbolBestFile" in js
+        assert "workbench-batch-symbol" in js
     finally:
         server.shutdown()
         server.server_close()
@@ -2896,6 +2899,9 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert batch["status_counts"]["not_found"] == 1
         assert [row["symbol"] for row in batch["rows"]] == ["SPY", "MISSING"]
         assert batch["rows"][0]["visible_match_count"] == 1
+        assert batch["rows"][0]["best_path"] == dataset["path"]
+        assert batch["rows"][0]["best_bar_size"] == "5min"
+        assert batch["rows"][0]["best_rows"] == 3
         assert batch["rows"][1]["action"] == "Fetch the symbol or add the directory containing it to dashboard.data_roots."
         with request.urlopen(f"{base}/data_symbol_diagnostics?symbols=SPY,SPY&limit=5&max_symbols=10", timeout=5) as resp:
             duplicate_batch = json.loads(resp.read().decode("utf-8"))
@@ -2908,7 +2914,10 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert [row["symbol"] for row in diagnostics_rows] == ["SPY", "MISSING"]
         assert diagnostics_rows[0]["status"] == "visible"
         assert diagnostics_rows[0]["visible_match_count"] == "1"
+        assert diagnostics_rows[0]["best_path"] == dataset["path"]
+        assert diagnostics_rows[0]["best_rows"] == "3"
         assert diagnostics_rows[1]["status"] == "not_found"
+        assert diagnostics_rows[1]["best_path"] == ""
     finally:
         server.shutdown()
         server.server_close()

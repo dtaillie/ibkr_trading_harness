@@ -17429,9 +17429,12 @@ function renderSymbolBatchDiagnostic() {
         escapeHtml(numberText(item.unconfigured_match_count, 0)),
         escapeHtml(text(item.message)),
         escapeHtml(text(item.action)),
-        `<button class="secondary compact-button diagnose-batch-symbol" type="button" data-symbol="${escapeHtml(item.symbol)}">Diagnose</button>`,
+        item.best_path
+          ? `<span class="mono">${escapeHtml(text(item.best_bar_size))}</span> ${escapeHtml(text(item.best_source))}<br><span class="muted">${escapeHtml(numberText(item.best_rows, 0))} rows</span>`
+          : `<span class="muted">n/a</span>`,
+        `<span class="button-pair"><button class="secondary compact-button inspect-batch-symbol" type="button" data-symbol="${escapeHtml(item.symbol)}" data-path="${escapeHtml(item.best_path || "")}"${item.best_path ? "" : " disabled"}>Inspect</button><button class="secondary compact-button workbench-batch-symbol" type="button" data-symbol="${escapeHtml(item.symbol)}" data-path="${escapeHtml(item.best_path || "")}"${item.best_path ? "" : " disabled"}>Workbench</button><button class="secondary compact-button diagnose-batch-symbol" type="button" data-symbol="${escapeHtml(item.symbol)}">Diagnose</button></span>`,
       ])).join("")
-    : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function symbolBatchDiagnosticReportText(payload = {}) {
@@ -17452,6 +17455,7 @@ function symbolBatchDiagnosticReportText(payload = {}) {
       `visible=${numberText(item.visible_match_count, 0)}`,
       `configured=${numberText(item.configured_candidate_count, 0)}`,
       `unconfigured=${numberText(item.unconfigured_match_count, 0)}`,
+      item.best_path ? `best=${item.best_path}` : "best=n/a",
       `issue=${text(item.message)}`,
       `next=${text(item.action)}`,
     ].join(" | ")),
@@ -30709,6 +30713,43 @@ async function diagnoseBatchSymbol(symbol) {
   $("last-refresh").textContent = `Symbol diagnostic loaded from batch: ${cleaned}`;
 }
 
+function batchSymbolDataset(symbol, path) {
+  const cleaned = text(symbol).trim().toUpperCase();
+  const bestPath = text(path).trim();
+  const rows = ((state.symbolBatchDiagnostic || {}).rows || []);
+  const row = rows.find((item) => text(item.symbol).toUpperCase() === cleaned && text(item.best_path) === bestPath)
+    || rows.find((item) => text(item.symbol).toUpperCase() === cleaned && item.best_path);
+  const catalogDataset = (state.dataCatalog.datasets || []).find((item) => item.path === bestPath)
+    || (row && (state.dataCatalog.datasets || []).find((item) => item.path === row.best_path));
+  if (catalogDataset) return catalogDataset;
+  if (!row || !row.best_path) return null;
+  return {
+    symbol: row.symbol,
+    path: row.best_path,
+    source: row.best_source,
+    bar_size: row.best_bar_size,
+    storage_session: row.best_storage_session,
+    quality_status: row.best_quality_status,
+    storage_contract_status: row.best_storage_contract_status,
+    first_timestamp: row.best_first_timestamp,
+    last_timestamp: row.best_last_timestamp,
+    rows: row.best_rows,
+  };
+}
+
+async function inspectBatchSymbolBestFile(symbol, path) {
+  const dataset = batchSymbolDataset(symbol, path);
+  if (!dataset || !dataset.path) throw new Error(`No best file is available for ${text(symbol) || "selected symbol"}`);
+  await loadDataDetail(dataset.path, { resetControls: true });
+  $("last-refresh").textContent = `Loaded ${text(dataset.symbol)} best file from universe check`;
+}
+
+function useBatchSymbolInWorkbench(symbol, path) {
+  const dataset = batchSymbolDataset(symbol, path);
+  if (!dataset || !dataset.path) throw new Error(`No Workbench-ready best file is available for ${text(symbol) || "selected symbol"}`);
+  selectCatalogDatasetInWorkbench(dataset);
+}
+
 async function downloadSymbolBatchDiagnosticsCsv() {
   const payloadSymbols = ((state.symbolBatchDiagnostic || {}).symbols || []).join(",");
   const symbols = payloadSymbols || $("data-symbol-batch-input").value.trim();
@@ -32608,9 +32649,21 @@ function init() {
   });
   $("copy-symbol-batch-report").addEventListener("click", copySymbolBatchDiagnosticReport);
   $("data-symbol-batch-body").addEventListener("click", (event) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest(".diagnose-batch-symbol") : null;
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest(".inspect-batch-symbol, .workbench-batch-symbol, .diagnose-batch-symbol")
+      : null;
     if (!(target instanceof HTMLElement)) return;
-    diagnoseBatchSymbol(target.dataset.symbol || "").catch((err) => {
+    const symbol = target.dataset.symbol || "";
+    const path = target.dataset.path || "";
+    let action;
+    if (target.classList.contains("inspect-batch-symbol")) {
+      action = inspectBatchSymbolBestFile(symbol, path);
+    } else if (target.classList.contains("workbench-batch-symbol")) {
+      action = Promise.resolve().then(() => useBatchSymbolInWorkbench(symbol, path));
+    } else {
+      action = diagnoseBatchSymbol(symbol);
+    }
+    action.catch((err) => {
       $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });

@@ -4016,6 +4016,15 @@ DATA_SYMBOL_DIAGNOSTICS_EXPORT_FIELDS = (
     "parse_error_count",
     "limit_blocked_count",
     "fetch_error_count",
+    "best_path",
+    "best_source",
+    "best_bar_size",
+    "best_storage_session",
+    "best_quality_status",
+    "best_storage_contract_status",
+    "best_first_timestamp",
+    "best_last_timestamp",
+    "best_rows",
 )
 
 
@@ -5287,8 +5296,16 @@ def build_data_symbol_diagnostics(
         )
         for symbol in symbols
     ]
-    rows = [
-        {
+    def best_visible_match(item: dict[str, Any]) -> dict[str, Any]:
+        matches = item.get("catalog_matches") or []
+        if not matches:
+            return {}
+        return sorted(matches, key=symbol_summary_sort_key)[0]
+
+    rows = []
+    for item in diagnostics:
+        best = best_visible_match(item)
+        rows.append({
             "symbol": item.get("symbol"),
             "status": item.get("status"),
             "diagnostic_status": (item.get("diagnostic_summary") or {}).get("status"),
@@ -5300,9 +5317,16 @@ def build_data_symbol_diagnostics(
             "parse_error_count": (item.get("diagnostic_summary") or {}).get("parse_error_count"),
             "limit_blocked_count": (item.get("diagnostic_summary") or {}).get("limit_blocked_count"),
             "fetch_error_count": (item.get("diagnostic_summary") or {}).get("fetch_error_count"),
-        }
-        for item in diagnostics
-    ]
+            "best_path": best.get("path"),
+            "best_source": best.get("source"),
+            "best_bar_size": best.get("bar_size"),
+            "best_storage_session": best.get("storage_session"),
+            "best_quality_status": best.get("quality_status"),
+            "best_storage_contract_status": best.get("storage_contract_status"),
+            "best_first_timestamp": best.get("first_timestamp"),
+            "best_last_timestamp": best.get("last_timestamp"),
+            "best_rows": best.get("rows"),
+        })
     return {
         "generated_at": utc_now(),
         "symbols": symbols,
