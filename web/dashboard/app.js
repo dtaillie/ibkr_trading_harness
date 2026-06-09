@@ -3,6 +3,7 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataSymbolIndex: { symbols: [], files: [], errors: [] },
+  dataSymbolDirectory: { symbols: [], symbol_summaries: [], errors: [] },
   dataDetail: null,
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
@@ -440,6 +441,7 @@ function dataLibraryLoadState() {
       catalogLimitTouched: false,
       catalogOffset: 0,
       lastCatalogFetchMs: null,
+      lastSymbolDirectoryFetchMs: null,
       lastSymbolIndexFetchMs: null,
       lastDataLibraryFetchMs: null,
       lastSymbolIndexLimit: null,
@@ -12234,7 +12236,8 @@ function sortSymbolDirectoryRows(rows, sortKey) {
 function symbolDirectoryRows() {
   const controls = symbolDirectoryControls();
   const datasetByPath = new Map((state.dataCatalog.datasets || []).map((dataset) => [dataset.path, dataset]));
-  const summaries = state.dataCatalog.symbol_summaries || [];
+  const directoryPayload = state.dataSymbolDirectory || {};
+  const summaries = (directoryPayload.symbol_summaries || directoryPayload.symbols || state.dataCatalog.symbol_summaries || []);
   const rows = summaries.length
     ? summaries.map((summary) => ({
         symbol: text(summary.symbol),
@@ -12574,7 +12577,7 @@ function renderSymbolDirectory() {
   const directory = symbolDirectoryRows();
   const rows = directory.rows;
   const filteredCount = directory.filtered_count;
-  const totalSymbols = Number(state.dataCatalog.symbol_count || groups.size || directory.total_count || 0);
+  const totalSymbols = Number((state.dataSymbolDirectory || {}).symbol_count || state.dataCatalog.symbol_count || groups.size || directory.total_count || 0);
   const activeFilters = [
     directory.controls.filter ? `"${directory.controls.filter}"` : "",
     directory.controls.asset,
@@ -12840,6 +12843,18 @@ function dataCatalogServerQueryParams() {
   params.set("limit", String(selectedDataCatalogLimit()));
   params.set("offset", String(selectedDataCatalogOffset()));
   params.set("preview_points", String(dataCatalogPreviewPoints()));
+  if (filters.text) params.set("q", filters.text);
+  if (filters.asset) params.set("asset_class", filters.asset);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.bar) params.set("bar_size", filters.bar);
+  if (filters.session) params.set("storage_session", filters.session);
+  return params;
+}
+
+function dataSymbolDirectoryServerQueryParams() {
+  const filters = dataCatalogFilters();
+  const params = new URLSearchParams();
+  params.set("limit", String(selectedDataCatalogLimit()));
   if (filters.text) params.set("q", filters.text);
   if (filters.asset) params.set("asset_class", filters.asset);
   if (filters.source) params.set("source", filters.source);
@@ -30240,11 +30255,13 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   loadState.diagnosticsError = "";
   loadState.diagnosticsRequested = Boolean(includeDiagnostics);
   state.dataSymbolIndex = { symbols: [], files: [], errors: [] };
+  state.dataSymbolDirectory = { symbols: [], symbol_summaries: [], errors: [] };
   state.dataCoverage = { symbols: [], date_bins: [], errors: [] };
   state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
   state.dataMinuteHeatmap = { rows: [], errors: [] };
   state.dataStorageAudit = { configured_roots: [], suggested_roots: [], warnings: [] };
   loadState.lastCatalogFetchMs = null;
+  loadState.lastSymbolDirectoryFetchMs = null;
   loadState.lastSymbolIndexFetchMs = null;
   loadState.lastDataLibraryFetchMs = null;
   loadState.lastSymbolIndexLimit = Number(decodeURIComponent(symbolIndexLimit));
@@ -30260,6 +30277,25 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     const catalogStarted = performance.now();
     const dataCatalog = await fetchJson(`/data_catalog?${catalogParams.toString()}`);
     loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
+    let dataSymbolDirectory = {
+      symbols: dataCatalog.symbol_summaries || [],
+      symbol_summaries: dataCatalog.symbol_summaries || [],
+      errors: [],
+      source: "catalog_fallback",
+    };
+    const directoryParams = dataSymbolDirectoryServerQueryParams();
+    if (force) directoryParams.set("refresh", "1");
+    const directoryStarted = performance.now();
+    try {
+      dataSymbolDirectory = await fetchJson(`/data_symbol_directory?${directoryParams.toString()}`);
+    } catch (directoryErr) {
+      dataSymbolDirectory = {
+        ...dataSymbolDirectory,
+        errors: [{ error: directoryErr.message }],
+        directory_error: directoryErr.message,
+      };
+    }
+    loadState.lastSymbolDirectoryFetchMs = performance.now() - directoryStarted;
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
     const indexStarted = performance.now();
     try {
@@ -30271,6 +30307,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     loadState.lastDataLibraryFetchMs = performance.now() - totalStarted;
     if (requestId !== loadState.requestId) return;
     state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+    state.dataSymbolDirectory = dataSymbolDirectory || { symbols: [], symbol_summaries: [], errors: [] };
     state.dataSymbolIndex = dataSymbolIndex || { symbols: [], files: [], errors: [] };
     loadState.catalogLoaded = true;
     loadState.catalogLoading = false;
@@ -30282,8 +30319,9 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderMetrics();
     renderPageIntro();
     const catalogCacheStatus = text((state.dataCatalog.scan_cache || {}).status || "n/a");
+    const directoryCacheStatus = text((state.dataSymbolDirectory.scan_cache || {}).status || "n/a");
     const indexCacheStatus = text((state.dataSymbolIndex.scan_cache || {}).status || "n/a");
-    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} (${catalogCacheStatus}) / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)} (${indexCacheStatus})`;
+    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} (${catalogCacheStatus}) / symbols ${durationMsText(loadState.lastSymbolDirectoryFetchMs)} (${directoryCacheStatus}) / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)} (${indexCacheStatus})`;
     if (includeDiagnostics || loadState.diagnosticsRequested) {
       await refreshDataDiagnostics({ force });
     }

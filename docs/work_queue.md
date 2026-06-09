@@ -1428,7 +1428,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       individual symbol cards.
     - partial; Symbol Directory now uses backend symbol summaries when
       available and exposes `/data_symbol_directory_export` plus an Export
-      Symbols CSV action for offline universe review.
+      Symbols CSV action for offline universe review. The backend now also
+      exposes `/data_symbol_directory` as a first-class JSON contract for
+      symbol-level universe summaries, and the dashboard consumes that payload
+      with catalog-summary fallback so symbol browsing is no longer only an
+      embedded side effect of `/data_catalog`.
     - partial; Symbol Directory now includes a compact Symbol Coverage Ledger
       table for the current filtered/sorted symbol set, showing range, files,
       rows, source/bar/session mix, readiness, and direct Inspect/Filter/

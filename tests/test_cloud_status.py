@@ -1688,6 +1688,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function renderRuntimeSessionDetail" in js
         assert "runtime_session_detail" in js
         assert "function renderSymbolBatchDiagnostic" in js
+        assert "data_symbol_directory" in js
         assert "data_symbol_diagnostics" in js
         assert "data_symbol_diagnostics_export" in js
         assert "function copySymbolBatchDiagnosticReport" in js
@@ -1731,6 +1732,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_symbol_index") in endpoints
         assert ("GET", "/data_symbol_index_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
+        assert ("GET", "/data_symbol_directory") in endpoints
         assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
@@ -2819,6 +2821,19 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["storage_contract_status"] == "warn"
         assert exported[0]["storage_contract_warning_count"] == "1"
         assert exported[0]["storage_contract_label"] == "review"
+
+        with request.urlopen(f"{base}/data_symbol_directory?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("application/json")
+            symbol_directory = json.loads(resp.read().decode("utf-8"))
+        assert symbol_directory["symbol_count"] == 1
+        assert symbol_directory["file_count"] == 1
+        assert symbol_directory["row_count_total"] == 3
+        assert symbol_directory["asset_class_counts"] == {"etf": 1}
+        assert symbol_directory["source_counts"] == {"file": 1}
+        assert symbol_directory["quality_status_counts"] == {"ok": 1}
+        assert symbol_directory["storage_contract_status_counts"] == {"warn": 1}
+        assert symbol_directory["symbols"][0]["symbol"] == "SPY"
+        assert symbol_directory["symbols"][0]["best_path"] == dataset["path"]
 
         with request.urlopen(f"{base}/data_symbol_directory_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

@@ -565,6 +565,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_directory",
+        "category": "data",
+        "description": "Return saved-data symbol-level universe summaries.",
+        "response": "JSON symbol directory summaries",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_directory_export",
         "category": "data",
         "description": "Download saved-data symbol-level universe summaries.",
@@ -4357,13 +4364,45 @@ def build_data_catalog_csv(
 
 
 def build_data_symbol_directory_csv(data_roots: list[Path], *, limit: int = 200) -> str:
-    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2)
+    catalog = build_data_symbol_directory(data_roots, limit=limit)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
-    for row in catalog.get("symbol_summaries", []):
+    for row in catalog.get("symbols", []):
         writer.writerow({field: compact_csv_value(row.get(field)) for field in DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS})
     return out.getvalue()
+
+
+def build_data_symbol_directory(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    filters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2, filters=filters)
+    symbols = catalog.get("symbol_summaries", [])
+    return {
+        "generated_at": utc_now(),
+        "roots": catalog.get("roots", []),
+        "limit": catalog.get("limit", limit),
+        "filters": catalog.get("filters", filters or {}),
+        "symbols": symbols,
+        "symbol_summaries": symbols,
+        "symbol_count": len(symbols),
+        "file_count": sum(int(row.get("file_count") or 0) for row in symbols),
+        "row_count_total": sum(int(row.get("row_count") or 0) for row in symbols),
+        "size_bytes_total": sum(int(row.get("size_bytes") or 0) for row in symbols),
+        "asset_class_counts": count_list_values(symbols, "asset_classes"),
+        "source_counts": count_list_values(symbols, "sources"),
+        "bar_size_counts": count_list_values(symbols, "bar_sizes"),
+        "storage_session_counts": count_list_values(symbols, "storage_sessions"),
+        "quality_status_counts": merge_count_fields(symbols, "quality_counts"),
+        "storage_contract_status_counts": merge_count_fields(symbols, "storage_contract_counts"),
+        "root_inventory": catalog.get("root_inventory"),
+        "catalog_visibility_status": catalog.get("catalog_visibility_status"),
+        "catalog_complete": catalog.get("catalog_complete"),
+        "scan_cache": catalog.get("scan_cache"),
+    }
 
 
 def build_data_symbol_index_csv(
@@ -9090,6 +9129,30 @@ def count_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def count_list_values(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        values = row.get(key) or []
+        if not isinstance(values, list):
+            values = [values]
+        for value in values:
+            label = str(value or "unknown")
+            counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def merge_count_fields(rows: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        values = row.get(key) or {}
+        if not isinstance(values, dict):
+            continue
+        for value_key, value_count in values.items():
+            label = str(value_key or "unknown")
+            counts[label] = counts.get(label, 0) + int(value_count or 0)
+    return dict(sorted(counts.items()))
+
+
 def build_data_symbol_inventory(
     *,
     symbol_rows: list[dict[str, Any]],
@@ -12207,6 +12270,38 @@ class StatusHandler(BaseHTTPRequestHandler):
                 filename="saved_data_catalog.csv",
                 content_type="text/csv; charset=utf-8",
             )
+            return
+        if parsed.path == "/data_symbol_directory":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                filters = parse_data_symbol_index_filters(params)
+                bypass_cache = truthy_param(params.get("refresh", [""])[0])
+                payload = cached_data_library_payload(
+                    "data_symbol_directory",
+                    self.data_roots,
+                    {
+                        "limit": limit,
+                        "filters": filters,
+                    },
+                    lambda: build_data_symbol_directory(
+                        self.data_roots,
+                        limit=limit,
+                        filters=filters,
+                    ),
+                    bypass=bypass_cache,
+                )
+                payload["default_limit"] = self.data_catalog_default_limit
+                payload["max_limit"] = self.data_catalog_max_limit
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/data_symbol_directory_export":
             if not self.require_auth():
