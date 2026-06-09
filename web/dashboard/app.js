@@ -1318,6 +1318,7 @@ function pageIntroEvidence(view) {
   const payload = state.status || {};
   const statusGenerated = payload.generated_at || "";
   const dataCatalog = state.dataCatalog || {};
+  const dataInventory = symbolInventoryModel();
   const fetchManifests = state.fetchManifests || {};
   const performanceSource = latestArtifactPerformance();
   const latestAccount = latestAccountRow(performanceSource.account || []);
@@ -1352,8 +1353,12 @@ function pageIntroEvidence(view) {
     ],
     data: [
       freshnessValue("Catalog", dataCatalog.generated_at),
-      countValue("Visible", (dataCatalog.datasets || []).length, "file"),
-      countValue("Roots", ((dataCatalog.root_summaries || dataCatalog.roots || [])).length, "root"),
+      dataInventory.fileCount
+        ? countValue("Indexed", dataInventory.fileCount, "file")
+        : countValue("Visible", (dataCatalog.datasets || []).length, "file"),
+      dataInventory.symbolCount
+        ? countValue("Symbols", dataInventory.symbolCount, "symbol")
+        : countValue("Roots", ((dataCatalog.root_summaries || dataCatalog.roots || [])).length, "root"),
     ],
     fetch: [
       freshnessValue("Manifests", fetchManifests.generated_at),
@@ -5836,6 +5841,132 @@ function savedDataMetricModel() {
   };
 }
 
+function backendPipelineModel() {
+  const payload = state.status || {};
+  const gateway = payload.gateway || {};
+  const runs = payload.runs || [];
+  const supervisors = payload.supervisors || [];
+  const alerts = payload.alerts || [];
+  const activity = runtimeActivityModel();
+  const latestRun = latestTelemetryRun();
+  const metrics = (latestRun && latestRun.metrics) || {};
+  const marketData = runtimeMarketDataModel(metrics, latestRun);
+  const inventory = symbolInventoryModel();
+  const fetchManifests = state.fetchManifests || {};
+  const fetchRows = fetchManifests.manifests || [];
+  const fetchRoots = fetchManifests.roots || [];
+  const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const statusFresh = Boolean(payload.generated_at);
+  const staleRuns = runs.filter((runItem) => (runItem.freshness || {}).stale);
+  const missedJobs = supervisors.flatMap((supervisor) => (
+    (supervisor.jobs || [])
+      .filter((job) => text(job.status).toLowerCase() === "missed" || job.missed_window)
+      .map((job) => ({ supervisor, job }))
+  ));
+  const gatewayStatus = gateway.enabled ? gateway.reachable ? "ok" : "bad" : "warn";
+  const manifestRootCount = fetchRoots.filter((root) => root.exists && (root.is_dir || root.is_file)).length;
+  const remoteFreshCount = remoteNodes.filter((node) => !((node.freshness || {}).stale)).length;
+  const cards = [
+    {
+      id: "receiver",
+      label: "Dashboard Receiver",
+      title: statusFresh ? "Receiving" : "No Snapshot",
+      status: statusFresh ? "ok" : "bad",
+      note: statusFresh
+        ? `Latest status ${timestampAgeLabel(payload.generated_at)}; history ${(state.history || []).length} rows.`
+        : "The UI can load, but no local status snapshot has been received.",
+    },
+    {
+      id: "publisher",
+      label: "Publisher / Runs",
+      title: runs.length ? `${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"}` : "No Runs",
+      status: runs.length ? staleRuns.length ? "warn" : "ok" : "bad",
+      note: runs.length
+        ? `${numberText(staleRuns.length, 0)} stale; latest ${text((latestRun || {}).id || "n/a")}.`
+        : "Status is present, but no strategy run rows are publishing.",
+    },
+    {
+      id: "supervisor",
+      label: "Supervisor Jobs",
+      title: activity.label,
+      status: missedJobs.length ? "warn" : activity.status,
+      note: missedJobs.length
+        ? `${numberText(missedJobs.length, 0)} missed window${missedJobs.length === 1 ? "" : "s"}; next ${text(activity.raw.next_job_id || "job")} ${text(activity.raw.next_start_at || "n/a")}.`
+        : activity.detail,
+    },
+    {
+      id: "gateway",
+      label: "IBKR Gateway/API",
+      title: gateway.enabled ? gateway.reachable ? "Reachable" : "Down" : "Disabled",
+      status: gatewayStatus,
+      note: gateway.enabled
+        ? `${text(gateway.host)}:${text(gateway.port)} ${gateway.latency_ms === null || gateway.latency_ms === undefined ? "" : `${gateway.latency_ms}ms`}`
+        : "Gateway checks are disabled; replay can still work, paper/live cannot be proven.",
+    },
+    {
+      id: "market-data",
+      label: "Market Data Feed",
+      title: marketData.title,
+      status: marketData.status,
+      note: marketData.detail,
+    },
+    {
+      id: "saved-data",
+      label: "Saved History",
+      title: inventory.symbolCount || inventory.fileCount
+        ? `${numberText(inventory.symbolCount, 0)} symbols`
+        : "No Index",
+      status: inventory.status,
+      note: inventory.symbolCount || inventory.fileCount
+        ? `${numberText(inventory.fileCount, 0)} indexed files; ${inventory.indexComplete === false ? "partial scan" : "complete scan"}.`
+        : "No saved CSV/parquet files are visible from configured roots.",
+    },
+    {
+      id: "fetch-manifests",
+      label: "Fetch Manifests",
+      title: fetchRows.length ? `${numberText(fetchRows.length, 0)} job${fetchRows.length === 1 ? "" : "s"}` : "No Jobs",
+      status: fetchRows.length ? "ok" : manifestRootCount ? "warn" : "bad",
+      note: fetchRows.length
+        ? `Latest fetch evidence is visible; roots ${numberText(manifestRootCount, 0)}.`
+        : manifestRootCount
+          ? "Manifest roots exist, but no fetch job manifests are visible."
+          : "No readable fetch-manifest root is configured.",
+    },
+    {
+      id: "remote",
+      label: "Remote Publication",
+      title: remoteNodes.length ? `${numberText(remoteNodes.length, 0)} node${remoteNodes.length === 1 ? "" : "s"}` : "No Nodes",
+      status: remoteNodes.length ? remoteFreshCount ? "ok" : "warn" : "warn",
+      note: remoteNodes.length
+        ? `${numberText(remoteFreshCount, 0)} fresh remote snapshot${remoteFreshCount === 1 ? "" : "s"}; cloud visibility is sanitized status only.`
+        : "Remote/cloud monitoring is optional; local dashboard can still operate.",
+    },
+  ];
+  const bad = cards.filter((card) => card.status === "bad");
+  const warn = cards.filter((card) => card.status === "warn");
+  const status = bad.length ? "bad" : warn.length ? "warn" : "ok";
+  const note = bad.length
+    ? `${numberText(bad.length, 0)} backend pipeline blocker${bad.length === 1 ? "" : "s"}; start with ${bad[0].label}.`
+    : warn.length
+      ? `${numberText(warn.length, 0)} backend warning${warn.length === 1 ? "" : "s"}; data exists but some feeds/jobs need review.`
+      : "Receiver, runs, broker check, saved data, and publication evidence are visible.";
+  return { status, note, cards, alerts };
+}
+
+function renderBackendPipeline() {
+  if (!$("backend-pipeline-note") || !$("backend-pipeline-grid")) return;
+  const model = backendPipelineModel();
+  $("backend-pipeline-note").textContent = model.note;
+  $("backend-pipeline-note").className = `section-note ${statusClass(model.status)}`;
+  $("backend-pipeline-grid").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+}
+
 function runtimeActivityModel() {
   const activity = (state.status && state.status.runtime_activity) || {};
   const status = String(activity.status || "").toLowerCase();
@@ -7106,6 +7237,7 @@ function renderOverview() {
     meta: latestRun ? `runner ${text(latestRun.id)}` : "no current runner",
   });
   renderOverviewCommandCenter();
+  renderBackendPipeline();
   renderOverviewPerformanceSnapshot();
   renderOverviewGlance();
   renderOverviewHealthReport();
@@ -7238,6 +7370,7 @@ function overviewGlanceModel() {
   const source = latestArtifactPerformance();
   const positions = nonzeroPositionsFromSource(source);
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
+  const dataInventory = symbolInventoryModel();
   const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
   const artifactRows = runs
     .map((runItem) => ({ run: runItem, evidence: runItem.artifact_evidence || null }))
@@ -7271,7 +7404,7 @@ function overviewGlanceModel() {
     primary = { label: "Performance", target: "performance" };
     secondary = { label: "Runs", target: "runs" };
   }
-  if (datasets.length === 0 && !hasCurrentTelemetry) {
+  if (!dataInventory.fileCount && datasets.length === 0 && !hasCurrentTelemetry) {
     status = "bad";
     title = "Add Data Roots";
     summary = "No saved historical data is visible, so replay and benchmark workflows will be limited.";
@@ -7355,11 +7488,15 @@ function overviewGlanceModel() {
     },
     {
       label: "Saved Data",
-      value: numberText(datasets.length, 0),
-      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad",
-      detail: fetchManifests.length
-        ? `${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"} visible`
-        : "No fetch manifests loaded.",
+      value: dataInventory.symbolCount
+        ? `${numberText(dataInventory.symbolCount, 0)} symbols`
+        : numberText(datasets.length, 0),
+      status: dataInventory.fileCount ? dataInventory.status : datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad",
+      detail: dataInventory.fileCount
+        ? `${numberText(dataInventory.fileCount, 0)} indexed file${dataInventory.fileCount === 1 ? "" : "s"}; ${dataInventory.indexComplete === false ? "partial" : "complete"} root index.`
+        : fetchManifests.length
+          ? `${numberText(fetchManifests.length, 0)} fetch manifest${fetchManifests.length === 1 ? "" : "s"} visible`
+          : "No fetch manifests loaded.",
     },
   ];
 
@@ -29508,6 +29645,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderDataDetail();
     renderDataCompareControls();
     renderConfigBuilder();
+    renderOverview();
     renderMetrics();
     renderPageIntro();
     $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()}`;

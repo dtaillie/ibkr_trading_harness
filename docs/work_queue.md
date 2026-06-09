@@ -248,6 +248,13 @@ strategy-private.
     Operations Paper show this directly as Runtime Activity so "Gateway
     reachable" is no longer confused with "a strategy is actively running or
     evaluating."
+  - partial; Overview now includes a Backend Pipeline strip that separates
+    dashboard receiver freshness, status publisher/run visibility, supervisor
+    jobs, IBKR Gateway/API reachability, market-data health, saved-history
+    index breadth, fetch manifests, and remote publication. This makes
+    "disconnected/no data" states point at the actual failing layer instead of
+    collapsing healthy saved data, stale market data, and missed job windows
+    into one vague warning.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
