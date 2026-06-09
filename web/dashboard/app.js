@@ -12911,18 +12911,64 @@ function dataHistoryMatrixUsesBackendRows(payload = state.dataHistoryMatrix || {
   return dataServerFilterMapsEqual(payload.filters || {}, dataServerFilterMap());
 }
 
-function dataCatalogServerFilterLabels() {
-  const filters = dataCatalogFilters();
+function dataServerFilterLabelsFromMap(map = {}) {
+  const normalized = normalizedDataServerFilterMap(map);
   return [
-    filters.text ? `search ${filters.text}` : "",
-    filters.asset ? `asset ${filters.asset}` : "",
-    filters.source ? `source ${filters.source}` : "",
-    filters.bar ? `bar ${filters.bar}` : "",
-    filters.session ? `session ${filters.session}` : "",
-    filters.quality ? `quality ${filters.quality}` : "",
-    filters.contract ? `contract ${filters.contract}` : "",
-    filters.replay ? `replay ${filters.replay}` : "",
+    normalized.query ? `search ${normalized.query}` : "",
+    normalized.asset_class ? `asset ${normalized.asset_class}` : "",
+    normalized.source ? `source ${normalized.source}` : "",
+    normalized.bar_size ? `bar ${normalized.bar_size}` : "",
+    normalized.storage_session ? `session ${normalized.storage_session}` : "",
+    normalized.quality_status ? `quality ${normalized.quality_status}` : "",
+    normalized.storage_contract_status ? `contract ${normalized.storage_contract_status}` : "",
+    normalized.replay_status ? `replay ${normalized.replay_status}` : "",
   ].filter(Boolean);
+}
+
+function dataCatalogServerFilterLabels() {
+  return dataServerFilterLabelsFromMap(dataServerFilterMap());
+}
+
+function dataCatalogServerScopeModel(catalog = state.dataCatalog || {}) {
+  const loadState = dataLibraryLoadState();
+  const currentMap = dataServerFilterMap();
+  const loadedMap = catalog.filters || {};
+  const currentLabels = dataServerFilterLabelsFromMap(currentMap);
+  const loadedLabels = dataServerFilterLabelsFromMap(loadedMap);
+  const loaded = Boolean(loadState.catalogLoaded || (catalog.datasets || []).length || catalog.count);
+  if (!loaded) {
+    return {
+      status: "waiting",
+      title: "No backend scan loaded",
+      note: currentLabels.length
+        ? `Current controls are set to ${currentLabels.join(" / ")}; run Search Scan to load that scope.`
+        : "Refresh or run Search Scan to load the backend catalog scope.",
+      currentLabels,
+      loadedLabels,
+      applied: false,
+    };
+  }
+  const applied = dataServerFilterMapsEqual(loadedMap, currentMap);
+  if (applied) {
+    return {
+      status: currentLabels.length ? "ok" : "neutral",
+      title: currentLabels.length ? "Backend-applied filters" : "Unfiltered backend scan",
+      note: currentLabels.length
+        ? `Backend scan matches ${currentLabels.join(" / ")}.`
+        : "No server-side filters are active on the loaded catalog scan.",
+      currentLabels,
+      loadedLabels,
+      applied: true,
+    };
+  }
+  return {
+    status: "warn",
+    title: "Local preview only",
+    note: `Current controls are ${currentLabels.length ? currentLabels.join(" / ") : "unfiltered"}, but the loaded backend scan is ${loadedLabels.length ? loadedLabels.join(" / ") : "unfiltered"}. Run Search Scan to apply these filters server-side.`,
+    currentLabels,
+    loadedLabels,
+    applied: false,
+  };
 }
 
 async function refreshRootIndexFromServerFilters() {
@@ -13339,7 +13385,9 @@ function renderDataCatalog() {
   if ($("data-catalog-page-note")) {
     const scanLimit = Number(catalog.scan_limit || limit || 0);
     const serverFilters = dataCatalogServerFilterLabels();
+    const scope = dataCatalogServerScopeModel(catalog);
     $("data-catalog-page-note").textContent = [
+      `${scope.title}: ${scope.note}`,
       serverFilters.length ? `server filters: ${serverFilters.join(" / ")}` : "",
       limit ? `Page size ${numberText(limit, 0)}` : "",
       scanLimit ? `scanned through ${numberText(scanLimit, 0)}` : "",
@@ -13395,6 +13443,7 @@ function renderDataCatalog() {
   const filterLabel = [
     `${numberText(filtered.length, 0)} shown / ${numberText(datasets.length, 0)} found`,
     indexStatus,
+    dataCatalogServerScopeModel(catalog).title,
     `scope ${text(catalog.catalog_visibility_status || "unknown")}`,
     `capped roots ${numberText(catalog.scan_capped_root_count || 0, 0)}`,
     `quality ${countSummary(catalog.quality_counts)}`,
@@ -13694,6 +13743,11 @@ function clearDataCatalogFilters() {
   $("data-filter-replay").value = "";
   $("data-filter-sort").value = "modified_desc";
   state.manifestPathFilter = null;
+}
+
+function handleDataServerFilterControlChange() {
+  setDataCatalogOffset(0);
+  renderDataCatalog();
 }
 
 function catalogScopeIsCapped(catalog = {}) {
@@ -31921,14 +31975,14 @@ function init() {
       $("last-refresh").textContent = `Cleanup failed: ${err.message}`;
     });
   });
-  $("data-filter-text").addEventListener("input", renderDataCatalog);
-  $("data-filter-quality").addEventListener("change", renderDataCatalog);
-  $("data-filter-bar").addEventListener("change", renderDataCatalog);
-  $("data-filter-asset").addEventListener("change", renderDataCatalog);
-  $("data-filter-source").addEventListener("change", renderDataCatalog);
-  $("data-filter-session").addEventListener("change", renderDataCatalog);
-  $("data-filter-contract").addEventListener("change", renderDataCatalog);
-  $("data-filter-replay").addEventListener("change", renderDataCatalog);
+  $("data-filter-text").addEventListener("input", handleDataServerFilterControlChange);
+  $("data-filter-quality").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-bar").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-asset").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-source").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-session").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-contract").addEventListener("change", handleDataServerFilterControlChange);
+  $("data-filter-replay").addEventListener("change", handleDataServerFilterControlChange);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
   $("data-filter-server-search").addEventListener("click", () => {
     setDataCatalogOffset(0);

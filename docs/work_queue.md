@@ -1185,6 +1185,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     - partial; Data Library Browse now has an explicit facet summary that shows
       active filters plus visible asset, source, bar, session, quality, and
       storage-contract breakdowns before the dense saved-file table.
+    - partial; Data Library Browse now labels whether the current filter
+      controls match the loaded backend catalog scope or are only a local
+      preview of the previously loaded scan. Server-relevant filter changes
+      reset catalog pagination and the catalog page note points users to Search
+      Scan when the backend scope is stale.
     - partial; Data Library Browse now includes a Saved Data Explorer that
       groups the bounded catalog by asset, source, bar size, storage session,
       quality, and storage-contract state, with one-click filters and summary
