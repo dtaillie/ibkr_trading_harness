@@ -572,6 +572,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_history_matrix",
+        "category": "data",
+        "description": "Return saved-data grouped history inventory by asset/source/bar/session.",
+        "response": "JSON saved history matrix",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_directory_export",
         "category": "data",
         "description": "Download saved-data symbol-level universe summaries.",
@@ -4398,6 +4405,138 @@ def build_data_symbol_directory(
         "storage_session_counts": count_list_values(symbols, "storage_sessions"),
         "quality_status_counts": merge_count_fields(symbols, "quality_counts"),
         "storage_contract_status_counts": merge_count_fields(symbols, "storage_contract_counts"),
+        "root_inventory": catalog.get("root_inventory"),
+        "catalog_visibility_status": catalog.get("catalog_visibility_status"),
+        "catalog_complete": catalog.get("catalog_complete"),
+        "scan_cache": catalog.get("scan_cache"),
+    }
+
+
+def data_replay_status(row: dict[str, Any]) -> str:
+    quality = str(row.get("quality_status") or "").lower()
+    contract = str(row.get("storage_contract_status") or "").lower()
+    adjustment = str(row.get("adjustment_status") or "").lower()
+    timezone_label = str(row.get("source_timezone") or "").lower()
+    missing = int(row.get("estimated_missing_intervals") or 0)
+    warnings = [
+        *(row.get("quality_warnings") or []),
+        *(row.get("storage_contract_warnings") or []),
+    ]
+    if quality == "bad" or contract == "bad":
+        return "bad"
+    if (
+        quality == "warn"
+        or contract == "warn"
+        or missing > 0
+        or timezone_label in {"", "unknown", "n/a"}
+        or adjustment == "unknown"
+        or warnings
+    ):
+        return "warn"
+    return "ok"
+
+
+def build_data_history_matrix(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    filters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    catalog = build_data_catalog(data_roots, limit=limit, preview_points=2, filters=filters)
+    groups: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    for dataset in catalog.get("datasets", []):
+        asset = str(dataset.get("asset_class") or "unknown")
+        source = str(dataset.get("source") or "unknown")
+        bar = str(dataset.get("bar_size") or "unknown")
+        session = str(dataset.get("storage_session") or "unknown")
+        key = (asset, source, bar, session)
+        group = groups.setdefault(key, {
+            "asset": asset,
+            "asset_class": asset,
+            "source": source,
+            "bar": bar,
+            "bar_size": bar,
+            "session": session,
+            "storage_session": session,
+            "symbols": set(),
+            "file_count": 0,
+            "row_count": 0,
+            "first": None,
+            "last": None,
+            "latest_modified": None,
+            "replay_counts": {},
+            "quality_counts": {},
+            "contract_counts": {},
+            "storage_contract_counts": {},
+        })
+        symbol = str(dataset.get("symbol") or "").strip()
+        if symbol:
+            group["symbols"].add(symbol)
+        group["file_count"] += 1
+        group["row_count"] += int(dataset.get("rows") or 0)
+        for field, target in (
+            ("first_timestamp", "first"),
+            ("last_timestamp", "last"),
+            ("modified_at", "latest_modified"),
+        ):
+            parsed = parse_status_timestamp(dataset.get(field))
+            if parsed is None:
+                continue
+            current = group[target]
+            if target == "first":
+                group[target] = parsed if current is None or parsed < current else current
+            else:
+                group[target] = parsed if current is None or parsed > current else current
+        replay_status = data_replay_status(dataset)
+        group["replay_counts"][replay_status] = group["replay_counts"].get(replay_status, 0) + 1
+        quality = str(dataset.get("quality_status") or "unknown")
+        group["quality_counts"][quality] = group["quality_counts"].get(quality, 0) + 1
+        contract = str(dataset.get("storage_contract_status") or "unknown")
+        group["contract_counts"][contract] = group["contract_counts"].get(contract, 0) + 1
+        group["storage_contract_counts"][contract] = group["storage_contract_counts"].get(contract, 0) + 1
+
+    rows = []
+    for group in groups.values():
+        replay_bad = int(group["replay_counts"].get("bad") or 0)
+        replay_warn = int(group["replay_counts"].get("warn") or 0)
+        status = "bad" if replay_bad else "warn" if replay_warn else "ok"
+        first = group.pop("first")
+        last = group.pop("last")
+        latest_modified = group.pop("latest_modified")
+        symbols = sorted(group.pop("symbols"))
+        rows.append({
+            **group,
+            "symbols": symbols,
+            "symbol_count": len(symbols),
+            "status": status,
+            "replay_status": status,
+            "first_timestamp": first.isoformat() if first else None,
+            "last_timestamp": last.isoformat() if last else None,
+            "latest_modified_at": latest_modified.isoformat() if latest_modified else None,
+            "first_label": first.date().isoformat() if first else "n/a",
+            "last_label": last.date().isoformat() if last else "n/a",
+        })
+    rows.sort(key=lambda item: (
+        -int(item.get("symbol_count") or 0),
+        -int(item.get("row_count") or 0),
+        f"{item.get('asset')} {item.get('source')} {item.get('bar')} {item.get('session')}",
+    ))
+    return {
+        "generated_at": utc_now(),
+        "roots": catalog.get("roots", []),
+        "limit": catalog.get("limit", limit),
+        "filters": catalog.get("filters", filters or {}),
+        "rows": rows,
+        "groups": rows,
+        "group_count": len(rows),
+        "file_count": sum(int(row.get("file_count") or 0) for row in rows),
+        "symbol_count": len({symbol for row in rows for symbol in row.get("symbols", [])}),
+        "row_count_total": sum(int(row.get("row_count") or 0) for row in rows),
+        "status_counts": count_values(rows, "status"),
+        "asset_class_counts": count_values(rows, "asset"),
+        "source_counts": count_values(rows, "source"),
+        "bar_size_counts": count_values(rows, "bar"),
+        "storage_session_counts": count_values(rows, "session"),
         "root_inventory": catalog.get("root_inventory"),
         "catalog_visibility_status": catalog.get("catalog_visibility_status"),
         "catalog_complete": catalog.get("catalog_complete"),
@@ -12290,6 +12429,38 @@ class StatusHandler(BaseHTTPRequestHandler):
                         "filters": filters,
                     },
                     lambda: build_data_symbol_directory(
+                        self.data_roots,
+                        limit=limit,
+                        filters=filters,
+                    ),
+                    bypass=bypass_cache,
+                )
+                payload["default_limit"] = self.data_catalog_default_limit
+                payload["max_limit"] = self.data_catalog_max_limit
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_history_matrix":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                filters = parse_data_symbol_index_filters(params)
+                bypass_cache = truthy_param(params.get("refresh", [""])[0])
+                payload = cached_data_library_payload(
+                    "data_history_matrix",
+                    self.data_roots,
+                    {
+                        "limit": limit,
+                        "filters": filters,
+                    },
+                    lambda: build_data_history_matrix(
                         self.data_roots,
                         limit=limit,
                         filters=filters,

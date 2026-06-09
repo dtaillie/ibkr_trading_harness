@@ -1188,6 +1188,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       users can see the historical-bar inventory before searching a ticker.
     - partial; Saved History Matrix can now export its current grouped
       inventory to CSV for offline universe review.
+    - partial; Saved History Matrix now has a first-class
+      `/data_history_matrix` JSON endpoint with grouped asset/source/bar/
+      session inventory, replay-readiness counts, quality/storage-contract
+      counts, scan-cache metadata, and dashboard fallback to client grouping.
     - partial; Saved History Matrix rows now provide direct Browse, Inspect,
       Compare, and Workbench actions for the grouped asset/source/bar/session
       slice, so users can move from inventory review to charting or simulation

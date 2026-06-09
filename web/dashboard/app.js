@@ -4,6 +4,7 @@ const state = {
   dataCatalog: { datasets: [], errors: [] },
   dataSymbolIndex: { symbols: [], files: [], errors: [] },
   dataSymbolDirectory: { symbols: [], symbol_summaries: [], errors: [] },
+  dataHistoryMatrix: { rows: [], groups: [], errors: [] },
   dataDetail: null,
   dataDetailPath: "",
   dataCoverage: { symbols: [], date_bins: [], errors: [] },
@@ -442,6 +443,7 @@ function dataLibraryLoadState() {
       catalogOffset: 0,
       lastCatalogFetchMs: null,
       lastSymbolDirectoryFetchMs: null,
+      lastHistoryMatrixFetchMs: null,
       lastSymbolIndexFetchMs: null,
       lastDataLibraryFetchMs: null,
       lastSymbolIndexLimit: null,
@@ -12863,6 +12865,10 @@ function dataSymbolDirectoryServerQueryParams() {
   return params;
 }
 
+function dataHistoryMatrixServerQueryParams() {
+  return dataSymbolDirectoryServerQueryParams();
+}
+
 function dataCatalogServerFilterLabels() {
   const filters = dataCatalogFilters();
   return [
@@ -14992,6 +14998,23 @@ function renderDataHistoryReview(filteredRows = []) {
 }
 
 function dataHistoryMatrixRows(rows = []) {
+  const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
+  if ((!rows || !rows.length) && backendRows.length) {
+    return backendRows.map((group) => ({
+      ...group,
+      asset: text(group.asset || group.asset_class),
+      source: text(group.source),
+      bar: text(group.bar || group.bar_size),
+      session: text(group.session || group.storage_session),
+      status: text(group.status || group.replay_status),
+      first_label: text(group.first_label || (group.first_timestamp ? String(group.first_timestamp).slice(0, 10) : "n/a")),
+      last_label: text(group.last_label || (group.last_timestamp ? String(group.last_timestamp).slice(0, 10) : "n/a")),
+      latest_label: group.latest_label || (group.latest_modified_at ? shortTimestampAgeLabel(group.latest_modified_at) : "n/a"),
+      replay_counts: group.replay_counts || {},
+      quality_counts: group.quality_counts || {},
+      contract_counts: group.contract_counts || group.storage_contract_counts || {},
+    }));
+  }
   const groups = new Map();
   for (const dataset of rows || []) {
     const asset = text(dataset.asset_class);
@@ -15058,7 +15081,8 @@ function renderDataHistoryMatrix(filteredRows = []) {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
   const rows = activeFilters.length ? filteredRows : catalogRows;
-  const matrix = dataHistoryMatrixRows(rows);
+  const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
+  const matrix = !activeFilters.length && backendRows.length ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
   const totalSymbols = new Set((rows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
   const shown = matrix.slice(0, 18);
   $("data-history-matrix-note").textContent = rows.length
@@ -30256,12 +30280,14 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   loadState.diagnosticsRequested = Boolean(includeDiagnostics);
   state.dataSymbolIndex = { symbols: [], files: [], errors: [] };
   state.dataSymbolDirectory = { symbols: [], symbol_summaries: [], errors: [] };
+  state.dataHistoryMatrix = { rows: [], groups: [], errors: [] };
   state.dataCoverage = { symbols: [], date_bins: [], errors: [] };
   state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
   state.dataMinuteHeatmap = { rows: [], errors: [] };
   state.dataStorageAudit = { configured_roots: [], suggested_roots: [], warnings: [] };
   loadState.lastCatalogFetchMs = null;
   loadState.lastSymbolDirectoryFetchMs = null;
+  loadState.lastHistoryMatrixFetchMs = null;
   loadState.lastSymbolIndexFetchMs = null;
   loadState.lastDataLibraryFetchMs = null;
   loadState.lastSymbolIndexLimit = Number(decodeURIComponent(symbolIndexLimit));
@@ -30296,6 +30322,26 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
       };
     }
     loadState.lastSymbolDirectoryFetchMs = performance.now() - directoryStarted;
+    const fallbackHistoryMatrixRows = dataHistoryMatrixRows(dataCatalog.datasets || []);
+    let dataHistoryMatrix = {
+      rows: fallbackHistoryMatrixRows,
+      groups: fallbackHistoryMatrixRows,
+      errors: [],
+      source: "catalog_fallback",
+    };
+    const matrixParams = dataHistoryMatrixServerQueryParams();
+    if (force) matrixParams.set("refresh", "1");
+    const matrixStarted = performance.now();
+    try {
+      dataHistoryMatrix = await fetchJson(`/data_history_matrix?${matrixParams.toString()}`);
+    } catch (matrixErr) {
+      dataHistoryMatrix = {
+        ...dataHistoryMatrix,
+        errors: [{ error: matrixErr.message }],
+        matrix_error: matrixErr.message,
+      };
+    }
+    loadState.lastHistoryMatrixFetchMs = performance.now() - matrixStarted;
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
     const indexStarted = performance.now();
     try {
@@ -30308,6 +30354,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     if (requestId !== loadState.requestId) return;
     state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
     state.dataSymbolDirectory = dataSymbolDirectory || { symbols: [], symbol_summaries: [], errors: [] };
+    state.dataHistoryMatrix = dataHistoryMatrix || { rows: [], groups: [], errors: [] };
     state.dataSymbolIndex = dataSymbolIndex || { symbols: [], files: [], errors: [] };
     loadState.catalogLoaded = true;
     loadState.catalogLoading = false;
@@ -30320,8 +30367,9 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderPageIntro();
     const catalogCacheStatus = text((state.dataCatalog.scan_cache || {}).status || "n/a");
     const directoryCacheStatus = text((state.dataSymbolDirectory.scan_cache || {}).status || "n/a");
+    const matrixCacheStatus = text((state.dataHistoryMatrix.scan_cache || {}).status || "n/a");
     const indexCacheStatus = text((state.dataSymbolIndex.scan_cache || {}).status || "n/a");
-    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} (${catalogCacheStatus}) / symbols ${durationMsText(loadState.lastSymbolDirectoryFetchMs)} (${directoryCacheStatus}) / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)} (${indexCacheStatus})`;
+    $("last-refresh").textContent = `Data catalog loaded: ${new Date().toLocaleString()} / catalog ${durationMsText(loadState.lastCatalogFetchMs)} (${catalogCacheStatus}) / symbols ${durationMsText(loadState.lastSymbolDirectoryFetchMs)} (${directoryCacheStatus}) / matrix ${durationMsText(loadState.lastHistoryMatrixFetchMs)} (${matrixCacheStatus}) / root index ${durationMsText(loadState.lastSymbolIndexFetchMs)} (${indexCacheStatus})`;
     if (includeDiagnostics || loadState.diagnosticsRequested) {
       await refreshDataDiagnostics({ force });
     }
@@ -31313,7 +31361,8 @@ function downloadDataHistoryMatrixCsv() {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
   const rows = activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
-  const matrix = dataHistoryMatrixRows(rows);
+  const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
+  const matrix = !activeFilters.length && backendRows.length ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
   const header = [
     "asset_class",
     "source",
