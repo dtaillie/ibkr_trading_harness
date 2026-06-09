@@ -1663,6 +1663,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "dashboard-api-health-note" in html
         assert "dashboard-api-health-cards" in html
         assert "dashboard-api-health-body" in html
+        assert "export-data-symbol-batch-csv" in html
+        assert "copy-symbol-batch-report" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
@@ -1686,6 +1688,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime_session_detail" in js
         assert "function renderSymbolBatchDiagnostic" in js
         assert "data_symbol_diagnostics" in js
+        assert "data_symbol_diagnostics_export" in js
+        assert "function copySymbolBatchDiagnosticReport" in js
     finally:
         server.shutdown()
         server.server_close()
@@ -1732,6 +1736,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_minute_heatmap_export") in endpoints
         assert ("GET", "/data_symbol_diagnostic") in endpoints
         assert ("GET", "/data_symbol_diagnostics") in endpoints
+        assert ("GET", "/data_symbol_diagnostics_export") in endpoints
         assert ("GET", "/data_storage_audit") in endpoints
         assert ("GET", "/data_storage_audit_export") in endpoints
         assert ("POST", "/data_compare") in endpoints
@@ -2892,6 +2897,18 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert [row["symbol"] for row in batch["rows"]] == ["SPY", "MISSING"]
         assert batch["rows"][0]["visible_match_count"] == 1
         assert batch["rows"][1]["action"] == "Fetch the symbol or add the directory containing it to dashboard.data_roots."
+        with request.urlopen(f"{base}/data_symbol_diagnostics?symbols=SPY,SPY&limit=5&max_symbols=10", timeout=5) as resp:
+            duplicate_batch = json.loads(resp.read().decode("utf-8"))
+        assert duplicate_batch["requested_count"] == 1
+        assert duplicate_batch["truncated"] is False
+        with request.urlopen(f"{base}/data_symbol_diagnostics_export?symbols=SPY,MISSING&limit=5&max_symbols=10", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            diagnostics_csv = resp.read().decode("utf-8")
+        diagnostics_rows = list(csv.DictReader(io.StringIO(diagnostics_csv)))
+        assert [row["symbol"] for row in diagnostics_rows] == ["SPY", "MISSING"]
+        assert diagnostics_rows[0]["status"] == "visible"
+        assert diagnostics_rows[0]["visible_match_count"] == "1"
+        assert diagnostics_rows[1]["status"] == "not_found"
     finally:
         server.shutdown()
         server.server_close()

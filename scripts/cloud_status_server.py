@@ -649,6 +649,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_symbol_diagnostics_export",
+        "category": "data",
+        "description": "Download bounded visibility diagnostics for a pasted symbol universe.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_detail_export",
         "category": "data",
         "description": "Download the current saved-data detail date range as normalized CSV.",
@@ -3997,6 +4004,21 @@ DATA_SYMBOL_INDEX_EXPORT_FIELDS = (
 )
 
 
+DATA_SYMBOL_DIAGNOSTICS_EXPORT_FIELDS = (
+    "symbol",
+    "status",
+    "diagnostic_status",
+    "message",
+    "action",
+    "visible_match_count",
+    "configured_candidate_count",
+    "unconfigured_match_count",
+    "parse_error_count",
+    "limit_blocked_count",
+    "fetch_error_count",
+)
+
+
 DATA_CATALOG_SCAN_EXPORT_FIELDS = (
     "row_type",
     "path",
@@ -5236,6 +5258,10 @@ def parse_symbol_universe(raw: str, *, max_symbols: int = 50) -> list[str]:
     return symbols
 
 
+def symbol_universe_token_count(raw: str) -> int:
+    return sum(1 for item in re.split(r"[\s,;]+", raw.strip().upper()) if item.strip())
+
+
 def build_data_symbol_diagnostics(
     raw_symbols: str,
     *,
@@ -5282,7 +5308,7 @@ def build_data_symbol_diagnostics(
         "symbols": symbols,
         "requested_count": len(symbols),
         "max_symbols": max_symbols,
-        "truncated": len(re.split(r"[\s,;]+", raw_symbols.strip())) > len(symbols),
+        "truncated": symbol_universe_token_count(raw_symbols) > max_symbols,
         "catalog_limit": catalog_limit,
         "rows": rows,
         "diagnostics": diagnostics,
@@ -5291,6 +5317,32 @@ def build_data_symbol_diagnostics(
         "visible_count": sum(1 for row in rows if row.get("status") == "visible"),
         "missing_count": sum(1 for row in rows if row.get("status") != "visible"),
     }
+
+
+def build_data_symbol_diagnostics_csv(
+    raw_symbols: str,
+    *,
+    data_roots: list[Path],
+    fetch_manifest_roots: list[Path],
+    catalog_limit: int = 200,
+    max_symbols: int = 50,
+) -> str:
+    payload = build_data_symbol_diagnostics(
+        raw_symbols,
+        data_roots=data_roots,
+        fetch_manifest_roots=fetch_manifest_roots,
+        catalog_limit=catalog_limit,
+        max_symbols=max_symbols,
+    )
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_DIAGNOSTICS_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in payload.get("rows", []):
+        writer.writerow({
+            field: compact_csv_value(row.get(field))
+            for field in DATA_SYMBOL_DIAGNOSTICS_EXPORT_FIELDS
+        })
+    return out.getvalue()
 
 
 def fetch_manifest_root_row(root: Path) -> dict[str, Any]:
@@ -12456,6 +12508,35 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_diagnostics_export":
+            if not self.require_auth():
+                return
+            raw_symbols = str(params.get("symbols", [""])[0]).strip()
+            try:
+                catalog_limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                max_symbols = parse_int_param(params, "max_symbols", default=50, minimum=1, maximum=50)
+                csv_body = build_data_symbol_diagnostics_csv(
+                    raw_symbols,
+                    data_roots=self.data_roots,
+                    fetch_manifest_roots=self.fetch_manifest_roots,
+                    catalog_limit=catalog_limit,
+                    max_symbols=max_symbols,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_symbol_diagnostics.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_storage_audit":
             if not self.require_auth():

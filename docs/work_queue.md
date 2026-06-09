@@ -358,7 +358,9 @@ strategy-private.
       Check backed by `/data_symbol_diagnostics`, so pasted watchlists or
       strategy universes can be checked for catalog-visible, configured,
       unconfigured, parse-error, fetch-error, catalog-limited, and missing
-      states in one pass instead of diagnosing one ticker at a time.
+      states in one pass instead of diagnosing one ticker at a time; the batch
+      result can now be exported as CSV, copied as a text report, and each row
+      can launch the deeper single-symbol diagnostic.
     - partial; Fetch Jobs can now copy a `dashboard.fetch_manifest_roots` YAML
       block from visible manifest roots, giving users the matching config fix
       for fetch-history visibility.

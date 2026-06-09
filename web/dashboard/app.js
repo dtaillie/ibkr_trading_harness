@@ -26,6 +26,7 @@ const state = {
   dataCompareSelectionCleared: false,
   symbolDiagnostic: null,
   symbolBatchDiagnostic: null,
+  symbolBatchDiagnosticReportText: "",
   symbolTypeaheadActiveIndex: 0,
   fetchManifests: { manifests: [], roots: [], errors: [] },
   runtimeSessions: { sessions: [], errors: [] },
@@ -17380,6 +17381,9 @@ function renderSymbolBatchDiagnostic() {
   const rows = payload.rows || [];
   const statusCounts = payload.status_counts || {};
   const diagnosticCounts = payload.diagnostic_status_counts || {};
+  state.symbolBatchDiagnosticReportText = symbolBatchDiagnosticReportText(payload);
+  if ($("export-data-symbol-batch-csv")) $("export-data-symbol-batch-csv").disabled = !rows.length;
+  if ($("copy-symbol-batch-report")) $("copy-symbol-batch-report").disabled = !rows.length;
   $("data-symbol-batch-note").textContent = payload.requested_count
     ? `${numberText(payload.visible_count || 0, 0)} visible / ${numberText(payload.missing_count || 0, 0)} need action across ${numberText(payload.requested_count, 0)} checked symbol${payload.requested_count === 1 ? "" : "s"}.`
     : "Paste up to 50 symbols to check catalog-visible, configured-but-limited, unconfigured, parse-error, fetch-error, or missing states.";
@@ -17425,8 +17429,34 @@ function renderSymbolBatchDiagnostic() {
         escapeHtml(numberText(item.unconfigured_match_count, 0)),
         escapeHtml(text(item.message)),
         escapeHtml(text(item.action)),
+        `<button class="secondary compact-button diagnose-batch-symbol" type="button" data-symbol="${escapeHtml(item.symbol)}">Diagnose</button>`,
       ])).join("")
-    : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", ""]);
+    : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", "", ""]);
+}
+
+function symbolBatchDiagnosticReportText(payload = {}) {
+  const rows = payload.rows || [];
+  if (!rows.length) return "No universe visibility check loaded.";
+  const lines = [
+    "Universe Visibility Check",
+    `Generated: ${text(payload.generated_at)}`,
+    `Checked: ${numberText(payload.requested_count, 0)} / visible=${numberText(payload.visible_count, 0)} / need_action=${numberText(payload.missing_count, 0)}`,
+    `Catalog Limit: ${numberText(payload.catalog_limit, 0)} / capped=${payload.truncated ? "true" : "false"}`,
+    `Status Counts: ${countSummary(payload.status_counts || {})}`,
+    `Diagnostic Counts: ${countSummary(payload.diagnostic_status_counts || {})}`,
+    "Rows:",
+    ...rows.map((item, index) => [
+      `${index + 1}. ${text(item.symbol)}`,
+      `status=${text(item.status)}`,
+      `diagnostic=${text(item.diagnostic_status)}`,
+      `visible=${numberText(item.visible_match_count, 0)}`,
+      `configured=${numberText(item.configured_candidate_count, 0)}`,
+      `unconfigured=${numberText(item.unconfigured_match_count, 0)}`,
+      `issue=${text(item.message)}`,
+      `next=${text(item.action)}`,
+    ].join(" | ")),
+  ];
+  return lines.join("\n");
 }
 
 function symbolDiagnosticReportText(diagnostic = {}) {
@@ -30666,6 +30696,48 @@ async function diagnoseSymbolUniverse(event) {
   $("last-refresh").textContent = `Universe visibility check loaded: ${new Date().toLocaleString()}`;
 }
 
+async function diagnoseBatchSymbol(symbol) {
+  const cleaned = text(symbol).trim();
+  if (!cleaned) return;
+  $("data-symbol-input").value = cleaned;
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const response = await fetchJson(`/data_symbol_diagnostic?symbol=${encodeURIComponent(cleaned)}&limit=${catalogLimit}`);
+  state.symbolDiagnostic = response;
+  renderSymbolDiagnostic();
+  renderSymbolVisibilityExplainer();
+  if (activeView() === "data") applyDataLens("diagnostics");
+  $("last-refresh").textContent = `Symbol diagnostic loaded from batch: ${cleaned}`;
+}
+
+async function downloadSymbolBatchDiagnosticsCsv() {
+  const payloadSymbols = ((state.symbolBatchDiagnostic || {}).symbols || []).join(",");
+  const symbols = payloadSymbols || $("data-symbol-batch-input").value.trim();
+  if (!symbols) {
+    $("data-symbol-batch-note").innerHTML = `<span class="status-bad">Enter one or more symbols</span>`;
+    return;
+  }
+  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
+  const body = await fetchText(`/data_symbol_diagnostics_export?symbols=${encodeURIComponent(symbols)}&limit=${catalogLimit}&max_symbols=50`);
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "data_symbol_diagnostics.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  $("last-refresh").textContent = `Universe visibility CSV exported: ${new Date().toLocaleString()}`;
+}
+
+function copySymbolBatchDiagnosticReport() {
+  copyText(state.symbolBatchDiagnosticReportText || "No universe visibility check loaded.").then(() => {
+    $("last-refresh").textContent = "Universe visibility report copied";
+  }).catch((err) => {
+    $("last-refresh").textContent = `Universe visibility report copy failed: ${err.message}`;
+  });
+}
+
 async function loadFetchManifestDetail(jobId) {
   const response = await fetchJson(`/fetch_manifest_detail?job_id=${encodeURIComponent(jobId)}&limit=500`);
   state.fetchManifestDetail = response;
@@ -32529,6 +32601,19 @@ function init() {
     });
   });
   $("copy-symbol-diagnostic-report").addEventListener("click", copySymbolDiagnosticReport);
+  $("export-data-symbol-batch-csv").addEventListener("click", () => {
+    downloadSymbolBatchDiagnosticsCsv().catch((err) => {
+      $("data-symbol-batch-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("copy-symbol-batch-report").addEventListener("click", copySymbolBatchDiagnosticReport);
+  $("data-symbol-batch-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest(".diagnose-batch-symbol") : null;
+    if (!(target instanceof HTMLElement)) return;
+    diagnoseBatchSymbol(target.dataset.symbol || "").catch((err) => {
+      $("data-symbol-diagnostic-status").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
   $("data-detail-form").addEventListener("submit", (event) => {
     reloadDataDetail(event).catch((err) => {
       $("data-detail-viewer-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;

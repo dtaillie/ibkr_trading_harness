@@ -1748,6 +1748,8 @@
             <textarea id="data-symbol-batch-input" rows="3" placeholder="AAPL, MSFT, NVDA, BTC-USD"></textarea>
           </label>
           <button type="submit">Check Universe</button>
+          <button id="export-data-symbol-batch-csv" class="secondary" type="button" disabled>Export CSV</button>
+          <button id="copy-symbol-batch-report" class="secondary" type="button" disabled>Copy Report</button>
         </form>
         <div id="data-symbol-batch-cards" class="action-card-grid"></div>
         <div class="table-wrap compact-table">
@@ -1761,6 +1763,7 @@
                 <th>Unconfigured</th>
                 <th>Issue</th>
                 <th>Next Step</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="data-symbol-batch-body"></tbody>
