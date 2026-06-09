@@ -1133,6 +1133,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-action-note" in html
         assert "data-action-cards" in html
         assert "data-action-actions" in html
+        assert "data-backend-status-note" in html
+        assert "data-backend-status-cards" in html
+        assert "data-backend-status-actions" in html
+        assert "data-backend-status-body" in html
         assert "data-root-index-spotlight-note" in html
         assert "data-root-index-spotlight-cards" in html
         assert "data-root-index-spotlight-symbols" in html
@@ -1695,6 +1699,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function downloadDashboardApiHealthCsv" in js
         assert "async function checkDashboardDataApis" in js
         assert "Checking Data Library backend APIs" in js
+        assert "function renderDataBackendStatus" in js
+        assert "data-data-backend-status-action" in js
+        assert "Open API Health" in js
         assert "dashboard_api_health.csv" in js
         assert "Required Status" in js
         assert "Data Endpoints" in js

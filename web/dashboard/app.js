@@ -6300,6 +6300,96 @@ function renderDashboardApiHealth() {
       escapeHtml(item.detail),
     ])).join("")
     : row([`<span class="muted">No dashboard API refresh evidence has been recorded yet.</span>`, "", ""]);
+  renderDataBackendStatus();
+}
+
+function dataBackendStatusModel() {
+  const rows = (state.dataEndpointContracts || []);
+  const ok = rows.filter((item) => item.status === "ok").length;
+  const issues = rows.filter((item) => item.status !== "ok");
+  const loadState = dataLibraryLoadState();
+  const loading = Boolean(loadState.catalogLoading || loadState.diagnosticsLoading);
+  const status = loading ? "warn" : issues.length ? "warn" : rows.length ? "ok" : "bad";
+  const title = loading
+    ? "Checking"
+    : rows.length
+      ? `${numberText(ok, 0)} / ${numberText(rows.length, 0)} OK`
+      : "No Checks";
+  const note = loading
+    ? "Data Library backend checks are running."
+    : issues.length
+      ? `First issue: ${text(issues[0].label)}. Use Check Data APIs for a fresh probe or export the report.`
+      : rows.length
+        ? "Catalog, root-index, and diagnostics backend checks are visible."
+        : "Run Check Data APIs to probe saved-data backend endpoints from this page.";
+  const cards = [
+    {
+      status,
+      label: "Data APIs",
+      title,
+      note,
+    },
+    {
+      status: (state.dataLibrary || {}).catalogError ? "warn" : (state.dataLibrary || {}).catalogLoaded ? "ok" : loading ? "warn" : "bad",
+      label: "Catalog Refresh",
+      title: (state.dataLibrary || {}).catalogError ? "Review" : (state.dataLibrary || {}).catalogLoaded ? "Loaded" : loading ? "Loading" : "Not Loaded",
+      note: (state.dataLibrary || {}).catalogError || ((state.dataLibrary || {}).catalogLoaded ? "Async Data Library refresh completed." : "No completed saved-data refresh is recorded yet."),
+    },
+    {
+      status: loadState.diagnosticsError ? "warn" : loadState.diagnosticsLoaded ? "ok" : loadState.diagnosticsLoading ? "warn" : "waiting",
+      label: "Diagnostics",
+      title: loadState.diagnosticsError ? "Review" : loadState.diagnosticsLoaded ? "Loaded" : loadState.diagnosticsLoading ? "Loading" : "Deferred",
+      note: loadState.diagnosticsError || (loadState.diagnosticsLoaded ? "Coverage, gap, minute, and storage-audit checks completed." : "Diagnostics are lazy until requested."),
+    },
+  ];
+  return { status, title, note, rows, cards };
+}
+
+function renderDataBackendStatus() {
+  if (!$("data-backend-status-note") || !$("data-backend-status-cards") || !$("data-backend-status-body") || !$("data-backend-status-actions")) return;
+  const model = dataBackendStatusModel();
+  $("data-backend-status-note").textContent = model.note;
+  $("data-backend-status-note").className = `section-note ${statusClass(model.status)}`;
+  $("data-backend-status-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-backend-status-actions").innerHTML = [
+    `<button type="button" data-data-backend-status-action="check">Check Data APIs</button>`,
+    `<button type="button" class="secondary" data-data-backend-status-action="operations">Open API Health</button>`,
+    `<button type="button" class="secondary" data-data-backend-status-action="copy"${model.rows.length ? "" : " disabled"}>Copy Report</button>`,
+    `<button type="button" class="secondary" data-data-backend-status-action="export"${model.rows.length ? "" : " disabled"}>Export CSV</button>`,
+  ].join("");
+  $("data-backend-status-body").innerHTML = model.rows.length
+    ? model.rows.map((item) => row([
+      escapeHtml(item.label),
+      statusText(item.status),
+      escapeHtml(item.detail),
+    ])).join("")
+    : row([`<span class="muted">No Data Library backend endpoint checks have been recorded yet.</span>`, "", ""]);
+}
+
+function handleDataBackendStatusAction(action) {
+  if (action === "check") {
+    checkDashboardDataApis().catch((err) => {
+      $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "operations") {
+    navigateToOperationsLens("diagnostics");
+    return;
+  }
+  if (action === "copy") {
+    copyDashboardApiHealthReport();
+    return;
+  }
+  if (action === "export") {
+    downloadDashboardApiHealthCsv();
+  }
 }
 
 function dashboardApiHealthReportText() {
@@ -16599,6 +16689,7 @@ function renderDataLibrarySummary() {
       `).join("")
     : `<div class="root-card"><span class="status-bad">bad</span><strong>No roots configured</strong><small>Add at least one data root.</small></div>`;
   renderDataSourceMap();
+  renderDataBackendStatus();
   renderDataLibraryGuide({
     catalog,
     datasets,
@@ -32466,6 +32557,11 @@ function init() {
     checkDashboardDataApis().catch((err) => {
       $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
     });
+  });
+  $("data-backend-status-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-data-backend-status-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleDataBackendStatusAction(target.dataset.dataBackendStatusAction || "");
   });
   $("copy-dashboard-api-health-report").addEventListener("click", copyDashboardApiHealthReport);
   $("export-dashboard-api-health-csv").addEventListener("click", downloadDashboardApiHealthCsv);

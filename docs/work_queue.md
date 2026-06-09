@@ -314,6 +314,10 @@ strategy-private.
     can actively probe catalog, symbol-directory, history-matrix, root-index,
     coverage, gap, minute-heatmap, and storage-audit backends without requiring
     users to navigate through Data Library first.
+    Data Library Home/Diagnostics now mirrors the same backend endpoint-health
+    evidence in a Backend Status panel with Check Data APIs, Open API Health,
+    Copy Report, and Export CSV actions, so "no data" investigation starts
+    where the empty data panels appear.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
