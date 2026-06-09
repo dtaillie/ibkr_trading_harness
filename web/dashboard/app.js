@@ -13987,6 +13987,158 @@ function renderDataActionSummary(filteredRows = []) {
   )).join("");
 }
 
+function rootIndexSpotlightModel(filteredRows = []) {
+  const catalog = state.dataCatalog || {};
+  const datasets = catalog.datasets || [];
+  const inventory = symbolInventoryModel();
+  const index = state.dataSymbolIndex || {};
+  const catalogSymbols = new Set(datasets.map((dataset) => text(dataset.symbol).toUpperCase()).filter((value) => value && value !== "N/A"));
+  const filteredSymbols = new Set((filteredRows || []).map((dataset) => text(dataset.symbol).toUpperCase()).filter((value) => value && value !== "N/A"));
+  const topSymbols = (inventory.topSymbols || [])
+    .map((item) => ({
+      symbol: text(item.symbol || item.display_symbol).toUpperCase(),
+      asset_class: text(item.asset_class),
+      file_count: Number(item.file_count || 0),
+      sources: rootIndexArray(item, "sources"),
+      bar_sizes: rootIndexArray(item, "bar_sizes"),
+      latest_modified_at: item.latest_modified_at,
+      parsed: catalogSymbols.has(text(item.symbol || item.display_symbol).toUpperCase()),
+      visible: filteredSymbols.has(text(item.symbol || item.display_symbol).toUpperCase()),
+    }))
+    .filter((item) => item.symbol && item.symbol !== "N/A")
+    .slice(0, 10);
+  const parsedJoinCount = ((index.symbols || []) || [])
+    .filter((item) => catalogSymbols.has(text(item.symbol).toUpperCase()))
+    .length;
+  const sourceSummary = countSummary(inventory.raw.source_counts || index.source_counts || {});
+  const barSummary = countSummary(inventory.raw.bar_size_counts || index.bar_size_counts || {});
+  const assetSummary = countSummary(inventory.raw.asset_class_counts || index.asset_class_counts || {});
+  const partial = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
+  const deferred = Number(inventory.raw.deferred_to_child_root_count_total || index.deferred_to_child_root_count_total || 0);
+  const unsupported = Number(inventory.raw.unsupported_file_count_total || index.unsupported_file_count_total || 0);
+  let status = inventory.status;
+  let headline = "No saved universe indexed";
+  let note = "Refresh Data Library after configuring saved-data roots or running fetch jobs.";
+  if (inventory.symbolCount || inventory.fileCount) {
+    status = inventory.status;
+    headline = `${numberText(inventory.symbolCount, 0)} indexed symbol${inventory.symbolCount === 1 ? "" : "s"}`;
+    note = `${numberText(inventory.fileCount, 0)} root-index candidate file${inventory.fileCount === 1 ? "" : "s"} are visible before parser/quality catalog limits.`;
+    if (partial) note += " The index is partial, so more files may exist beyond the current scan.";
+  }
+  const cards = [
+    {
+      label: "Root Index",
+      status,
+      title: headline,
+      note,
+    },
+    {
+      label: "Catalog Join",
+      status: catalogSymbols.size ? inventory.symbolCount > catalogSymbols.size ? "warn" : "ok" : inventory.symbolCount ? "warn" : "bad",
+      title: `${numberText(catalogSymbols.size, 0)} parsed / ${numberText(inventory.symbolCount, 0)} indexed`,
+      note: `${numberText(parsedJoinCount, 0)} indexed symbol${parsedJoinCount === 1 ? "" : "s"} also appear in the parsed quality catalog; ${numberText(filteredSymbols.size, 0)} are visible after filters.`,
+    },
+    {
+      label: "Scan Scope",
+      status: partial ? "warn" : inventory.fileCount ? "ok" : "bad",
+      title: partial ? "Partial" : inventory.fileCount ? "Complete" : "Empty",
+      note: `${numberText(inventory.scanCappedRootCount, 0)} capped roots / ${numberText(inventory.notScannedRootCount, 0)} not scanned / ${numberText(deferred, 0)} deferred to child roots.`,
+    },
+    {
+      label: "Sources",
+      status: inventory.fileCount ? "ok" : "bad",
+      title: sourceSummary,
+      note: `Assets ${assetSummary}; bars ${barSummary}.`,
+    },
+    {
+      label: "Cleanup",
+      status: unsupported ? "warn" : inventory.fileCount ? "ok" : "bad",
+      title: `${numberText(unsupported, 0)} unsupported`,
+      note: unsupported ? "Unsupported files exist near saved data roots; diagnostics can explain what the scanner skipped." : "No unsupported files reported in the root-index summary.",
+    },
+  ];
+  return { status, headline, note, cards, topSymbols };
+}
+
+function renderRootIndexSpotlight(filteredRows = []) {
+  if (!$("data-root-index-spotlight-note") || !$("data-root-index-spotlight-cards") || !$("data-root-index-spotlight-symbols")) return;
+  const model = rootIndexSpotlightModel(filteredRows);
+  $("data-root-index-spotlight-note").textContent = model.note;
+  $("data-root-index-spotlight-note").className = `section-note ${statusClass(model.status)}`;
+  $("data-root-index-spotlight-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-root-index-spotlight-symbols").innerHTML = model.topSymbols.length
+    ? model.topSymbols.map((item) => `
+      <button type="button" class="data-universe-symbol" data-root-spotlight-action="root-filter" data-symbol="${escapeHtml(item.symbol)}">
+        <strong>${escapeHtml(item.symbol)}</strong>
+        <span>${escapeHtml(numberText(item.file_count, 0))} root-index file${item.file_count === 1 ? "" : "s"} / ${escapeHtml(item.asset_class)}</span>
+        <small>${escapeHtml(item.sources.join(", ") || "unknown source")} / ${escapeHtml(item.bar_sizes.join(", ") || "unknown bar")}</small>
+        <small>${escapeHtml(item.parsed ? item.visible ? "parsed and visible now" : "parsed but hidden by filters" : "indexed on disk, not parsed in catalog sample")}${item.latest_modified_at ? ` / ${escapeHtml(shortTimestampAgeLabel(item.latest_modified_at))}` : ""}</small>
+      </button>
+    `).join("")
+    : `<div class="empty-card"><strong>No indexed symbols</strong><span>Configure data roots, run a fetch job, or refresh Data Library.</span></div>`;
+  if ($("data-root-index-spotlight-actions")) {
+    $("data-root-index-spotlight-actions").innerHTML = [
+      `<button type="button" data-root-spotlight-action="browse">Browse Root Index</button>`,
+      `<button type="button" class="secondary" data-root-spotlight-action="clear">Clear Root Filter</button>`,
+      `<button type="button" class="secondary" data-root-spotlight-action="diagnostics">Diagnostics</button>`,
+      `<button type="button" class="secondary" data-root-spotlight-action="export">Export CSV</button>`,
+      `<button type="button" class="secondary" data-root-spotlight-action="roots">Copy Root YAML</button>`,
+    ].join("");
+  }
+}
+
+function handleRootIndexSpotlightAction(target) {
+  const action = String(target.dataset.rootSpotlightAction || "");
+  const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
+  if (action === "root-filter") {
+    if ($("data-root-index-filter")) $("data-root-index-filter").value = symbol;
+    if ($("data-symbol-browser-input")) $("data-symbol-browser-input").value = symbol;
+    renderRootIndexBrowser();
+    renderSymbolBrowser();
+    navigateToDataLens("browse");
+    $("last-refresh").textContent = `Root Index filtered to ${symbol}`;
+    return;
+  }
+  if (action === "browse") {
+    navigateToDataLens("browse");
+    window.setTimeout(() => {
+      const targetElement = $("data-root-index-filter") || $("data-root-index-summary");
+      if (targetElement) targetElement.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+    return;
+  }
+  if (action === "clear") {
+    if ($("data-root-index-filter")) $("data-root-index-filter").value = "";
+    if ($("data-root-index-asset")) $("data-root-index-asset").value = "";
+    if ($("data-root-index-source")) $("data-root-index-source").value = "";
+    if ($("data-root-index-bar")) $("data-root-index-bar").value = "";
+    if ($("data-root-index-session")) $("data-root-index-session").value = "";
+    renderRootIndexBrowser();
+    $("last-refresh").textContent = "Root Index filters cleared";
+    return;
+  }
+  if (action === "diagnostics") {
+    navigateToDataLens("diagnostics");
+    refreshDataDiagnostics({ force: false }).catch((err) => {
+      $("last-refresh").textContent = `Data diagnostics refresh failed: ${err.message}`;
+    });
+    return;
+  }
+  if (action === "export") {
+    if ($("export-data-symbol-index-csv")) $("export-data-symbol-index-csv").click();
+    return;
+  }
+  if (action === "roots") {
+    copyDataRootsYaml();
+  }
+}
+
 function renderDataVisibilityReport(filteredRows = []) {
   if (!$("data-visibility-report-note") || !$("data-visibility-report-cards") || !$("data-visibility-report-body") || !$("data-visibility-report-actions")) return;
   const model = dataVisibilityReportModel(filteredRows);
@@ -14375,6 +14527,7 @@ function renderDataHome(filteredRows = []) {
     breakdownChips("Contract", contractCounts),
   ].join("");
   renderDataActionSummary(filteredRows);
+  renderRootIndexSpotlight(filteredRows);
   renderDataScopeAssistant(filteredRows);
   renderDataInventoryPanel(filteredRows);
   renderDataHistoryReview(filteredRows);
@@ -31206,6 +31359,16 @@ function init() {
     handleDataHomeShortlistAction(target).catch((err) => {
       $("data-catalog-errors").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
+  });
+  $("data-root-index-spotlight-symbols").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-root-spotlight-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRootIndexSpotlightAction(target);
+  });
+  $("data-root-index-spotlight-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-root-spotlight-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRootIndexSpotlightAction(target);
   });
   $("data-search-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-home-action]") : null;

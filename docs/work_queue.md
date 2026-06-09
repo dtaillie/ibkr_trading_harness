@@ -1088,6 +1088,12 @@ QQQ show up, treat that as a bug until proven otherwise.
     `deferred_to_child_root_count`. This lets broad roots such as `cache` and
     operational child roots such as `cache/ibkr` be diagnosed separately instead
     of making child-root data look missing or hidden behind the parent scan.
+  - partial; Data Home now includes a first-screen Saved Universe spotlight
+    backed by `/data_symbol_index.symbol_inventory`, showing broad root-index
+    symbol/file counts, catalog join counts, scan caps/deferred child-root
+    counts, source/bar breakdowns, top indexed symbols, and direct Root Index
+    browse/export/diagnostic actions. This makes large saved universes visible
+    even when the parsed quality catalog is intentionally bounded or filtered.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written
