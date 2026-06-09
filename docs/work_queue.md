@@ -255,6 +255,12 @@ strategy-private.
     "disconnected/no data" states point at the actual failing layer instead of
     collapsing healthy saved data, stale market data, and missed job windows
     into one vague warning.
+  - partial; `/status` run rows now mirror normalized current-run fields at the
+    top level (`mode`, counts, cash/equity, latest decision/data/account times,
+    position count, and bounded market-data health fields). This removes a
+    backend/UI contract gap where run artifacts existed but dashboard panels had
+    to hunt through nested raw metrics and could render `n/a`, disconnected, or
+    no-data states.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

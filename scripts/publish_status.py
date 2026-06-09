@@ -58,6 +58,40 @@ ORDER_STATE_CATEGORY_LABELS = {
     "risk_limit": "risk-limit order rejections",
 }
 
+RUN_TOP_LEVEL_METRIC_FIELDS = (
+    "mode",
+    "decisions",
+    "orders",
+    "fills",
+    "rejections",
+    "final_cash",
+    "final_equity",
+    "final_positions",
+    "realized_pnl",
+    "unrealized_pnl",
+    "total_pnl",
+    "total_commission",
+    "gross_exposure",
+    "gross_exposure_pct",
+    "net_exposure",
+    "net_exposure_pct",
+    "max_gross_exposure",
+    "max_gross_exposure_pct",
+    "max_abs_net_exposure",
+    "max_abs_net_exposure_pct",
+    "latest_rejection_time",
+    "latest_rejection_symbol",
+    "latest_rejection_status",
+    "latest_rejection_reason",
+    "next_check_time",
+    "next_expected_decision_time",
+    "next_check_reason",
+    "next_order_condition",
+    "latest_signal_reason",
+    "latest_signal_label",
+    "latest_signal_value",
+)
+
 
 def artifact_file_category(name: str) -> str:
     if name == "summary.json":
@@ -75,6 +109,50 @@ def artifact_file_category(name: str) -> str:
     if name in {"decisions.jsonl", "orders.jsonl", "fills.jsonl"}:
         return "event_stream"
     return "other"
+
+
+def attach_run_summary_fields(record: dict[str, Any], metrics: dict[str, Any]) -> None:
+    for field in RUN_TOP_LEVEL_METRIC_FIELDS:
+        if field in metrics:
+            record[field] = metrics.get(field)
+    record["cash"] = metrics.get("final_cash")
+    record["latest_decision_time"] = metrics.get("last_decision_time")
+    record["latest_account_time"] = (
+        metrics.get("account_end_time")
+        or metrics.get("latest_account_time")
+        or metrics.get("latest_account_timestamp")
+    )
+    record["latest_data_time"] = (
+        metrics.get("latest_data_time")
+        or metrics.get("latest_market_data_time")
+        or metrics.get("latest_bar_time")
+    )
+    record["latest_bar_time"] = (
+        metrics.get("latest_bar_time")
+        or metrics.get("latest_data_time")
+        or metrics.get("latest_market_data_time")
+    )
+    if "position_count" in metrics:
+        record["position_count"] = metrics.get("position_count")
+    else:
+        record["position_count"] = nonzero_position_count(metrics.get("final_positions"))
+    for field in ("open_order_count", "approval_required_orders", "approval_hold_count"):
+        if field in metrics:
+            record[field] = metrics.get(field)
+    health = metrics.get("market_data_health")
+    if isinstance(health, dict):
+        record["market_data_status"] = health.get("status")
+        record["market_data_reason"] = health.get("reason")
+        for source, target in (
+            ("requested_symbol_count", "market_data_requested_symbol_count"),
+            ("symbols_with_bars_count", "market_data_symbols_with_bars_count"),
+            ("symbols_without_bars_count", "market_data_symbols_without_bars_count"),
+            ("symbols_with_live_prices_count", "market_data_symbols_with_live_prices_count"),
+            ("timeout_like_count", "market_data_timeout_like_count"),
+            ("skipped_after_timeouts_count", "market_data_skipped_after_timeouts_count"),
+        ):
+            if source in health:
+                record[target] = health.get(source)
 
 
 def utc_now() -> str:
@@ -359,6 +437,7 @@ def summarize_configured_runs(runs_cfg: list[Any], *, now: datetime) -> tuple[li
             record["metrics"] = summarize_run(run_path)
             record["status"] = "ok"
             metrics = record["metrics"] or {}
+            attach_run_summary_fields(record, metrics)
             record["freshness"] = freshness_record(
                 metrics.get("last_decision_time"),
                 now=now,

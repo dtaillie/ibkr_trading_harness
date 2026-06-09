@@ -415,6 +415,11 @@ def test_collect_status_from_run_dir(tmp_path):
     assert payload["node_id"] == "test-node"
     assert payload["status"] == "ok"
     assert payload["runs"][0]["metrics"]["decisions"] == 1
+    assert payload["runs"][0]["mode"] == "replay"
+    assert payload["runs"][0]["decisions"] == 1
+    assert payload["runs"][0]["cash"] == 10000.0
+    assert payload["runs"][0]["position_count"] == 0
+    assert payload["runs"][0]["latest_decision_time"] == "2026-01-02T14:30:00+00:00"
     assert payload["runs"][0]["artifact_evidence"]["available"] is True
     assert payload["runs"][0]["artifact_evidence"]["schema_version"] == 2
     assert payload["runs"][0]["artifact_evidence"]["existing_count"] == 2
@@ -869,6 +874,11 @@ def test_collect_status_warns_on_bad_market_data_health(tmp_path):
 
     assert payload["status"] == "warn"
     assert payload["runs"][0]["market_data_health"]["reason"] == "historical_timeouts_no_live_prices"
+    assert payload["runs"][0]["market_data_status"] == "bad"
+    assert payload["runs"][0]["market_data_reason"] == "historical_timeouts_no_live_prices"
+    assert payload["runs"][0]["market_data_requested_symbol_count"] == 18
+    assert payload["runs"][0]["market_data_symbols_with_bars_count"] == 0
+    assert payload["runs"][0]["market_data_symbols_with_live_prices_count"] == 0
     assert any(alert["kind"] == "market_data_health_bad" for alert in payload["alerts"])
 
 
