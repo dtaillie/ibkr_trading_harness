@@ -369,6 +369,10 @@ strategy-private.
       selector options, so root-index-only files remain visible in readiness,
       compatibility, and selected-data panels even when they are not present in
       the parsed catalog slice.
+      Workbench now remembers ad hoc/root-index selected datasets and feeds
+      them back into the generated dataset selector on rerender, so root-index,
+      Data Detail, Fetch output, Compare, and Saved History Matrix handoffs do
+      not disappear when the builder refreshes its schema-driven controls.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

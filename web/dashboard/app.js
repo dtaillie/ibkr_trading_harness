@@ -41,6 +41,7 @@ const state = {
   diagnostics: {},
   endpointMap: { endpoints: [] },
   configOptions: { plugins: [], modes: [], defaults: {} },
+  workbenchExtraDatasets: {},
   configDraft: null,
   configDraftErrors: [],
   alignmentPreview: null,
@@ -3527,10 +3528,45 @@ function renderPerformanceBenchmarkOptions() {
 function selectedConfigDatasets() {
   const select = $("config-dataset");
   if (!select) return [];
-  const catalogByPath = new Map((state.dataCatalog.datasets || []).map((item) => [item.path, item]));
+  const catalogByPath = new Map(workbenchDatasetRows().map((item) => [item.path, item]));
   return Array.from(select.selectedOptions)
     .map((option) => catalogByPath.get(option.value) || datasetFromConfigOption(option))
     .filter((dataset) => dataset && dataset.path);
+}
+
+function workbenchDatasetRows() {
+  const catalogRows = (state.dataCatalog.datasets || []).filter((dataset) => dataset && dataset.path);
+  const rowsByPath = new Map(catalogRows.map((dataset) => [dataset.path, dataset]));
+  for (const dataset of Object.values(state.workbenchExtraDatasets || {})) {
+    if (dataset && dataset.path && !rowsByPath.has(dataset.path)) {
+      rowsByPath.set(dataset.path, dataset);
+    }
+  }
+  return Array.from(rowsByPath.values());
+}
+
+function rememberWorkbenchDataset(dataset = {}) {
+  if (!dataset || !dataset.path) return dataset;
+  const normalized = {
+    ...dataset,
+    symbol: dataset.symbol || dataset.display_symbol || dataset.canonical_symbol || "unknown",
+    canonical_symbol: dataset.canonical_symbol || dataset.symbol || dataset.display_symbol || "",
+    asset_class: dataset.asset_class || "unknown",
+    source: dataset.source || "unknown",
+    bar_size: dataset.bar_size || "unknown",
+    storage_session: dataset.storage_session || "unknown",
+    adjustment_status: dataset.adjustment_status || "unknown",
+    storage_contract_status: dataset.storage_contract_status || "warn",
+    storage_contract_warning_count: Number(dataset.storage_contract_warning_count ?? (dataset.storage_contract_status ? 0 : 1)),
+    quality_status: dataset.quality_status || ((dataset.quality || {}).quality_status) || "warn",
+    quality_warning_count: Number(dataset.quality_warning_count ?? ((dataset.quality || {}).quality_warning_count) ?? (dataset.quality_status ? 0 : 1)),
+    replay_status: dataset.replay_status || "warn",
+  };
+  state.workbenchExtraDatasets = {
+    ...(state.workbenchExtraDatasets || {}),
+    [normalized.path]: normalized,
+  };
+  return normalized;
 }
 
 function datasetFromConfigOption(option) {
@@ -15562,11 +15598,13 @@ async function handleDataHistoryMatrixAction(target) {
       option.selected = selectedPaths.has(option.value);
     }
     for (const dataset of selected) {
+      rememberWorkbenchDataset(dataset);
       if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
       const option = document.createElement("option");
       option.value = dataset.path;
       option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
       option.selected = true;
+      attachDatasetOptionMetadata(option, dataset);
       datasetSelect.appendChild(option);
     }
     const range = timestampRangeFromDatasets(selected);
@@ -16078,6 +16116,7 @@ function selectCatalogDatasetInWorkbench(dataset) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
     return;
   }
+  dataset = rememberWorkbenchDataset(dataset);
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
   let found = false;
@@ -18450,7 +18489,7 @@ function useDataDetailInWorkbench() {
   }
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
-  const dataset = {
+  const dataset = rememberWorkbenchDataset({
     path,
     symbol: detail.symbol,
     canonical_symbol: detail.canonical_symbol || detail.symbol,
@@ -18470,7 +18509,7 @@ function useDataDetailInWorkbench() {
     modified_at: detail.modified_at,
     root: detail.root,
     format: detail.format,
-  };
+  });
   let found = false;
   for (const option of datasetSelect.options) {
     option.selected = option.value === path;
@@ -19105,11 +19144,13 @@ function useDataCompareInWorkbench() {
     option.selected = selectedPaths.has(option.value);
   }
   for (const dataset of selected) {
+    rememberWorkbenchDataset(dataset);
     if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
     const option = document.createElement("option");
     option.value = dataset.path;
     option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
     option.selected = true;
+    attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);
   }
   if ($("config-start-date")) $("config-start-date").value = $("data-compare-start").value || "";
@@ -21045,10 +21086,12 @@ function useFetchOutputsInWorkbench() {
   for (const path of paths) {
     if (Array.from(datasetSelect.options).some((option) => option.value === path)) continue;
     const dataset = catalogByPath.get(path) || { path };
+    rememberWorkbenchDataset(dataset);
     const option = document.createElement("option");
     option.value = path;
     option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${path}`;
     option.selected = true;
+    attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);
   }
   const plan = detail.plan || {};
@@ -21551,6 +21594,9 @@ function replaceOptions(select, options) {
   select.innerHTML = options.map((option) => (
     `<option value="${escapeHtml(option.value)}"${option.description ? ` title="${escapeHtml(option.description)}"` : ""}>${escapeHtml(option.label)}</option>`
   )).join("");
+  options.forEach((option, index) => {
+    if (option.dataset && select.options[index]) attachDatasetOptionMetadata(select.options[index], option.dataset);
+  });
   let restored = false;
   for (const option of select.options) {
     if (currentValues.has(option.value)) {
@@ -21579,9 +21625,10 @@ function configFormOptionRows(field, options) {
     }));
   }
   if (source === "datasets") {
-    return (state.dataCatalog.datasets || []).map((dataset) => ({
+    return workbenchDatasetRows().map((dataset) => ({
       value: dataset.path,
       label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`,
+      dataset,
     }));
   }
   return (field.options || []).map((option) => ({

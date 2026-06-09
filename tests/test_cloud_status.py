@@ -1700,6 +1700,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function loadRootIndexDetail" in js
         assert "function datasetFromConfigOption" in js
         assert "function attachDatasetOptionMetadata" in js
+        assert "function workbenchDatasetRows" in js
+        assert "function rememberWorkbenchDataset" in js
         assert "function runDataCatalogServerSearch" in js
         assert "Catalog scan searched for" in js
         assert "root-index-show-files" in js
