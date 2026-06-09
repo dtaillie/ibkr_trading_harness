@@ -100,6 +100,8 @@ DEFAULT_DATA_CATALOG_MAX_OFFSET = 200000
 DEFAULT_DATA_PARSED_FILTER_SCAN_MULTIPLIER = 3
 DEFAULT_DATA_SYMBOL_INDEX_LIMIT = 5000
 DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT = 20000
+DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT = 500
+DEFAULT_DATA_SYMBOL_INDEX_DETAIL_MAX_LIMIT = 5000
 DATA_LIBRARY_CACHE_TTL_SECONDS = 60.0
 DATA_LIBRARY_CACHE: dict[str, dict[str, Any]] = {}
 DATA_LIBRARY_CACHE_LOCK = threading.Lock()
@@ -542,6 +544,13 @@ PUBLIC_ENDPOINTS = (
         "category": "data",
         "description": "Build a broad filename/path-inferred saved-data symbol index without parsing full data files.",
         "response": "JSON symbol/file index",
+    },
+    {
+        "method": "GET",
+        "path": "/data_symbol_index_detail",
+        "category": "data",
+        "description": "List bounded filename/path-inferred candidate files for one saved-data symbol.",
+        "response": "JSON symbol candidate file detail",
     },
     {
         "method": "GET",
@@ -3555,6 +3564,66 @@ def build_data_symbol_index(
         "storage_session_counts": count_values(file_rows, "storage_session"),
         "adjustment_status_counts": count_values(file_rows, "adjustment_status"),
         "index_complete": not any(row.get("scan_capped") or row.get("not_scanned_reason") for row in root_summaries),
+    }
+
+
+def build_data_symbol_index_detail(
+    data_roots: list[Path],
+    *,
+    symbol: str,
+    limit: int = DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT,
+    filters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    requested_symbol = str(symbol or "").strip().upper()
+    if not requested_symbol:
+        raise ValueError("symbol is required")
+    query_filters = data_candidate_filters(filters)
+    query_filters["query"] = normalize_symbol_index_filter_value(requested_symbol)
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=limit, filters=query_filters)
+    file_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for path in files:
+        resolved_path = path.resolve()
+        root = most_specific_data_root(resolved_path, data_roots)
+        try:
+            row = summarize_data_file_candidate(resolved_path, root=root)
+        except Exception as exc:
+            errors.append({
+                "path": resolved_path.relative_to(ROOT).as_posix() if resolved_path.is_relative_to(ROOT) else str(resolved_path),
+                "error": str(exc),
+            })
+            continue
+        canonical = str(row.get("canonical_symbol") or row.get("symbol") or "").upper()
+        display = str(row.get("symbol") or "").upper()
+        if canonical == requested_symbol or display == requested_symbol:
+            file_rows.append(row)
+    file_rows.sort(key=lambda row: (
+        -timestamp_sort_seconds(row.get("modified_at")),
+        str(row.get("source") or ""),
+        str(row.get("bar_size") or ""),
+        str(row.get("path") or ""),
+    ))
+    return {
+        "generated_at": utc_now(),
+        "symbol": requested_symbol,
+        "filters": query_filters,
+        "roots": [root.relative_to(ROOT).as_posix() if root.is_relative_to(ROOT) else str(root) for root in data_roots],
+        "root_summaries": root_summaries,
+        "files": file_rows,
+        "file_count": len(file_rows),
+        "candidate_count": len(files),
+        "error_count": len(errors),
+        "errors": errors,
+        "limit": limit,
+        "index_complete": not any(row.get("scan_capped") or row.get("not_scanned_reason") for row in root_summaries),
+        "scan_capped_root_count": sum(1 for row in root_summaries if row.get("scan_capped")),
+        "not_scanned_root_count": sum(1 for row in root_summaries if row.get("not_scanned_reason")),
+        "source_counts": count_values(file_rows, "source"),
+        "bar_size_counts": count_values(file_rows, "bar_size"),
+        "storage_session_counts": count_values(file_rows, "storage_session"),
+        "asset_class_counts": count_values(file_rows, "asset_class"),
+        "latest_modified_at": max([str(row.get("modified_at")) for row in file_rows if row.get("modified_at")] or [None]),
+        "size_bytes_total": sum(int(row.get("size_bytes") or 0) for row in file_rows),
     }
 
 
@@ -12462,6 +12531,41 @@ class StatusHandler(BaseHTTPRequestHandler):
                 )
                 payload["default_limit"] = DEFAULT_DATA_SYMBOL_INDEX_LIMIT
                 payload["max_limit"] = DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_symbol_index_detail":
+            if not self.require_auth():
+                return
+            try:
+                symbol = str(params.get("symbol", [""])[0] or "").strip().upper()
+                limit = parse_int_param(
+                    params,
+                    "limit",
+                    default=DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT,
+                    maximum=DEFAULT_DATA_SYMBOL_INDEX_DETAIL_MAX_LIMIT,
+                )
+                filters = parse_data_symbol_index_filters(params)
+                payload = cached_data_library_payload(
+                    "data_symbol_index_detail",
+                    self.data_roots,
+                    {
+                        "symbol": symbol,
+                        "limit": limit,
+                        "filters": filters,
+                    },
+                    lambda: build_data_symbol_index_detail(
+                        self.data_roots,
+                        symbol=symbol,
+                        limit=limit,
+                        filters=filters,
+                    ),
+                    bypass=truthy_param(params.get("refresh", [""])[0]),
+                )
+                payload["default_limit"] = DEFAULT_DATA_SYMBOL_INDEX_DETAIL_LIMIT
+                payload["max_limit"] = DEFAULT_DATA_SYMBOL_INDEX_DETAIL_MAX_LIMIT
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

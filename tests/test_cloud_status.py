@@ -1230,6 +1230,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-root-index-filter" in html
         assert "data-root-index-summary" in html
         assert "data-root-index-roots" in html
+        assert "data-root-index-detail-note" in html
+        assert "data-root-index-detail-body" in html
         assert "data-root-index-body" in html
         assert "data-symbol-directory-filter" in html
         assert "data-symbol-directory-asset" in html
@@ -1691,6 +1693,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data_symbol_directory" in js
         assert "data_history_matrix" in js
         assert "data_history_matrix_export" in js
+        assert "data_symbol_index_detail" in js
+        assert "function loadRootIndexDetail" in js
+        assert "root-index-show-files" in js
+        assert "root-index-detail-inspect" in js
         assert "function dataHistoryMatrixUsesBackendRows" in js
         assert "function dataHistoryMatrixBackendScopeApplied" in js
         assert "useBackendScope ? dataHistoryMatrixRows([])" in js
@@ -1740,6 +1746,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_coverage") in endpoints
         assert ("GET", "/data_coverage_export") in endpoints
         assert ("GET", "/data_symbol_index") in endpoints
+        assert ("GET", "/data_symbol_index_detail") in endpoints
         assert ("GET", "/data_symbol_index_export") in endpoints
         assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_symbol_directory") in endpoints
@@ -3275,6 +3282,14 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
             ]) + "\n",
             encoding="utf-8",
         )
+    (data_root / "SYM00_5min_sample.csv").write_text(
+        "\n".join([
+            "timestamp,close",
+            "2026-01-02T14:30:00Z,100",
+            "2026-01-02T14:35:00Z,101",
+        ]) + "\n",
+        encoding="utf-8",
+    )
 
     server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -3299,26 +3314,39 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
 
         with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
             index = json.loads(resp.read().decode("utf-8"))
-        assert index["file_count"] == 12
+        assert index["file_count"] == 13
         assert index["scan_cache"]["status"] == "miss"
         assert index["symbol_count"] == 12
         assert index["index_complete"] is True
         assert index["symbol_inventory"]["status"] == "ok"
         assert index["symbol_inventory"]["reason"] == "symbols_visible"
         assert index["symbol_inventory"]["symbol_count"] == 12
-        assert index["symbol_inventory"]["file_count"] == 12
+        assert index["symbol_inventory"]["file_count"] == 13
         assert index["symbol_inventory"]["top_symbols"][0]["symbol"].startswith("SYM")
         assert index["scan_capped_root_count"] == 0
-        assert index["bar_size_counts"] == {"1min": 12}
-        assert index["asset_class_counts"] == {"stock": 12}
-        assert index["source_counts"] == {"file": 12}
-        assert index["symbols"][0]["file_count"] == 1
+        assert index["bar_size_counts"] == {"1min": 12, "5min": 1}
+        assert index["asset_class_counts"] == {"stock": 13}
+        assert index["source_counts"] == {"file": 13}
+        assert index["symbols"][0]["file_count"] == 2
         assert index["symbols"][0]["sample_paths"][0].endswith("_1min_sample.csv")
-        assert len(index["files"]) == 12
+        assert len(index["files"]) == 13
+
+        with request.urlopen(f"{base}/data_symbol_index_detail?symbol=SYM00&limit=20", timeout=5) as resp:
+            detail = json.loads(resp.read().decode("utf-8"))
+        assert detail["symbol"] == "SYM00"
+        assert detail["file_count"] == 2
+        assert detail["bar_size_counts"] == {"1min": 1, "5min": 1}
+        assert {row["bar_size"] for row in detail["files"]} == {"1min", "5min"}
+        assert all(row["path"].endswith(".csv") for row in detail["files"])
+
+        with request.urlopen(f"{base}/data_symbol_index_detail?symbol=SYM00&limit=20&bar_size=5min", timeout=5) as resp:
+            filtered_detail = json.loads(resp.read().decode("utf-8"))
+        assert filtered_detail["file_count"] == 1
+        assert filtered_detail["files"][0]["bar_size"] == "5min"
 
         with request.urlopen(f"{base}/data_symbol_index?limit=20", timeout=5) as resp:
             cached_index = json.loads(resp.read().decode("utf-8"))
-        assert cached_index["file_count"] == 12
+        assert cached_index["file_count"] == 13
         assert cached_index["scan_cache"]["status"] == "hit"
 
         with request.urlopen(f"{base}/data_symbol_index_export?limit=20", timeout=5) as resp:
@@ -3328,7 +3356,7 @@ def test_cloud_status_server_serves_broad_data_symbol_index(tmp_path):
         exported = list(csv.DictReader(io.StringIO(csv_body)))
         assert exported[0]["row_type"] == "symbol"
         assert exported[0]["symbol"].startswith("SYM")
-        assert exported[0]["file_count"] == "1"
+        assert exported[0]["file_count"] == "2"
         assert any(row["row_type"] == "file" and row["path"].endswith("_1min_sample.csv") for row in exported)
 
         with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:

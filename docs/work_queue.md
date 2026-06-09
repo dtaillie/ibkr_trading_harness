@@ -351,6 +351,11 @@ strategy-private.
       server with Search Roots, so capped large roots can be searched for
       matching filenames/paths beyond the first bounded default batch, and the
       filtered CSV export preserves the same search criteria.
+      Root Index Browser now also has a per-symbol candidate-file drilldown
+      backed by `/data_symbol_index_detail`, so a root-index-only symbol can
+      list bounded matching CSV/parquet paths, inspect a candidate in Data
+      Detail, or copy the exact path without depending on the parsed catalog
+      row being visible.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

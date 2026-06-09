@@ -3,6 +3,7 @@ const state = {
   history: [],
   dataCatalog: { datasets: [], errors: [] },
   dataSymbolIndex: { symbols: [], files: [], errors: [] },
+  dataSymbolIndexDetail: null,
   dataSymbolDirectory: { symbols: [], symbol_summaries: [], errors: [] },
   dataHistoryMatrix: { rows: [], groups: [], errors: [] },
   dataDetail: null,
@@ -12839,6 +12840,18 @@ function rootIndexServerQueryParams() {
   return params;
 }
 
+function rootIndexDetailServerQueryParams(symbol) {
+  const filters = rootIndexFilterState();
+  const params = new URLSearchParams();
+  params.set("symbol", String(symbol || "").trim().toUpperCase());
+  params.set("limit", String(Math.max(Number(filters.limit || 0), 100)));
+  if (filters.asset) params.set("asset_class", filters.asset);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.bar) params.set("bar_size", filters.bar);
+  if (filters.session) params.set("storage_session", filters.session);
+  return params;
+}
+
 function dataCatalogServerQueryParams() {
   const filters = dataCatalogFilters();
   const params = new URLSearchParams();
@@ -12994,6 +13007,18 @@ async function refreshRootIndexFromServerFilters() {
     : "Root Index refreshed from configured roots";
 }
 
+async function loadRootIndexDetail(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  if (!normalized) throw new Error("Select a root-index symbol first");
+  const params = rootIndexDetailServerQueryParams(normalized);
+  $("data-root-index-detail-note").textContent = `Loading candidate files for ${normalized}...`;
+  const payload = await fetchJson(`/data_symbol_index_detail?${params.toString()}`);
+  state.dataSymbolIndexDetail = payload || { symbol: normalized, files: [], errors: [] };
+  renderRootIndexDetail();
+  navigateToDataLens("browse");
+  $("last-refresh").textContent = `Root Index candidate files loaded for ${normalized}`;
+}
+
 function syncRootIndexOptions(symbols = []) {
   const makeSelect = (id, values) => {
     const select = $(id);
@@ -13095,6 +13120,69 @@ function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
     indexCacheTtlSeconds: Number(indexCache.ttl_seconds || 0),
     catalogCacheStatus: text(catalogCache.status || "n/a"),
   };
+}
+
+function renderRootIndexDetail() {
+  if (!$("data-root-index-detail-note") || !$("data-root-index-detail-summary") || !$("data-root-index-detail-body")) return;
+  const detail = state.dataSymbolIndexDetail || {};
+  const files = detail.files || [];
+  const symbol = text(detail.symbol || "");
+  if (!symbol || symbol === "n/a") {
+    $("data-root-index-detail-note").textContent = "Select Show Files for a root-index symbol.";
+    $("data-root-index-detail-summary").innerHTML = "";
+    $("data-root-index-detail-body").innerHTML = row([`<span class="muted">No root-index symbol selected.</span>`, "", "", "", "", "", "", ""]);
+    return;
+  }
+  const capped = detail.index_complete === false || Number(detail.scan_capped_root_count || 0) > 0;
+  $("data-root-index-detail-note").textContent = `${symbol}: ${numberText(files.length, 0)} candidate file${files.length === 1 ? "" : "s"}${capped ? " from a capped scan" : ""}.`;
+  const cards = [
+    {
+      label: "Candidate Files",
+      status: files.length ? (capped ? "warn" : "ok") : "bad",
+      title: numberText(files.length, 0),
+      note: `${numberText(detail.candidate_count || 0, 0)} root-index candidate${Number(detail.candidate_count || 0) === 1 ? "" : "s"} scanned for ${symbol}.`,
+    },
+    {
+      label: "Source / Bar",
+      status: files.length ? "ok" : "bad",
+      title: `${countSummary(detail.source_counts || {}) || "n/a"} / ${countSummary(detail.bar_size_counts || {}) || "n/a"}`,
+      note: `${countSummary(detail.storage_session_counts || {}) || "unknown session"}; ${countSummary(detail.asset_class_counts || {}) || "unknown asset"}.`,
+    },
+    {
+      label: "Latest Modified",
+      status: detail.latest_modified_at ? "ok" : files.length ? "warn" : "bad",
+      title: detail.latest_modified_at ? shortTimestampAgeLabel(detail.latest_modified_at) : "n/a",
+      note: detail.latest_modified_at ? text(detail.latest_modified_at) : "No modified timestamp in candidate rows.",
+    },
+    {
+      label: "Scan Scope",
+      status: capped ? "warn" : Number(detail.not_scanned_root_count || 0) ? "warn" : "ok",
+      title: capped ? "Capped" : "Bounded",
+      note: `${numberText(detail.limit || 0, 0)} detail limit; ${numberText(detail.error_count || 0, 0)} candidate summarization error${Number(detail.error_count || 0) === 1 ? "" : "s"}.`,
+    },
+  ];
+  $("data-root-index-detail-summary").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("data-root-index-detail-body").innerHTML = files.length
+    ? files.slice(0, 100).map((item) => {
+        const path = text(item.path || "");
+        return row([
+          `<span class="mono">${escapeHtml(path)}</span>`,
+          escapeHtml(text(item.source)),
+          escapeHtml(text(item.bar_size)),
+          escapeHtml(text(item.storage_session)),
+          escapeHtml(text(item.format)),
+          escapeHtml(bytes(item.size_bytes)),
+          escapeHtml(item.modified_at ? shortTimestampAgeLabel(item.modified_at) : "n/a"),
+          `<span class="button-pair"><button type="button" class="secondary root-index-detail-inspect" data-path="${escapeHtml(path)}">Inspect</button><button type="button" class="secondary root-index-detail-copy" data-path="${escapeHtml(path)}">Copy Path</button></span>`,
+        ]);
+      }).join("")
+    : row([`<span class="muted">No candidate files found for ${escapeHtml(symbol)} under the current Root Index filters.</span>`, "", "", "", "", "", "", ""]);
 }
 
 function renderRootIndexBrowser() {
@@ -13199,15 +13287,20 @@ function renderRootIndexBrowser() {
           samplePaths.length
             ? jsonDrilldown(samplePaths, samplePaths.slice(0, 2).join(" | "))
             : `<span class="muted">none</span>`,
-          `<span class="button-pair"><button type="button" class="secondary root-index-inspect-sample" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(samplePaths[0] || "")}"${samplePaths.length ? "" : " disabled"}>Inspect Sample</button><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-show-files" data-symbol="${escapeHtml(symbol)}">Show Files</button><button type="button" class="secondary root-index-inspect-sample" data-symbol="${escapeHtml(symbol)}" data-path="${escapeHtml(samplePaths[0] || "")}"${samplePaths.length ? "" : " disabled"}>Inspect Sample</button><button type="button" class="secondary root-index-search-catalog" data-symbol="${escapeHtml(symbol)}">Search Catalog</button><button type="button" class="secondary root-index-diagnose" data-symbol="${escapeHtml(symbol)}">Diagnose</button><button type="button" class="secondary root-index-copy-paths" data-symbol="${escapeHtml(symbol)}">Copy Paths</button></span>`,
         ]);
       }).join("")
     : row([symbols.length ? `<span class="muted">No root-index symbols match the current filters.</span>` : `<span class="muted">No root-index symbols loaded.</span>`, "", "", "", "", "", "", "", ""]);
+  renderRootIndexDetail();
 }
 
 async function handleRootIndexBrowserAction(target) {
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (!symbol) return;
+  if (target.classList.contains("root-index-show-files")) {
+    await loadRootIndexDetail(symbol);
+    return;
+  }
   if (target.classList.contains("root-index-inspect-sample")) {
     const path = target.dataset.path || "";
     if (!path) {
@@ -13239,6 +13332,20 @@ async function handleRootIndexBrowserAction(target) {
     $("last-refresh").textContent = paths.length
       ? `Copied ${numberText(paths.length, 0)} sample root-index path${paths.length === 1 ? "" : "s"} for ${symbol}`
       : `No sample paths available for ${symbol}`;
+  }
+}
+
+async function handleRootIndexDetailAction(target) {
+  const path = target.dataset.path || "";
+  if (!path) return;
+  if (target.classList.contains("root-index-detail-inspect")) {
+    await loadDataDetail(path, { resetControls: true });
+    $("last-refresh").textContent = "Loaded root-index candidate data detail";
+    return;
+  }
+  if (target.classList.contains("root-index-detail-copy")) {
+    await copyText(path);
+    $("last-refresh").textContent = "Root Index candidate path copied";
   }
 }
 
@@ -32035,11 +32142,20 @@ function init() {
   });
   $("data-root-index-body").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement
-      ? event.target.closest(".root-index-inspect-sample, .root-index-search-catalog, .root-index-diagnose, .root-index-copy-paths")
+      ? event.target.closest(".root-index-show-files, .root-index-inspect-sample, .root-index-search-catalog, .root-index-diagnose, .root-index-copy-paths")
       : null;
     if (!(target instanceof HTMLElement)) return;
     handleRootIndexBrowserAction(target).catch((err) => {
       $("data-root-index-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
+    });
+  });
+  $("data-root-index-detail-body").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement
+      ? event.target.closest(".root-index-detail-inspect, .root-index-detail-copy")
+      : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleRootIndexDetailAction(target).catch((err) => {
+      $("data-root-index-detail-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
     });
   });
   $("data-home-clear-filters").addEventListener("click", () => {
