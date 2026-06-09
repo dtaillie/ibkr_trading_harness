@@ -12850,6 +12850,9 @@ function dataCatalogServerQueryParams() {
   if (filters.source) params.set("source", filters.source);
   if (filters.bar) params.set("bar_size", filters.bar);
   if (filters.session) params.set("storage_session", filters.session);
+  if (filters.quality) params.set("quality_status", filters.quality);
+  if (filters.contract) params.set("storage_contract_status", filters.contract);
+  if (filters.replay) params.set("replay_status", filters.replay);
   return params;
 }
 
@@ -12862,6 +12865,9 @@ function dataSymbolDirectoryServerQueryParams() {
   if (filters.source) params.set("source", filters.source);
   if (filters.bar) params.set("bar_size", filters.bar);
   if (filters.session) params.set("storage_session", filters.session);
+  if (filters.quality) params.set("quality_status", filters.quality);
+  if (filters.contract) params.set("storage_contract_status", filters.contract);
+  if (filters.replay) params.set("replay_status", filters.replay);
   return params;
 }
 
@@ -12877,6 +12883,9 @@ function dataCatalogServerFilterLabels() {
     filters.source ? `source ${filters.source}` : "",
     filters.bar ? `bar ${filters.bar}` : "",
     filters.session ? `session ${filters.session}` : "",
+    filters.quality ? `quality ${filters.quality}` : "",
+    filters.contract ? `contract ${filters.contract}` : "",
+    filters.replay ? `replay ${filters.replay}` : "",
   ].filter(Boolean);
 }
 

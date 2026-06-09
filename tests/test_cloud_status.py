@@ -2809,6 +2809,20 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert symbol_summary["best_quality_status"] == "ok"
         assert symbol_summary["best_rows"] == 3
 
+        with request.urlopen(f"{base}/data_catalog?limit=5&quality_status=ok", timeout=5) as resp:
+            quality_filtered = json.loads(resp.read().decode("utf-8"))
+        assert quality_filtered["count"] == 1
+        assert quality_filtered["filters"]["quality_status"] == "ok"
+        assert quality_filtered["parsed_filter_active"] is True
+        assert quality_filtered["parsed_filter_match_count"] == 1
+        assert quality_filtered["parsed_filter_scan_limit"] == 15
+
+        with request.urlopen(f"{base}/data_catalog?limit=5&storage_contract_status=bad", timeout=5) as resp:
+            contract_filtered = json.loads(resp.read().decode("utf-8"))
+        assert contract_filtered["count"] == 0
+        assert contract_filtered["filters"]["storage_contract_status"] == "bad"
+        assert contract_filtered["parsed_filter_active"] is True
+
         with request.urlopen(f"{base}/data_catalog_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
             assert resp.headers["Content-Disposition"] == 'attachment; filename="saved_data_catalog.csv"'
@@ -2825,6 +2839,9 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert exported[0]["storage_contract_status"] == "warn"
         assert exported[0]["storage_contract_warning_count"] == "1"
         assert exported[0]["storage_contract_label"] == "review"
+        with request.urlopen(f"{base}/data_catalog_export?limit=5&replay_status=bad", timeout=5) as resp:
+            replay_bad_csv_body = resp.read().decode("utf-8")
+        assert list(csv.DictReader(io.StringIO(replay_bad_csv_body))) == []
 
         with request.urlopen(f"{base}/data_symbol_directory?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("application/json")
@@ -2838,6 +2855,10 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert symbol_directory["storage_contract_status_counts"] == {"warn": 1}
         assert symbol_directory["symbols"][0]["symbol"] == "SPY"
         assert symbol_directory["symbols"][0]["best_path"] == dataset["path"]
+        with request.urlopen(f"{base}/data_symbol_directory?limit=5&storage_contract_status=bad", timeout=5) as resp:
+            contract_directory = json.loads(resp.read().decode("utf-8"))
+        assert contract_directory["symbol_count"] == 0
+        assert contract_directory["filters"]["storage_contract_status"] == "bad"
 
         with request.urlopen(f"{base}/data_history_matrix?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("application/json")
@@ -2858,6 +2879,10 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert matrix_row["replay_counts"] == {"warn": 1}
         assert matrix_row["quality_counts"] == {"ok": 1}
         assert matrix_row["storage_contract_counts"] == {"warn": 1}
+        with request.urlopen(f"{base}/data_history_matrix?limit=5&replay_status=warn", timeout=5) as resp:
+            replay_matrix = json.loads(resp.read().decode("utf-8"))
+        assert replay_matrix["group_count"] == 1
+        assert replay_matrix["filters"]["replay_status"] == "warn"
         with request.urlopen(f"{base}/data_history_matrix_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")
             assert resp.headers["Content-Disposition"] == 'attachment; filename="data_history_matrix.csv"'

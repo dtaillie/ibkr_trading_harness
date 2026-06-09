@@ -97,6 +97,7 @@ DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",
 DEFAULT_DATA_CATALOG_LIMIT = 200
 DEFAULT_DATA_CATALOG_MAX_LIMIT = 1000
 DEFAULT_DATA_CATALOG_MAX_OFFSET = 200000
+DEFAULT_DATA_PARSED_FILTER_SCAN_MULTIPLIER = 3
 DEFAULT_DATA_SYMBOL_INDEX_LIMIT = 5000
 DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT = 20000
 DATA_LIBRARY_CACHE_TTL_SECONDS = 60.0
@@ -1140,6 +1141,9 @@ def parse_data_symbol_index_filters(params: dict[str, list[str]]) -> dict[str, s
             normalize_bar_size(first_query_value(params, "bar_size") or first_query_value(params, "bar")) or first_query_value(params, "bar_size") or first_query_value(params, "bar")
         ),
         "storage_session": normalize_symbol_index_filter_value(first_query_value(params, "storage_session") or first_query_value(params, "session")),
+        "quality_status": normalize_symbol_index_filter_value(first_query_value(params, "quality_status") or first_query_value(params, "quality")),
+        "storage_contract_status": normalize_symbol_index_filter_value(first_query_value(params, "storage_contract_status") or first_query_value(params, "contract")),
+        "replay_status": normalize_symbol_index_filter_value(first_query_value(params, "replay_status") or first_query_value(params, "replay")),
     }
     return {key: value for key, value in filters.items() if value}
 
@@ -2360,6 +2364,32 @@ def normalize_symbol_index_filter_value(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
 
+DATA_CANDIDATE_FILTER_KEYS = {"query", "asset_class", "source", "bar_size", "storage_session"}
+DATA_PARSED_FILTER_KEYS = {"quality_status", "storage_contract_status", "replay_status"}
+
+
+def data_candidate_filters(filters: dict[str, str] | None) -> dict[str, str]:
+    return {key: value for key, value in (filters or {}).items() if key in DATA_CANDIDATE_FILTER_KEYS and value}
+
+
+def has_data_parsed_filters(filters: dict[str, str] | None) -> bool:
+    return any(key in DATA_PARSED_FILTER_KEYS and value for key, value in (filters or {}).items())
+
+
+def dataset_matches_data_parsed_filters(row: dict[str, Any], filters: dict[str, str] | None) -> bool:
+    filters = filters or {}
+    exact_checks = {
+        "quality_status": row.get("quality_status"),
+        "storage_contract_status": row.get("storage_contract_status"),
+        "replay_status": data_replay_status(row),
+    }
+    for key, actual in exact_checks.items():
+        expected = normalize_symbol_index_filter_value(filters.get(key, ""))
+        if expected and normalize_symbol_index_filter_value(actual) != expected:
+            return False
+    return True
+
+
 def candidate_matches_symbol_index_filters(path: Path, filters: dict[str, str] | None) -> bool:
     filters = filters or {}
     if not filters:
@@ -3244,20 +3274,39 @@ def build_data_catalog(
     if offset < 0:
         raise ValueError("offset must be at least 0")
     filters = {key: value for key, value in (filters or {}).items() if value}
+    candidate_filters = data_candidate_filters(filters)
+    parsed_filters_active = has_data_parsed_filters(filters)
     datasets = []
     errors = []
     scan_limit = max(limit, offset + limit)
-    files, root_summaries = scan_data_file_candidates(data_roots, limit=scan_limit, filters=filters)
-    page_files = files[offset:offset + limit]
+    if parsed_filters_active:
+        scan_limit = max(
+            scan_limit,
+            min(
+                DEFAULT_DATA_CATALOG_MAX_LIMIT,
+                max(limit * DEFAULT_DATA_PARSED_FILTER_SCAN_MULTIPLIER, limit),
+            ),
+        )
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=scan_limit, filters=candidate_filters)
+    page_files = files if parsed_filters_active else files[offset:offset + limit]
     root_summary_by_path = {str(row["path"]): row for row in root_summaries}
+    matched_dataset_count = 0
     for path in page_files:
         root = most_specific_data_root(path, data_roots)
         root_key = display_path(root)
         root_summary = root_summary_by_path.get(root_key)
         try:
-            datasets.append(summarize_data_file(path, root=root, preview_points=preview_points))
+            dataset = summarize_data_file(path, root=root, preview_points=preview_points)
             if root_summary is not None:
                 root_summary["parsed_count"] += 1
+            if parsed_filters_active and not dataset_matches_data_parsed_filters(dataset, filters):
+                continue
+            if parsed_filters_active:
+                if matched_dataset_count >= offset and len(datasets) < limit:
+                    datasets.append(dataset)
+                matched_dataset_count += 1
+            else:
+                datasets.append(dataset)
         except Exception as exc:
             if root_summary is not None:
                 root_summary["parse_error_count"] += 1
@@ -3303,8 +3352,12 @@ def build_data_catalog(
     deferred_to_child_root_count_total = sum(int(row.get("deferred_to_child_root_count") or 0) for row in root_summaries)
     scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
-    page_end_offset = offset + len(page_files)
-    has_next_page = len(files) > offset + limit or bool(scan_capped_root_count)
+    page_end_offset = offset + len(datasets)
+    has_next_page = (
+        matched_dataset_count > offset + limit
+        if parsed_filters_active
+        else len(files) > offset + limit
+    ) or bool(scan_capped_root_count)
     root_inventory = build_data_catalog_root_inventory(
         root_summaries,
         dataset_count=len(datasets),
@@ -3327,6 +3380,10 @@ def build_data_catalog(
         "unsupported_file_count_total": unsupported_file_count_total,
         "skipped_candidate_count_total": skipped_candidate_count_total,
         "filter_skipped_count_total": filter_skipped_count_total,
+        "parsed_filter_active": parsed_filters_active,
+        "parsed_filter_match_count": matched_dataset_count if parsed_filters_active else len(datasets),
+        "parsed_filter_scan_limit": scan_limit if parsed_filters_active else None,
+        "parsed_filter_scan_capped": bool(parsed_filters_active and scan_capped_root_count),
         "deferred_to_child_root_count_total": deferred_to_child_root_count_total,
         "scan_capped_root_count": scan_capped_root_count,
         "not_scanned_root_count": not_scanned_root_count,
@@ -3335,7 +3392,7 @@ def build_data_catalog(
             and not not_scanned_root_count
             and not parse_error_count_total
             and not skipped_candidate_count_total
-            and parsed_count_total == len(datasets)
+            and (parsed_filters_active or parsed_count_total == len(datasets))
         ),
         "catalog_visibility_status": (
             "capped" if scan_capped_root_count

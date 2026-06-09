@@ -1080,6 +1080,13 @@ QQQ show up, treat that as a bug until proven otherwise.
     skipped candidates, capped roots, not-scanned roots, completeness, and
     `catalog_visibility_status`; Data Library surfaces those fields in Catalog
     Scope and the catalog header so missing symbols are easier to diagnose.
+  - partial; Data Library server contracts now accept the same quality,
+    storage-contract, and replay-readiness filters exposed in the UI for
+    catalog JSON/CSV, Symbol Directory, and Saved History Matrix requests.
+    Parsed-row filters are applied after file metadata is summarized with a
+    bounded scan budget, and the catalog response reports parsed-filter
+    activity, match counts, scan limits, and cap state so empty filtered views
+    are distinguishable from disconnected data roots.
   - partial; Data Home now includes a Data Inventory panel that consolidates
     the saved universe, configured/suggested root scope, coverage range,
     quality/storage-contract readiness, visible filtered rows, and direct
