@@ -31279,8 +31279,8 @@ async function downloadDataCatalogCsv() {
 }
 
 async function downloadDataSymbolDirectoryCsv() {
-  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
-  const body = await fetchText(`/data_symbol_directory_export?limit=${catalogLimit}`);
+  const params = dataSymbolDirectoryServerQueryParams();
+  const body = await fetchText(`/data_symbol_directory_export?${params.toString()}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

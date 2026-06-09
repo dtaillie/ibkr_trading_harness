@@ -1439,7 +1439,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       exposes `/data_symbol_directory` as a first-class JSON contract for
       symbol-level universe summaries, and the dashboard consumes that payload
       with catalog-summary fallback so symbol browsing is no longer only an
-      embedded side effect of `/data_catalog`.
+      embedded side effect of `/data_catalog`. The CSV export now accepts the
+      same server-side symbol/source/bar/session filters used by the JSON
+      endpoint and dashboard query, so offline review matches the focused
+      directory scope.
     - partial; Symbol Directory now includes a compact Symbol Coverage Ledger
       table for the current filtered/sorted symbol set, showing range, files,
       rows, source/bar/session mix, readiness, and direct Inspect/Filter/

@@ -4396,8 +4396,13 @@ def build_data_catalog_csv(
     return out.getvalue()
 
 
-def build_data_symbol_directory_csv(data_roots: list[Path], *, limit: int = 200) -> str:
-    catalog = build_data_symbol_directory(data_roots, limit=limit)
+def build_data_symbol_directory_csv(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    filters: dict[str, str] | None = None,
+) -> str:
+    catalog = build_data_symbol_directory(data_roots, limit=limit, filters=filters)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_SYMBOL_DIRECTORY_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -12553,7 +12558,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=self.data_catalog_default_limit,
                     maximum=self.data_catalog_max_limit,
                 )
-                csv_body = build_data_symbol_directory_csv(self.data_roots, limit=limit)
+                filters = parse_data_symbol_index_filters(params)
+                csv_body = build_data_symbol_directory_csv(self.data_roots, limit=limit, filters=filters)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

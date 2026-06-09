@@ -2883,6 +2883,10 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert symbol_exported[0]["mixed_raw_symbols"] == "False"
         assert symbol_exported[0]["file_count"] == "1"
         assert symbol_exported[0]["row_count"] == "3"
+        with request.urlopen(f"{base}/data_symbol_directory_export?limit=5&source=missing_source", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            missing_symbol_csv_body = resp.read().decode("utf-8")
+        assert list(csv.DictReader(io.StringIO(missing_symbol_csv_body))) == []
         assert symbol_exported[0]["asset_classes"] == "etf"
         assert symbol_exported[0]["sources"] == "file"
         assert symbol_exported[0]["storage_session_count"] == "1"
