@@ -60,6 +60,15 @@ If a broad crypto fetch has many no-data chunks, inspect the manifest in the
 dashboard Fetch Jobs page. One unsupported symbol should not invalidate the
 whole run.
 
+For live/paper crypto runners, Gateway connectivity is only the first check. If
+the dashboard shows `market_data_health.reason=historical_timeouts_no_live_prices`,
+the runner connected to IBKR but received neither historical bars nor live
+snapshot prices. The runner bounds this failure mode with
+`data.historical_request_timeout_seconds` and
+`data.historical_max_consecutive_timeouts`; inspect
+`historical_fetch.status_counts`, `timeout_like_count`, and
+`skipped_after_timeouts_count` before treating the dashboard as disconnected.
+
 Resume a crypto fetch from its manifest:
 
 ```bash
@@ -89,4 +98,3 @@ When asking IBKR support about a permission issue, include:
 - data type when relevant
 - exact error code/message
 - whether the same contract displays in Trader Workstation or Client Portal
-

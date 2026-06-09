@@ -5755,6 +5755,8 @@ function symbolInventoryModel() {
     notScannedRootCount: Number(inventory.not_scanned_root_count ?? index.not_scanned_root_count ?? 0),
     candidateCountTotal: Number(inventory.candidate_count_total ?? index.candidate_count_total ?? 0),
     supportedFileSeenCountTotal: Number(inventory.supported_file_seen_count_total ?? index.supported_file_seen_count_total ?? 0),
+    overlappingRootCount: Number(inventory.overlapping_root_count ?? 0),
+    overlappingNotScannedRootCount: Number(inventory.overlapping_not_scanned_root_count ?? 0),
     filterActive: Boolean(inventory.filter_active ?? index.filter_active),
     topSymbols: inventory.top_symbols || (index.symbols || []).slice(0, 10),
   };
@@ -12515,13 +12517,16 @@ function rootIndexRows() {
 }
 
 function rootIndexRootStatus(root) {
+  const overlap = root.covered_by_root
+    ? ` Covered by earlier root ${text(root.covered_by_root)}.`
+    : root.duplicate_of_root ? ` Duplicate of earlier root ${text(root.duplicate_of_root)}.` : "";
   if (!root.exists || !root.is_dir) return { status: "bad", title: "Unavailable", note: "Root is missing or not a directory." };
-  if (root.scan_capped) return { status: "warn", title: "Capped", note: text(root.not_scanned_reason || "Global root-index limit reached.") };
-  if (root.not_scanned_reason) return { status: "warn", title: "Not Scanned", note: text(root.not_scanned_reason) };
+  if (root.scan_capped) return { status: "warn", title: "Capped", note: `${text(root.not_scanned_reason || "Global root-index limit reached.")}.${overlap}` };
+  if (root.not_scanned_reason) return { status: "warn", title: "Not Scanned", note: `${text(root.not_scanned_reason)}.${overlap}` };
   if (Number(root.parse_error_count || 0)) return { status: "bad", title: "Errors", note: `${numberText(root.parse_error_count, 0)} scan error${Number(root.parse_error_count || 0) === 1 ? "" : "s"}.` };
-  if (Number(root.candidate_count || 0)) return { status: "ok", title: "Indexed", note: `${numberText(root.candidate_count, 0)} supported candidate file${Number(root.candidate_count || 0) === 1 ? "" : "s"}.` };
+  if (Number(root.candidate_count || 0)) return { status: "ok", title: "Indexed", note: `${numberText(root.candidate_count, 0)} supported candidate file${Number(root.candidate_count || 0) === 1 ? "" : "s"}.${overlap}` };
   if (Number(root.unsupported_file_count || 0)) return { status: "warn", title: "Unsupported Only", note: `${numberText(root.unsupported_file_count, 0)} unsupported file${Number(root.unsupported_file_count || 0) === 1 ? "" : "s"} found.` };
-  return { status: "warn", title: "No Candidates", note: "No supported CSV/parquet files found." };
+  return { status: "warn", title: "No Candidates", note: `No supported CSV/parquet files found.${overlap}` };
 }
 
 function renderRootIndexBrowser() {
@@ -13774,6 +13779,9 @@ function dataInventoryEvidenceModel(filteredRows = []) {
   const indexSymbols = inventory.symbolCount;
   const indexFiles = inventory.fileCount;
   const indexCapped = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
+  const overlapNote = inventory.overlappingRootCount
+    ? `; ${numberText(inventory.overlappingRootCount, 0)} overlapping root${inventory.overlappingRootCount === 1 ? "" : "s"}`
+    : "";
   const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const rootSummaries = catalog.root_summaries || [];
   const rootInventory = catalog.root_inventory || {};
@@ -13846,7 +13854,7 @@ function dataInventoryEvidenceModel(filteredRows = []) {
       title: indexFiles ? `${numberText(indexFiles, 0)} candidates` : "n/a",
       note: indexError !== "n/a"
         ? `Root index failed: ${indexError}.`
-        : `${numberText(indexSymbols, 0)} inferred symbols; ${inventory.reason}${indexCapped ? "; partial scan" : ""}${indexFiles > catalogRows ? "; broader than parsed catalog" : ""}.`,
+        : `${numberText(indexSymbols, 0)} inferred symbols; ${inventory.reason}${indexCapped ? "; partial scan" : ""}${indexFiles > catalogRows ? "; broader than parsed catalog" : ""}${overlapNote}.`,
     },
     {
       status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
@@ -13893,7 +13901,7 @@ function dataInventoryEvidenceModel(filteredRows = []) {
       title: "Root Index Cross-Check",
       detail: indexError !== "n/a"
         ? `Root index failed with: ${indexError}.`
-        : `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} were inferred from root paths; inventory=${inventory.reason}; parsed catalog has ${numberText(catalogRows, 0)} files${catalogLooksPartial ? ", so the catalog may be partial" : ""}.`,
+        : `${numberText(indexFiles, 0)} candidate file${indexFiles === 1 ? "" : "s"} and ${numberText(indexSymbols, 0)} symbol${indexSymbols === 1 ? "" : "s"} were inferred from root paths; inventory=${inventory.reason}; parsed catalog has ${numberText(catalogRows, 0)} files${catalogLooksPartial ? ", so the catalog may be partial" : ""}${overlapNote}.`,
     },
     {
       status: blockedGroups ? "bad" : reviewGroups ? "warn" : readyGroups ? "ok" : catalogRows ? "warn" : "bad",
@@ -14112,6 +14120,9 @@ function renderDataInventoryPanel(filteredRows = []) {
   const indexFileCount = inventory.fileCount;
   const indexSymbolCount = inventory.symbolCount;
   const indexCapped = inventory.indexComplete === false || inventory.scanCappedRootCount > 0 || inventory.notScannedRootCount > 0;
+  const overlapNote = inventory.overlappingRootCount
+    ? `; ${numberText(inventory.overlappingRootCount, 0)} overlapping root${inventory.overlappingRootCount === 1 ? "" : "s"}`
+    : "";
   const indexError = text(symbolIndex.index_error || ((symbolIndex.errors || [])[0] || {}).error || "");
   const rootSummaries = catalog.root_summaries || [];
   const totalRootFiles = roots.reduce((sum, root) => sum + Number(root.data_file_count || 0), 0);
@@ -14182,7 +14193,7 @@ function renderDataInventoryPanel(filteredRows = []) {
       detail: indexError !== "n/a"
         ? `Index failed: ${indexError}.`
         : indexFileCount
-          ? `${numberText(indexFileCount, 0)} candidate files; ${inventory.reason}${indexCapped ? `; ${numberText(inventory.scanCappedRootCount, 0)} capped / ${numberText(inventory.notScannedRootCount, 0)} not scanned roots` : ""}.`
+          ? `${numberText(indexFileCount, 0)} candidate files; ${inventory.reason}${indexCapped ? `; ${numberText(inventory.scanCappedRootCount, 0)} capped / ${numberText(inventory.notScannedRootCount, 0)} not scanned roots` : ""}${overlapNote}.`
           : "No broad root index loaded.",
     },
     {

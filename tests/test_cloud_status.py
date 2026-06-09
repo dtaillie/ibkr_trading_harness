@@ -3003,6 +3003,40 @@ def test_cloud_status_server_filters_broad_data_symbol_index_past_scan_cap(tmp_p
         server.server_close()
 
 
+def test_cloud_status_server_marks_overlapping_symbol_index_roots(tmp_path):
+    data_root = tmp_path / "data"
+    nested_root = data_root / "ibkr"
+    nested_root.mkdir(parents=True)
+    for idx in range(8):
+        (data_root / f"AAA{idx:02d}_1min_sample.csv").write_text(
+            "timestamp,close\n2026-01-02T14:30:00Z,100\n",
+            encoding="utf-8",
+        )
+    for idx in range(3):
+        (nested_root / f"BBB{idx:02d}_1min_sample.csv").write_text(
+            "timestamp,close\n2026-01-02T14:30:00Z,200\n",
+            encoding="utf-8",
+        )
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root, nested_root])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:
+            index = json.loads(resp.read().decode("utf-8"))
+        nested_summary = index["root_summaries"][1]
+        assert nested_summary["display_path"].endswith("data/ibkr")
+        assert nested_summary["overlaps_prior_root"] is True
+        assert nested_summary["covered_by_root"].endswith("data")
+        assert nested_summary["not_scanned_reason"] == "global catalog limit already reached"
+        assert index["symbol_inventory"]["overlapping_root_count"] == 1
+        assert index["symbol_inventory"]["overlapping_not_scanned_root_count"] == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cloud_status_server_symbol_summaries_group_canonical_crypto_symbols(tmp_path):
     data_root = tmp_path / "data"
     crypto_root = data_root / "crypto"

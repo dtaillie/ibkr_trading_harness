@@ -62,6 +62,16 @@ exists, or the system is idle until the next window. Use Overview's Runtime
 Activity card or Operations > Paper before assuming the strategy loop is
 actively streaming/evaluating.
 
+Treat market-data health as a third separate check. A runner can connect to
+Gateway and still publish `market_data_health.status=bad` if IBKR returns no
+usable bars or live prices. For crypto runners, inspect
+`market_data_health.reason`, `historical_fetch.status_counts`,
+`timeout_like_count`, and `skipped_after_timeouts_count`. The crypto runner
+tries live snapshots first, then bounds the historical sweep with
+`data.historical_request_timeout_seconds` and
+`data.historical_max_consecutive_timeouts`, so repeated no-data responses should
+show as explicit feed-health evidence instead of a long silent backend stall.
+
 For local monitoring, `config/cloud_status_local.yaml` should publish to the
 same `dashboard.state_dir` read by `scripts/cloud_status_server.py`, commonly
 `paper_logs/cloud_status_server/latest_status.json`, and can also post to the
@@ -161,7 +171,10 @@ for matching filenames/paths instead of filtering only the first bounded batch.
 The Root Index payload also includes `symbol_inventory.status` and
 `symbol_inventory.reason`; Data Home uses those fields so a broad partial scan
 such as "many symbols visible, but capped" is distinct from "no saved data
-found."
+found." Root cards also mark nested or duplicate configured roots with
+`covered_by_root` or `duplicate_of_root`. If a child root looks unscanned after
+a parent root hits the cap, check whether the child is already covered by that
+earlier parent scan before treating it as missing data.
 Use Export Root Index CSV when you want the current broader or filtered
 candidate-file and symbol summary outside the dashboard. Root Index rows are
 filename/path inferred, so inspect parsed Data Detail quality before replay.

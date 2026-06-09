@@ -40,6 +40,8 @@ data:
   max_data_age_minutes: 90
   use_live_snapshot_for_current_close: true
   snapshot_wait_seconds: 3
+  historical_request_timeout_seconds: 15
+  historical_max_consecutive_timeouts: 3
 
 broker:
   host: 127.0.0.1

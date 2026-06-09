@@ -223,6 +223,12 @@ strategy-private.
     raises `market_data_health_bad` alerts, and Overview's Market Data card
     shows the feed-health reason and symbol coverage instead of only a stale
     timestamp.
+  - partial; crypto runner market-data checks now try live snapshots before the
+    historical sweep, bound each IBKR historical request with
+    `historical_request_timeout_seconds`, and skip the rest of a cycle after
+    `historical_max_consecutive_timeouts`. This keeps the backend from spending
+    many minutes in per-symbol timeouts while the UI appears disconnected, and
+    the emitted health payload shows timeout and skipped-symbol counts.
   - partial; `scripts/publish_status.py` now derives a top-level
     `runtime_activity` summary from supervised jobs, active child processes,
     fresh/stale runs, missed windows, and next start times. Overview and
@@ -1035,6 +1041,11 @@ QQQ show up, treat that as a bug until proven otherwise.
     counts, cap/not-scanned counts, source/bar/asset breakdowns, and top
     symbols. Data Home and the global Saved Data metric consume that summary so
     broad Root Index evidence is not reinterpreted differently across panels.
+  - partial; Root Index root summaries now mark nested/duplicate configured
+    roots with `covered_by_root`/`duplicate_of_root`, and Data Home/Root Index
+    cards surface overlapping-root counts. This explains cases such as
+    `cache/ibkr` appearing unscanned because its parent `cache` consumed the
+    global scan cap first.
 - Audit all historical fetch outputs and data roots:
   - identify where stock 1m, stock 5m, crypto 1m, crypto 5m, and sample files
     are written

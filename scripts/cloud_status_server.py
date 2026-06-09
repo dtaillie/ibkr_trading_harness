@@ -2144,14 +2144,20 @@ def scan_data_file_candidates(
     root_summaries: list[dict[str, Any]] = []
     filters = {key: value for key, value in (filters or {}).items() if value}
     filter_active = bool(filters)
+    prior_roots: list[Path] = []
     for root in data_roots:
         started = time.monotonic()
         resolved = root.resolve()
+        covered_by = next((prior for prior in prior_roots if resolved != prior and resolved.is_relative_to(prior)), None)
+        duplicate_of = next((prior for prior in prior_roots if resolved == prior), None)
         summary: dict[str, Any] = {
             "path": display_path(resolved),
             "display_path": display_path(resolved),
             "exists": resolved.exists(),
             "is_dir": resolved.is_dir() if resolved.exists() else False,
+            "overlaps_prior_root": covered_by is not None or duplicate_of is not None,
+            "covered_by_root": display_path(covered_by) if covered_by else None,
+            "duplicate_of_root": display_path(duplicate_of) if duplicate_of else None,
             "catalog_limit": limit,
             "candidate_count": 0,
             "supported_file_seen_count": 0,
@@ -2167,6 +2173,7 @@ def scan_data_file_candidates(
             "sample_unsupported_files": [],
         }
         root_summaries.append(summary)
+        prior_roots.append(resolved)
         if len(files) >= limit:
             summary["not_scanned_reason"] = "global catalog limit already reached"
             summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
@@ -8352,6 +8359,11 @@ def build_data_symbol_inventory(
     supported_seen_total = sum(int(row.get("supported_file_seen_count") or 0) for row in root_summaries)
     unsupported_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
     filter_skipped_total = sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries)
+    overlapping_root_count = sum(1 for row in root_summaries if row.get("overlaps_prior_root"))
+    overlapping_not_scanned_root_count = sum(
+        1 for row in root_summaries
+        if row.get("overlaps_prior_root") and row.get("not_scanned_reason")
+    )
     index_complete = not any(row.get("scan_capped") or row.get("not_scanned_reason") for row in root_summaries)
     filter_active = bool(filters)
     if symbol_rows and index_complete:
@@ -8403,6 +8415,8 @@ def build_data_symbol_inventory(
         "supported_file_seen_count_total": supported_seen_total,
         "filter_skipped_count_total": filter_skipped_total,
         "unsupported_file_count_total": unsupported_total,
+        "overlapping_root_count": overlapping_root_count,
+        "overlapping_not_scanned_root_count": overlapping_not_scanned_root_count,
         "error_count": len(errors),
         "asset_class_counts": count_values(file_rows, "asset_class"),
         "source_counts": count_values(file_rows, "source"),
