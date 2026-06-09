@@ -94,6 +94,7 @@ DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
 DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",)
 DEFAULT_DATA_CATALOG_LIMIT = 200
 DEFAULT_DATA_CATALOG_MAX_LIMIT = 1000
+DEFAULT_DATA_CATALOG_MAX_OFFSET = 200000
 DEFAULT_DATA_SYMBOL_INDEX_LIMIT = 5000
 DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT = 20000
 PUBLIC_DOCS = {
@@ -2285,6 +2286,52 @@ def candidate_matches_symbol_index_filters(path: Path, filters: dict[str, str] |
     return True
 
 
+def prioritized_data_roots(data_roots: list[Path], filters: dict[str, str]) -> list[Path]:
+    if not filters:
+        return data_roots
+    source = normalize_symbol_index_filter_value(filters.get("source", ""))
+    query = normalize_symbol_index_filter_value(filters.get("query", ""))
+
+    def score(root: Path) -> tuple[int, int, str]:
+        root_text = normalize_symbol_index_filter_value(display_path(root))
+        value = 0
+        if source and source in root_text:
+            value -= 20
+        if query and query in root_text:
+            value -= 10
+        return (value, -len(root_text), root_text)
+
+    return sorted(data_roots, key=score)
+
+
+def symbol_like_query(value: str) -> str | None:
+    query = normalize_symbol_index_filter_value(value)
+    if not query or not re.fullmatch(r"[a-z0-9][a-z0-9.-]{0,24}", query):
+        return None
+    return query
+
+
+def iter_data_candidate_paths(root: Path, filters: dict[str, str]) -> Iterable[Path]:
+    query = symbol_like_query(filters.get("query", ""))
+    if not query:
+        yield from sorted(root.rglob("*"))
+        return
+    patterns = {
+        f"*{query}*",
+        f"*{query.upper()}*",
+        f"*{query.replace('-', '_')}*",
+        f"*{query.replace('-', '_').upper()}*",
+    }
+    seen: set[Path] = set()
+    for pattern in sorted(patterns):
+        for path in sorted(root.rglob(pattern)):
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            yield path
+
+
 def scan_data_file_candidates(
     data_roots: list[Path],
     *,
@@ -2296,7 +2343,8 @@ def scan_data_file_candidates(
     filters = {key: value for key, value in (filters or {}).items() if value}
     filter_active = bool(filters)
     prior_roots: list[Path] = []
-    for root in data_roots:
+    seen_files: set[Path] = set()
+    for root in prioritized_data_roots(data_roots, filters):
         started = time.monotonic()
         resolved = root.resolve()
         covered_by = next((prior for prior in prior_roots if resolved != prior and resolved.is_relative_to(prior)), None)
@@ -2334,7 +2382,7 @@ def scan_data_file_candidates(
             summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
             continue
         try:
-            for path in sorted(root.rglob("*")):
+            for path in iter_data_candidate_paths(root, filters):
                 try:
                     if not path.is_file():
                         continue
@@ -2351,6 +2399,9 @@ def scan_data_file_candidates(
                             "reason": f"unsupported extension {path.suffix.lower() or 'none'}",
                         })
                     continue
+                resolved_path = path.resolve()
+                if resolved_path in seen_files:
+                    continue
                 summary["supported_file_seen_count"] += 1
                 if not candidate_matches_symbol_index_filters(path, filters):
                     summary["filter_skipped_count"] += 1
@@ -2360,6 +2411,7 @@ def scan_data_file_candidates(
                     summary["not_scanned_reason"] = "global catalog limit reached"
                     summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
                     break
+                seen_files.add(resolved_path)
                 files.append(path)
                 summary["candidate_count"] += 1
         except OSError as exc:
@@ -3038,15 +3090,17 @@ def build_data_catalog(
     limit: int = 50,
     offset: int = 0,
     preview_points: int = 80,
+    filters: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if preview_points < 2 or preview_points > 500:
         raise ValueError("preview_points must be between 2 and 500")
     if offset < 0:
         raise ValueError("offset must be at least 0")
+    filters = {key: value for key, value in (filters or {}).items() if value}
     datasets = []
     errors = []
     scan_limit = max(limit, offset + limit)
-    files, root_summaries = scan_data_file_candidates(data_roots, limit=scan_limit)
+    files, root_summaries = scan_data_file_candidates(data_roots, limit=scan_limit, filters=filters)
     page_files = files[offset:offset + limit]
     root_summary_by_path = {str(row["path"]): row for row in root_summaries}
     for path in page_files:
@@ -3098,6 +3152,7 @@ def build_data_catalog(
     parse_error_count_total = sum(int(row.get("parse_error_count") or 0) for row in root_summaries)
     unsupported_file_count_total = sum(int(row.get("unsupported_file_count") or 0) for row in root_summaries)
     skipped_candidate_count_total = sum(int(row.get("skipped_candidate_count") or 0) for row in root_summaries)
+    filter_skipped_count_total = sum(int(row.get("filter_skipped_count") or 0) for row in root_summaries)
     scan_capped_root_count = sum(1 for row in root_summaries if row.get("scan_capped"))
     not_scanned_root_count = sum(1 for row in root_summaries if row.get("not_scanned_reason"))
     page_end_offset = offset + len(page_files)
@@ -3123,6 +3178,7 @@ def build_data_catalog(
         "parse_error_count_total": parse_error_count_total,
         "unsupported_file_count_total": unsupported_file_count_total,
         "skipped_candidate_count_total": skipped_candidate_count_total,
+        "filter_skipped_count_total": filter_skipped_count_total,
         "scan_capped_root_count": scan_capped_root_count,
         "not_scanned_root_count": not_scanned_root_count,
         "catalog_complete": (
@@ -3150,6 +3206,8 @@ def build_data_catalog(
         "limit": limit,
         "offset": offset,
         "scan_limit": scan_limit,
+        "filters": filters,
+        "filter_active": bool(filters),
         "page_start_offset": offset,
         "page_end_offset": page_end_offset,
         "previous_offset": max(0, offset - limit) if offset > 0 else None,
@@ -4101,8 +4159,14 @@ def build_data_storage_audit_csv(
     return out.getvalue()
 
 
-def build_data_catalog_csv(data_roots: list[Path], *, limit: int = 200, offset: int = 0) -> str:
-    catalog = build_data_catalog(data_roots, limit=limit, offset=offset, preview_points=2)
+def build_data_catalog_csv(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    offset: int = 0,
+    filters: dict[str, str] | None = None,
+) -> str:
+    catalog = build_data_catalog(data_roots, limit=limit, offset=offset, preview_points=2, filters=filters)
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=DATA_CATALOG_EXPORT_FIELDS, extrasaction="ignore")
     writer.writeheader()
@@ -11460,12 +11524,19 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=self.data_catalog_default_limit,
                     maximum=self.data_catalog_max_limit,
                 )
-                max_offset = max(0, self.data_catalog_max_limit - limit)
-                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=max_offset)
+                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=DEFAULT_DATA_CATALOG_MAX_OFFSET)
                 preview_points = int(params.get("preview_points", ["80"])[0])
-                payload = build_data_catalog(self.data_roots, limit=limit, offset=offset, preview_points=preview_points)
+                filters = parse_data_symbol_index_filters(params)
+                payload = build_data_catalog(
+                    self.data_roots,
+                    limit=limit,
+                    offset=offset,
+                    preview_points=preview_points,
+                    filters=filters,
+                )
                 payload["default_limit"] = self.data_catalog_default_limit
                 payload["max_limit"] = self.data_catalog_max_limit
+                payload["max_offset"] = DEFAULT_DATA_CATALOG_MAX_OFFSET
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -11528,9 +11599,9 @@ class StatusHandler(BaseHTTPRequestHandler):
                     default=self.data_catalog_default_limit,
                     maximum=self.data_catalog_max_limit,
                 )
-                max_offset = max(0, self.data_catalog_max_limit - limit)
-                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=max_offset)
-                csv_body = build_data_catalog_csv(self.data_roots, limit=limit, offset=offset)
+                offset = parse_int_param(params, "offset", default=0, minimum=0, maximum=DEFAULT_DATA_CATALOG_MAX_OFFSET)
+                filters = parse_data_symbol_index_filters(params)
+                csv_body = build_data_catalog_csv(self.data_roots, limit=limit, offset=offset, filters=filters)
             except (TypeError, ValueError) as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

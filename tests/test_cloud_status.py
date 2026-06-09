@@ -2826,7 +2826,14 @@ def test_cloud_status_server_paginates_data_catalog(tmp_path):
             + "\n",
             encoding="utf-8",
         )
-    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root])
+    server = create_server(
+        "127.0.0.1",
+        0,
+        tmp_path / "state",
+        data_roots=[data_root],
+        data_catalog_default_limit=2,
+        data_catalog_max_limit=2,
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -3503,6 +3510,29 @@ def test_data_catalog_discovers_many_nested_stock_and_crypto_files(tmp_path):
         assert capped["symbol_count"] == 50
         assert capped["root_summaries"][0]["scan_capped"] is True
         assert capped["root_summaries"][0]["not_scanned_reason"] == "global catalog limit reached"
+
+        with request.urlopen(f"{base}/data_catalog?limit=5&source=zerohash&preview_points=2", timeout=10) as resp:
+            crypto_filtered = json.loads(resp.read().decode("utf-8"))
+        assert crypto_filtered["filter_active"] is True
+        assert crypto_filtered["filters"] == {"source": "zerohash"}
+        assert crypto_filtered["count"] == 1
+        assert crypto_filtered["filter_skipped_count_total"] >= 205
+        assert crypto_filtered["datasets"][0]["symbol"] == "BTC-USD"
+        assert crypto_filtered["source_counts"] == {"zerohash": 1}
+
+        with request.urlopen(f"{base}/data_catalog?limit=3&source=ibkr&bar_size=1min&preview_points=2", timeout=10) as resp:
+            stock_filtered = json.loads(resp.read().decode("utf-8"))
+        assert stock_filtered["filter_active"] is True
+        assert stock_filtered["filters"] == {"bar_size": "1min", "source": "ibkr"}
+        assert stock_filtered["count"] == 3
+        assert stock_filtered["source_counts"] == {"ibkr": 3}
+        assert stock_filtered["bar_size_counts"] == {"1min": 3}
+
+        with request.urlopen(f"{base}/data_catalog_export?limit=5&source=zerohash", timeout=10) as resp:
+            csv_body = resp.read().decode("utf-8")
+        exported = list(csv.DictReader(io.StringIO(csv_body)))
+        assert len(exported) == 1
+        assert exported[0]["symbol"] == "BTC-USD"
     finally:
         server.shutdown()
         server.server_close()

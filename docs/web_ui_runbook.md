@@ -143,9 +143,12 @@ If Data Library only shows SPY/QQQ examples:
    inspect/compare/workbench handoff. Compare Root Index counts with parsed
    catalog counts: if Root Index sees many more candidate files/symbols, the
    dashboard has found local files but the quality catalog is still a bounded
-   parsed sample. If Catalog Scope says the scan is capped, use Scan Max Rows
-   before deciding a symbol is missing. If filters hide everything, use Clear
-   Filters.
+   parsed sample. In Browse, set Search/Bar/Asset/Source/Session and click
+   Search Scan to apply those filters on the backend scan; this can jump
+   directly into large nested roots such as `cache/ibkr` instead of filtering
+   only the already-loaded page. If Catalog Scope says the scan is capped, use
+   Scan Max Rows before deciding a symbol is missing. If filters hide
+   everything, use Clear.
 3. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
 4. Use Find Missing Symbol for a ticker you expected to see.

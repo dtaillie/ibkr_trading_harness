@@ -98,6 +98,10 @@ strategy-private.
     Diagnostics lenses with deep-linkable hashes such as `#data/inspect`, so
     root visibility, catalog browsing, saved-file inspection, comparisons, and
     storage diagnostics are no longer one continuous page.
+  - partial; parsed catalog browsing now supports server-side symbol/source/
+    asset/bar/session scan filters and high-offset paging, so large nested
+    roots such as `cache/ibkr` can be targeted directly instead of being hidden
+    behind the first bounded root slice.
   - partial; Fetch Jobs now has Home / Jobs / Detail lenses with deep-linkable
     hashes such as `#fetch/detail`, separating manifest-root/recovery overview,
     manifest table scanning, and selected-job recovery/output detail.

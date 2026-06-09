@@ -12485,6 +12485,31 @@ function rootIndexServerQueryParams() {
   return params;
 }
 
+function dataCatalogServerQueryParams() {
+  const filters = dataCatalogFilters();
+  const params = new URLSearchParams();
+  params.set("limit", String(selectedDataCatalogLimit()));
+  params.set("offset", String(selectedDataCatalogOffset()));
+  params.set("preview_points", String(dataCatalogPreviewPoints()));
+  if (filters.text) params.set("q", filters.text);
+  if (filters.asset) params.set("asset_class", filters.asset);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.bar) params.set("bar_size", filters.bar);
+  if (filters.session) params.set("storage_session", filters.session);
+  return params;
+}
+
+function dataCatalogServerFilterLabels() {
+  const filters = dataCatalogFilters();
+  return [
+    filters.text ? `search ${filters.text}` : "",
+    filters.asset ? `asset ${filters.asset}` : "",
+    filters.source ? `source ${filters.source}` : "",
+    filters.bar ? `bar ${filters.bar}` : "",
+    filters.session ? `session ${filters.session}` : "",
+  ].filter(Boolean);
+}
+
 async function refreshRootIndexFromServerFilters() {
   const params = rootIndexServerQueryParams();
   const activeFilterCount = Array.from(params.keys()).filter((key) => key !== "limit").length;
@@ -12866,9 +12891,12 @@ function renderDataCatalog() {
   }
   if ($("data-catalog-page-note")) {
     const scanLimit = Number(catalog.scan_limit || limit || 0);
+    const serverFilters = dataCatalogServerFilterLabels();
     $("data-catalog-page-note").textContent = [
+      serverFilters.length ? `server filters: ${serverFilters.join(" / ")}` : "",
       limit ? `Page size ${numberText(limit, 0)}` : "",
       scanLimit ? `scanned through ${numberText(scanLimit, 0)}` : "",
+      Number(catalog.filter_skipped_count_total || 0) ? `${numberText(catalog.filter_skipped_count_total, 0)} skipped by filters` : "",
       catalog.has_next_page ? "more rows available" : "end of current bounded scan",
     ].filter(Boolean).join(" / ") || "Use pages to browse larger saved-data roots.";
   }
@@ -29461,11 +29489,10 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   renderDataGapSummary();
   renderDataMinuteHeatmap();
   renderDataStorageAudit();
-  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
-  const catalogOffset = encodeURIComponent(selectedDataCatalogOffset());
   const symbolIndexLimit = encodeURIComponent(Math.max(Number(selectedDataCatalogLimit()) || 0, 20000));
   try {
-    const dataCatalog = await fetchJson(`/data_catalog?limit=${catalogLimit}&offset=${catalogOffset}&preview_points=${dataCatalogPreviewPoints()}`);
+    const catalogParams = dataCatalogServerQueryParams();
+    const dataCatalog = await fetchJson(`/data_catalog?${catalogParams.toString()}`);
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
     try {
       dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}`);
@@ -30250,9 +30277,9 @@ async function downloadCommandAuditCsv() {
 }
 
 async function downloadDataCatalogCsv() {
-  const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
-  const catalogOffset = encodeURIComponent(selectedDataCatalogOffset());
-  const body = await fetchText(`/data_catalog_export?limit=${catalogLimit}&offset=${catalogOffset}`);
+  const catalogParams = dataCatalogServerQueryParams();
+  catalogParams.delete("preview_points");
+  const body = await fetchText(`/data_catalog_export?${catalogParams.toString()}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -30845,6 +30872,26 @@ function init() {
   $("data-filter-contract").addEventListener("change", renderDataCatalog);
   $("data-filter-replay").addEventListener("change", renderDataCatalog);
   $("data-filter-sort").addEventListener("change", renderDataCatalog);
+  $("data-filter-server-search").addEventListener("click", () => {
+    setDataCatalogOffset(0);
+    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).then(() => {
+      const serverFilters = dataCatalogServerFilterLabels();
+      $("last-refresh").textContent = serverFilters.length
+        ? `Catalog scan filtered: ${serverFilters.join(" / ")}`
+        : "Catalog scan refreshed without server filters";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Catalog scan search failed: ${err.message}`;
+    });
+  });
+  $("data-filter-clear").addEventListener("click", () => {
+    clearDataCatalogFilters();
+    setDataCatalogOffset(0);
+    refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true }).then(() => {
+      $("last-refresh").textContent = "Catalog filters cleared";
+    }).catch((err) => {
+      $("last-refresh").textContent = `Catalog refresh failed: ${err.message}`;
+    });
+  });
   $("data-root-index-filter").addEventListener("input", renderRootIndexBrowser);
   $("data-root-index-asset").addEventListener("change", renderRootIndexBrowser);
   $("data-root-index-source").addEventListener("change", renderRootIndexBrowser);
