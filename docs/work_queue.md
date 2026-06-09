@@ -364,6 +364,11 @@ strategy-private.
       symbol's bounded candidate paths through `/data_symbol_index_detail_export`
       and the Export Files CSV action, so root-index-only file evidence can be
       reviewed offline before parser/catalog work.
+      Root Index candidate files can now be sent directly to Workbench. The
+      Workbench selected-data model preserves public-safe metadata from dynamic
+      selector options, so root-index-only files remain visible in readiness,
+      compatibility, and selected-data panels even when they are not present in
+      the parsed catalog slice.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.

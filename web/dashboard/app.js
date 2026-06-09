@@ -3527,8 +3527,63 @@ function renderPerformanceBenchmarkOptions() {
 function selectedConfigDatasets() {
   const select = $("config-dataset");
   if (!select) return [];
-  const selectedPaths = Array.from(select.selectedOptions).map((option) => option.value);
-  return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
+  const catalogByPath = new Map((state.dataCatalog.datasets || []).map((item) => [item.path, item]));
+  return Array.from(select.selectedOptions)
+    .map((option) => catalogByPath.get(option.value) || datasetFromConfigOption(option))
+    .filter((dataset) => dataset && dataset.path);
+}
+
+function datasetFromConfigOption(option) {
+  if (!option || !option.value) return null;
+  return {
+    path: option.value,
+    symbol: option.dataset.symbol || text(option.textContent).split(/\s+/)[0] || "unknown",
+    canonical_symbol: option.dataset.canonicalSymbol || option.dataset.symbol || "",
+    asset_class: option.dataset.assetClass || "unknown",
+    source: option.dataset.source || "unknown",
+    bar_size: option.dataset.barSize || "unknown",
+    storage_session: option.dataset.storageSession || "unknown",
+    adjustment_status: option.dataset.adjustmentStatus || "unknown",
+    storage_contract_status: option.dataset.storageContractStatus || "warn",
+    storage_contract_warning_count: Number(option.dataset.storageContractWarningCount || 1),
+    quality_status: option.dataset.qualityStatus || "warn",
+    quality_warning_count: Number(option.dataset.qualityWarningCount || 1),
+    rows: Number(option.dataset.rows || 0),
+    first_timestamp: option.dataset.firstTimestamp || null,
+    last_timestamp: option.dataset.lastTimestamp || null,
+    size_bytes: Number(option.dataset.sizeBytes || 0),
+    modified_at: option.dataset.modifiedAt || null,
+    root: option.dataset.root || "",
+    format: option.dataset.format || "",
+    replay_status: option.dataset.replayStatus || "warn",
+  };
+}
+
+function attachDatasetOptionMetadata(option, dataset = {}) {
+  if (!option || !dataset) return option;
+  const set = (key, value) => {
+    if (value !== undefined && value !== null && value !== "") option.dataset[key] = String(value);
+  };
+  set("symbol", dataset.symbol || dataset.display_symbol || dataset.canonical_symbol);
+  set("canonicalSymbol", dataset.canonical_symbol || dataset.symbol);
+  set("assetClass", dataset.asset_class);
+  set("source", dataset.source);
+  set("barSize", dataset.bar_size);
+  set("storageSession", dataset.storage_session);
+  set("adjustmentStatus", dataset.adjustment_status);
+  set("storageContractStatus", dataset.storage_contract_status || "warn");
+  set("storageContractWarningCount", dataset.storage_contract_warning_count ?? (dataset.storage_contract_status ? 0 : 1));
+  set("qualityStatus", dataset.quality_status || ((dataset.quality || {}).quality_status) || "warn");
+  set("qualityWarningCount", dataset.quality_warning_count ?? ((dataset.quality || {}).quality_warning_count) ?? (dataset.quality_status ? 0 : 1));
+  set("rows", dataset.rows);
+  set("firstTimestamp", dataset.first_timestamp);
+  set("lastTimestamp", dataset.last_timestamp);
+  set("sizeBytes", dataset.size_bytes);
+  set("modifiedAt", dataset.modified_at);
+  set("root", dataset.root);
+  set("format", dataset.format);
+  set("replayStatus", dataset.replay_status);
+  return option;
 }
 
 function selectedDataReadiness(selected = selectedConfigDatasets()) {
@@ -13180,7 +13235,7 @@ function renderRootIndexDetail() {
           escapeHtml(text(item.format)),
           escapeHtml(bytes(item.size_bytes)),
           escapeHtml(item.modified_at ? shortTimestampAgeLabel(item.modified_at) : "n/a"),
-          `<span class="button-pair"><button type="button" class="secondary root-index-detail-inspect" data-path="${escapeHtml(path)}">Inspect</button><button type="button" class="secondary root-index-detail-copy" data-path="${escapeHtml(path)}">Copy Path</button></span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-detail-inspect" data-path="${escapeHtml(path)}">Inspect</button><button type="button" class="secondary root-index-detail-workbench" data-path="${escapeHtml(path)}">Workbench</button><button type="button" class="secondary root-index-detail-copy" data-path="${escapeHtml(path)}">Copy Path</button></span>`,
         ]);
       }).join("")
     : row([`<span class="muted">No candidate files found for ${escapeHtml(symbol)} under the current Root Index filters.</span>`, "", "", "", "", "", "", ""]);
@@ -13341,6 +13396,23 @@ async function handleRootIndexDetailAction(target) {
   if (target.classList.contains("root-index-detail-inspect")) {
     await loadDataDetail(path, { resetControls: true });
     $("last-refresh").textContent = "Loaded root-index candidate data detail";
+    return;
+  }
+  if (target.classList.contains("root-index-detail-workbench")) {
+    const detail = state.dataSymbolIndexDetail || {};
+    const item = (detail.files || []).find((rowItem) => text(rowItem.path) === path) || { path };
+    selectCatalogDatasetInWorkbench({
+      ...item,
+      path,
+      symbol: item.symbol || detail.symbol,
+      canonical_symbol: item.canonical_symbol || item.symbol || detail.symbol,
+      quality_status: item.quality_status || "warn",
+      quality_warning_count: item.quality_warning_count ?? 1,
+      storage_contract_status: item.storage_contract_status || "warn",
+      storage_contract_warning_count: item.storage_contract_warning_count ?? 1,
+      replay_status: item.replay_status || "warn",
+    });
+    $("last-refresh").textContent = `Selected ${text(item.symbol || detail.symbol || path)} root-index candidate for Workbench`;
     return;
   }
   if (target.classList.contains("root-index-detail-copy")) {
@@ -16011,13 +16083,17 @@ function selectCatalogDatasetInWorkbench(dataset) {
   let found = false;
   for (const option of datasetSelect.options) {
     option.selected = option.value === dataset.path;
-    if (option.value === dataset.path) found = true;
+    if (option.value === dataset.path) {
+      attachDatasetOptionMetadata(option, dataset);
+      found = true;
+    }
   }
   if (!found) {
     const option = document.createElement("option");
     option.value = dataset.path;
     option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
     option.selected = true;
+    attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);
   }
   if ($("config-start-date")) $("config-start-date").value = dateInputValueFromTimestamp(dataset.first_timestamp);
@@ -18374,10 +18450,34 @@ function useDataDetailInWorkbench() {
   }
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
+  const dataset = {
+    path,
+    symbol: detail.symbol,
+    canonical_symbol: detail.canonical_symbol || detail.symbol,
+    asset_class: detail.asset_class,
+    source: detail.source,
+    bar_size: detail.bar_size,
+    storage_session: detail.storage_session,
+    adjustment_status: detail.adjustment_status,
+    storage_contract_status: (detail.storage_contract || {}).status || detail.storage_contract_status,
+    storage_contract_warning_count: (detail.storage_contract || {}).warning_count,
+    quality_status: (detail.quality || {}).quality_status,
+    quality_warning_count: (detail.quality || {}).quality_warning_count,
+    rows: detail.rows,
+    first_timestamp: (detail.coverage || {}).first_timestamp,
+    last_timestamp: (detail.coverage || {}).last_timestamp,
+    size_bytes: detail.size_bytes,
+    modified_at: detail.modified_at,
+    root: detail.root,
+    format: detail.format,
+  };
   let found = false;
   for (const option of datasetSelect.options) {
     option.selected = option.value === path;
-    if (option.value === path) found = true;
+    if (option.value === path) {
+      attachDatasetOptionMetadata(option, dataset);
+      found = true;
+    }
   }
   if (!found) {
     const label = `${text(detail.symbol)} ${text(detail.bar_size)} [${text((detail.quality || {}).quality_status || "unknown")}] - ${path}`;
@@ -18385,6 +18485,7 @@ function useDataDetailInWorkbench() {
     option.value = path;
     option.textContent = label;
     option.selected = true;
+    attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);
   }
   const range = dataDetailWorkbenchDateRange(detail);
@@ -32175,7 +32276,7 @@ function init() {
   });
   $("data-root-index-detail-body").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement
-      ? event.target.closest(".root-index-detail-inspect, .root-index-detail-copy")
+      ? event.target.closest(".root-index-detail-inspect, .root-index-detail-workbench, .root-index-detail-copy")
       : null;
     if (!(target instanceof HTMLElement)) return;
     handleRootIndexDetailAction(target).catch((err) => {

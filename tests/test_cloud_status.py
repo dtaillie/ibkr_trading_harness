@@ -1698,11 +1698,14 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data_symbol_index_detail_export" in js
         assert "function downloadRootIndexDetailCsv" in js
         assert "function loadRootIndexDetail" in js
+        assert "function datasetFromConfigOption" in js
+        assert "function attachDatasetOptionMetadata" in js
         assert "function runDataCatalogServerSearch" in js
         assert "Catalog scan searched for" in js
         assert "root-index-show-files" in js
         assert ">Search Scan</button>" in js
         assert "root-index-detail-inspect" in js
+        assert "root-index-detail-workbench" in js
         assert "function dataHistoryMatrixUsesBackendRows" in js
         assert "function dataHistoryMatrixBackendScopeApplied" in js
         assert "useBackendScope ? dataHistoryMatrixRows([])" in js
