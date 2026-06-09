@@ -28835,9 +28835,14 @@ function renderRemoteNodes() {
   $("remote-nodes-body").innerHTML = filteredNodes.length
     ? filteredNodes.map((node) => {
         const feed = remoteNodeMarketDataModel(node);
+        const runNames = (node.runs || []).map((runItem) => text(runItem.id)).filter(Boolean);
+        const runLabel = runNames.length
+          ? `${numberText(node.run_count || runNames.length, 0)}: ${runNames.slice(0, 3).join(", ")}${runNames.length > 3 ? ", ..." : ""}`
+          : numberText(node.run_count || 0, 0);
         return row([
           escapeHtml(node.node_id),
           statusText(node.status),
+          `<span title="${escapeHtml(runNames.join(", ") || countSummary(node.run_status_counts || {}))}">${escapeHtml(runLabel)}</span>`,
           escapeHtml(timestampAgeLabel(node.received_at || node.generated_at)),
           statusText(node.gateway_reachable),
           escapeHtml(text(node.mode)),
@@ -28852,7 +28857,7 @@ function renderRemoteNodes() {
           `<span class="button-pair"><button type="button" class="secondary inspect-remote-node" data-node-id="${escapeHtml(node.node_id)}">Detail</button><button type="button" class="secondary request-remote-status" data-node-id="${escapeHtml(node.node_id)}">Status</button></span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
 function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {

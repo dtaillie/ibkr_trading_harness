@@ -211,6 +211,9 @@ strategy-private.
     This closes the stale-manual-server gap where `/status` could be fresh while
     newer Data Library and Workbench endpoints still returned missing backend
     data.
+  - partial; the status receiver now exposes `GET /health`, and
+    `/remote_nodes` includes bounded per-run summaries plus run counts/status
+    counts so multi-strategy nodes do not look like only the latest run exists.
   - partial; the combined paper supervisor now publishes structured job
     schedule state with active children, missed start windows, reasons, and
     next expected start times. The status bridge and publisher preserve those

@@ -1631,6 +1631,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         endpoints = {(item["method"], item["path"]) for item in payload["endpoints"]}
         assert payload["count"] == len(payload["endpoints"])
         assert payload["categories"]["workbench"] >= 1
+        assert ("GET", "/health") in endpoints
         assert ("GET", "/status_equity_rollups") in endpoints
         assert ("GET", "/status_equity_rollups_snapshot") in endpoints
         assert ("GET", "/status_equity_rollups_export") in endpoints
@@ -1841,7 +1842,24 @@ def test_cloud_status_server_serves_status_history(tmp_path):
                             ],
                         },
                     },
-                    {"id": "run-b", "status": "missing"},
+                    {
+                        "id": "run-b",
+                        "status": "ok",
+                        "metrics": {
+                            "mode": "simulated_paper",
+                            "final_equity": 10050.0,
+                            "final_cash": 10050.0,
+                            "final_positions": {},
+                            "last_decision_time": "2026-01-02T14:30:00+00:00",
+                            "latest_signal_reason": "no_signal",
+                            "rejections": 0,
+                        },
+                        "recent_events": {
+                            "decisions": [{"timestamp": "2026-01-02T14:30:00+00:00"}],
+                            "orders": [],
+                            "fills": [],
+                        },
+                    },
                 ],
                 "supervisors": [{"id": "sup-a", "status": "ok"}],
                 "remote_control": {
@@ -1870,10 +1888,17 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         assert payload["history"][0]["status"] == "ok"
         assert payload["history"][0]["gateway_reachable"] is True
         assert payload["history"][0]["run_count"] == 2
-        assert payload["history"][0]["run_status_counts"] == {"missing": 1, "ok": 1}
+        assert payload["history"][0]["run_status_counts"] == {"ok": 2}
         assert payload["history"][0]["supervisor_status_counts"] == {"ok": 1}
         assert payload["history"][0]["remote_latest_event"] == "command_result"
         assert payload["history"][0]["remote_latest_action"] == "request_status"
+
+        with request.urlopen(f"{base}/health", timeout=5) as resp:
+            health = json.loads(resp.read().decode("utf-8"))
+        assert health["status"] == "ok"
+        assert health["latest_status_available"] is True
+        assert health["latest_node_id"] == "test-node"
+        assert health["status_history_count"] == 3
 
         with request.urlopen(f"{base}/status_history?limit=5", timeout=5) as resp:
             all_nodes = json.loads(resp.read().decode("utf-8"))
@@ -1887,6 +1912,10 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         by_node = {row["node_id"]: row for row in remote_nodes["nodes"]}
         assert by_node["test-node"]["status"] == "ok"
         assert by_node["test-node"]["gateway_reachable"] is True
+        assert by_node["test-node"]["run_count"] == 2
+        assert by_node["test-node"]["run_status_counts"] == {"ok": 2}
+        assert [row["id"] for row in by_node["test-node"]["runs"]] == ["run-a", "run-b"]
+        assert by_node["test-node"]["runs"][1]["mode"] == "simulated_paper"
         assert by_node["test-node"]["latest_run_id"] == "run-a"
         assert by_node["test-node"]["mode"] == "paper"
         assert by_node["test-node"]["final_equity"] == 10123.45
@@ -1922,6 +1951,8 @@ def test_cloud_status_server_serves_status_history(tmp_path):
         csv_by_node = {row["node_id"]: row for row in rows}
         assert csv_by_node["test-node"]["status"] == "ok"
         assert csv_by_node["test-node"]["gateway_reachable"] == "True"
+        assert csv_by_node["test-node"]["run_count"] == "2"
+        assert '"ok": 2' in csv_by_node["test-node"]["run_status_counts"]
         assert csv_by_node["test-node"]["mode"] == "paper"
         assert csv_by_node["test-node"]["final_equity"] == "10123.45"
         assert csv_by_node["test-node"]["open_order_count"] == "1"

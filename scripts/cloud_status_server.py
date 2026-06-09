@@ -426,6 +426,13 @@ PUBLIC_POSITION_DETAIL_FIELDS = (
 PUBLIC_ENDPOINTS = (
     {
         "method": "GET",
+        "path": "/health",
+        "category": "telemetry",
+        "description": "Return receiver liveness and latest local snapshot availability.",
+        "response": "JSON health payload",
+    },
+    {
+        "method": "GET",
         "path": "/status",
         "category": "telemetry",
         "description": "Return the latest posted node status snapshot.",
@@ -1113,6 +1120,17 @@ def latest_run_for_status(row: dict[str, Any]) -> dict[str, Any]:
     return ordered[0] if ordered else {}
 
 
+def sorted_runs_for_status(row: dict[str, Any]) -> list[dict[str, Any]]:
+    runs = row.get("runs") or []
+    if not isinstance(runs, list):
+        return []
+    return sorted(
+        (run for run in runs if isinstance(run, dict)),
+        key=lambda run: str(((run.get("metrics") or {}).get("last_decision_time")) or run.get("generated_at") or ""),
+        reverse=True,
+    )
+
+
 def summarize_market_data_health_for_remote(metrics: dict[str, Any]) -> dict[str, Any]:
     health = metrics.get("market_data_health")
     if not isinstance(health, dict) or not health:
@@ -1139,10 +1157,40 @@ def summarize_market_data_health_for_remote(metrics: dict[str, Any]) -> dict[str
     }
 
 
+def summarize_remote_run_for_node(run: dict[str, Any]) -> dict[str, Any]:
+    metrics = run.get("metrics") if isinstance(run.get("metrics"), dict) else {}
+    recent_events = run.get("recent_events") if isinstance(run.get("recent_events"), dict) else {}
+    positions = metrics.get("final_positions") or {}
+    position_count = len([qty for qty in positions.values() if finite_float(qty) not in {None, 0.0}]) if isinstance(positions, dict) else None
+    market_data = summarize_market_data_health_for_remote(metrics)
+    return {
+        "id": run.get("id"),
+        "status": run.get("status"),
+        "mode": metrics.get("mode"),
+        "final_equity": finite_float(metrics.get("final_equity")),
+        "cash": finite_float(metrics.get("final_cash")),
+        "position_count": position_count,
+        "open_order_count": nonterminal_order_count(recent_events),
+        "decision_count": len(recent_events.get("decisions") or []),
+        "order_count": len(recent_events.get("orders") or []),
+        "fill_count": len(recent_events.get("fills") or []),
+        "rejection_count": int(metrics.get("rejections") or 0) if metrics.get("rejections") is not None else None,
+        "latest_account_time": metrics.get("account_end_time") or metrics.get("latest_account_time") or metrics.get("account_snapshot_time"),
+        "latest_data_time": metrics.get("latest_data_time") or metrics.get("latest_market_data_time") or metrics.get("latest_bar_time"),
+        "latest_bar_time": metrics.get("latest_bar_time") or metrics.get("latest_data_time") or metrics.get("latest_market_data_time"),
+        "latest_decision_time": metrics.get("last_decision_time"),
+        "latest_signal_reason": metrics.get("latest_signal_reason"),
+        "latest_signal_label": metrics.get("latest_signal_label"),
+        "latest_signal_value": finite_float(metrics.get("latest_signal_value")),
+        **market_data,
+    }
+
+
 def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
     gateway = row.get("gateway") or {}
     alerts = row.get("alerts") or []
-    latest_run = latest_run_for_status(row)
+    sorted_runs = sorted_runs_for_status(row)
+    latest_run = sorted_runs[0] if sorted_runs else {}
     metrics = latest_run.get("metrics") or {}
     recent_events = latest_run.get("recent_events") or {}
     positions = metrics.get("final_positions") or {}
@@ -1158,6 +1206,9 @@ def summarize_remote_node(row: dict[str, Any]) -> dict[str, Any]:
         "received_at": row.get("received_at"),
         "gateway_reachable": gateway.get("reachable"),
         "alert_count": len(alerts) if isinstance(alerts, list) else 0,
+        "run_count": len(sorted_runs),
+        "run_status_counts": count_by_status(sorted_runs),
+        "runs": [summarize_remote_run_for_node(run) for run in sorted_runs[:REMOTE_RUN_LIMIT]],
         "latest_run_id": latest_run.get("id"),
         "latest_run_status": latest_run.get("status"),
         "mode": metrics.get("mode"),
@@ -1195,6 +1246,8 @@ REMOTE_NODES_EXPORT_FIELDS = (
     "received_at",
     "gateway_reachable",
     "alert_count",
+    "run_count",
+    "run_status_counts",
     "latest_run_id",
     "latest_run_status",
     "mode",
@@ -1363,6 +1416,28 @@ def build_remote_nodes_csv(state_dir: Path, *, limit: int = 100) -> str:
     for row in payload.get("nodes") or []:
         writer.writerow({field: compact_csv_value(row.get(field)) for field in REMOTE_NODES_EXPORT_FIELDS})
     return out.getvalue()
+
+
+def build_health_payload(state_dir: Path) -> dict[str, Any]:
+    latest = load_latest(state_dir)
+    history = status_history_path(state_dir)
+    latest_received_at = latest.get("received_at") if isinstance(latest, dict) else None
+    latest_generated_at = latest.get("generated_at") if isinstance(latest, dict) else None
+    history_count = 0
+    if history.exists():
+        with history.open() as f:
+            history_count = sum(1 for line in f if line.strip())
+    return {
+        "status": "ok",
+        "generated_at": utc_now(),
+        "state_dir": str(state_dir),
+        "latest_status_available": latest is not None,
+        "latest_node_id": latest.get("node_id") if isinstance(latest, dict) else None,
+        "latest_snapshot_status": latest.get("status") if isinstance(latest, dict) else None,
+        "latest_received_at": latest_received_at,
+        "latest_generated_at": latest_generated_at,
+        "status_history_count": history_count,
+    }
 
 
 def remote_event_timestamp(event: dict[str, Any]) -> str:
@@ -11195,6 +11270,9 @@ class StatusHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         node_id = params.get("node_id", [None])[0]
+        if parsed.path == "/health":
+            json_response(self, 200, build_health_payload(self.state_dir))
+            return
         if parsed.path == "/status":
             if not self.require_auth():
                 return
