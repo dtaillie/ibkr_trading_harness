@@ -282,6 +282,13 @@ strategy-private.
     path sends `refresh=1`. This keeps large saved-data roots from making the
     UI feel API-disconnected during repeated refreshes while preserving an
     explicit fresh-scan action.
+  - partial; the dashboard refresh path now treats nonessential endpoint
+    groups as degraded panels instead of failing the whole page, and Operations
+    Diagnostics includes a Dashboard API Health panel with required `/status`,
+    optional endpoint group, and async Data Library state. This makes receiver
+    health, optional API failures, large saved-data scans, and real market-data
+    failures separately inspectable instead of collapsing into generic
+    "disconnected/no data" UI states.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

@@ -1037,6 +1037,41 @@ def test_publish_status_writes_file(tmp_path):
     assert payload["runs"][0]["status"] == "ok"
 
 
+def test_post_status_retries_transient_receiver_failure(monkeypatch):
+    calls = {"count": 0}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    def fake_urlopen(_req, timeout=0):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise error.URLError("connection refused")
+        return FakeResponse()
+
+    monkeypatch.setattr(request, "urlopen", fake_urlopen)
+
+    result = post_status(
+        "http://127.0.0.1:8765/status",
+        {"schema_version": 1, "node_id": "test-node", "status": "ok"},
+        retry_attempts=1,
+        retry_delay_seconds=0,
+    )
+
+    assert calls["count"] == 2
+    assert result["attempts"] == 2
+    assert result["status_code"] == 200
+
+
 def test_cloud_status_server_receives_and_serves_status(tmp_path):
     server = create_server("127.0.0.1", 0, tmp_path / "state")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1617,6 +1652,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-commands" in html
         assert "export-drafts-csv" in html
         assert "endpoint-map-body" in html
+        assert "dashboard-api-health-note" in html
+        assert "dashboard-api-health-cards" in html
+        assert "dashboard-api-health-body" in html
 
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/styles.css", timeout=5) as resp:
             css = resp.read().decode("utf-8")
@@ -1632,6 +1670,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "gap-legend-swatch" in js
         assert "function renderWorkbenchSelectedDataPacket" in js
         assert "function renderPaperObservationPacket" in js
+        assert "function fetchOptionalJson" in js
+        assert "API Contracts" in js
+        assert "function renderDashboardApiHealth" in js
+        assert "Required Status" in js
     finally:
         server.shutdown()
         server.server_close()

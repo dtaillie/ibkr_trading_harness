@@ -64,6 +64,8 @@ const state = {
   commandAudit: { events: [] },
   remoteNodes: { nodes: [] },
   remoteNodeDetail: null,
+  refreshContracts: [],
+  refreshErrors: [],
   refreshLoaded: false,
   activityChanges: { items: [], initial: true },
 };
@@ -186,6 +188,18 @@ async function fetchJson(url, options = {}) {
     throw new Error(detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`);
   }
   return response.json();
+}
+
+async function fetchOptionalJson(label, url, fallback) {
+  try {
+    return { label, payload: await fetchJson(url), error: "" };
+  } catch (err) {
+    return {
+      label,
+      payload: typeof fallback === "function" ? fallback() : fallback,
+      error: err && err.message ? err.message : String(err),
+    };
+  }
 }
 
 async function fetchText(url, options = {}) {
@@ -5931,7 +5945,10 @@ function backendPipelineModel() {
   const fetchManifests = state.fetchManifests || {};
   const fetchRows = fetchManifests.manifests || [];
   const fetchRoots = fetchManifests.roots || [];
+  const runtimeSessions = state.runtimeSessions || {};
+  const sessionRows = runtimeSessions.sessions || [];
   const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
+  const refreshErrors = state.refreshErrors || [];
   const statusFresh = Boolean(payload.generated_at);
   const staleRuns = runs.filter((runItem) => (runItem.freshness || {}).stale);
   const missedJobs = supervisors.flatMap((supervisor) => (
@@ -5998,6 +6015,15 @@ function backendPipelineModel() {
         : "No saved CSV/parquet files are visible from configured roots.",
     },
     {
+      id: "runtime-sessions",
+      label: "Runtime Sessions",
+      title: sessionRows.length ? `${numberText(sessionRows.length, 0)} session${sessionRows.length === 1 ? "" : "s"}` : "No Sessions",
+      status: sessionRows.length ? "ok" : (runtimeSessions.error_count || (runtimeSessions.errors || []).length) ? "bad" : "warn",
+      note: sessionRows.length
+        ? `${numberText(runtimeSessions.total || sessionRows.length, 0)} total discovered; ${numberText(runtimeSessions.file_count_total || 0, 0)} recent evidence files.`
+        : "No runtime session folders are visible from configured data roots.",
+    },
+    {
       id: "fetch-manifests",
       label: "Fetch Manifests",
       title: fetchRows.length ? `${numberText(fetchRows.length, 0)} job${fetchRows.length === 1 ? "" : "s"}` : "No Jobs",
@@ -6016,6 +6042,15 @@ function backendPipelineModel() {
       note: remoteNodes.length
         ? `${numberText(remoteFreshCount, 0)} fresh remote snapshot${remoteFreshCount === 1 ? "" : "s"}; cloud visibility is sanitized status only.`
         : "Remote/cloud monitoring is optional; local dashboard can still operate.",
+    },
+    {
+      id: "api-contracts",
+      label: "API Contracts",
+      title: refreshErrors.length ? `${numberText(refreshErrors.length, 0)} failure${refreshErrors.length === 1 ? "" : "s"}` : "All Loaded",
+      status: refreshErrors.length ? "warn" : "ok",
+      note: refreshErrors.length
+        ? `${text(refreshErrors[0].label)} failed: ${text(refreshErrors[0].error)}`
+        : "Required status plus optional dashboard panels responded during the latest refresh.",
     },
   ];
   const bad = cards.filter((card) => card.status === "bad");
@@ -6041,6 +6076,72 @@ function renderBackendPipeline() {
       <small>${escapeHtml(card.note)}</small>
     </div>
   `).join("");
+}
+
+function dashboardApiHealthModel() {
+  const contracts = state.refreshContracts || [];
+  const errors = state.refreshErrors || [];
+  const statusLoaded = Boolean(state.status && state.status.generated_at);
+  const loaded = contracts.filter((item) => item.status === "ok").length;
+  const failed = errors.length;
+  const total = contracts.length;
+  const status = !statusLoaded ? "bad" : failed ? "warn" : "ok";
+  const title = !statusLoaded ? "Status Missing" : failed ? `${numberText(failed, 0)} Optional Failure${failed === 1 ? "" : "s"}` : "API Loaded";
+  const note = !statusLoaded
+    ? "The required /status endpoint did not produce a usable snapshot for this dashboard refresh."
+    : failed
+      ? `${numberText(loaded, 0)} / ${numberText(total, 0)} optional endpoint groups loaded; first failure: ${text(errors[0].label)}.`
+      : total ? `${numberText(total, 0)} optional endpoint groups loaded during the latest refresh.` : "Status loaded; optional endpoint groups have not been sampled yet.";
+  const cards = [
+    {
+      status: statusLoaded ? "ok" : "bad",
+      label: "Required Status",
+      title: statusLoaded ? "Loaded" : "Missing",
+      note: statusLoaded ? `Generated ${timestampAgeLabel(state.status.generated_at)}.` : "Refresh could not load current telemetry.",
+    },
+    {
+      status,
+      label: "Optional APIs",
+      title: total ? `${numberText(loaded, 0)} / ${numberText(total, 0)}` : "n/a",
+      note: failed ? `${numberText(failed, 0)} optional failure${failed === 1 ? "" : "s"} preserved as degraded panels.` : "Optional panels loaded without blocking the page.",
+    },
+    {
+      status: (state.dataLibrary || {}).catalogError ? "warn" : "ok",
+      label: "Data Library Async",
+      title: (state.dataLibrary || {}).catalogError ? "Review" : (state.dataLibrary || {}).catalogLoaded ? "Loaded" : "Deferred",
+      note: (state.dataLibrary || {}).catalogError || ((state.dataLibrary || {}).catalogLoaded ? "Saved-data catalog loaded after the main refresh." : "Saved-data catalog loads separately because large roots can take time."),
+    },
+  ];
+  const rows = [
+    {
+      label: "required status",
+      status: statusLoaded ? "ok" : "bad",
+      detail: statusLoaded ? `latest /status generated ${text(state.status.generated_at)}` : "required /status payload missing",
+    },
+    ...contracts,
+  ];
+  return { status, title, note, cards, rows };
+}
+
+function renderDashboardApiHealth() {
+  if (!$("dashboard-api-health-note") || !$("dashboard-api-health-cards") || !$("dashboard-api-health-body")) return;
+  const model = dashboardApiHealthModel();
+  $("dashboard-api-health-note").textContent = `${model.title}: ${model.note}`;
+  $("dashboard-api-health-note").className = `section-note ${statusClass(model.status)}`;
+  $("dashboard-api-health-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("dashboard-api-health-body").innerHTML = model.rows.length
+    ? model.rows.map((item) => row([
+      escapeHtml(item.label),
+      statusText(item.status),
+      escapeHtml(item.detail),
+    ])).join("")
+    : row([`<span class="muted">No dashboard API refresh evidence has been recorded yet.</span>`, "", ""]);
 }
 
 function runtimeActivityModel() {
@@ -29916,6 +30017,7 @@ function renderAll() {
   renderControlAssistant();
   renderCommandSafetyReview();
   renderOperationsHome();
+  renderDashboardApiHealth();
   renderHelpSetupGaps();
   renderPageIntro();
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
@@ -30051,45 +30153,53 @@ async function refresh(options = {}) {
   const status = await fetchJson("/status");
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
-  const [
-    history,
-    remoteNodes,
-    diagnostics,
-    fetchManifests,
-    runtimeSessions,
-    workbenchStatus,
-    cleanupPlan,
-    endpointMap,
-    configOptions,
-    configDrafts,
-    draftValidations,
-    configRuns,
-    runComparison,
-    performanceRollups,
-    statusEquityRollups,
-    commands,
-    results,
-    commandAudit,
-  ] = await Promise.all([
-    fetchJson(`/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`),
-    fetchJson("/remote_nodes?limit=100"),
-    fetchJson("/workbench_diagnostics"),
-    fetchJson("/fetch_manifests?limit=50"),
-    fetchJson("/runtime_sessions?limit=100"),
-    fetchJson("/workbench_status"),
-    fetchJson("/workbench_cleanup_plan"),
-    fetchJson("/workbench_endpoints"),
-    fetchJson("/config_options"),
-    fetchJson("/config_drafts"),
-    fetchJson("/config_draft_validations"),
-    fetchJson("/config_draft_runs?limit=20"),
-    fetchJson("/config_draft_run_comparison?limit=50"),
-    fetchJson("/config_draft_daily_rollups?limit=100&run_limit=100"),
-    fetchJson("/status_equity_rollups?limit=100&history_limit=5000"),
-    fetchJson(`/commands${nodeId ? `?node_id=${nodeId}` : ""}`),
-    fetchJson(`/command_results${nodeId ? `?node_id=${nodeId}` : ""}`),
-    fetchJson(`/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`),
+  const optionalResults = await Promise.all([
+    fetchOptionalJson("status history", `/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`, { history: [] }),
+    fetchOptionalJson("remote nodes", "/remote_nodes?limit=100", { nodes: [] }),
+    fetchOptionalJson("workbench diagnostics", "/workbench_diagnostics", {}),
+    fetchOptionalJson("fetch manifests", "/fetch_manifests?limit=50", { manifests: [], roots: [], errors: [] }),
+    fetchOptionalJson("runtime sessions", "/runtime_sessions?limit=100", { sessions: [], errors: [] }),
+    fetchOptionalJson("workbench status", "/workbench_status", {}),
+    fetchOptionalJson("cleanup plan", "/workbench_cleanup_plan", {}),
+    fetchOptionalJson("endpoint map", "/workbench_endpoints", { endpoints: [] }),
+    fetchOptionalJson("config options", "/config_options", { plugins: [], modes: [], defaults: {} }),
+    fetchOptionalJson("config drafts", "/config_drafts", { drafts: [], errors: [] }),
+    fetchOptionalJson("draft validations", "/config_draft_validations", { validations: [] }),
+    fetchOptionalJson("draft runs", "/config_draft_runs?limit=20", { runs: [] }),
+    fetchOptionalJson("run comparison", "/config_draft_run_comparison?limit=50", { runs: [], leaders: {} }),
+    fetchOptionalJson("performance rollups", "/config_draft_daily_rollups?limit=100&run_limit=100", { rollups: [], errors: [] }),
+    fetchOptionalJson("status equity rollups", "/status_equity_rollups?limit=100&history_limit=5000", { rollups: [], period_rollups: {} }),
+    fetchOptionalJson("commands", `/commands${nodeId ? `?node_id=${nodeId}` : ""}`, { commands: [] }),
+    fetchOptionalJson("command results", `/command_results${nodeId ? `?node_id=${nodeId}` : ""}`, { results: [] }),
+    fetchOptionalJson("command audit", `/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`, { events: [] }),
   ]);
+  const optional = Object.fromEntries(optionalResults.map((result) => [result.label, result.payload]));
+  state.refreshContracts = optionalResults.map((result) => ({
+    label: result.label,
+    status: result.error ? "warn" : "ok",
+    detail: result.error || "loaded",
+  }));
+  state.refreshErrors = optionalResults
+    .filter((result) => result.error)
+    .map((result) => ({ label: result.label, error: result.error }));
+  const history = optional["status history"];
+  const remoteNodes = optional["remote nodes"];
+  const diagnostics = optional["workbench diagnostics"];
+  const fetchManifests = optional["fetch manifests"];
+  const runtimeSessions = optional["runtime sessions"];
+  const workbenchStatus = optional["workbench status"];
+  const cleanupPlan = optional["cleanup plan"];
+  const endpointMap = optional["endpoint map"];
+  const configOptions = optional["config options"];
+  const configDrafts = optional["config drafts"];
+  const draftValidations = optional["draft validations"];
+  const configRuns = optional["draft runs"];
+  const runComparison = optional["run comparison"];
+  const performanceRollups = optional["performance rollups"];
+  const statusEquityRollups = optional["status equity rollups"];
+  const commands = optional["commands"];
+  const results = optional["command results"];
+  const commandAudit = optional["command audit"];
   state.diagnostics = diagnostics || {};
   syncDataCatalogLimitControl();
   state.history = history.history || [];

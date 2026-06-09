@@ -20,7 +20,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib import request
+from urllib import error, request
 
 import yaml
 
@@ -1209,20 +1209,44 @@ def write_status_file(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def post_status(endpoint: str, payload: dict[str, Any], *, token_env: str | None = None, timeout: float = 5.0) -> dict[str, Any]:
+def post_status(
+    endpoint: str,
+    payload: dict[str, Any],
+    *,
+    token_env: str | None = None,
+    timeout: float = 5.0,
+    retry_attempts: int = 2,
+    retry_delay_seconds: float = 0.5,
+) -> dict[str, Any]:
     headers = {"Content-Type": "application/json"}
     if token_env:
         bearer_value = os.getenv(token_env)
         if bearer_value:
             headers["Authorization"] = f"Bearer {bearer_value}"
     body = json.dumps(payload, sort_keys=True).encode("utf-8")
-    req = request.Request(endpoint, data=body, headers=headers, method="POST")
-    with request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8")
-        return {
-            "status_code": resp.status,
-            "body": raw,
-        }
+    attempts = max(0, int(retry_attempts)) + 1
+    delay = max(0.0, float(retry_delay_seconds))
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        req = request.Request(endpoint, data=body, headers=headers, method="POST")
+        try:
+            with request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                return {
+                    "status_code": resp.status,
+                    "body": raw,
+                    "attempts": attempt + 1,
+                }
+        except error.HTTPError:
+            raise
+        except (error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt + 1 >= attempts:
+                break
+            if delay:
+                time.sleep(delay * (attempt + 1))
+    assert last_error is not None
+    raise last_error
 
 
 def publish_status(
@@ -1248,6 +1272,8 @@ def publish_status(
             payload,
             token_env=token_env if token_env is not None else publish_cfg.get("token_env"),
             timeout=float(publish_cfg.get("timeout_seconds", 5.0)),
+            retry_attempts=int(publish_cfg.get("retry_attempts", 2)),
+            retry_delay_seconds=float(publish_cfg.get("retry_delay_seconds", 0.5)),
         )
     return payload
 

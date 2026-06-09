@@ -4024,6 +4024,28 @@
     </section>
 
     <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
+      <section class="nested-section">
+        <div class="section-head">
+          <h2>Dashboard API Health</h2>
+          <span id="dashboard-api-health-note" class="section-note">Waiting for dashboard endpoint checks</span>
+        </div>
+        <div id="dashboard-api-health-cards" class="action-card-grid"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Endpoint Group</th>
+                <th>Status</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-api-health-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="dashboard-section" data-view="operations" data-operations-lens="diagnostics" hidden>
       <section class="nested-section cloud-readiness-panel">
         <div class="section-head">
           <h2>Cloud Deployment Readiness</h2>
