@@ -13719,9 +13719,8 @@ function setDataCatalogFacetFilter(filter, value) {
   const id = mapping[filter] || "";
   if (id && $(id)) $(id).value = value;
   state.manifestPathFilter = null;
-  renderDataCatalog();
   const label = dataExplorerDimensions().find((item) => item.filter === filter)?.label || filter;
-  $("last-refresh").textContent = `Browse filtered to ${label}: ${value}`;
+  previewDataCatalogServerFilters(`Browse filtered to ${label}: ${value}`);
   if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
@@ -13748,6 +13747,12 @@ function clearDataCatalogFilters() {
 function handleDataServerFilterControlChange() {
   setDataCatalogOffset(0);
   renderDataCatalog();
+}
+
+function previewDataCatalogServerFilters(message) {
+  setDataCatalogOffset(0);
+  renderDataCatalog();
+  $("last-refresh").textContent = `${message}; local preview only. Use Search Scan to apply this scope to backend catalog, Symbol Directory, and History Matrix.`;
 }
 
 function catalogScopeIsCapped(catalog = {}) {
@@ -15315,9 +15320,8 @@ function applyDataHistoryMatrixFilter(target) {
   $("data-filter-bar").value = target.dataset.bar || "";
   $("data-filter-session").value = target.dataset.session || "";
   state.manifestPathFilter = null;
-  renderDataCatalog();
   navigateToDataLens("browse");
-  $("last-refresh").textContent = `Browse filtered to ${text(target.dataset.asset)} / ${text(target.dataset.source)} / ${text(target.dataset.bar)} / ${text(target.dataset.session)}`;
+  previewDataCatalogServerFilters(`Browse filtered to ${text(target.dataset.asset)} / ${text(target.dataset.source)} / ${text(target.dataset.bar)} / ${text(target.dataset.session)}`);
   if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
@@ -15955,8 +15959,7 @@ async function handleSymbolDirectoryAction(target) {
   if (target.classList.contains("symbol-directory-filter")) {
     $("data-filter-text").value = symbol;
     state.manifestPathFilter = null;
-    renderDataCatalog();
-    $("last-refresh").textContent = `Data Library filtered to ${symbol}`;
+    previewDataCatalogServerFilters(`Data Library filtered to ${symbol}`);
     return;
   }
   if (target.classList.contains("symbol-directory-inspect")) {
@@ -16001,8 +16004,7 @@ async function handleSymbolDirectoryAssistantAction(target) {
     $("data-filter-text").value = symbol;
     state.manifestPathFilter = null;
     renderSymbolDirectory();
-    renderDataCatalog();
-    $("last-refresh").textContent = `Data Library filtered to ${symbol}`;
+    previewDataCatalogServerFilters(`Data Library filtered to ${symbol}`);
     return;
   }
   if (action === "workbench") {
@@ -16042,8 +16044,7 @@ async function handleDataHomeShortlistAction(target) {
   if (action === "filter") {
     $("data-filter-text").value = symbol;
     state.manifestPathFilter = null;
-    renderDataCatalog();
-    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    previewDataCatalogServerFilters(symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared");
     return;
   }
   if (action === "compare") {
@@ -16089,8 +16090,7 @@ async function handleSymbolProfileAction(target) {
   if (action === "filter") {
     $("data-filter-text").value = symbol;
     state.manifestPathFilter = null;
-    renderDataCatalog();
-    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    previewDataCatalogServerFilters(symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared");
     return;
   }
   if (action === "diagnose") {
@@ -16106,8 +16106,7 @@ async function handleSymbolSelectionAction(action) {
   if (action === "filter") {
     $("data-filter-text").value = symbol;
     state.manifestPathFilter = null;
-    renderDataCatalog();
-    $("last-refresh").textContent = symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared";
+    previewDataCatalogServerFilters(symbol ? `Data Library filtered to ${symbol}` : "Data Library filter cleared");
     return;
   }
   if (action === "inspect") {
@@ -16253,8 +16252,7 @@ function handleDataSourceMapAction(target) {
   if (action === "filter") {
     $("data-filter-text").value = rootQuery;
     state.manifestPathFilter = null;
-    renderDataCatalog();
-    $("last-refresh").textContent = `Data Library filtered to ${rootQuery}`;
+    previewDataCatalogServerFilters(`Data Library filtered to ${rootQuery}`);
     return;
   }
   if (action === "copy-roots") {
@@ -20804,7 +20802,7 @@ function applyFetchOutputDataFilter() {
   $("data-filter-sort").value = "modified_desc";
   navigateToDataLens("browse");
   renderDataCatalog();
-  $("last-refresh").textContent = `Data Library filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
+  $("last-refresh").textContent = `Data Library locally filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
 
 function useFetchOutputsInWorkbench() {
@@ -32586,8 +32584,8 @@ function init() {
   $("data-symbol-browser-filter").addEventListener("click", () => {
     const symbol = selectedSymbolBrowserSymbol();
     $("data-filter-text").value = symbol;
-    renderDataCatalog();
-    $("last-refresh").textContent = symbol ? `Catalog filtered to ${symbol}` : "Catalog symbol filter cleared";
+    state.manifestPathFilter = null;
+    previewDataCatalogServerFilters(symbol ? `Catalog filtered to ${symbol}` : "Catalog symbol filter cleared");
   });
   $("data-symbol-browser-inspect").addEventListener("click", () => {
     inspectSelectedSymbol().catch((err) => {

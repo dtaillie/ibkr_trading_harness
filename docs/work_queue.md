@@ -1190,6 +1190,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       preview of the previously loaded scan. Server-relevant filter changes
       reset catalog pagination and the catalog page note points users to Search
       Scan when the backend scope is stale.
+    - partial; Data Explorer, Saved History Matrix, Symbol Directory, Symbol
+      Profile, Symbol Selection, and Source Map filter actions now share the
+      same local-preview message, so one-click filters no longer imply the
+      backend catalog, Symbol Directory, or Saved History Matrix has already
+      been rescanned. Fetch-output filters are labeled as local manifest-output
+      filters because they intentionally operate on selected job paths.
     - partial; Data Library Browse now includes a Saved Data Explorer that
       groups the bounded catalog by asset, source, bar size, storage session,
       quality, and storage-contract state, with one-click filters and summary
