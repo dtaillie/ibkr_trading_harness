@@ -31357,9 +31357,28 @@ function downloadSymbolCoverageLedgerCsv() {
   $("last-refresh").textContent = `Symbol coverage ledger CSV exported: ${new Date().toLocaleString()}`;
 }
 
-function downloadDataHistoryMatrixCsv() {
+async function downloadDataHistoryMatrixCsv() {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
+  if (!activeFilters.length) {
+    try {
+      const params = dataHistoryMatrixServerQueryParams();
+      const body = await fetchText(`/data_history_matrix_export?${params.toString()}`);
+      const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "data_history_matrix.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      $("last-refresh").textContent = `Saved history matrix CSV exported from server: ${new Date().toLocaleString()}`;
+      return;
+    } catch (err) {
+      $("data-history-matrix-note").innerHTML = `<span class="status-warn">Server matrix export failed, using current browser rows: ${escapeHtml(err.message)}</span>`;
+    }
+  }
   const rows = activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
   const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
   const matrix = !activeFilters.length && backendRows.length ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
@@ -31407,7 +31426,7 @@ function downloadDataHistoryMatrixCsv() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  $("last-refresh").textContent = `Saved history matrix CSV exported: ${new Date().toLocaleString()}`;
+  $("last-refresh").textContent = `Saved history matrix CSV exported from browser rows: ${new Date().toLocaleString()}`;
 }
 
 function downloadWorkbenchSelectedDataCsv() {
@@ -32580,7 +32599,11 @@ function init() {
     });
   });
   $("export-symbol-coverage-ledger-csv").addEventListener("click", downloadSymbolCoverageLedgerCsv);
-  $("export-data-history-matrix-csv").addEventListener("click", downloadDataHistoryMatrixCsv);
+  $("export-data-history-matrix-csv").addEventListener("click", () => {
+    downloadDataHistoryMatrixCsv().catch((err) => {
+      $("last-refresh").textContent = `Saved history matrix CSV export failed: ${err.message}`;
+    });
+  });
   $("export-workbench-selected-data-csv").addEventListener("click", downloadWorkbenchSelectedDataCsv);
   $("export-data-catalog-scan-csv").addEventListener("click", () => {
     downloadDataCatalogScanCsv().catch((err) => {

@@ -1690,6 +1690,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function renderSymbolBatchDiagnostic" in js
         assert "data_symbol_directory" in js
         assert "data_history_matrix" in js
+        assert "data_history_matrix_export" in js
         assert "data_symbol_diagnostics" in js
         assert "data_symbol_diagnostics_export" in js
         assert "function copySymbolBatchDiagnosticReport" in js
@@ -1735,6 +1736,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/data_catalog_scan_export") in endpoints
         assert ("GET", "/data_symbol_directory") in endpoints
         assert ("GET", "/data_history_matrix") in endpoints
+        assert ("GET", "/data_history_matrix_export") in endpoints
         assert ("GET", "/data_symbol_directory_export") in endpoints
         assert ("GET", "/data_gap_summary") in endpoints
         assert ("GET", "/data_gap_summary_export") in endpoints
@@ -2856,6 +2858,18 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert matrix_row["replay_counts"] == {"warn": 1}
         assert matrix_row["quality_counts"] == {"ok": 1}
         assert matrix_row["storage_contract_counts"] == {"warn": 1}
+        with request.urlopen(f"{base}/data_history_matrix_export?limit=5", timeout=5) as resp:
+            assert resp.headers["Content-Type"].startswith("text/csv")
+            assert resp.headers["Content-Disposition"] == 'attachment; filename="data_history_matrix.csv"'
+            matrix_csv_body = resp.read().decode("utf-8")
+        matrix_exported = list(csv.DictReader(io.StringIO(matrix_csv_body)))
+        assert len(matrix_exported) == 1
+        assert matrix_exported[0]["asset"] == "etf"
+        assert matrix_exported[0]["source"] == "file"
+        assert matrix_exported[0]["bar"] == "5min"
+        assert matrix_exported[0]["session"] == "rth"
+        assert matrix_exported[0]["status"] == "warn"
+        assert matrix_exported[0]["storage_contract_counts"] == '{"warn": 1}'
 
         with request.urlopen(f"{base}/data_symbol_directory_export?limit=5", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("text/csv")

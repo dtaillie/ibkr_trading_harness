@@ -579,6 +579,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/data_history_matrix_export",
+        "category": "data",
+        "description": "Download saved-data grouped history inventory by asset/source/bar/session.",
+        "response": "CSV download",
+    },
+    {
+        "method": "GET",
         "path": "/data_symbol_directory_export",
         "category": "data",
         "description": "Download saved-data symbol-level universe summaries.",
@@ -4042,6 +4049,25 @@ DATA_SYMBOL_DIAGNOSTICS_EXPORT_FIELDS = (
 )
 
 
+DATA_HISTORY_MATRIX_EXPORT_FIELDS = (
+    "asset",
+    "source",
+    "bar",
+    "session",
+    "symbol_count",
+    "file_count",
+    "row_count",
+    "first_timestamp",
+    "last_timestamp",
+    "latest_modified_at",
+    "status",
+    "replay_counts",
+    "quality_counts",
+    "storage_contract_counts",
+    "symbols",
+)
+
+
 DATA_CATALOG_SCAN_EXPORT_FIELDS = (
     "row_type",
     "path",
@@ -4542,6 +4568,24 @@ def build_data_history_matrix(
         "catalog_complete": catalog.get("catalog_complete"),
         "scan_cache": catalog.get("scan_cache"),
     }
+
+
+def build_data_history_matrix_csv(
+    data_roots: list[Path],
+    *,
+    limit: int = 200,
+    filters: dict[str, str] | None = None,
+) -> str:
+    matrix = build_data_history_matrix(data_roots, limit=limit, filters=filters)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=DATA_HISTORY_MATRIX_EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in matrix.get("rows", []):
+        writer.writerow({
+            field: compact_csv_value(row.get(field))
+            for field in DATA_HISTORY_MATRIX_EXPORT_FIELDS
+        })
+    return out.getvalue()
 
 
 def build_data_symbol_index_csv(
@@ -12473,6 +12517,32 @@ class StatusHandler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
                 return
             json_response(self, 200, payload)
+            return
+        if parsed.path == "/data_history_matrix_export":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(
+                    params,
+                    default=self.data_catalog_default_limit,
+                    maximum=self.data_catalog_max_limit,
+                )
+                filters = parse_data_symbol_index_filters(params)
+                csv_body = build_data_history_matrix_csv(
+                    self.data_roots,
+                    limit=limit,
+                    filters=filters,
+                )
+            except (TypeError, ValueError) as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            download_text_response(
+                self,
+                200,
+                csv_body,
+                filename="data_history_matrix.csv",
+                content_type="text/csv; charset=utf-8",
+            )
             return
         if parsed.path == "/data_symbol_directory_export":
             if not self.require_auth():
