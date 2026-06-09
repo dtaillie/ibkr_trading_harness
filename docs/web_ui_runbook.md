@@ -136,11 +136,16 @@ cache/history folders.
 If Data Library only shows SPY/QQQ examples:
 
 1. Open Data Library.
-2. Start with Action Summary, then read Data Inventory, Historical Inventory
+2. Start with Backend Status and click Check Data APIs. Confirm the catalog,
+   symbol-directory, history-matrix, root-index, coverage, gap, minute-heatmap,
+   and storage-audit endpoints are loaded or clearly reporting a warning before
+   changing roots or assuming files are missing. Use Copy Report or Export CSV
+   when you need to share the endpoint evidence.
+3. Read Action Summary, then Data Inventory, Historical Inventory
    Evidence, Universe Coverage, Data Visibility Report, and Catalog Scope.
    Action Summary chooses the first route across root setup, scan caps, hidden
-   filters, replay blockers, fetch-output visibility, and
-   inspect/compare/workbench handoff. Compare Root Index counts with parsed
+   filters, replay blockers, fetch-output visibility, backend endpoint checks,
+   and inspect/compare/workbench handoff. Compare Root Index counts with parsed
    catalog counts: if Root Index sees many more candidate files/symbols, the
    dashboard has found local files but the quality catalog is still a bounded
    parsed sample. In Browse, set Search/Bar/Asset/Source/Session and click
@@ -149,20 +154,26 @@ If Data Library only shows SPY/QQQ examples:
    only the already-loaded page. If Catalog Scope says the scan is capped, use
    Scan Max Rows before deciding a symbol is missing. If filters hide
    everything, use Clear.
-3. Check Data Source Map for configured, suggested, hidden/capped,
+4. Check Data Source Map for configured, suggested, hidden/capped,
    parser-error, unavailable, and not-scanned roots.
-4. Use Find Missing Symbol for a ticker you expected to see.
-5. Use Copy data_roots YAML to copy configured plus suggested roots.
-6. Paste the `dashboard.data_roots` block into your ignored local dashboard
+5. Use Find Missing Symbol for a ticker you expected to see.
+6. Use Copy data_roots YAML to copy configured plus suggested roots.
+7. Paste the `dashboard.data_roots` block into your ignored local dashboard
    config, removing any roots you do not want scanned.
-7. Use Export Audit CSV if you want the root-by-root storage comparison,
+8. Use Export Audit CSV if you want the root-by-root storage comparison,
    hidden-file counts, and scan-duration timings for offline review.
-8. Refresh the dashboard.
+9. Refresh the dashboard.
 
 The Data Library Home page also has workflow cards for Find A Symbol, Inspect
 History, Compare Files, Build Simulation, Check Quality, and Fix Visibility.
 Use those cards when you know the job you want but do not yet know which table
 or diagnostic panel holds the answer.
+Use Backend Status on Data Home or Diagnostics when the page looks empty or
+stale. Check Data APIs forces the same saved-data backend probes exposed in
+Operations Diagnostics, then shows endpoint rows for catalog, symbol
+directory, history matrix, root index, coverage, gap summary, minute heatmap,
+and storage audit. If those rows are missing or warn, fix that backend issue
+before changing data roots or scan limits.
 Use Saved Data Explorer in the Browse lens when you want the broad map first:
 it groups the bounded parsed catalog by asset, source, bar size, storage
 session, quality, and storage-contract state, then lets you click a group to

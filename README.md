@@ -178,9 +178,13 @@ saved-data count, and alerts visible while you move between pages. The route
 strip above each page intro shows the current page/lens, Page Home returns that
 page to its home lens, and Copy Link copies the exact dashboard URL for notes
 or another browser tab.
-Use Data Library Diagnostics > Catalog Scan Report when saved files or symbols
-are missing; it summarizes root scan scope, parser/skipped-file evidence,
-catalog caps, Storage Audit visibility, and the next recovery action.
+Use Data Library Backend Status first when saved files or symbols are missing.
+Check Data APIs forces a fresh saved-data backend probe and shows catalog,
+symbol-directory, history-matrix, root-index, coverage, gap, minute-heatmap,
+and storage-audit endpoint rows. If those rows are missing or warn, fix that
+backend issue before changing roots. Then use Data Library Diagnostics >
+Catalog Scan Report; it summarizes root scan scope, parser/skipped-file
+evidence, catalog caps, Storage Audit visibility, and the next recovery action.
 Use Help > Boundary > Publication Review Assistant before copying the public
 repo to GitHub; it separates export manifest review, the automated publish
 gate, dashboard setup evidence, cloud boundary checks, private material that

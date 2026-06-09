@@ -1137,6 +1137,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-backend-status-cards" in html
         assert "data-backend-status-actions" in html
         assert "data-backend-status-body" in html
+        assert "Backend Status and Check Data APIs" in html
+        assert "Use Backend Status > Check Data APIs" in html
         assert "data-root-index-spotlight-note" in html
         assert "data-root-index-spotlight-cards" in html
         assert "data-root-index-spotlight-symbols" in html

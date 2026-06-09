@@ -4453,7 +4453,7 @@
             </div>
             <div class="guide-item">
               <strong>Find missing symbols</strong>
-              <span>Use Data Home Root Index Browser, Data Library root cards, Storage Audit, and Find Missing Symbol to distinguish missing files from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
+              <span>Start with Data Library Backend Status and Check Data APIs, then use Root Index Browser, root cards, Storage Audit, and Find Missing Symbol to distinguish backend endpoint issues from unconfigured roots, parser skips, catalog caps, and fetch no-data responses.</span>
             </div>
             <div class="guide-item">
               <strong>Restart services safely</strong>
@@ -4474,7 +4474,7 @@
           <div class="guide-grid">
             <div class="guide-item">
               <strong>1. Confirm roots</strong>
-              <span>Open Data Library and compare Root Index, Catalog Scope, and Data Source Map to see candidate files, parsed files, suggested roots, caps, parser errors, and unavailable roots before searching symbols.</span>
+              <span>Open Data Library, run Check Data APIs from Backend Status, then compare Root Index, Catalog Scope, and Data Source Map to see candidate files, parsed files, suggested roots, caps, parser errors, and unavailable roots before searching symbols.</span>
             </div>
             <div class="guide-item">
               <strong>2. Pick files</strong>
@@ -4515,6 +4515,7 @@
           <strong>Inspect Saved Historical Data</strong>
           <ol>
             <li>Open Data Library and set the catalog limit high enough for your root.</li>
+            <li>Use Backend Status > Check Data APIs before treating blank tables as missing files.</li>
             <li>Compare Root Index against parsed catalog counts; if Root Index is much larger, the catalog is a bounded sample.</li>
             <li>Open Browse and use Saved Data Explorer to see asset, source, bar-size, session, quality, and contract groups.</li>
             <li>Click an Explorer group or use search, asset, source, bar-size, and quality filters to narrow the table.</li>

@@ -321,6 +321,10 @@ strategy-private.
     Data Library Action Summary now treats missing or degraded backend endpoint
     evidence as the first next action, routing users to Check Data APIs before
     they change roots, raise limits, or assume saved files are missing.
+    The in-app Help page, public quickstart, README, and Web UI runbook now
+    document the same order of operations: use Data Library Backend Status /
+    Check Data APIs first, then interpret Root Index, Catalog Scope, Storage
+    Audit, fetch-output visibility, and root YAML fixes.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

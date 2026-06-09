@@ -371,9 +371,14 @@ top-level views can also be opened directly with URL hashes such as
 `#performance`, `#data`, `#fetch`, `#runs`, and `#help`.
 The sticky topbar keeps mode, equity, status freshness, Gateway/API, visible
 runs, saved-data count, and alerts in view while you move between pages.
-Use Data Library Diagnostics > Catalog Scan Report when a saved symbol is
-missing. It summarizes parser errors, unsupported/skipped files, scan caps,
-Storage Audit visibility, and the next recovery action before the raw table.
+Use Data Library Backend Status first when a saved symbol is missing or the
+page appears empty. Check Data APIs forces a fresh saved-data backend probe and
+shows catalog, symbol-directory, history-matrix, root-index, coverage, gap,
+minute-heatmap, and storage-audit endpoint rows. If those rows are missing or
+warn, resolve that backend issue before changing roots or assuming files are
+missing. Then use Data Library Diagnostics > Catalog Scan Report; it summarizes
+parser errors, unsupported/skipped files, scan caps, Storage Audit visibility,
+and the next recovery action before the raw table.
 Use Help Home's Guided Tour when you are learning the dashboard order. It walks
 through current health, performance, saved data, simulation, run evidence, and
 operations/public-boundary review, and marks each step ready, warning, or
@@ -628,8 +633,9 @@ which CSV/parquet roots are scanned. The public example points only at
 file and add roots such as `cache`, `cache/ibkr`, or your historical-data
 directory. You can also repeat `--data-root` on the command line to override the
 config for one run. If Data Library only shows the public SPY/QQQ examples,
-read Data Inventory, Historical Inventory Evidence, Universe Coverage, Data
-Visibility Report, and Catalog Scope first. Compare Root Index counts with
+start with Backend Status and Check Data APIs, then read Data Inventory,
+Historical Inventory Evidence, Universe Coverage, Data Visibility Report, and
+Catalog Scope. Compare Root Index counts with
 parsed catalog counts to see whether configured roots contain more candidate
 files than the quality catalog loaded. Then check whether the current Rows to
 scan limit, active filters, parser skips, missing fetch outputs, or
