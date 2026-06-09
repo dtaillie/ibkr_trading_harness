@@ -1204,6 +1204,12 @@ QQQ show up, treat that as a bug until proven otherwise.
       symbol/source/bar/session filters to that export and only falls back to
       browser rows if the endpoint fails, so filtered downloads match the
       backend inventory scope.
+    - partial; Saved History Matrix rendering now prefers backend matrix rows
+      whenever the returned filter map matches the active Data Library controls,
+      including quality, storage-contract, and replay-readiness filters. Browser
+      grouping remains only a fallback, so filtered matrix cards/tables no
+      longer silently summarize the current limited catalog slice while the
+      backend has a broader filtered inventory.
     - partial; Saved History Matrix rows now provide direct Browse, Inspect,
       Compare, and Workbench actions for the grouped asset/source/bar/session
       slice, so users can move from inventory review to charting or simulation

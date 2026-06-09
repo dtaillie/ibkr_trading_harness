@@ -12845,14 +12845,7 @@ function dataCatalogServerQueryParams() {
   params.set("limit", String(selectedDataCatalogLimit()));
   params.set("offset", String(selectedDataCatalogOffset()));
   params.set("preview_points", String(dataCatalogPreviewPoints()));
-  if (filters.text) params.set("q", filters.text);
-  if (filters.asset) params.set("asset_class", filters.asset);
-  if (filters.source) params.set("source", filters.source);
-  if (filters.bar) params.set("bar_size", filters.bar);
-  if (filters.session) params.set("storage_session", filters.session);
-  if (filters.quality) params.set("quality_status", filters.quality);
-  if (filters.contract) params.set("storage_contract_status", filters.contract);
-  if (filters.replay) params.set("replay_status", filters.replay);
+  appendDataServerFiltersToParams(params, filters);
   return params;
 }
 
@@ -12860,19 +12853,62 @@ function dataSymbolDirectoryServerQueryParams() {
   const filters = dataCatalogFilters();
   const params = new URLSearchParams();
   params.set("limit", String(selectedDataCatalogLimit()));
-  if (filters.text) params.set("q", filters.text);
-  if (filters.asset) params.set("asset_class", filters.asset);
-  if (filters.source) params.set("source", filters.source);
-  if (filters.bar) params.set("bar_size", filters.bar);
-  if (filters.session) params.set("storage_session", filters.session);
-  if (filters.quality) params.set("quality_status", filters.quality);
-  if (filters.contract) params.set("storage_contract_status", filters.contract);
-  if (filters.replay) params.set("replay_status", filters.replay);
+  appendDataServerFiltersToParams(params, filters);
   return params;
 }
 
 function dataHistoryMatrixServerQueryParams() {
   return dataSymbolDirectoryServerQueryParams();
+}
+
+function dataServerFilterMap(filters = dataCatalogFilters()) {
+  return Object.fromEntries(Object.entries({
+    query: filters.text,
+    asset_class: filters.asset,
+    source: filters.source,
+    bar_size: filters.bar,
+    storage_session: filters.session,
+    quality_status: filters.quality,
+    storage_contract_status: filters.contract,
+    replay_status: filters.replay,
+  }).filter(([, value]) => text(value) !== "n/a"));
+}
+
+function appendDataServerFiltersToParams(params, filters = dataCatalogFilters()) {
+  const map = dataServerFilterMap(filters);
+  if (map.query) params.set("q", map.query);
+  if (map.asset_class) params.set("asset_class", map.asset_class);
+  if (map.source) params.set("source", map.source);
+  if (map.bar_size) params.set("bar_size", map.bar_size);
+  if (map.storage_session) params.set("storage_session", map.storage_session);
+  if (map.quality_status) params.set("quality_status", map.quality_status);
+  if (map.storage_contract_status) params.set("storage_contract_status", map.storage_contract_status);
+  if (map.replay_status) params.set("replay_status", map.replay_status);
+}
+
+function normalizedDataServerFilterMap(map = {}) {
+  const normalized = {};
+  for (const key of ["query", "asset_class", "source", "bar_size", "storage_session", "quality_status", "storage_contract_status", "replay_status"]) {
+    const value = text(map[key]).toLowerCase();
+    if (value && value !== "n/a") normalized[key] = value;
+  }
+  return normalized;
+}
+
+function dataServerFilterMapsEqual(left = {}, right = {}) {
+  const a = normalizedDataServerFilterMap(left);
+  const b = normalizedDataServerFilterMap(right);
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if ((a[key] || "") !== (b[key] || "")) return false;
+  }
+  return true;
+}
+
+function dataHistoryMatrixUsesBackendRows(payload = state.dataHistoryMatrix || {}) {
+  const rows = payload.rows || payload.groups || [];
+  if (!rows.length || payload.source === "catalog_fallback") return false;
+  return dataServerFilterMapsEqual(payload.filters || {}, dataServerFilterMap());
 }
 
 function dataCatalogServerFilterLabels() {
@@ -15089,15 +15125,20 @@ function renderDataHistoryMatrix(filteredRows = []) {
   if (!$("data-history-matrix-note") || !$("data-history-matrix-body")) return;
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
-  const rows = activeFilters.length ? filteredRows : catalogRows;
-  const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
-  const matrix = !activeFilters.length && backendRows.length ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
-  const totalSymbols = new Set((rows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
+  const backendMatrix = state.dataHistoryMatrix || {};
+  const useBackendRows = dataHistoryMatrixUsesBackendRows(backendMatrix);
+  const rows = useBackendRows ? [] : activeFilters.length ? filteredRows : catalogRows;
+  const matrix = useBackendRows ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
+  const totalSymbols = useBackendRows
+    ? Number(backendMatrix.symbol_count || 0)
+    : new Set((rows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
   const shown = matrix.slice(0, 18);
   $("data-history-matrix-note").textContent = rows.length
     ? `${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
+    : useBackendRows
+      ? `${numberText(matrix.length, 0)} server-backed source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
     : "No saved history rows are visible; configure data roots, raise the scan limit, or clear filters.";
-  renderDataHistoryMatrixSummary(matrix, rows, activeFilters);
+  renderDataHistoryMatrixSummary(matrix, rows, activeFilters, { serverBacked: useBackendRows });
   $("data-history-matrix-body").innerHTML = shown.length
     ? shown.map((group) => row([
         escapeHtml(group.asset),
@@ -15123,7 +15164,7 @@ function renderDataHistoryMatrix(filteredRows = []) {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = []) {
+function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = [], options = {}) {
   if (!$("data-history-matrix-summary")) return;
   if (!matrix.length) {
     $("data-history-matrix-summary").innerHTML = `
@@ -15141,7 +15182,11 @@ function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = 
   const compareReady = matrix.filter((group) => Number(group.file_count || 0) >= 2);
   const top = matrix[0];
   const topLabel = `${text(top.asset)} / ${text(top.source)} / ${text(top.bar)} / ${text(top.session)}`;
-  const totalRows = rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0);
+  const matrixFileCount = matrix.reduce((sum, group) => sum + Number(group.file_count || 0), 0);
+  const totalRows = rows.length
+    ? rows.reduce((sum, dataset) => sum + Number(dataset.rows || 0), 0)
+    : matrix.reduce((sum, group) => sum + Number(group.row_count || 0), 0);
+  const scopeFileCount = rows.length ? rows.length : matrixFileCount;
   const nextTitle = blockedGroups.length
     ? "Review Blockers"
     : compareReady.length ? "Compare Top Group" : "Inspect Best File";
@@ -15174,9 +15219,9 @@ function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = 
     {
       status: activeFilters.length ? "warn" : "ok",
       label: "Current Scope",
-      title: `${numberText(rows.length, 0)} files`,
+      title: `${numberText(scopeFileCount, 0)} files`,
       note: activeFilters.length
-        ? `Matrix is narrowed by ${activeFilters.join(" / ")}.`
+        ? `Matrix is narrowed by ${activeFilters.join(" / ")}${options.serverBacked ? " from the server payload" : " from browser rows"}.`
         : `${numberText(totalRows, 0)} rows are included in the current bounded catalog matrix.`,
     },
     {
@@ -31386,9 +31431,9 @@ async function downloadDataHistoryMatrixCsv() {
   } catch (err) {
     $("data-history-matrix-note").innerHTML = `<span class="status-warn">Server matrix export failed, using current browser rows: ${escapeHtml(err.message)}</span>`;
   }
-  const rows = activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
-  const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
-  const matrix = !activeFilters.length && backendRows.length ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
+  const useBackendRows = dataHistoryMatrixUsesBackendRows(state.dataHistoryMatrix || {});
+  const rows = useBackendRows ? [] : activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
+  const matrix = useBackendRows ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
   const header = [
     "asset_class",
     "source",
