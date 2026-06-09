@@ -11544,6 +11544,10 @@ function symbolRootIndexEntry(symbol) {
     .find((item) => text(item.symbol).toUpperCase() === normalized) || null;
 }
 
+function rootIndexSamplePathsForSymbol(symbol) {
+  return rootIndexArray(symbolRootIndexEntry(symbol) || {}, "sample_paths");
+}
+
 function symbolVisibilityDiagnostic(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   const diagnostic = state.symbolDiagnostic || {};
@@ -11646,7 +11650,7 @@ function symbolVisibilityModel(symbol = selectedSymbolBrowserSymbol()) {
       status: rootEntry ? "warn" : "bad",
       title: "Disk Clues",
       detail: rootEntry
-        ? `${numberText(rootFiles, 0)} root-index candidate${rootFiles === 1 ? "" : "s"}; sample ${text(rootSamples[0] || "n/a")}.`
+        ? `${numberText(rootFiles, 0)} root-index candidate${rootFiles === 1 ? "" : "s"}; ${rootSamples.length ? `${numberText(rootSamples.length, 0)} sample path${rootSamples.length === 1 ? "" : "s"}` : "no sample paths"}; source ${rootIndexArray(rootEntry, "sources").join(", ") || "unknown"} / bars ${rootIndexArray(rootEntry, "bar_sizes").join(", ") || "unknown"}.`
         : "No root-index candidate is loaded for this symbol.",
     },
     {
@@ -11689,6 +11693,9 @@ function renderSymbolVisibilityExplainer() {
   const actions = [
     model.next,
     { label: "Filter Catalog", action: "filter", status: "ok", disabled: !model.symbol },
+    { label: "Show Root Index", action: "root-index", status: "warn", disabled: !model.rootEntry },
+    { label: "Inspect Sample", action: "inspect-root-sample", status: "warn", disabled: !model.rootEntry || !rootIndexSamplePathsForSymbol(model.symbol).length },
+    { label: "Copy Paths", action: "copy-root-paths", status: "warn", disabled: !model.rootEntry },
     { label: "Diagnose", action: "diagnose", status: "warn", disabled: !model.symbol },
     { label: "Fetch Jobs", action: "fetch", status: "warn", disabled: false },
   ].filter((action, index, array) => action && action.action !== "" && array.findIndex((item) => item.action === action.action) === index);
@@ -11711,6 +11718,31 @@ async function handleSymbolVisibilityAction(action) {
   if (action === "filter" || action === "inspect" || action === "diagnose") {
     await handleSymbolSelectionAction(action);
     renderSymbolVisibilityExplainer();
+    return;
+  }
+  if (action === "root-index") {
+    const symbol = selectedSymbolBrowserSymbol();
+    if (!symbol) throw new Error("Enter a symbol first");
+    $("data-root-index-filter").value = symbol;
+    renderRootIndexBrowser();
+    navigateToDataLens("browse");
+    $("last-refresh").textContent = `Root Index filtered to ${symbol}`;
+    return;
+  }
+  if (action === "copy-root-paths") {
+    const symbol = selectedSymbolBrowserSymbol();
+    const paths = rootIndexSamplePathsForSymbol(symbol);
+    if (!paths.length) throw new Error(`No root-index sample paths for ${symbol || "selected symbol"}`);
+    await copyText(paths.join("\n"));
+    $("last-refresh").textContent = `Copied ${numberText(paths.length, 0)} root-index sample path${paths.length === 1 ? "" : "s"} for ${symbol}`;
+    return;
+  }
+  if (action === "inspect-root-sample") {
+    const symbol = selectedSymbolBrowserSymbol();
+    const path = rootIndexSamplePathsForSymbol(symbol)[0] || "";
+    if (!path) throw new Error(`No root-index sample path for ${symbol || "selected symbol"}`);
+    await loadDataDetail(path, { resetControls: true });
+    $("last-refresh").textContent = `Loaded root-index sample for ${symbol}`;
     return;
   }
   if (action === "fetch") {

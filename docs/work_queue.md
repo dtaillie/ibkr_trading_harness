@@ -1159,6 +1159,11 @@ QQQ show up, treat that as a bug until proven otherwise.
       Saved History Matrix against the parsed catalog and root index so users
       can tell whether missing history is a filter issue, scan cap, replay
       blocker, root issue, or fetch-output visibility issue.
+    - partial; Symbol Visibility now handles root-index-only symbols as an
+      actionable state: when a ticker is indexed on disk but absent from the
+      parsed catalog sample, the explainer offers Show Root Index, Inspect
+      Sample, Copy Paths, Diagnose, and Fetch Jobs actions instead of stopping
+      at "not catalog-visible."
   - bar-size filter
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend
