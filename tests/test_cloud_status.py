@@ -1689,6 +1689,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "API Contracts" in js
         assert "function renderDashboardApiHealth" in js
         assert "Required Status" in js
+        assert "Data Endpoints" in js
+        assert "function dataEndpointContract" in js
+        assert "symbol directory" in js
+        assert "catalog symbol summaries" in js
         assert "function renderRuntimeSessionDetail" in js
         assert "runtime_session_detail" in js
         assert "function renderSymbolBatchDiagnostic" in js

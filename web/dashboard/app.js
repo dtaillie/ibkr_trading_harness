@@ -12,6 +12,7 @@ const state = {
   dataGapSummary: { gap_rows: [], calendar_rows: [] },
   dataMinuteHeatmap: { rows: [], errors: [] },
   dataStorageAudit: { configured_roots: [], suggested_roots: [], warnings: [] },
+  dataEndpointContracts: [],
   dataLibrary: {
     catalogLoading: false,
     diagnosticsLoading: false,
@@ -207,6 +208,40 @@ async function fetchOptionalJson(label, url, fallback) {
       error: err && err.message ? err.message : String(err),
     };
   }
+}
+
+function dataEndpointPayloadSummary(payload = {}) {
+  if (!payload || typeof payload !== "object") return "no payload";
+  const pieces = [];
+  if (Array.isArray(payload.datasets)) pieces.push(`${numberText(payload.datasets.length, 0)} dataset${payload.datasets.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.symbols)) pieces.push(`${numberText(payload.symbols.length, 0)} symbol${payload.symbols.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.symbol_summaries)) pieces.push(`${numberText(payload.symbol_summaries.length, 0)} symbol summar${payload.symbol_summaries.length === 1 ? "y" : "ies"}`);
+  if (Array.isArray(payload.rows)) pieces.push(`${numberText(payload.rows.length, 0)} row${payload.rows.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.groups)) pieces.push(`${numberText(payload.groups.length, 0)} group${payload.groups.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.files)) pieces.push(`${numberText(payload.files.length, 0)} file${payload.files.length === 1 ? "" : "s"}`);
+  const total = Number(payload.total || payload.total_count || payload.symbol_count || payload.file_count || 0);
+  if (Number.isFinite(total) && total > 0) pieces.push(`total ${numberText(total, 0)}`);
+  const cache = payload.scan_cache && payload.scan_cache.status ? `cache ${text(payload.scan_cache.status)}` : "";
+  if (cache) pieces.push(cache);
+  const errors = Array.isArray(payload.errors) ? payload.errors.length : 0;
+  if (errors) pieces.push(`${numberText(errors, 0)} payload warning${errors === 1 ? "" : "s"}`);
+  return pieces.length ? pieces.join("; ") : "loaded payload";
+}
+
+function dataEndpointContract(label, url, payload, { durationMs = null, error = "", fallback = "" } = {}) {
+  const warningCount = payload && Array.isArray(payload.errors) ? payload.errors.length : 0;
+  const status = error ? "warn" : warningCount ? "warn" : "ok";
+  const parts = [
+    url,
+    error ? `failed: ${error}` : dataEndpointPayloadSummary(payload),
+    Number.isFinite(Number(durationMs)) ? `client ${durationMsText(durationMs)}` : "",
+    fallback ? `fallback: ${fallback}` : "",
+  ].filter(Boolean);
+  return {
+    label: `data ${label}`,
+    status,
+    detail: parts.join(" / "),
+  };
 }
 
 async function fetchText(url, options = {}) {
@@ -6179,17 +6214,20 @@ function renderBackendPipeline() {
 
 function dashboardApiHealthModel() {
   const contracts = state.refreshContracts || [];
+  const dataContracts = state.dataEndpointContracts || [];
   const errors = state.refreshErrors || [];
   const statusLoaded = Boolean(state.status && state.status.generated_at);
   const loaded = contracts.filter((item) => item.status === "ok").length;
-  const failed = errors.length;
-  const total = contracts.length;
+  const dataLoaded = dataContracts.filter((item) => item.status === "ok").length;
+  const dataFailed = dataContracts.filter((item) => item.status !== "ok").length;
+  const failed = errors.length + dataFailed;
+  const total = contracts.length + dataContracts.length;
   const status = !statusLoaded ? "bad" : failed ? "warn" : "ok";
   const title = !statusLoaded ? "Status Missing" : failed ? `${numberText(failed, 0)} Optional Failure${failed === 1 ? "" : "s"}` : "API Loaded";
   const note = !statusLoaded
     ? "The required /status endpoint did not produce a usable snapshot for this dashboard refresh."
     : failed
-      ? `${numberText(loaded, 0)} / ${numberText(total, 0)} optional endpoint groups loaded; first failure: ${text(errors[0].label)}.`
+      ? `${numberText(loaded + dataLoaded, 0)} / ${numberText(total, 0)} optional endpoint groups loaded; first failure: ${text((errors[0] && errors[0].label) || (dataContracts.find((item) => item.status !== "ok") || {}).label)}.`
       : total ? `${numberText(total, 0)} optional endpoint groups loaded during the latest refresh.` : "Status loaded; optional endpoint groups have not been sampled yet.";
   const cards = [
     {
@@ -6210,6 +6248,14 @@ function dashboardApiHealthModel() {
       title: (state.dataLibrary || {}).catalogError ? "Review" : (state.dataLibrary || {}).catalogLoaded ? "Loaded" : "Deferred",
       note: (state.dataLibrary || {}).catalogError || ((state.dataLibrary || {}).catalogLoaded ? "Saved-data catalog loaded after the main refresh." : "Saved-data catalog loads separately because large roots can take time."),
     },
+    {
+      status: dataFailed ? "warn" : dataContracts.length ? "ok" : "warn",
+      label: "Data Endpoints",
+      title: dataContracts.length ? `${numberText(dataLoaded, 0)} / ${numberText(dataContracts.length, 0)}` : "Pending",
+      note: dataContracts.length
+        ? dataFailed ? "At least one Data Library backend endpoint used a fallback or returned warnings." : "Catalog, symbol, matrix, and root-index endpoint checks are visible below."
+        : "Data Library endpoint checks appear after the async saved-data refresh finishes or fails.",
+    },
   ];
   const rows = [
     {
@@ -6218,6 +6264,7 @@ function dashboardApiHealthModel() {
       detail: statusLoaded ? `latest /status generated ${text(state.status.generated_at)}` : "required /status payload missing",
     },
     ...contracts,
+    ...dataContracts,
   ];
   return { status, title, note, cards, rows };
 }
@@ -30678,6 +30725,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   state.dataGapSummary = { gap_rows: [], calendar_rows: [] };
   state.dataMinuteHeatmap = { rows: [], errors: [] };
   state.dataStorageAudit = { configured_roots: [], suggested_roots: [], warnings: [] };
+  state.dataEndpointContracts = [];
   loadState.lastCatalogFetchMs = null;
   loadState.lastSymbolDirectoryFetchMs = null;
   loadState.lastHistoryMatrixFetchMs = null;
@@ -30691,11 +30739,28 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   renderDataStorageAudit();
   try {
     const totalStarted = performance.now();
+    const endpointContracts = [];
     const catalogParams = dataCatalogServerQueryParams();
     if (force) catalogParams.set("refresh", "1");
+    const catalogUrl = `/data_catalog?${catalogParams.toString()}`;
     const catalogStarted = performance.now();
-    const dataCatalog = await fetchJson(`/data_catalog?${catalogParams.toString()}`);
-    loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
+    let dataCatalog;
+    try {
+      dataCatalog = await fetchJson(catalogUrl);
+      loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
+      endpointContracts.push(dataEndpointContract("catalog", catalogUrl, dataCatalog, {
+        durationMs: loadState.lastCatalogFetchMs,
+      }));
+    } catch (catalogErr) {
+      loadState.lastCatalogFetchMs = performance.now() - catalogStarted;
+      endpointContracts.push(dataEndpointContract("catalog", catalogUrl, { datasets: [], errors: [{ error: catalogErr.message }] }, {
+        durationMs: loadState.lastCatalogFetchMs,
+        error: catalogErr.message,
+      }));
+      state.dataEndpointContracts = endpointContracts;
+      renderDashboardApiHealth();
+      throw catalogErr;
+    }
     let dataSymbolDirectory = {
       symbols: dataCatalog.symbol_summaries || [],
       symbol_summaries: dataCatalog.symbol_summaries || [],
@@ -30704,17 +30769,27 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     };
     const directoryParams = dataSymbolDirectoryServerQueryParams();
     if (force) directoryParams.set("refresh", "1");
+    const directoryUrl = `/data_symbol_directory?${directoryParams.toString()}`;
     const directoryStarted = performance.now();
     try {
-      dataSymbolDirectory = await fetchJson(`/data_symbol_directory?${directoryParams.toString()}`);
+      dataSymbolDirectory = await fetchJson(directoryUrl);
+      loadState.lastSymbolDirectoryFetchMs = performance.now() - directoryStarted;
+      endpointContracts.push(dataEndpointContract("symbol directory", directoryUrl, dataSymbolDirectory, {
+        durationMs: loadState.lastSymbolDirectoryFetchMs,
+      }));
     } catch (directoryErr) {
+      loadState.lastSymbolDirectoryFetchMs = performance.now() - directoryStarted;
       dataSymbolDirectory = {
         ...dataSymbolDirectory,
         errors: [{ error: directoryErr.message }],
         directory_error: directoryErr.message,
       };
+      endpointContracts.push(dataEndpointContract("symbol directory", directoryUrl, dataSymbolDirectory, {
+        durationMs: loadState.lastSymbolDirectoryFetchMs,
+        error: directoryErr.message,
+        fallback: "catalog symbol summaries",
+      }));
     }
-    loadState.lastSymbolDirectoryFetchMs = performance.now() - directoryStarted;
     const fallbackHistoryMatrixRows = dataHistoryMatrixRows(dataCatalog.datasets || []);
     let dataHistoryMatrix = {
       rows: fallbackHistoryMatrixRows,
@@ -30724,27 +30799,48 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     };
     const matrixParams = dataHistoryMatrixServerQueryParams();
     if (force) matrixParams.set("refresh", "1");
+    const matrixUrl = `/data_history_matrix?${matrixParams.toString()}`;
     const matrixStarted = performance.now();
     try {
-      dataHistoryMatrix = await fetchJson(`/data_history_matrix?${matrixParams.toString()}`);
+      dataHistoryMatrix = await fetchJson(matrixUrl);
+      loadState.lastHistoryMatrixFetchMs = performance.now() - matrixStarted;
+      endpointContracts.push(dataEndpointContract("history matrix", matrixUrl, dataHistoryMatrix, {
+        durationMs: loadState.lastHistoryMatrixFetchMs,
+      }));
     } catch (matrixErr) {
+      loadState.lastHistoryMatrixFetchMs = performance.now() - matrixStarted;
       dataHistoryMatrix = {
         ...dataHistoryMatrix,
         errors: [{ error: matrixErr.message }],
         matrix_error: matrixErr.message,
       };
+      endpointContracts.push(dataEndpointContract("history matrix", matrixUrl, dataHistoryMatrix, {
+        durationMs: loadState.lastHistoryMatrixFetchMs,
+        error: matrixErr.message,
+        fallback: "browser grouping from catalog rows",
+      }));
     }
-    loadState.lastHistoryMatrixFetchMs = performance.now() - matrixStarted;
     let dataSymbolIndex = { symbols: [], files: [], errors: [] };
+    const indexUrl = `/data_symbol_index?limit=${symbolIndexLimit}${force ? "&refresh=1" : ""}`;
     const indexStarted = performance.now();
     try {
-      dataSymbolIndex = await fetchJson(`/data_symbol_index?limit=${symbolIndexLimit}${force ? "&refresh=1" : ""}`);
+      dataSymbolIndex = await fetchJson(indexUrl);
+      loadState.lastSymbolIndexFetchMs = performance.now() - indexStarted;
+      endpointContracts.push(dataEndpointContract("root index", indexUrl, dataSymbolIndex, {
+        durationMs: loadState.lastSymbolIndexFetchMs,
+      }));
     } catch (indexErr) {
+      loadState.lastSymbolIndexFetchMs = performance.now() - indexStarted;
       dataSymbolIndex = { symbols: [], files: [], errors: [{ error: indexErr.message }], index_error: indexErr.message };
+      endpointContracts.push(dataEndpointContract("root index", indexUrl, dataSymbolIndex, {
+        durationMs: loadState.lastSymbolIndexFetchMs,
+        error: indexErr.message,
+        fallback: "empty root-index inventory",
+      }));
     }
-    loadState.lastSymbolIndexFetchMs = performance.now() - indexStarted;
     loadState.lastDataLibraryFetchMs = performance.now() - totalStarted;
     if (requestId !== loadState.requestId) return;
+    state.dataEndpointContracts = endpointContracts;
     state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
     state.dataSymbolDirectory = dataSymbolDirectory || { symbols: [], symbol_summaries: [], errors: [] };
     state.dataHistoryMatrix = dataHistoryMatrix || { rows: [], groups: [], errors: [] };
@@ -30757,6 +30853,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     renderConfigBuilder();
     renderOverview();
     renderMetrics();
+    renderDashboardApiHealth();
     renderPageIntro();
     const catalogCacheStatus = text((state.dataCatalog.scan_cache || {}).status || "n/a");
     const directoryCacheStatus = text((state.dataSymbolDirectory.scan_cache || {}).status || "n/a");
@@ -30770,10 +30867,12 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
     if (requestId !== loadState.requestId) return;
     loadState.catalogError = err.message;
     $("last-refresh").textContent = `Data catalog refresh failed: ${err.message}`;
+    renderDashboardApiHealth();
   } finally {
     if (requestId === loadState.requestId) {
       loadState.catalogLoading = false;
       renderDataCatalog();
+      renderDashboardApiHealth();
     }
   }
 }

@@ -294,6 +294,12 @@ strategy-private.
     health, optional API failures, large saved-data scans, and real market-data
     failures separately inspectable instead of collapsing into generic
     "disconnected/no data" UI states.
+  - partial; the async Data Library refresh now records named backend endpoint
+    checks for `/data_catalog`, `/data_symbol_directory`, `/data_history_matrix`,
+    and `/data_symbol_index`, including client duration, cache/count evidence,
+    fallback behavior, and errors. Operations Diagnostics shows those rows in
+    Dashboard API Health so a running receiver with blank data panels points to
+    the exact saved-data endpoint instead of reading as broadly disconnected.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
