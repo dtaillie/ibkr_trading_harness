@@ -474,6 +474,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/runtime_sessions",
+        "category": "telemetry",
+        "description": "Return bounded paper/shadow runtime session-folder evidence from configured data roots.",
+        "response": "JSON runtime session summaries",
+    },
+    {
+        "method": "GET",
         "path": "/remote_nodes",
         "category": "telemetry",
         "description": "Return sanitized latest read-only monitoring summaries by node.",
@@ -5197,6 +5204,111 @@ def read_fetch_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("fetch manifest must be a JSON object")
     return payload
+
+
+def runtime_session_manifest_candidates(data_roots: list[Path], *, scan_limit: int = 10_000) -> list[Path]:
+    candidates: dict[Path, Path] = {}
+    for root in data_roots:
+        if not root.exists() or not root.is_dir():
+            continue
+        for path in root.rglob("manifest.json"):
+            if len(candidates) >= scan_limit:
+                break
+            if not path.is_file():
+                continue
+            parts = path.parts
+            if "sessions" not in parts:
+                continue
+            session_index = max(index for index, part in enumerate(parts) if part == "sessions")
+            if len(parts) <= session_index + 2:
+                continue
+            candidates[path.resolve()] = path
+    return sorted(candidates.values(), key=lambda item: item.stat().st_mtime, reverse=True)
+
+
+def runtime_session_identity(path: Path) -> tuple[str, str]:
+    parts = path.parts
+    if "sessions" not in parts:
+        return ("unknown", path.parent.name)
+    session_index = max(index for index, part in enumerate(parts) if part == "sessions")
+    run_id = parts[session_index - 1] if session_index > 0 else "unknown"
+    session_id = parts[session_index + 1] if len(parts) > session_index + 1 else path.parent.name
+    return run_id, session_id
+
+
+def runtime_session_time(payload: dict[str, Any], path: Path, names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = payload.get(name)
+        if value:
+            return str(value)
+    return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
+
+
+def summarize_runtime_session(path: Path, *, data_roots: list[Path]) -> dict[str, Any]:
+    payload = read_fetch_manifest(path)
+    session_dir = path.parent
+    run_id, session_id = runtime_session_identity(path)
+    files = [item for item in session_dir.iterdir() if item.is_file()]
+    file_names = sorted(item.name for item in files)
+    file_ext_counts = Counter(item.suffix.lower() or "<none>" for item in files)
+    latest_modified = max((item.stat().st_mtime for item in files), default=path.stat().st_mtime)
+    symbols = (
+        payload.get("symbols")
+        or payload.get("target_symbols")
+        or payload.get("symbols_requested")
+        or payload.get("symbols_subscribed")
+        or []
+    )
+    root = most_specific_data_root(path.resolve(), data_roots)
+    return {
+        "run_id": run_id,
+        "session_id": session_id,
+        "path": display_path(session_dir),
+        "manifest_path": display_path(path),
+        "root": display_path(root),
+        "runner": payload.get("runner"),
+        "status": payload.get("status") or ("completed" if payload.get("run_finished_at") or payload.get("finished_at") else "recorded"),
+        "started_at": runtime_session_time(payload, path, ("run_started_at", "started_at")),
+        "finished_at": payload.get("run_finished_at") or payload.get("finished_at"),
+        "modified_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+        "latest_modified_at": datetime.fromtimestamp(latest_modified, timezone.utc).isoformat(),
+        "file_count": len(files),
+        "csv_count": int(file_ext_counts.get(".csv") or 0),
+        "parquet_count": int(file_ext_counts.get(".parquet") or 0),
+        "json_count": int(file_ext_counts.get(".json") or 0),
+        "signal_file_count": sum(1 for name in file_names if "signal" in name.lower()),
+        "order_file_count": sum(1 for name in file_names if "order" in name.lower()),
+        "fill_file_count": sum(1 for name in file_names if "fill" in name.lower()),
+        "bar_file_count": sum(1 for name in file_names if "bar" in name.lower()),
+        "symbol_count": len(symbols) if isinstance(symbols, list) else 0,
+        "file_names": file_names[:20],
+    }
+
+
+def build_runtime_sessions(data_roots: list[Path], *, limit: int = 100) -> dict[str, Any]:
+    sessions: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    candidates = runtime_session_manifest_candidates(data_roots)
+    for path in candidates[:limit]:
+        try:
+            sessions.append(summarize_runtime_session(path, data_roots=data_roots))
+        except Exception as exc:
+            errors.append({"path": display_path(path), "error": str(exc)})
+    return {
+        "generated_at": utc_now(),
+        "roots": [display_path(root) for root in data_roots],
+        "sessions": sessions,
+        "count": len(sessions),
+        "total": len(candidates),
+        "limit": limit,
+        "errors": errors,
+        "error_count": len(errors),
+        "run_counts": count_values(sessions, "run_id"),
+        "status_counts": count_values(sessions, "status"),
+        "file_count_total": sum(int(item.get("file_count") or 0) for item in sessions),
+        "csv_count_total": sum(int(item.get("csv_count") or 0) for item in sessions),
+        "parquet_count_total": sum(int(item.get("parquet_count") or 0) for item in sessions),
+    }
 
 
 def fetch_manifest_recovery_guidance(
@@ -11614,6 +11726,17 @@ class StatusHandler(BaseHTTPRequestHandler):
                 filename="command_audit.csv",
                 content_type="text/csv; charset=utf-8",
             )
+            return
+        if parsed.path == "/runtime_sessions":
+            if not self.require_auth():
+                return
+            try:
+                limit = parse_limit(params, default=100, maximum=500)
+                payload = build_runtime_sessions(self.data_roots, limit=limit)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
             return
         if parsed.path == "/data_catalog":
             if not self.require_auth():

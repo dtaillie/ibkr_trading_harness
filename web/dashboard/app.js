@@ -27,6 +27,7 @@ const state = {
   symbolDiagnostic: null,
   symbolTypeaheadActiveIndex: 0,
   fetchManifests: { manifests: [], roots: [], errors: [] },
+  runtimeSessions: { sessions: [], errors: [] },
   fetchManifestDetail: null,
   manifestPathFilter: null,
   workbenchStatus: {},
@@ -24105,6 +24106,7 @@ function renderRuns() {
   renderRunsReviewPanel();
   renderRunsActionSummary();
   renderRunsEvidence();
+  renderRuntimeSessions();
   renderRunsWorkflowLauncher();
   renderRunsAccountBoundary();
   renderRunsSearchAssistant(runs, visibleRuns);
@@ -24126,6 +24128,71 @@ function renderRuns() {
         ]);
       }).join("")
     : row([`<span class="muted">No published runs match the current filters.</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+function runtimeSessionRows() {
+  return ((state.runtimeSessions && state.runtimeSessions.sessions) || [])
+    .slice()
+    .sort((left, right) => text(right.latest_modified_at || right.modified_at).localeCompare(text(left.latest_modified_at || left.modified_at)));
+}
+
+function renderRuntimeSessions() {
+  if (!$("runtime-sessions-note") || !$("runtime-sessions-cards") || !$("runtime-sessions-body")) return;
+  const payload = state.runtimeSessions || {};
+  const sessions = runtimeSessionRows();
+  const latest = sessions[0] || null;
+  const runCounts = payload.run_counts || {};
+  const statusCounts = payload.status_counts || {};
+  $("runtime-sessions-note").textContent = sessions.length
+    ? `${numberText(sessions.length, 0)} session folder${sessions.length === 1 ? "" : "s"} loaded from configured data roots; ${numberText(payload.file_count_total || 0, 0)} files summarized.`
+    : "No runtime session folders found under configured data roots. This is separate from Fetch Jobs history manifests.";
+  const cards = [
+    {
+      label: "Session Folders",
+      status: sessions.length ? "ok" : "warn",
+      title: `${numberText(sessions.length, 0)} / ${numberText(payload.total || sessions.length, 0)}`,
+      note: sessions.length ? `${numberText(Object.keys(runCounts).length, 0)} run ${Object.keys(runCounts).length === 1 ? "family" : "families"} visible.` : "Add paper/shadow session roots to dashboard.data_roots.",
+    },
+    {
+      label: "Artifact Files",
+      status: Number(payload.file_count_total || 0) ? "ok" : sessions.length ? "warn" : "bad",
+      title: numberText(payload.file_count_total || 0, 0),
+      note: `${numberText(payload.csv_count_total || 0, 0)} CSV / ${numberText(payload.parquet_count_total || 0, 0)} parquet across loaded sessions.`,
+    },
+    {
+      label: "Latest Session",
+      status: latest ? "ok" : "bad",
+      title: latest ? text(latest.run_id) : "none",
+      note: latest ? `${text(latest.session_id)} modified ${shortTimestampAgeLabel(latest.latest_modified_at || latest.modified_at)}.` : "No session manifest has been indexed.",
+    },
+    {
+      label: "Status Mix",
+      status: sessions.length ? "ok" : "warn",
+      title: countSummary(statusCounts),
+      note: `Runs: ${countSummary(runCounts)}.`,
+    },
+  ];
+  $("runtime-sessions-cards").innerHTML = cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("runtime-sessions-body").innerHTML = sessions.length
+    ? sessions.slice(0, 25).map((session) => row([
+        escapeHtml(text(session.run_id)),
+        escapeHtml(text(session.session_id)),
+        statusText(session.status),
+        escapeHtml(numberText(session.file_count, 0)),
+        escapeHtml(numberText(session.signal_file_count, 0)),
+        escapeHtml(numberText(session.order_file_count, 0)),
+        escapeHtml(numberText(session.fill_file_count, 0)),
+        escapeHtml(numberText(session.bar_file_count, 0)),
+        escapeHtml(shortTimestampAgeLabel(session.latest_modified_at || session.modified_at)),
+        escapeHtml(text(session.path)),
+      ])).join("")
+    : row([`<span class="muted">No runtime sessions found. Fetch Jobs can still be empty while paper/shadow run telemetry exists in current status.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
 function runsFilterState() {
@@ -29989,6 +30056,7 @@ async function refresh(options = {}) {
     remoteNodes,
     diagnostics,
     fetchManifests,
+    runtimeSessions,
     workbenchStatus,
     cleanupPlan,
     endpointMap,
@@ -30007,6 +30075,7 @@ async function refresh(options = {}) {
     fetchJson("/remote_nodes?limit=100"),
     fetchJson("/workbench_diagnostics"),
     fetchJson("/fetch_manifests?limit=50"),
+    fetchJson("/runtime_sessions?limit=100"),
     fetchJson("/workbench_status"),
     fetchJson("/workbench_cleanup_plan"),
     fetchJson("/workbench_endpoints"),
@@ -30026,6 +30095,7 @@ async function refresh(options = {}) {
   state.history = history.history || [];
   state.remoteNodes = remoteNodes || { nodes: [] };
   state.fetchManifests = fetchManifests || { manifests: [], roots: [], errors: [] };
+  state.runtimeSessions = runtimeSessions || { sessions: [], errors: [] };
   state.workbenchStatus = workbenchStatus || {};
   state.cleanupPlan = cleanupPlan || {};
   state.endpointMap = endpointMap || { endpoints: [] };

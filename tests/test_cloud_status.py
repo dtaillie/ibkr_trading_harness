@@ -1346,6 +1346,9 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "overview-performance-chart" in html
         assert "overview-session-state-note" in html
         assert "overview-session-state-cards" in html
+        assert "runtime-sessions-note" in html
+        assert "runtime-sessions-cards" in html
+        assert "runtime-sessions-body" in html
         assert "overview-lens-title" in html
         assert "overview-lens-note" in html
         assert "overview-lens-home" in html
@@ -1649,6 +1652,7 @@ def test_cloud_status_server_serves_workbench_endpoint_map(tmp_path):
         assert ("GET", "/status_equity_rollups") in endpoints
         assert ("GET", "/status_equity_rollups_snapshot") in endpoints
         assert ("GET", "/status_equity_rollups_export") in endpoints
+        assert ("GET", "/runtime_sessions") in endpoints
         assert ("GET", "/remote_nodes") in endpoints
         assert ("GET", "/remote_nodes_export") in endpoints
         assert ("GET", "/remote_node_detail") in endpoints
@@ -2820,6 +2824,56 @@ def test_cloud_status_server_serves_data_catalog(tmp_path):
         assert diagnostic["catalog_matches"][0]["symbol"] == "SPY"
         assert diagnostic["catalog_matches"][0]["storage_contract_status"] == "warn"
         assert diagnostic["configured_candidates"][0]["in_catalog_scope"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_cloud_status_server_serves_runtime_sessions(tmp_path):
+    data_root = tmp_path / "paper_logs"
+    session_dir = data_root / "example_runner" / "sessions" / "2026-01-02_143000"
+    session_dir.mkdir(parents=True)
+    (session_dir / "manifest.json").write_text(
+        json.dumps({
+            "runner": "example_public_runner",
+            "run_started_at": "2026-01-02T14:30:00+00:00",
+            "run_finished_at": "2026-01-02T21:00:00+00:00",
+            "symbols_requested": ["SPY", "QQQ"],
+        }),
+        encoding="utf-8",
+    )
+    (session_dir / "signals.csv").write_text("timestamp,symbol\n2026-01-02T14:30:00Z,SPY\n", encoding="utf-8")
+    (session_dir / "orders.csv").write_text("timestamp,symbol\n2026-01-02T14:31:00Z,SPY\n", encoding="utf-8")
+    (session_dir / "fills.csv").write_text("timestamp,symbol\n2026-01-02T14:32:00Z,SPY\n", encoding="utf-8")
+    (session_dir / "bars_1min.parquet").write_bytes(b"parquet-placeholder")
+    (data_root / "not_a_session").mkdir()
+    (data_root / "not_a_session" / "manifest.json").write_text("{}", encoding="utf-8")
+
+    server = create_server("127.0.0.1", 0, tmp_path / "state", data_roots=[data_root, data_root / "example_runner" / "sessions"])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        with request.urlopen(f"{base}/runtime_sessions?limit=10", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        assert payload["count"] == 1
+        assert payload["total"] == 1
+        assert payload["file_count_total"] == 5
+        assert payload["csv_count_total"] == 3
+        assert payload["parquet_count_total"] == 1
+        assert payload["run_counts"] == {"example_runner": 1}
+        session = payload["sessions"][0]
+        assert session["run_id"] == "example_runner"
+        assert session["session_id"] == "2026-01-02_143000"
+        assert session["runner"] == "example_public_runner"
+        assert session["status"] == "completed"
+        assert session["symbol_count"] == 2
+        assert session["signal_file_count"] == 1
+        assert session["order_file_count"] == 1
+        assert session["fill_file_count"] == 1
+        assert session["bar_file_count"] == 1
+        assert session["manifest_path"].endswith("manifest.json")
     finally:
         server.shutdown()
         server.server_close()

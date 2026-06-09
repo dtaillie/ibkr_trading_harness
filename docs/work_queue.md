@@ -261,6 +261,11 @@ strategy-private.
     backend/UI contract gap where run artifacts existed but dashboard panels had
     to hunt through nested raw metrics and could render `n/a`, disconnected, or
     no-data states.
+  - partial; the receiver now exposes `/runtime_sessions`, a bounded inventory
+    of paper/shadow runtime session folders discovered from configured data
+    roots. Runs Home shows this separately from Fetch Jobs, so session bars,
+    signals, orders, fills, and manifests do not look missing just because no
+    historical fetch manifest exists.
   - partial; the dashboard now normalizes current-run telemetry client-side
     before rendering the topbar, Overview, backend pipeline, paper-monitor
     checks, and Runs tables. These surfaces consume the same top-level
