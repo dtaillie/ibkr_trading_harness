@@ -1693,6 +1693,11 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function dataEndpointContract" in js
         assert "symbol directory" in js
         assert "catalog symbol summaries" in js
+        assert "data_coverage" in js
+        assert "data_gap_summary" in js
+        assert "data_minute_heatmap" in js
+        assert "data_storage_audit" in js
+        assert "configured root" in js
         assert "function renderRuntimeSessionDetail" in js
         assert "runtime_session_detail" in js
         assert "function renderSymbolBatchDiagnostic" in js

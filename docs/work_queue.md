@@ -300,6 +300,11 @@ strategy-private.
     fallback behavior, and errors. Operations Diagnostics shows those rows in
     Dashboard API Health so a running receiver with blank data panels points to
     the exact saved-data endpoint instead of reading as broadly disconnected.
+    Lazy Data Diagnostics endpoints now report the same health rows for
+    `/data_coverage`, `/data_gap_summary`, `/data_minute_heatmap`, and
+    `/data_storage_audit`, preserving successful rows and naming the first
+    failing diagnostics call when large-cache coverage or audit panels cannot
+    load.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

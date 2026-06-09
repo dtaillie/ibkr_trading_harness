@@ -219,18 +219,26 @@ function dataEndpointPayloadSummary(payload = {}) {
   if (Array.isArray(payload.rows)) pieces.push(`${numberText(payload.rows.length, 0)} row${payload.rows.length === 1 ? "" : "s"}`);
   if (Array.isArray(payload.groups)) pieces.push(`${numberText(payload.groups.length, 0)} group${payload.groups.length === 1 ? "" : "s"}`);
   if (Array.isArray(payload.files)) pieces.push(`${numberText(payload.files.length, 0)} file${payload.files.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.date_bins)) pieces.push(`${numberText(payload.date_bins.length, 0)} date bin${payload.date_bins.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.gap_rows)) pieces.push(`${numberText(payload.gap_rows.length, 0)} gap row${payload.gap_rows.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.calendar_rows)) pieces.push(`${numberText(payload.calendar_rows.length, 0)} calendar row${payload.calendar_rows.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.configured_roots)) pieces.push(`${numberText(payload.configured_roots.length, 0)} configured root${payload.configured_roots.length === 1 ? "" : "s"}`);
+  if (Array.isArray(payload.suggested_roots)) pieces.push(`${numberText(payload.suggested_roots.length, 0)} suggested root${payload.suggested_roots.length === 1 ? "" : "s"}`);
   const total = Number(payload.total || payload.total_count || payload.symbol_count || payload.file_count || 0);
   if (Number.isFinite(total) && total > 0) pieces.push(`total ${numberText(total, 0)}`);
   const cache = payload.scan_cache && payload.scan_cache.status ? `cache ${text(payload.scan_cache.status)}` : "";
   if (cache) pieces.push(cache);
   const errors = Array.isArray(payload.errors) ? payload.errors.length : 0;
   if (errors) pieces.push(`${numberText(errors, 0)} payload warning${errors === 1 ? "" : "s"}`);
+  const warnings = Array.isArray(payload.warnings) ? payload.warnings.length : 0;
+  if (warnings) pieces.push(`${numberText(warnings, 0)} warning${warnings === 1 ? "" : "s"}`);
   return pieces.length ? pieces.join("; ") : "loaded payload";
 }
 
 function dataEndpointContract(label, url, payload, { durationMs = null, error = "", fallback = "" } = {}) {
   const warningCount = payload && Array.isArray(payload.errors) ? payload.errors.length : 0;
-  const status = error ? "warn" : warningCount ? "warn" : "ok";
+  const payloadWarningCount = payload && Array.isArray(payload.warnings) ? payload.warnings.length : 0;
+  const status = error ? "warn" : warningCount || payloadWarningCount ? "warn" : "ok";
   const parts = [
     url,
     error ? `failed: ${error}` : dataEndpointPayloadSummary(payload),
@@ -6223,11 +6231,11 @@ function dashboardApiHealthModel() {
   const failed = errors.length + dataFailed;
   const total = contracts.length + dataContracts.length;
   const status = !statusLoaded ? "bad" : failed ? "warn" : "ok";
-  const title = !statusLoaded ? "Status Missing" : failed ? `${numberText(failed, 0)} Optional Failure${failed === 1 ? "" : "s"}` : "API Loaded";
+  const title = !statusLoaded ? "Status Missing" : failed ? `${numberText(failed, 0)} Optional Issue${failed === 1 ? "" : "s"}` : "API Loaded";
   const note = !statusLoaded
     ? "The required /status endpoint did not produce a usable snapshot for this dashboard refresh."
     : failed
-      ? `${numberText(loaded + dataLoaded, 0)} / ${numberText(total, 0)} optional endpoint groups loaded; first failure: ${text((errors[0] && errors[0].label) || (dataContracts.find((item) => item.status !== "ok") || {}).label)}.`
+      ? `${numberText(loaded + dataLoaded, 0)} / ${numberText(total, 0)} optional endpoint groups loaded; first issue: ${text((errors[0] && errors[0].label) || (dataContracts.find((item) => item.status !== "ok") || {}).label)}.`
       : total ? `${numberText(total, 0)} optional endpoint groups loaded during the latest refresh.` : "Status loaded; optional endpoint groups have not been sampled yet.";
   const cards = [
     {
@@ -30668,20 +30676,96 @@ async function refreshDataDiagnostics({ force = false } = {}) {
   const requestId = loadState.requestId;
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
+  const diagnosticLabels = new Set([
+    "data coverage",
+    "data gap summary",
+    "data minute heatmap",
+    "data storage audit",
+  ]);
+  const endpointContracts = (state.dataEndpointContracts || []).filter((item) => !diagnosticLabels.has(item.label));
+  const recordDiagnosticEndpoint = (label, url, payload, options = {}) => {
+    endpointContracts.push(dataEndpointContract(label, url, payload, options));
+    state.dataEndpointContracts = endpointContracts;
+    renderDashboardApiHealth();
+  };
   try {
-    const dataCoverage = await fetchJson(`/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`);
+    const coverageUrl = `/data_coverage?limit=${catalogLimit}&max_symbols=60&max_dates=60`;
+    const coverageStarted = performance.now();
+    let dataCoverage;
+    try {
+      dataCoverage = await fetchJson(coverageUrl);
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("coverage", coverageUrl, dataCoverage, {
+        durationMs: performance.now() - coverageStarted,
+      });
+    } catch (coverageErr) {
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("coverage", coverageUrl, { symbols: [], errors: [{ error: coverageErr.message }] }, {
+        durationMs: performance.now() - coverageStarted,
+        error: coverageErr.message,
+      });
+      throw coverageErr;
+    }
     if (requestId !== loadState.requestId) return;
     state.dataCoverage = dataCoverage || { symbols: [], date_bins: [], errors: [] };
     renderDataCoverage();
-    const dataGapSummary = await fetchJson(`/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`);
+    const gapUrl = `/data_gap_summary?catalog_limit=${catalogLimit}&top_limit=20`;
+    const gapStarted = performance.now();
+    let dataGapSummary;
+    try {
+      dataGapSummary = await fetchJson(gapUrl);
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("gap summary", gapUrl, dataGapSummary, {
+        durationMs: performance.now() - gapStarted,
+      });
+    } catch (gapErr) {
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("gap summary", gapUrl, { gap_rows: [], calendar_rows: [], errors: [{ error: gapErr.message }] }, {
+        durationMs: performance.now() - gapStarted,
+        error: gapErr.message,
+      });
+      throw gapErr;
+    }
     if (requestId !== loadState.requestId) return;
     state.dataGapSummary = dataGapSummary || { gap_rows: [], calendar_rows: [] };
     renderDataGapSummary();
-    const dataMinuteHeatmap = await fetchJson(`/data_minute_heatmap?catalog_limit=${catalogLimit}&top_limit=20`);
+    const heatmapUrl = `/data_minute_heatmap?catalog_limit=${catalogLimit}&top_limit=20`;
+    const heatmapStarted = performance.now();
+    let dataMinuteHeatmap;
+    try {
+      dataMinuteHeatmap = await fetchJson(heatmapUrl);
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("minute heatmap", heatmapUrl, dataMinuteHeatmap, {
+        durationMs: performance.now() - heatmapStarted,
+      });
+    } catch (heatmapErr) {
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("minute heatmap", heatmapUrl, { rows: [], errors: [{ error: heatmapErr.message }] }, {
+        durationMs: performance.now() - heatmapStarted,
+        error: heatmapErr.message,
+      });
+      throw heatmapErr;
+    }
     if (requestId !== loadState.requestId) return;
     state.dataMinuteHeatmap = dataMinuteHeatmap || { rows: [], errors: [] };
     renderDataMinuteHeatmap();
-    const dataStorageAudit = await fetchJson(`/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
+    const storageAuditUrl = `/data_storage_audit?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`;
+    const storageAuditStarted = performance.now();
+    let dataStorageAudit;
+    try {
+      dataStorageAudit = await fetchJson(storageAuditUrl);
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("storage audit", storageAuditUrl, dataStorageAudit, {
+        durationMs: performance.now() - storageAuditStarted,
+      });
+    } catch (storageAuditErr) {
+      if (requestId !== loadState.requestId) return;
+      recordDiagnosticEndpoint("storage audit", storageAuditUrl, { configured_roots: [], suggested_roots: [], warnings: [], errors: [{ error: storageAuditErr.message }] }, {
+        durationMs: performance.now() - storageAuditStarted,
+        error: storageAuditErr.message,
+      });
+      throw storageAuditErr;
+    }
     if (requestId !== loadState.requestId) return;
     state.dataStorageAudit = dataStorageAudit || { configured_roots: [], suggested_roots: [], warnings: [] };
     loadState.diagnosticsLoaded = true;
@@ -30693,9 +30777,11 @@ async function refreshDataDiagnostics({ force = false } = {}) {
     if (requestId !== loadState.requestId) return;
     loadState.diagnosticsError = err.message;
     setDataDiagnosticsLoadingNote(`Data diagnostics refresh failed: ${err.message}`, "bad");
+    renderDashboardApiHealth();
   } finally {
     if (requestId === loadState.requestId) {
       loadState.diagnosticsLoading = false;
+      renderDashboardApiHealth();
     }
   }
 }
