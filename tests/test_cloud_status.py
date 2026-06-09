@@ -1692,6 +1692,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data_history_matrix" in js
         assert "data_history_matrix_export" in js
         assert "function dataHistoryMatrixUsesBackendRows" in js
+        assert "function dataHistoryMatrixBackendScopeApplied" in js
+        assert "useBackendScope ? dataHistoryMatrixRows([])" in js
         assert "dataServerFilterMapsEqual" in js
         assert "function dataCatalogServerScopeModel" in js
         assert "Local preview only" in js

@@ -1221,6 +1221,10 @@ QQQ show up, treat that as a bug until proven otherwise.
       grouping remains only a fallback, so filtered matrix cards/tables no
       longer silently summarize the current limited catalog slice while the
       backend has a broader filtered inventory.
+    - partial; Saved History Matrix now treats a matching backend scope as
+      authoritative even when it returns zero groups, so restrictive server-side
+      filters show an honest empty result instead of falling back to stale
+      browser-catalog rows.
     - partial; Saved History Matrix rows now provide direct Browse, Inspect,
       Compare, and Workbench actions for the grouped asset/source/bar/session
       slice, so users can move from inventory review to charting or simulation

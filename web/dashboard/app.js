@@ -12907,7 +12907,13 @@ function dataServerFilterMapsEqual(left = {}, right = {}) {
 
 function dataHistoryMatrixUsesBackendRows(payload = state.dataHistoryMatrix || {}) {
   const rows = payload.rows || payload.groups || [];
-  if (!rows.length || payload.source === "catalog_fallback") return false;
+  if (!rows.length || !dataHistoryMatrixBackendScopeApplied(payload)) return false;
+  return true;
+}
+
+function dataHistoryMatrixBackendScopeApplied(payload = state.dataHistoryMatrix || {}) {
+  if (!payload || payload.source === "catalog_fallback") return false;
+  if (!Array.isArray(payload.rows || payload.groups)) return false;
   return dataServerFilterMapsEqual(payload.filters || {}, dataServerFilterMap());
 }
 
@@ -15185,19 +15191,19 @@ function renderDataHistoryMatrix(filteredRows = []) {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
   const backendMatrix = state.dataHistoryMatrix || {};
-  const useBackendRows = dataHistoryMatrixUsesBackendRows(backendMatrix);
-  const rows = useBackendRows ? [] : activeFilters.length ? filteredRows : catalogRows;
-  const matrix = useBackendRows ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
-  const totalSymbols = useBackendRows
+  const useBackendScope = dataHistoryMatrixBackendScopeApplied(backendMatrix);
+  const rows = useBackendScope ? [] : activeFilters.length ? filteredRows : catalogRows;
+  const matrix = useBackendScope ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
+  const totalSymbols = useBackendScope
     ? Number(backendMatrix.symbol_count || 0)
     : new Set((rows || []).map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
   const shown = matrix.slice(0, 18);
   $("data-history-matrix-note").textContent = rows.length
     ? `${numberText(matrix.length, 0)} source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
-    : useBackendRows
+    : useBackendScope
       ? `${numberText(matrix.length, 0)} server-backed source/bar/session group${matrix.length === 1 ? "" : "s"} across ${numberText(totalSymbols, 0)} symbol${totalSymbols === 1 ? "" : "s"}${activeFilters.length ? ` after filters: ${activeFilters.join(" / ")}` : ""}.`
     : "No saved history rows are visible; configure data roots, raise the scan limit, or clear filters.";
-  renderDataHistoryMatrixSummary(matrix, rows, activeFilters, { serverBacked: useBackendRows });
+  renderDataHistoryMatrixSummary(matrix, rows, activeFilters, { serverBacked: useBackendScope });
   $("data-history-matrix-body").innerHTML = shown.length
     ? shown.map((group) => row([
         escapeHtml(group.asset),
@@ -31483,9 +31489,9 @@ async function downloadDataHistoryMatrixCsv() {
   } catch (err) {
     $("data-history-matrix-note").innerHTML = `<span class="status-warn">Server matrix export failed, using current browser rows: ${escapeHtml(err.message)}</span>`;
   }
-  const useBackendRows = dataHistoryMatrixUsesBackendRows(state.dataHistoryMatrix || {});
-  const rows = useBackendRows ? [] : activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
-  const matrix = useBackendRows ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
+  const useBackendScope = dataHistoryMatrixBackendScopeApplied(state.dataHistoryMatrix || {});
+  const rows = useBackendScope ? [] : activeFilters.length ? filteredDataCatalog(catalogRows) : catalogRows;
+  const matrix = useBackendScope ? dataHistoryMatrixRows([]) : dataHistoryMatrixRows(rows);
   const header = [
     "asset_class",
     "source",
