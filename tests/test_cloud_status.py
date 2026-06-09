@@ -1233,6 +1233,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-root-index-detail-note" in html
         assert "export-data-root-index-detail-csv" in html
         assert "data-root-index-detail-body" in html
+        assert "<th>Catalog</th>" in html
         assert "data-root-index-body" in html
         assert "data-symbol-directory-filter" in html
         assert "data-symbol-directory-asset" in html
@@ -1708,6 +1709,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert ">Search Scan</button>" in js
         assert "root-index-detail-inspect" in js
         assert "root-index-detail-workbench" in js
+        assert "root-index-detail-search" in js
+        assert "Catalog scan searched candidate" in js
         assert "function dataHistoryMatrixUsesBackendRows" in js
         assert "function dataHistoryMatrixBackendScopeApplied" in js
         assert "useBackendScope ? dataHistoryMatrixRows([])" in js

@@ -13222,7 +13222,7 @@ function renderRootIndexDetail() {
   if (!symbol || symbol === "n/a") {
     $("data-root-index-detail-note").textContent = "Select Show Files for a root-index symbol.";
     $("data-root-index-detail-summary").innerHTML = "";
-    $("data-root-index-detail-body").innerHTML = row([`<span class="muted">No root-index symbol selected.</span>`, "", "", "", "", "", "", ""]);
+    $("data-root-index-detail-body").innerHTML = row([`<span class="muted">No root-index symbol selected.</span>`, "", "", "", "", "", "", "", ""]);
     return;
   }
   const capped = detail.index_complete === false || Number(detail.scan_capped_root_count || 0) > 0;
@@ -13263,6 +13263,12 @@ function renderRootIndexDetail() {
   $("data-root-index-detail-body").innerHTML = files.length
     ? files.slice(0, 100).map((item) => {
         const path = text(item.path || "");
+        const catalogDataset = dataCatalogDatasetByPath(path);
+        const catalogStatus = catalogDataset ? "ok" : "warn";
+        const catalogLabel = catalogDataset ? "parsed" : "candidate only";
+        const catalogNote = catalogDataset
+          ? `${text(catalogDataset.quality_status)} quality / ${text(catalogDataset.storage_contract_status)} contract`
+          : "Run Search Scan or Inspect to parse chart/readiness metadata.";
         return row([
           `<span class="mono">${escapeHtml(path)}</span>`,
           escapeHtml(text(item.source)),
@@ -13271,10 +13277,11 @@ function renderRootIndexDetail() {
           escapeHtml(text(item.format)),
           escapeHtml(bytes(item.size_bytes)),
           escapeHtml(item.modified_at ? shortTimestampAgeLabel(item.modified_at) : "n/a"),
-          `<span class="button-pair"><button type="button" class="secondary root-index-detail-inspect" data-path="${escapeHtml(path)}">Inspect</button><button type="button" class="secondary root-index-detail-workbench" data-path="${escapeHtml(path)}">Workbench</button><button type="button" class="secondary root-index-detail-copy" data-path="${escapeHtml(path)}">Copy Path</button></span>`,
+          `<span class="${escapeHtml(statusClass(catalogStatus))}">${escapeHtml(catalogLabel)}</span><br><span class="muted">${escapeHtml(catalogNote)}</span>`,
+          `<span class="button-pair"><button type="button" class="secondary root-index-detail-inspect" data-path="${escapeHtml(path)}">Inspect</button><button type="button" class="secondary root-index-detail-workbench" data-path="${escapeHtml(path)}">Workbench</button><button type="button" class="secondary root-index-detail-search" data-path="${escapeHtml(path)}" data-symbol="${escapeHtml(text(item.symbol || symbol))}" data-source="${escapeHtml(text(item.source))}" data-bar="${escapeHtml(text(item.bar_size))}" data-session="${escapeHtml(text(item.storage_session))}">Search Scan</button><button type="button" class="secondary root-index-detail-copy" data-path="${escapeHtml(path)}">Copy Path</button></span>`,
         ]);
       }).join("")
-    : row([`<span class="muted">No candidate files found for ${escapeHtml(symbol)} under the current Root Index filters.</span>`, "", "", "", "", "", "", ""]);
+    : row([`<span class="muted">No candidate files found for ${escapeHtml(symbol)} under the current Root Index filters.</span>`, "", "", "", "", "", "", "", ""]);
 }
 
 function renderRootIndexBrowser() {
@@ -13449,6 +13456,16 @@ async function handleRootIndexDetailAction(target) {
       replay_status: item.replay_status || "warn",
     });
     $("last-refresh").textContent = `Selected ${text(item.symbol || detail.symbol || path)} root-index candidate for Workbench`;
+    return;
+  }
+  if (target.classList.contains("root-index-detail-search")) {
+    $("data-filter-text").value = target.dataset.symbol || "";
+    $("data-filter-source").value = target.dataset.source || "";
+    $("data-filter-bar").value = target.dataset.bar || "";
+    $("data-filter-session").value = target.dataset.session || "";
+    state.manifestPathFilter = null;
+    navigateToDataLens("browse");
+    await runDataCatalogServerSearch(`Catalog scan searched candidate ${text(target.dataset.symbol || path)}`);
     return;
   }
   if (target.classList.contains("root-index-detail-copy")) {
@@ -32323,7 +32340,7 @@ function init() {
   });
   $("data-root-index-detail-body").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement
-      ? event.target.closest(".root-index-detail-inspect, .root-index-detail-workbench, .root-index-detail-copy")
+      ? event.target.closest(".root-index-detail-inspect, .root-index-detail-workbench, .root-index-detail-search, .root-index-detail-copy")
       : null;
     if (!(target instanceof HTMLElement)) return;
     handleRootIndexDetailAction(target).catch((err) => {

@@ -373,6 +373,10 @@ strategy-private.
       them back into the generated dataset selector on rerender, so root-index,
       Data Detail, Fetch output, Compare, and Saved History Matrix handoffs do
       not disappear when the builder refreshes its schema-driven controls.
+      Root Index candidate-file rows now show whether each file is parsed in
+      the current catalog or only filename/path-inferred, and each row has a
+      Search Scan action that applies the candidate's symbol/source/bar/session
+      scope to the backend catalog before users trust readiness metadata.
     - partial; symbol diagnostics now bound suggested-root file counts so a
       missing-symbol check cannot hang on very large local history roots while
       still reporting whether the count was capped.
