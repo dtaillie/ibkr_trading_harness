@@ -25,6 +25,7 @@ COPY_FILES = [
     "README.public.md",
     "CHANGELOG.md",
     "pyproject.toml",
+    "setup.cfg",
     "docs/ui_use_cases.md",
     "docs/images/dashboard_demo.gif",
     "docs/images/dashboard_overview.png",
