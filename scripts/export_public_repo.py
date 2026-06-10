@@ -19,6 +19,7 @@ COPY_DIRS = [
 
 COPY_FILES = [
     ".gitignore",
+    "LICENSE",
     "core.py",
     "requirements.txt",
     "README.public.md",

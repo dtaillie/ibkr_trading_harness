@@ -602,3 +602,8 @@ cloud runbook still contain required public/private boundary language.
 - `docs/public_framework_roadmap.md`
 - `docs/work_queue.md`
 - `docs/blog_public_ibkr_harness_draft.md`
+
+## License
+
+MIT — see `LICENSE`. This is infrastructure, not alpha; nothing here is
+financial advice or a viable trading strategy.
