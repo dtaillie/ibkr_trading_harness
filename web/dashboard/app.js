@@ -1786,28 +1786,6 @@ function renderPageIntro(view = activeView()) {
   if ($("page-intro-next-note")) {
     $("page-intro-next-note").textContent = next.note || "Use the focused action below to continue from this page.";
   }
-  const guide = Array.isArray(content.guide) ? content.guide : [];
-  const guideContainer = $("page-intro-guide");
-  if (guideContainer) {
-    guideContainer.innerHTML = guide.map((item) => `
-      <div class="page-guide-card">
-        <span>${escapeHtml(item.label)}</span>
-        <strong>${escapeHtml(item.title)}</strong>
-        <small>${escapeHtml(item.note)}</small>
-      </div>
-    `).join("");
-  }
-  const steps = Array.isArray(content.steps) ? content.steps : [];
-  const stepContainer = $("page-intro-steps");
-  if (stepContainer) {
-    stepContainer.innerHTML = steps.map((step) => `
-      <div class="page-step">
-        <span>${escapeHtml(step.label)}</span>
-        <strong>${escapeHtml(step.title)}</strong>
-        <small>${escapeHtml(step.note)}</small>
-      </div>
-    `).join("");
-  }
   pageIntroAction("page-intro-primary", content.primary);
   pageIntroAction("page-intro-secondary", content.secondary);
 }

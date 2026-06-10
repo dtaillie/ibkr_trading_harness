@@ -120,8 +120,10 @@ Performance Guide answers "how is it doing today?" by summarizing the current
 performance source, today/latest-session return card, evidence chain,
 drawdown, trade/order proof, rollups, and the next verification route.
 
-Every top-level page also starts with a compact workflow rail. Read it left to
-right for the common path on that page before opening the deeper tables below.
+Every top-level page starts with a compact intro: route, title, current
+status chips, a recommended next step, and two action buttons. The Hide
+Guide button collapses everything but the route, title, status, and actions,
+and the choice persists across sessions.
 
 Status colors mean three different things. Green is healthy, amber needs
 review, and red means a real failure or a negative return — nothing else.

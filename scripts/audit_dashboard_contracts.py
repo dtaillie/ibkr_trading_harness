@@ -48,7 +48,7 @@ REQUIRED_PAGE_INTRO_IDS = (
     "page-intro", "page-route", "page-route-home", "page-route-copy",
     "page-intro-title", "page-intro-note", "page-intro-next",
     "page-intro-next-title", "page-intro-evidence", "page-intro-primary",
-    "page-intro-secondary", "page-intro-guide", "page-intro-steps",
+    "page-intro-secondary", "page-intro-toggle",
 )
 REQUIRED_JS_TOKENS = (
     "function setActiveView", "function navigateToView", "function applyOverviewLens",
@@ -58,7 +58,7 @@ REQUIRED_JS_TOKENS = (
 )
 REQUIRED_CSS_TOKENS = (
     ".side-nav", ".nav-link", ".topbar", ".page-intro", ".page-intro-next",
-    ".page-intro-guide", ".overview-lens-bar", ".overview-lens-button",
+    ".overview-lens-bar", ".overview-lens-button",
     "@media (max-width: 820px)",
 )
 

@@ -48,9 +48,9 @@ move, the content stays on its page — one click away, closed by default.
   Simulation Plan, Readiness Review, Evidence, and Action Summary collapsed
   into one disclosure.
 - **Page intro strips**: a Hide Guide / Show Guide toggle (persisted in
-  localStorage) collapses the per-view guide cards, workflow rail, evidence
-  chips, and recommended-next block, keeping route, title, status, and the
-  two action buttons. New users see the full guide; daily users hide it once.
+  localStorage) collapses the intro detail, keeping route, title, status, and
+  the two action buttons. New users see the full intro; daily users hide it
+  once.
 
 ## Pass 3 (2026-06-10) — Remaining Home Stacks
 
@@ -68,4 +68,16 @@ Applied the disclosure idiom to the rest of the default lenses:
 Deliberately left visible: lens-specific assistants (search, detail,
 compare, events) that sit beside the workflow they assist, and per-lens
 reports on Remote/Control/Paper lenses. If those prove noisy in use, they
-are pass-4 candidates with the same treatment.
+are candidates for the same treatment.
+
+## Pass 4 (2026-06-10) — No Fake Affordances
+
+User feedback: the per-page "Answers / Evidence / Next Move" guide cards and
+numbered workflow-step cards were static prose with hover shading — they
+looked clickable, did nothing, and contained no data. Removed entirely (the
+Help view owns onboarding). New rule alongside the surface budget:
+
+- **Hover elevation means clickable.** Only anchors and buttons get hover
+  affordances; static cards never change on hover.
+- **A card must carry data or an action.** Decorative prose framed as a card
+  is removed, not restyled.

@@ -463,94 +463,6 @@ body {
   display: none;
 }
 
-.page-intro-guide {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.page-guide-card {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--panel-raised);
-  box-shadow: var(--surface-shadow);
-}
-
-.page-guide-card span,
-.page-guide-card strong,
-.page-guide-card small {
-  display: block;
-}
-
-.page-guide-card span {
-  color: var(--info);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.page-guide-card strong {
-  margin-top: 5px;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.page-guide-card small {
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.page-intro-steps {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
-}
-
-.page-step {
-  min-width: 0;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--panel-raised);
-  box-shadow: var(--surface-shadow);
-}
-
-.page-step span,
-.page-step strong,
-.page-step small {
-  display: block;
-}
-
-.page-step span {
-  color: var(--accent-dark);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.page-step strong {
-  margin-top: 5px;
-  font-size: 14px;
-  overflow-wrap: anywhere;
-}
-
-.page-step small {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
 h1,
 h2,
 p {
@@ -2217,17 +2129,13 @@ section {
 .action-card,
 .workflow-card,
 .empty-card,
-.broker-capability-card,
-.page-guide-card,
-.page-step,
-.guide-item {
+.broker-capability-card {
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
-.action-card:hover,
-.page-guide-card:hover,
-.page-step:hover,
-.guide-item:hover {
+/* Hover elevation means clickable: only anchors and buttons get it. */
+a.action-card:hover,
+button.action-card:hover {
   border-color: var(--line-strong);
   box-shadow: var(--shadow-hover);
 }
@@ -5389,25 +5297,6 @@ footer {
     justify-content: flex-start;
   }
 
-  .page-intro-guide {
-    grid-template-columns: 1fr;
-    margin-top: 12px;
-  }
-
-  .page-intro-steps {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 2px 0 8px;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .page-step {
-    flex: 0 0 220px;
-    scroll-snap-align: start;
-  }
-
   .overview-lens-bar {
     flex-direction: column;
     align-items: stretch;
@@ -5664,8 +5553,6 @@ details.meta-disclosure > .meta-disclosure-body {
 }
 
 /* Collapsed page intro: keep route, title, status, and actions only. */
-.page-intro.page-intro-collapsed #page-intro-guide,
-.page-intro.page-intro-collapsed #page-intro-steps,
 .page-intro.page-intro-collapsed #page-intro-evidence,
 .page-intro.page-intro-collapsed #page-intro-next,
 .page-intro.page-intro-collapsed #page-intro-note {
