@@ -325,6 +325,12 @@ strategy-private.
     document the same order of operations: use Data Library Backend Status /
     Check Data APIs first, then interpret Root Index, Catalog Scope, Storage
     Audit, fetch-output visibility, and root YAML fixes.
+    Fetch Jobs Home now mirrors `/fetch_manifests` and `/runtime_sessions`
+    refresh-contract evidence in its own Backend Status panel, with Refresh
+    Fetch APIs, Open API Health, Copy Report, and Export CSV actions. Fetch
+    Action Summary now leads with missing/degraded fetch endpoint checks before
+    asking the user to change manifest roots, rerun pulls, or debug output
+    visibility.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,

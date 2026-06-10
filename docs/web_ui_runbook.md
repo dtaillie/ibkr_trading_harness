@@ -718,6 +718,10 @@ The canonical API route is `/fetch_manifests`; `/fetch_jobs` is also served as
 an alias for scripts or users who think in job terminology. Use
 `/fetch_manifest_roots` when you only need configured root readability and
 manifest counts.
+Start with Fetch Backend Status when Fetch Jobs or Runs look empty. Refresh
+Fetch APIs probes `/fetch_manifests` and `/runtime_sessions`, then mirrors the
+same rows in Operations Diagnostics API Health, so endpoint failures are
+separate from missing manifests, missing roots, or absent runtime sessions.
 Start with Fetch Progress Review when a pull is active, partial, failed, or
 otherwise suspicious. It summarizes the focus manifest, symbol/chunk progress,
 ETA and rolling pace, retry/pacing pressure, output visibility, recovery state,

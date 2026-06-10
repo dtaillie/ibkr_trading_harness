@@ -6301,6 +6301,125 @@ function renderDashboardApiHealth() {
     ])).join("")
     : row([`<span class="muted">No dashboard API refresh evidence has been recorded yet.</span>`, "", ""]);
   renderDataBackendStatus();
+  renderFetchBackendStatus();
+}
+
+function fetchBackendStatusModel() {
+  const contracts = state.refreshContracts || [];
+  const fetchLabels = new Set(["fetch manifests", "runtime sessions"]);
+  const rows = contracts.filter((item) => fetchLabels.has(item.label));
+  const issues = rows.filter((item) => item.status !== "ok");
+  const statusLoaded = Boolean(state.status && state.status.generated_at);
+  const fetchManifests = state.fetchManifests || {};
+  const runtimeSessions = state.runtimeSessions || {};
+  const manifests = fetchManifests.manifests || [];
+  const sessions = runtimeSessions.sessions || [];
+  const manifestErrors = Number(fetchManifests.error_count || 0) + Number((fetchManifests.errors || []).length);
+  const sessionErrors = Number(runtimeSessions.error_count || 0) + Number((runtimeSessions.errors || []).length);
+  const status = !statusLoaded ? "bad" : issues.length ? "warn" : rows.length ? "ok" : "bad";
+  const title = !statusLoaded
+    ? "Status Missing"
+    : rows.length
+      ? `${numberText(rows.length - issues.length, 0)} / ${numberText(rows.length, 0)} OK`
+      : "No Checks";
+  const note = !statusLoaded
+    ? "The required /status endpoint did not load, so Fetch Jobs backend state is not trustworthy yet."
+    : issues.length
+      ? `First issue: ${text(issues[0].label)}. Refresh Fetch APIs or open API Health before changing roots or rerunning fetches.`
+      : rows.length
+        ? "Fetch manifests and runtime-session endpoint checks are visible."
+        : "Refresh Fetch APIs to probe manifest and runtime-session endpoints from this page.";
+  const cards = [
+    {
+      status,
+      label: "Fetch APIs",
+      title,
+      note,
+    },
+    {
+      status: rows.find((item) => item.label === "fetch manifests")?.status || "bad",
+      label: "Fetch Manifests",
+      title: manifests.length ? `${numberText(manifests.length, 0)} job${manifests.length === 1 ? "" : "s"}` : "No Jobs",
+      note: manifestErrors
+        ? `${numberText(manifestErrors, 0)} manifest scan issue${manifestErrors === 1 ? "" : "s"} reported.`
+        : manifests.length ? "Manifest rows loaded from configured roots." : "Endpoint loaded, but no manifest rows are visible yet.",
+    },
+    {
+      status: rows.find((item) => item.label === "runtime sessions")?.status || "bad",
+      label: "Runtime Sessions",
+      title: sessions.length ? `${numberText(sessions.length, 0)} session${sessions.length === 1 ? "" : "s"}` : "No Sessions",
+      note: sessionErrors
+        ? `${numberText(sessionErrors, 0)} runtime-session scan issue${sessionErrors === 1 ? "" : "s"} reported.`
+        : sessions.length ? "Runtime session rows loaded from configured data roots." : "Endpoint loaded, but no runtime session rows are visible yet.",
+    },
+  ];
+  const tableRows = [
+    {
+      label: "required status",
+      status: statusLoaded ? "ok" : "bad",
+      detail: statusLoaded ? `latest /status generated ${text(state.status.generated_at)}` : "required /status payload missing",
+    },
+    ...rows,
+  ];
+  return { status, title, note, rows: tableRows, cards, unprobed: statusLoaded && !rows.length, issues };
+}
+
+function renderFetchBackendStatus() {
+  if (!$("fetch-backend-status-note") || !$("fetch-backend-status-cards") || !$("fetch-backend-status-body") || !$("fetch-backend-status-actions")) return;
+  const model = fetchBackendStatusModel();
+  $("fetch-backend-status-note").textContent = model.note;
+  $("fetch-backend-status-note").className = `section-note ${statusClass(model.status)}`;
+  $("fetch-backend-status-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("fetch-backend-status-actions").innerHTML = [
+    `<button type="button" data-fetch-backend-status-action="check">Refresh Fetch APIs</button>`,
+    `<button type="button" class="secondary" data-fetch-backend-status-action="operations">Open API Health</button>`,
+    `<button type="button" class="secondary" data-fetch-backend-status-action="copy"${model.rows.length ? "" : " disabled"}>Copy Report</button>`,
+    `<button type="button" class="secondary" data-fetch-backend-status-action="export"${model.rows.length ? "" : " disabled"}>Export CSV</button>`,
+  ].join("");
+  $("fetch-backend-status-body").innerHTML = model.rows.length
+    ? model.rows.map((item) => row([
+      escapeHtml(item.label),
+      statusText(item.status),
+      escapeHtml(item.detail),
+    ])).join("")
+    : row([`<span class="muted">No Fetch Jobs backend endpoint checks have been recorded yet.</span>`, "", ""]);
+}
+
+async function checkFetchBackendApis() {
+  $("last-refresh").textContent = "Refreshing Fetch Jobs backend APIs...";
+  try {
+    await refresh();
+    $("last-refresh").textContent = `Fetch backend API checks completed: ${new Date().toLocaleString()}`;
+  } catch (err) {
+    $("last-refresh").textContent = `Fetch backend API checks failed: ${err.message}`;
+  } finally {
+    renderFetchBackendStatus();
+    renderDashboardApiHealth();
+  }
+}
+
+function handleFetchBackendStatusAction(action) {
+  if (action === "check") {
+    checkFetchBackendApis();
+    return;
+  }
+  if (action === "operations") {
+    navigateToOperationsLens("diagnostics");
+    return;
+  }
+  if (action === "copy") {
+    copyDashboardApiHealthReport();
+    return;
+  }
+  if (action === "export") {
+    downloadDashboardApiHealthCsv();
+  }
 }
 
 function dataBackendStatusModel() {
@@ -19963,6 +20082,7 @@ function renderFetchJobs() {
       }).join("")
     : `<div class="root-card"><span class="status-warn">warn</span><strong>No roots</strong><small>Add a fetch manifest root.</small></div>`;
   renderFetchHealthPanel({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
+  renderFetchBackendStatus();
   renderFetchActionSummary({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchEvidence({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
   renderFetchProgressReview({ manifests, filteredManifests, roots, rootConfigPaths, rowsTotal });
@@ -20164,6 +20284,12 @@ function fetchActionSummaryModel(context = {}) {
   const selectedVisibleOutputs = fetchVisibleOutputPaths(selectedDetail);
   const selectedResume = fetchResumeCommand(selectedDetail);
   const hiddenByFilters = Math.max(0, manifests.length - filteredManifests.length);
+  const backend = fetchBackendStatusModel();
+  const backendRows = backend.rows || [];
+  const backendEndpointRows = backendRows.filter((item) => item.label !== "required status");
+  const backendIssues = backendEndpointRows.filter((item) => item.status !== "ok");
+  const backendUnprobed = !backendEndpointRows.length && Boolean(state.status && state.status.generated_at);
+  const firstBackendIssue = backendIssues[0] || null;
   const focusJob = selectedDetail.job_id
     ? selectedDetail
     : activeJobs[0] || issueJobs[0] || outputIssueJobs[0] || filteredManifests[0] || manifests[0] || null;
@@ -20172,7 +20298,15 @@ function fetchActionSummaryModel(context = {}) {
   let note = "No dashboard-readable fetch manifests are loaded. Add manifest roots or run a fetcher that writes JSON manifests.";
   let primaryHref = "#fetch";
   let primaryLabel = "Review Roots";
-  if (activeJobs.length) {
+  if (backendUnprobed || firstBackendIssue) {
+    status = firstBackendIssue ? "warn" : "bad";
+    title = firstBackendIssue ? "Refresh Fetch APIs" : "Check Fetch APIs";
+    note = firstBackendIssue
+      ? `${text(firstBackendIssue.label)} is degraded: ${text(firstBackendIssue.detail)}. Confirm backend status before changing roots or rerunning fetches.`
+      : "Fetch endpoint checks have not run yet. Refresh Fetch APIs before treating empty jobs or sessions as missing files.";
+    primaryHref = "#operations/diagnostics";
+    primaryLabel = "API Health";
+  } else if (activeJobs.length) {
     status = "warn";
     title = "Inspect Active Fetch";
     note = `${numberText(activeJobs.length, 0)} non-terminal fetch manifest${activeJobs.length === 1 ? "" : "s"} are visible; check progress, activity age, ETA, and pacing before starting another pull.`;
@@ -20214,6 +20348,14 @@ function fetchActionSummaryModel(context = {}) {
     note = `${numberText(roots.length || rootConfigPaths.length, 0)} manifest root${(roots.length || rootConfigPaths.length) === 1 ? "" : "s"} are known, but no jobs are loaded.`;
   }
   const cards = [
+    {
+      label: "Backend Check",
+      status: backendUnprobed ? "bad" : firstBackendIssue ? "warn" : "ok",
+      title: backendUnprobed ? "No Checks" : firstBackendIssue ? "Review" : backend.title,
+      note: backendUnprobed
+        ? "Refresh Fetch APIs to verify /fetch_manifests and /runtime_sessions."
+        : firstBackendIssue ? `${text(firstBackendIssue.label)}: ${text(firstBackendIssue.detail)}` : backend.note,
+    },
     {
       label: "Inspect First",
       status,
@@ -32585,6 +32727,11 @@ function init() {
     const target = event.target instanceof HTMLElement ? event.target.closest("[data-data-backend-status-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handleDataBackendStatusAction(target.dataset.dataBackendStatusAction || "");
+  });
+  $("fetch-backend-status-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-fetch-backend-status-action]") : null;
+    if (!(target instanceof HTMLElement)) return;
+    handleFetchBackendStatusAction(target.dataset.fetchBackendStatusAction || "");
   });
   $("copy-dashboard-api-health-report").addEventListener("click", copyDashboardApiHealthReport);
   $("export-dashboard-api-health-csv").addEventListener("click", downloadDashboardApiHealthCsv);

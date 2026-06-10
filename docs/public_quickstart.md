@@ -658,6 +658,10 @@ JSON fetch manifests. The default fetch commands write to
 want fetch jobs visible. Use Copy fetch_manifest_roots YAML in Fetch Jobs to
 copy a ready-to-paste local config block for the roots currently visible to the
 dashboard.
+If Fetch Jobs looks empty, start with Fetch Backend Status and Refresh Fetch
+APIs before changing roots or rerunning pulls. That panel checks
+`/fetch_manifests` and `/runtime_sessions` and links the same evidence to
+Operations API Health.
 Use Inspect on a saved dataset row to load a local-only detail view with a
 range-filtered sampled or full-in-range price path, volume bars, timestamp
 coverage, gap rows, null counts, price/return stats, volume stats, and a

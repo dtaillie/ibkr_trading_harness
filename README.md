@@ -57,7 +57,9 @@ python3 live/fetch_history.py \
 Fetch commands write dashboard-readable JSON job manifests under
 `paper_logs/fetch_manifests` by default. The dashboard's Fetch Jobs page uses
 those manifests to show what was fetched, what failed, and which output files
-were produced.
+were produced. If Fetch Jobs looks empty, use Fetch Backend Status > Refresh
+Fetch APIs to check `/fetch_manifests` and `/runtime_sessions` before changing
+roots or rerunning pulls.
 
 Resume a failed or partial stock fetch from its manifest:
 

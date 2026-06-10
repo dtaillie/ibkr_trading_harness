@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+*~
 cache/
 *.png
 *.log
@@ -30,7 +31,8 @@ paper_logs/
 docs/private_*.md
 docs/strategy_research_backlog.md
 analysis_out/
-scripts/r*.py
+scripts/r[0-9]*_*.py
+scripts/p[0-9]*_*.py
 
 # Private strategy plugins.
 private/
