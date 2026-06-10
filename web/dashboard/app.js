@@ -7975,6 +7975,9 @@ function renderOverview() {
   $("overview-equity").textContent = money(equity);
   $("overview-equity").className = "value-equity";
   $("overview-subtitle").textContent = sourceMeta;
+  if ($("overview-equity-spark")) {
+    $("overview-equity-spark").innerHTML = equitySparkline(accountRows);
+  }
   renderStrategyIdentity("overview-strategy-identity", performance);
   setMetricValue("overview-mode", text(mode), {
     className: statusClass(mode ? "ok" : "unknown"),
@@ -9267,6 +9270,10 @@ function renderPerformance() {
     : "Load archived artifacts for calendar view";
   const shownTradeRows = renderPerformanceTradeControls(ledger);
   renderPerformanceTradeAssistant(ledger, shownTradeRows, fills);
+  if ($("performance-trade-cumulative-chart")) {
+    $("performance-trade-cumulative-chart").innerHTML = tradeCumulativePnlChart(shownTradeRows);
+    $("performance-trade-pnl-chart").innerHTML = tradePnlBarChart(shownTradeRows);
+  }
   $("performance-trade-note").textContent = fills.length
     ? `${numberText(ledger.stats.closed_count, 0)} closed / ${numberText(ledger.stats.open_count, 0)} open from ${numberText(fills.length, 0)} fills; ${numberText(shownTradeRows.length, 0)} shown`
     : "Load artifacts with fills for trade rows";
@@ -11225,6 +11232,9 @@ function renderStatusEquityRollups() {
   $("performance-status-period-rollups-note").textContent = payload.generated_at
     ? `${numberText(periodRows.length, 0)} month/year summaries from status-history equity snapshots`
     : "No status-history period rollups loaded";
+  if ($("performance-status-period-chart")) {
+    $("performance-status-period-chart").innerHTML = periodReturnBarChart(periodRows);
+  }
   $("performance-status-period-rollups-body").innerHTML = periodRows.length
     ? periodRows.map((item) => row([
         escapeHtml(item.periodLabel),
@@ -11318,6 +11328,70 @@ function miniChart(points) {
   const first = closes[0];
   const cls = last >= first ? "spark-good" : "spark-bad";
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
+}
+
+function closedTradesByExit(tradeRows) {
+  return (tradeRows || [])
+    .filter((trade) => trade.state === "closed" && finiteNumber(trade.pnl) !== null && trade.exit_time)
+    .sort((a, b) => String(a.exit_time).localeCompare(String(b.exit_time)));
+}
+
+function tradeCumulativePnlChart(tradeRows) {
+  const ordered = closedTradesByExit(tradeRows);
+  if (ordered.length < 2) return emptyChart("Need two or more closed trades for a realized PnL curve");
+  let running = 0;
+  const points = ordered.map((trade) => {
+    running += Number(trade.pnl);
+    return { timestamp: trade.exit_time, value: running };
+  });
+  return scalarLineChart(points, {
+    label: "cumulative realized PnL",
+    empty: "Need two or more closed trades for a realized PnL curve",
+    className: points[points.length - 1].value >= 0 ? "spark-good" : "spark-bad",
+    valueFormatter: money,
+  });
+}
+
+function tradePnlBarChart(tradeRows) {
+  const ordered = closedTradesByExit(tradeRows);
+  if (!ordered.length) return emptyChart("No closed trades in the selected window");
+  const width = 720;
+  const height = 180;
+  const padding = 12;
+  const maxAbs = Math.max(0.01, ...ordered.map((trade) => Math.abs(Number(trade.pnl))));
+  const barGap = 3;
+  const barWidth = Math.max(2, (width - padding * 2 - barGap * Math.max(0, ordered.length - 1)) / ordered.length);
+  const axisY = height / 2;
+  const bars = ordered.map((trade, index) => {
+    const value = Number(trade.pnl);
+    const magnitude = (Math.abs(value) / maxAbs) * (height / 2 - padding);
+    const x = padding + index * (barWidth + barGap);
+    const y = value >= 0 ? axisY - magnitude : axisY;
+    const cls = value >= 0 ? "return-bar-good" : "return-bar-bad";
+    const label = `${text(trade.symbol)} ${text(trade.side)} ${money(value)} (${String(trade.exit_time).slice(0, 10)})`;
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, magnitude).toFixed(1)}"><title>${escapeHtml(label)}</title></rect>`;
+  }).join("");
+  const best = ordered.reduce((acc, trade) => (Number(trade.pnl) > Number(acc.pnl) ? trade : acc), ordered[0]);
+  const worst = ordered.reduce((acc, trade) => (Number(trade.pnl) < Number(acc.pnl) ? trade : acc), ordered[0]);
+  const caption = `best ${text(best.symbol)} ${money(best.pnl)} / worst ${text(worst.symbol)} ${money(worst.pnl)}`;
+  return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="per-trade realized PnL bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
+}
+
+function equitySparkline(accountRows) {
+  const values = (accountRows || []).map((row) => Number(row.equity)).filter((value) => Number.isFinite(value));
+  if (values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const width = 360;
+  const height = 56;
+  const span = max - min || 1;
+  const coords = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * width;
+    const y = height - ((value - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
+  return `<svg class="sparkline hero-spark ${cls}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="selected-source equity history"><polyline points="${coords}"></polyline></svg>`;
 }
 
 function emptyChart(message) {
@@ -11813,6 +11887,86 @@ function dailyReturnChart(points) {
   }).join("");
   const labels = rows.slice(-3).map((item) => `${item.day} ${pctText(item.value)}`).join(" | ");
   return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="daily return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(labels)}</span>`;
+}
+
+function eventTimelineChart(events) {
+  const rows = (events || [])
+    .map((event) => ({ ...event, millis: timestampMillis(event.timestamp) }))
+    .filter((event) => event.millis !== null);
+  if (!rows.length) return emptyChart("No events in the current filter window");
+  const minMillis = Math.min(...rows.map((event) => event.millis));
+  const maxMillis = Math.max(...rows.map((event) => event.millis));
+  const hourMs = 60 * 60 * 1000;
+  const daily = maxMillis - minMillis > 48 * hourMs;
+  const bucketMs = daily ? 24 * hourMs : hourMs;
+  const buckets = new Map();
+  for (const event of rows) {
+    const key = Math.floor(event.millis / bucketMs) * bucketMs;
+    if (!buckets.has(key)) buckets.set(key, { decision: 0, order: 0, fill: 0, bad: 0 });
+    const bucket = buckets.get(key);
+    if (eventStatusIsBad(event)) bucket.bad += 1;
+    else if (event.type === "fill") bucket.fill += 1;
+    else if (event.type === "order") bucket.order += 1;
+    else bucket.decision += 1;
+  }
+  const ordered = Array.from(buckets.entries()).sort((a, b) => a[0] - b[0]);
+  const width = 720;
+  const height = 140;
+  const padding = 12;
+  const maxTotal = Math.max(1, ...ordered.map(([, b]) => b.decision + b.order + b.fill + b.bad));
+  const barGap = 2;
+  const barWidth = Math.min(48, Math.max(3, (width - padding * 2 - barGap * Math.max(0, ordered.length - 1)) / ordered.length));
+  const groupWidth = ordered.length * barWidth + Math.max(0, ordered.length - 1) * barGap;
+  const offset = Math.max(padding, (width - groupWidth) / 2);
+  const scale = (height - padding * 2) / maxTotal;
+  const segments = [["decision", "event-seg-decision"], ["order", "event-seg-order"], ["fill", "event-seg-fill"], ["bad", "event-seg-bad"]];
+  const bars = ordered.map(([key, bucket], index) => {
+    const x = offset + index * (barWidth + barGap);
+    const label = daily ? new Date(key).toISOString().slice(0, 10) : new Date(key).toISOString().slice(0, 13) + ":00Z";
+    const total = bucket.decision + bucket.order + bucket.fill + bucket.bad;
+    let y = height - padding;
+    const parts = segments.map(([kind, cls]) => {
+      const count = bucket[kind];
+      if (!count) return "";
+      const segmentHeight = Math.max(1, count * scale);
+      y -= segmentHeight;
+      return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${segmentHeight.toFixed(1)}"><title>${escapeHtml(`${label}: ${count} ${kind === "bad" ? "rejected/issue" : kind} of ${total} events`)}</title></rect>`;
+    }).join("");
+    return parts;
+  }).join("");
+  const peak = ordered.reduce((acc, item) => {
+    const total = item[1].decision + item[1].order + item[1].fill + item[1].bad;
+    return total > acc.total ? { key: item[0], total } : acc;
+  }, { key: ordered[0][0], total: 0 });
+  const peakLabel = daily ? new Date(peak.key).toISOString().slice(0, 10) : new Date(peak.key).toISOString().slice(11, 16) + " UTC";
+  const caption = `${numberText(ordered.length, 0)} ${daily ? "day" : "hour"} buckets; peak ${numberText(peak.total, 0)} events at ${peakLabel}`;
+  const legend = `<div class="chart-legend event-timeline-legend"><span class="legend-item event-seg-decision"><span></span>decisions</span><span class="legend-item event-seg-order"><span></span>orders</span><span class="legend-item event-seg-fill"><span></span>fills</span><span class="legend-item event-seg-bad"><span></span>rejected/issues</span></div>`;
+  return `<svg class="detail-chart event-timeline" viewBox="0 0 ${width} ${height}" role="img" aria-label="event density over time">${bars}</svg>${legend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
+}
+
+function periodReturnBarChart(periodRows) {
+  const rows = (periodRows || [])
+    .map((item) => ({ label: text(item.periodLabel || item.label), value: Number(item.total_return_pct) }))
+    .filter((item) => Number.isFinite(item.value));
+  if (!rows.length) return emptyChart("No period rollups available yet");
+  const width = 720;
+  const height = 160;
+  const padding = 12;
+  const maxAbs = Math.max(0.01, ...rows.map((item) => Math.abs(item.value)));
+  const barGap = 14;
+  const barWidth = Math.min(90, Math.max(24, (width - padding * 2 - barGap * Math.max(0, rows.length - 1)) / rows.length));
+  const axisY = height / 2;
+  const groupWidth = rows.length * barWidth + Math.max(0, rows.length - 1) * barGap;
+  const offset = Math.max(padding, (width - groupWidth) / 2);
+  const bars = rows.map((item, index) => {
+    const magnitude = (Math.abs(item.value) / maxAbs) * (height / 2 - padding);
+    const x = offset + index * (barWidth + barGap);
+    const y = item.value >= 0 ? axisY - magnitude : axisY;
+    const cls = item.value >= 0 ? "return-bar-good" : "return-bar-bad";
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, magnitude).toFixed(1)}"><title>${escapeHtml(`${item.label} ${pctText(item.value)}`)}</title></rect>`;
+  }).join("");
+  const caption = rows.map((item) => `${item.label} ${pctText(item.value)}`).join(" | ");
+  return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="period return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 function calendarReturnHeatmap(points) {
@@ -27055,6 +27209,9 @@ function renderRunEvents() {
   renderRunsEventFlowReport(allEvents, events);
   renderExecutionQualityReview(allEvents, events);
   $("run-events-note").textContent = `${numberText(events.length, 0)} shown / ${numberText(allEvents.length, 0)} recent event${allEvents.length === 1 ? "" : "s"}`;
+  if ($("run-events-timeline-chart")) {
+    $("run-events-timeline-chart").innerHTML = eventTimelineChart(events);
+  }
   $("run-events-body").innerHTML = events.length
     ? events.map((event) => row([
         escapeHtml(event.timestamp),

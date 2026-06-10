@@ -197,6 +197,7 @@
           <span class="eyebrow">Current Strategy</span>
           <strong id="overview-equity">n/a</strong>
           <span id="overview-subtitle">Waiting for a published run or workbench artifact</span>
+          <div id="overview-equity-spark" class="overview-equity-spark" aria-label="Selected-source equity history"></div>
           <div id="overview-strategy-identity" class="strategy-identity-strip" aria-label="Current strategy identity"></div>
           <div class="hero-actions">
             <button class="secondary nav-jump" type="button" data-view-target="performance">Performance</button>
@@ -833,6 +834,16 @@
             <input id="performance-trade-filter-symbol" type="search" placeholder="Filter trade symbols">
           </label>
         </div>
+        <div class="chart-grid trade-chart-grid">
+          <div>
+            <span class="eyebrow">Cumulative Realized PnL</span>
+            <div id="performance-trade-cumulative-chart" aria-label="Cumulative realized PnL across shown closed trades"></div>
+          </div>
+          <div>
+            <span class="eyebrow">Per-Trade Realized PnL</span>
+            <div id="performance-trade-pnl-chart" aria-label="Realized PnL bars per shown closed trade"></div>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
@@ -947,6 +958,7 @@
         <h2>Live/Paper Period Rollups</h2>
         <span id="performance-status-period-rollups-note" class="section-note">Month/year summaries from sanitized status history</span>
       </div>
+      <div id="performance-status-period-chart" class="period-return-chart" aria-label="Month and year return bars"></div>
       <div class="table-wrap compact-table">
         <table>
           <thead>
@@ -3719,6 +3731,7 @@
         <div id="execution-quality-review-body" class="performance-report-body"></div>
         <div id="execution-quality-review-actions" class="hero-actions"></div>
       </section>
+      <div id="run-events-timeline-chart" class="event-timeline-chart" aria-label="Event density over time for the shown events"></div>
       <div class="table-wrap">
         <table>
           <thead>

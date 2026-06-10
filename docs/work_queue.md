@@ -965,7 +965,32 @@ strategy-private.
     developer tables before seeing performance
   - green/red performance language, neutral backgrounds, clear status badges
   - responsive mobile/tablet views
+    - done (2026-06-10, verified at a true 390px viewport): wide tables
+      scroll inside their cards instead of widening the page; lens bars
+      stack and the Performance lens actions lost the 392px minimum that
+      genuinely overflowed phones; topbar controls collapse to compact
+      select+button rows so content stays on the first screen; title and
+      brand block scale. Verification gotcha now documented in
+      smoke_dashboard_screenshots: headless Chrome clamps window width to
+      ~500px, so --window-size=390 screenshots render at 500 and crop —
+      use a 390px iframe for exact-width checks.
   - chart-first summaries instead of dense text-first tables
+    - partial (2026-06-10); the Overview hero now renders a full-bleed
+      equity sparkline from the selected source's account history directly
+      under the headline equity number, so the first screen answers "how is
+      it going?" visually. Remaining: converting the denser per-view summary
+      tables (rollups, evidence rows) to chart-led layouts.
+    - partial (2026-06-10); the Performance Trades lens now leads with a
+      cumulative realized PnL curve and per-trade win/loss bars derived from
+      the same filtered ledger as the trade table (filters and day focus
+      re-window charts and rows together).
+    - partial (2026-06-10); Live/Paper Period Rollups now leads with
+      sign-colored month/year return bars above the table.
+    - partial (2026-06-10); the Runs Events lens now leads with a stacked
+      event-density timeline (decisions/orders/fills, rejected in red;
+      hourly buckets under 48h, daily beyond) fed by the same filtered
+      events as the table. Remaining chart-led candidate: Data coverage
+      summaries (largely served by the existing coverage heatmap).
   - avoid nested cards and oversized marketing layout
   - partial; Help now has a standalone first-screen Start Here panel with
     route links, keeping the operating guide closer to a task picker than a

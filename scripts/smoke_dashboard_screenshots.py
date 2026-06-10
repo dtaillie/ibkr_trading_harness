@@ -63,6 +63,10 @@ VIEW_TARGETS = (
 )
 VIEWPORTS = {
     "desktop": (1366, 900),
+    # NOTE: headless Chrome clamps window width to ~500px, so "mobile"
+    # captures actually render at 500 CSS px (still inside the <=560px
+    # mobile media query, but not a true 390px phone). For exact-width
+    # verification, render the page inside a 390px-wide iframe instead.
     "mobile": (390, 844),
 }
 
