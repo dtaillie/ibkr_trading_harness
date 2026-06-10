@@ -1220,14 +1220,6 @@
           </table>
         </div>
       </section>
-      <section class="nested-section data-action-summary-panel" data-data-lens="home" aria-label="Data action summary">
-        <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="data-action-note" class="section-note">No data action summary loaded</span>
-        </div>
-        <div id="data-action-cards" class="action-card-grid"></div>
-        <div id="data-action-actions" class="hero-actions"></div>
-      </section>
       <section class="nested-section data-root-index-spotlight" data-data-lens="home" aria-label="Saved universe root index spotlight">
         <div class="section-head">
           <h2>Saved Universe</h2>
@@ -1255,6 +1247,17 @@
         </div>
         <div id="data-inventory-cards" class="data-inventory-cards"></div>
       </section>
+      <details class="meta-disclosure">
+        <summary>Detailed review, visibility report, evidence, and action summary</summary>
+        <div class="meta-disclosure-body">
+      <section class="nested-section data-action-summary-panel" data-data-lens="home" aria-label="Data action summary">
+        <div class="section-head">
+          <h2>Action Summary</h2>
+          <span id="data-action-note" class="section-note">No data action summary loaded</span>
+        </div>
+        <div id="data-action-cards" class="action-card-grid"></div>
+        <div id="data-action-actions" class="hero-actions"></div>
+      </section>
       <section class="nested-section data-history-review-panel" data-data-lens="home">
         <div class="section-head">
           <h2>Historical Data Review</h2>
@@ -1281,6 +1284,8 @@
         <div id="data-inventory-evidence-body" class="performance-report-body"></div>
         <div id="data-inventory-evidence-actions" class="hero-actions"></div>
       </section>
+        </div>
+      </details>
       <section class="nested-section" data-data-lens="home browse">
         <div class="section-head">
           <h2>Saved History Matrix</h2>
@@ -2439,13 +2444,17 @@
           </table>
         </div>
       </section>
-      <section class="nested-section fetch-action-summary-panel" data-fetch-lens="home" aria-label="Fetch action summary">
+      <details class="meta-disclosure">
+        <summary>Detailed progress review, evidence, and action summary</summary>
+        <div class="meta-disclosure-body">
+      <section class="nested-section fetch-progress-review-panel" data-fetch-lens="home" aria-label="Fetch progress review">
         <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="fetch-action-note" class="section-note">No fetch action summary loaded</span>
+          <h2 id="fetch-progress-review-title">Fetch Progress Review</h2>
+          <span id="fetch-progress-review-note" class="section-note">Summarize active and partial manifests before scanning the jobs table.</span>
         </div>
-        <div id="fetch-action-cards" class="action-card-grid"></div>
-        <div id="fetch-action-actions" class="hero-actions"></div>
+        <div id="fetch-progress-review-cards" class="action-card-grid"></div>
+        <div id="fetch-progress-review-body" class="performance-report-body"></div>
+        <div id="fetch-progress-review-actions" class="hero-actions"></div>
       </section>
       <section class="nested-section fetch-evidence-panel" data-fetch-lens="home" aria-label="Fetch evidence">
         <div class="section-head">
@@ -2456,15 +2465,16 @@
         <div id="fetch-evidence-body" class="performance-report-body"></div>
         <div id="fetch-evidence-actions" class="hero-actions"></div>
       </section>
-      <section class="nested-section fetch-progress-review-panel" data-fetch-lens="home" aria-label="Fetch progress review">
+      <section class="nested-section fetch-action-summary-panel" data-fetch-lens="home" aria-label="Fetch action summary">
         <div class="section-head">
-          <h2 id="fetch-progress-review-title">Fetch Progress Review</h2>
-          <span id="fetch-progress-review-note" class="section-note">Summarize active and partial manifests before scanning the jobs table.</span>
+          <h2>Action Summary</h2>
+          <span id="fetch-action-note" class="section-note">No fetch action summary loaded</span>
         </div>
-        <div id="fetch-progress-review-cards" class="action-card-grid"></div>
-        <div id="fetch-progress-review-body" class="performance-report-body"></div>
-        <div id="fetch-progress-review-actions" class="hero-actions"></div>
+        <div id="fetch-action-cards" class="action-card-grid"></div>
+        <div id="fetch-action-actions" class="hero-actions"></div>
       </section>
+        </div>
+      </details>
       <section class="nested-section" data-fetch-lens="home">
         <div class="section-head">
           <h2>Fetch Triage</h2>
@@ -3449,14 +3459,9 @@
         </div>
         <div id="runs-review-cards" class="runs-review-cards"></div>
       </section>
-      <section class="nested-section runs-action-summary-panel" aria-label="Runs action summary">
-        <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="runs-action-note" class="section-note">No runs action summary loaded</span>
-        </div>
-        <div id="runs-action-cards" class="action-card-grid"></div>
-        <div id="runs-action-actions" class="hero-actions"></div>
-      </section>
+      <details class="meta-disclosure">
+        <summary>Detailed evidence and action summary</summary>
+        <div class="meta-disclosure-body">
       <section class="nested-section runs-evidence-panel" aria-label="Runs evidence">
         <div class="section-head">
           <h2>Runs Evidence</h2>
@@ -3466,6 +3471,16 @@
         <div id="runs-evidence-body" class="performance-report-body"></div>
         <div id="runs-evidence-actions" class="hero-actions"></div>
       </section>
+      <section class="nested-section runs-action-summary-panel" aria-label="Runs action summary">
+        <div class="section-head">
+          <h2>Action Summary</h2>
+          <span id="runs-action-note" class="section-note">No runs action summary loaded</span>
+        </div>
+        <div id="runs-action-cards" class="action-card-grid"></div>
+        <div id="runs-action-actions" class="hero-actions"></div>
+      </section>
+        </div>
+      </details>
       <section class="nested-section runtime-sessions-panel" aria-label="Runtime sessions">
         <div class="section-head">
           <h2>Runtime Sessions</h2>
@@ -3774,14 +3789,9 @@
         </div>
         <div id="operations-readiness-cards" class="operations-readiness-cards"></div>
       </section>
-      <section class="nested-section operations-action-summary-panel" aria-label="Operations action summary">
-        <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="operations-action-note" class="section-note">No operations action summary loaded</span>
-        </div>
-        <div id="operations-action-cards" class="action-card-grid"></div>
-        <div id="operations-action-actions" class="hero-actions"></div>
-      </section>
+      <details class="meta-disclosure">
+        <summary>Detailed evidence and action summary</summary>
+        <div class="meta-disclosure-body">
       <section class="nested-section operations-evidence-panel" aria-label="Operations evidence">
         <div class="section-head">
           <h2>Operations Evidence</h2>
@@ -3791,6 +3801,16 @@
         <div id="operations-evidence-body" class="performance-report-body"></div>
         <div id="operations-evidence-actions" class="hero-actions"></div>
       </section>
+      <section class="nested-section operations-action-summary-panel" aria-label="Operations action summary">
+        <div class="section-head">
+          <h2>Action Summary</h2>
+          <span id="operations-action-note" class="section-note">No operations action summary loaded</span>
+        </div>
+        <div id="operations-action-cards" class="action-card-grid"></div>
+        <div id="operations-action-actions" class="hero-actions"></div>
+      </section>
+        </div>
+      </details>
       <div id="operations-workflows" class="operations-workflow-grid" aria-label="Operations workflows"></div>
       </div>
       <div data-operations-lens="paper">

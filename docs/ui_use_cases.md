@@ -52,10 +52,20 @@ move, the content stays on its page — one click away, closed by default.
   chips, and recommended-next block, keeping route, title, status, and the
   two action buttons. New users see the full guide; daily users hide it once.
 
-## Pass 3 Candidates
+## Pass 3 (2026-06-10) — Remaining Home Stacks
 
-- **Data Home**: keep Saved Universe spotlight + Data Inventory; the
-  remaining review/report/visibility panels overlap and belong in a
-  disclosure or Diagnostics.
-- **Runs / Fetch / Operations Homes**: same assistant/evidence/action-summary
-  stacks; apply the disclosure idiom.
+Applied the disclosure idiom to the rest of the default lenses:
+
+- **Data Home**: kept Saved Universe spotlight, Data Inventory, the preview
+  wall, and the Symbol Visibility tool; Historical Data Review, Data
+  Visibility Report, Historical Inventory Evidence, and Action Summary fold
+  into one disclosure.
+- **Fetch Home**: Progress Review, Evidence, and Action Summary folded.
+- **Runs Home**: kept Runs Review as the primary surface; Evidence and
+  Action Summary folded.
+- **Operations Home**: Evidence and Action Summary folded.
+
+Deliberately left visible: lens-specific assistants (search, detail,
+compare, events) that sit beside the workflow they assist, and per-lens
+reports on Remote/Control/Paper lenses. If those prove noisy in use, they
+are pass-4 candidates with the same treatment.
