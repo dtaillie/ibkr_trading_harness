@@ -1,3 +1,5 @@
+const AUTO_REFRESH_INTERVAL_MS = 60000;
+
 const state = {
   status: null,
   history: [],
@@ -55,6 +57,10 @@ const state = {
   runDetail: null,
   runEvidence: null,
   configArtifacts: null,
+  refreshInFlight: false,
+  statusFetchError: "",
+  telemetryAccount: { run_id: "", account: [] },
+  performanceTelemetryRunId: "",
   performanceSourceMode: "current",
   performanceBenchmarkPath: "",
   performanceBenchmarkDetail: null,
@@ -366,6 +372,7 @@ function statusClass(value) {
   if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
   if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
   if (value === "bad" || value === "failed" || value === "rejected" || value === "timeout" || value === "unknown" || value === false) return "status-bad";
+  if (value === "idle") return "status-idle";
   return "";
 }
 
@@ -1497,7 +1504,9 @@ function topbarStatusModel() {
     perf.final_equity,
     metrics.final_equity,
   ));
-  const statusFresh = payload.generated_at ? shortTimestampAgeLabel(payload.generated_at) : "missing";
+  const statusFresh = state.statusFetchError
+    ? "unreachable"
+    : payload.generated_at ? shortTimestampAgeLabel(payload.generated_at) : "missing";
   const gatewayValue = gateway.enabled ? gateway.reachable ? "reachable" : "down" : "disabled";
   return [
     {
@@ -1514,7 +1523,7 @@ function topbarStatusModel() {
     {
       label: "Status",
       value: statusFresh,
-      status: payload.generated_at ? "ok" : "bad",
+      status: state.statusFetchError ? "bad" : payload.generated_at ? "ok" : "bad",
     },
     {
       label: "Gateway",
@@ -1854,7 +1863,7 @@ function helpSetupGapItems() {
       href: "#data",
     },
     {
-      status: datasets.length ? cappedRoots.length ? "warn" : "ok" : "bad",
+      status: datasets.length ? cappedRoots.length ? "warn" : "ok" : "idle",
       title: datasets.length ? cappedRoots.length ? "Saved data is visible but scan is capped" : "Saved data is visible" : "No saved datasets loaded",
       label: "Data Library",
       note: datasets.length
@@ -1872,7 +1881,7 @@ function helpSetupGapItems() {
       href: "#fetch",
     },
     {
-      status: draftRows.length ? "ok" : datasets.length ? "warn" : "bad",
+      status: draftRows.length ? "ok" : datasets.length ? "warn" : "idle",
       title: draftRows.length ? "Workbench drafts exist" : datasets.length ? "Ready to create a replay draft" : "Workbench needs saved data first",
       label: "Workbench",
       note: draftRows.length
@@ -1959,7 +1968,7 @@ function helpWorkflowCards(setupItems = helpSetupGapItems()) {
       label: "Inspect Data",
       title: datasets.length ? `${numberText(datasets.length, 0)} Files` : "No Files",
       value: manifests.length ? `${numberText(manifests.length, 0)} fetches` : "data roots",
-      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "bad",
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "idle",
       detail: datasets.length
         ? "Use Data Library for symbols, saved-file charts, quality checks, comparisons, and visibility diagnostics."
         : manifests.length ? "Fetch manifests exist; use Fetch Jobs and Data Library to understand output visibility." : "Configure data roots or run a fetch before simulation workflows can start.",
@@ -1970,7 +1979,7 @@ function helpWorkflowCards(setupItems = helpSetupGapItems()) {
       label: "Build Simulation",
       title: simulationReady ? "Ready" : datasets.length ? "Needs Draft" : "Needs Data",
       value: draftRows.length ? `${numberText(draftRows.length, 0)} drafts` : workbenchRuns.length ? `${numberText(workbenchRuns.length, 0)} runs` : "workbench",
-      status: simulationReady ? "ok" : datasets.length ? "warn" : "bad",
+      status: simulationReady ? "ok" : datasets.length ? "warn" : "idle",
       detail: datasets.length
         ? "Use Workbench to select files, preview alignment, build a public-safe draft, validate it, and run replay."
         : "Simulation starts after Data Library can see saved historical files.",
@@ -2051,13 +2060,13 @@ function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
       note: runs.length || events.length ? "Current run evidence is available." : "No current run telemetry is visible.",
     },
     {
-      status: datasets.length ? "ok" : "bad",
+      status: datasets.length ? "ok" : "idle",
       label: "Data",
       title: numberText(datasets.length, 0),
       note: datasets.length ? "Saved data is visible to the dashboard." : "No saved data is catalog-visible.",
     },
     {
-      status: drafts.length ? "ok" : datasets.length ? "warn" : "bad",
+      status: drafts.length ? "ok" : datasets.length ? "warn" : "idle",
       label: "Workbench",
       title: drafts.length ? `${numberText(drafts.length, 0)} drafts` : "No drafts",
       note: drafts.length ? "Saved drafts can be validated or run." : datasets.length ? "Create a replay draft next." : "Workbench needs visible data first.",
@@ -2126,7 +2135,7 @@ function helpGuidedTourModel(setupItems = helpSetupGapItems()) {
       step: "4",
       label: "Simulation Path",
       title: drafts.length || workbenchRuns.length || artifactLoaded ? "Workbench Ready" : datasets.length ? "Create Draft" : "Needs Data",
-      status: drafts.length || workbenchRuns.length || artifactLoaded ? "ok" : datasets.length ? "warn" : "bad",
+      status: drafts.length || workbenchRuns.length || artifactLoaded ? "ok" : datasets.length ? "warn" : "idle",
       note: drafts.length
         ? `${numberText(drafts.length, 0)} draft${drafts.length === 1 ? "" : "s"} can be validated or run.`
         : workbenchRuns.length || artifactLoaded ? "Saved runs or loaded artifacts are available for review." : datasets.length ? "Select saved files, preview alignment, then generate a replay draft." : "Workbench should wait until saved data is visible.",
@@ -2282,7 +2291,7 @@ function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
         : source.has_data ? `${text(source.label)} has limited performance evidence.` : "Load telemetry or an artifact before return/drawdown views are useful.",
     },
     {
-      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "bad",
+      status: datasets.length > 2 ? "ok" : datasets.length ? "warn" : manifests.length ? "warn" : "idle",
       title: "Inspect Saved Data",
       route: "data",
       cta: "Data Library",
@@ -2300,7 +2309,7 @@ function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
         : "Fetch recovery needs manifests; use fetch scripts that write manifest artifacts.",
     },
     {
-      status: drafts.length || workbenchRuns.length ? "ok" : datasets.length ? "warn" : "bad",
+      status: drafts.length || workbenchRuns.length ? "ok" : datasets.length ? "warn" : "idle",
       title: "Build Or Replay Simulation",
       route: "workbench",
       cta: "Workbench",
@@ -2500,7 +2509,7 @@ function helpPerformanceGuideModel() {
       note,
     },
     {
-      status: todayCard ? todayCard.status : "bad",
+      status: todayCard ? todayCard.status : "idle",
       label: "Today",
       title: todayCard ? todayCard.title : "n/a",
       note: todayCard ? todayCard.note : "No today/latest-session return card is available.",
@@ -2512,19 +2521,19 @@ function helpPerformanceGuideModel() {
       note: evidence.cards[0] ? evidence.cards[0].note : evidence.note,
     },
     {
-      status: drawdownCard ? drawdownCard.status : "bad",
+      status: drawdownCard ? drawdownCard.status : "idle",
       label: "Risk",
       title: drawdownCard ? drawdownCard.title : "n/a",
       note: drawdownCard ? drawdownCard.note : "No drawdown card is available.",
     },
     {
-      status: tradeWorkflow.status || "bad",
+      status: tradeWorkflow.status || "idle",
       label: "Trades",
       title: tradeWorkflow.title || "No Trades",
       note: tradeWorkflow.detail || "No fill/trade pairing evidence is visible.",
     },
     {
-      status: rollupWorkflow.status || (rollups.length ? "ok" : "bad"),
+      status: rollupWorkflow.status || (rollups.length ? "ok" : "idle"),
       label: "Rollups",
       title: rollupWorkflow.title || `${numberText(rollups.length, 0)} rows`,
       note: rollupWorkflow.detail || "No daily/month/year rollup evidence is visible.",
@@ -2637,7 +2646,11 @@ function handleHelpPerformanceGuideAction(action) {
 }
 
 function normalizedModeName(value) {
-  return String(value || "").replace("-", "_").toLowerCase();
+  const mode = String(value || "").replace("-", "_").toLowerCase();
+  // Bespoke-runner vocabulary -> plugin-runner mode names.
+  if (mode === "simulate_fills") return "simulated_paper";
+  if (mode === "signal_monitor") return "shadow";
+  return mode;
 }
 
 function helpModeDefinitionRows() {
@@ -2766,7 +2779,7 @@ function helpModeBoundaryModel() {
   }));
   const verification = [
     {
-      status: source.has_data || latestRun ? "ok" : "bad",
+      status: source.has_data || latestRun ? "ok" : "idle",
       title: "1. Identify The Source",
       detail: source.has_data
         ? `${text(source.label)} is selected as ${text(source.source_type)}.`
@@ -3266,7 +3279,7 @@ function helpWorkbenchQuickstartModel() {
       cta: "Data",
     },
     {
-      status: selected.length ? dataReadiness.status : datasets.length ? "warn" : "bad",
+      status: selected.length ? dataReadiness.status : datasets.length ? "warn" : "idle",
       step: "2",
       title: "Select Data Packet",
       note: selected.length
@@ -3286,7 +3299,7 @@ function helpWorkbenchQuickstartModel() {
       cta: "Preview",
     },
     {
-      status: draft.yaml || drafts.length ? draftValid ? "ok" : "warn" : selected.length ? "warn" : "bad",
+      status: draft.yaml || drafts.length ? draftValid ? "ok" : "warn" : selected.length ? "warn" : "idle",
       step: "4",
       title: "Generate Draft",
       note: draft.yaml
@@ -3296,7 +3309,7 @@ function helpWorkbenchQuickstartModel() {
       cta: "Draft",
     },
     {
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "idle",
       step: "5",
       title: "Run Replay",
       note: latestRun
@@ -3306,7 +3319,7 @@ function helpWorkbenchQuickstartModel() {
       cta: "Run",
     },
     {
-      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle",
       step: "6",
       title: "Open Results",
       note: hasArtifacts
@@ -3356,6 +3369,16 @@ function latestTelemetryRun() {
     const bTime = String(bMetrics.last_decision_time || b.latest_decision_time || b.generated_at || "");
     return bTime.localeCompare(aTime);
   })[0];
+}
+
+function selectedTelemetryRun() {
+  const runs = (state.status && state.status.runs) || [];
+  const wanted = state.performanceTelemetryRunId;
+  if (wanted) {
+    const match = runs.find((runItem) => String(runItem.id || "") === wanted);
+    if (match) return match;
+  }
+  return latestTelemetryRun();
 }
 
 function latestSupervisor() {
@@ -3426,17 +3449,20 @@ function summaryPerformanceSource() {
 }
 
 function telemetryPerformanceSource() {
-  const telemetryRun = latestTelemetryRun();
+  const telemetryRun = selectedTelemetryRun();
   if (telemetryRun) {
     const metrics = telemetryRun.metrics || {};
+    const bridged = state.telemetryAccount && state.telemetryAccount.run_id === String(telemetryRun.id || "")
+      ? state.telemetryAccount
+      : { account: [], decisions: [], orders: [], fills: [], performance: {} };
     return {
       label: `${text(telemetryRun.id)} telemetry`,
       summary: metrics,
-      performance: metrics,
-      account: [],
-      fills: [],
-      orders: [],
-      decisions: [],
+      performance: { ...(bridged.performance || {}), ...metrics },
+      account: bridged.account || [],
+      fills: bridged.fills || [],
+      orders: bridged.orders || [],
+      decisions: bridged.decisions || [],
       source_type: "live_telemetry",
       has_data: true,
     };
@@ -3674,7 +3700,7 @@ function selectedDataReadiness(selected = selectedConfigDatasets()) {
     qualityIssues,
     contractIssues,
     issueCount,
-    status: !selected.length ? "bad" : badContract ? "bad" : issueCount ? "warn" : "ok",
+    status: !selected.length ? "idle" : badContract ? "bad" : issueCount ? "warn" : "ok",
     summary: `${numberText(qualityIssues.length, 0)} quality / ${numberText(contractIssues.length, 0)} contract`,
     cleanNote: "Selected files pass current quality and storage-contract checks.",
     reviewNote: `${numberText(qualityIssues.length, 0)} quality and ${numberText(contractIssues.length, 0)} contract issue${contractIssues.length === 1 ? "" : "s"} need review.`,
@@ -3726,7 +3752,7 @@ function renderConfigDataQuality() {
 }
 
 function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues) {
-  if (!selected.length) return { status: "bad", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
+  if (!selected.length) return { status: "idle", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
   if (qualityIssues.length && contractIssues.length) return { status: "warn", title: "Review Data", note: `${numberText(qualityIssues.length, 0)} quality and ${numberText(contractIssues.length, 0)} metadata issue${contractIssues.length === 1 ? "" : "s"} need review.` };
   if (qualityIssues.length) return { status: "warn", title: "Review Quality", note: `${numberText(qualityIssues.length, 0)} selected file${qualityIssues.length === 1 ? "" : "s"} need review before replay.` };
   if (contractIssues.length) return { status: "warn", title: "Review Metadata", note: `${numberText(contractIssues.length, 0)} selected file${contractIssues.length === 1 ? "" : "s"} have storage-contract warnings.` };
@@ -3758,19 +3784,19 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
       note: status.note,
     },
     {
-      status: selected.length ? "ok" : "bad",
+      status: selected.length ? "ok" : "idle",
       title: symbols.length ? `${numberText(symbols.length, 0)} symbol${symbols.length === 1 ? "" : "s"}` : "None",
       label: "Universe",
       note: symbols.length ? symbols.slice(0, 5).join(", ") : "Use Data Library to choose saved files.",
     },
     {
-      status: selected.length ? "ok" : "bad",
+      status: selected.length ? "ok" : "idle",
       title: bars.length ? bars.join(", ") : "n/a",
       label: "Bars",
       note: sources.length ? `Sources: ${sources.slice(0, 4).join(", ")}` : "No source metadata loaded.",
     },
     {
-      status: contractIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      status: contractIssues.length ? "warn" : selected.length ? "ok" : "idle",
       title: selected.length ? contractIssues.length ? `${numberText(contractIssues.length, 0)} review` : "Clear" : "n/a",
       label: "Contract",
       note: contractIssues.length
@@ -3778,13 +3804,13 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
         : selected.length ? "Selected files pass current storage-contract checks." : "No selected files.",
     },
     {
-      status: range.start || range.end ? "ok" : selected.length ? "warn" : "bad",
+      status: range.start || range.end ? "ok" : selected.length ? "warn" : "idle",
       title: range.start || range.end ? "Date Window" : "Full Files",
       label: "Range",
       note: range.start || range.end ? `${range.start || "first bar"} to ${range.end || "last bar"}` : "No Workbench date filter set.",
     },
     {
-      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) ? "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) ? "ok" : "bad" : selected.length ? "warn" : "idle",
       title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Not Previewed",
       label: "Overlap",
       note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Click Preview Alignment before generating a draft.",
@@ -3884,25 +3910,25 @@ function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDatasets()
     : "No selected coverage to export";
   const cards = [
     {
-      status: rows.length ? "ok" : "bad",
+      status: rows.length ? "ok" : "idle",
       label: "Files",
       title: numberText(rows.length, 0),
       note: symbols.size ? `${numberText(symbols.size, 0)} selected symbol${symbols.size === 1 ? "" : "s"}.` : "Choose saved files before simulating.",
     },
     {
-      status: rows.length && !reviewCount ? "ok" : reviewCount ? "warn" : "bad",
+      status: rows.length && !reviewCount ? "ok" : reviewCount ? "warn" : "idle",
       label: "Replay",
       title: rows.length ? reviewCount ? `${numberText(reviewCount, 0)} review` : "Ready" : "n/a",
       note: countSummary(replayCounts) || "No selected replay evidence.",
     },
     {
-      status: sources.size && bars.size ? "ok" : rows.length ? "warn" : "bad",
+      status: sources.size && bars.size ? "ok" : rows.length ? "warn" : "idle",
       label: "Mix",
       title: bars.size ? Array.from(bars).slice(0, 3).join(", ") : "n/a",
       note: sources.size ? `Sources ${Array.from(sources).slice(0, 3).join(", ")}.` : "No source metadata loaded.",
     },
     {
-      status: sessions.size === 1 ? "ok" : sessions.size > 1 ? "warn" : rows.length ? "warn" : "bad",
+      status: sessions.size === 1 ? "ok" : sessions.size > 1 ? "warn" : rows.length ? "warn" : "idle",
       label: "Session",
       title: sessions.size ? Array.from(sessions).slice(0, 3).join(", ") : "n/a",
       note: sessions.size > 1 ? "Mixed storage sessions need strategy-aware replay review." : "Storage-session metadata is consistent.",
@@ -3958,31 +3984,31 @@ function renderConfigDataActions(selected = selectedConfigDatasets()) {
     : "Select saved data to inspect or compare it.";
   const cards = [
     {
-      status: selected.length ? "ok" : "bad",
+      status: selected.length ? "ok" : "idle",
       label: "Selected",
       title: numberText(selected.length, 0),
       note: symbols.length ? `${symbols.slice(0, 4).join(", ")}${symbols.length > 4 ? "..." : ""}` : "No saved files selected.",
     },
     {
-      status: qualityIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      status: qualityIssues.length ? "warn" : selected.length ? "ok" : "idle",
       label: "Quality",
       title: qualityIssues.length ? `${numberText(qualityIssues.length, 0)} review` : selected.length ? "Clean" : "n/a",
       note: qualityIssues.length ? "Review warnings before generating a replay draft." : "No selected quality warnings reported.",
     },
     {
-      status: contractIssues.length ? "warn" : selected.length ? "ok" : "bad",
+      status: contractIssues.length ? "warn" : selected.length ? "ok" : "idle",
       label: "Contract",
       title: contractIssues.length ? `${numberText(contractIssues.length, 0)} review` : selected.length ? "Clear" : "n/a",
       note: contractIssues.length ? "Review storage metadata before generating a replay draft." : "Selected files pass current storage-contract checks.",
     },
     {
-      status: compareReady ? "ok" : selected.length ? "warn" : "bad",
+      status: compareReady ? "ok" : selected.length ? "warn" : "idle",
       label: "Compare",
       title: compareReady ? "Ready" : "Need 2+",
       note: compareReady ? `${bars.join(", ") || "unknown bars"} from ${sources.join(", ") || "unknown sources"}.` : "Select at least two files to compare overlap.",
     },
     {
-      status: range.start || range.end ? "ok" : selected.length ? "warn" : "bad",
+      status: range.start || range.end ? "ok" : selected.length ? "warn" : "idle",
       label: "Range",
       title: range.start || range.end ? "Set" : "All",
       note: range.start || range.end ? `${range.start || "start"} to ${range.end || "end"}` : "No Workbench date filter set.",
@@ -4141,7 +4167,7 @@ function renderWorkbenchGuide() {
   const stepState = [
     {
       id: "data",
-      status: selected.length ? "ok" : "bad",
+      status: selected.length ? "ok" : "idle",
       fallbackLabel: "Choose Data",
       detail: selected.length
         ? `${selected.length} selected: ${selected.map((item) => item.symbol).join(", ")}`
@@ -4159,7 +4185,7 @@ function renderWorkbenchGuide() {
     },
     {
       id: "range",
-      status: !selected.length ? "bad" : hasDateRange ? "ok" : "warn",
+      status: !selected.length ? "idle" : hasDateRange ? "ok" : "warn",
       fallbackLabel: "Choose Range",
       detail: !selected.length
         ? "Select data before narrowing the replay window."
@@ -4169,7 +4195,7 @@ function renderWorkbenchGuide() {
     },
     {
       id: "alignment",
-      status: alignment.dataset_count ? (alignmentWarnings ? "warn" : "ok") : "bad",
+      status: alignment.dataset_count ? (alignmentWarnings ? "warn" : "ok") : "idle",
       fallbackLabel: "Inspect Alignment",
       detail: alignment.dataset_count
         ? `${numberText(alignment.common_timestamp_count, 0)} common timestamps${alignmentWarnings ? `; ${alignmentWarnings} warning${alignmentWarnings === 1 ? "" : "s"}` : ""}.`
@@ -4177,7 +4203,7 @@ function renderWorkbenchGuide() {
     },
     {
       id: "draft",
-      status: draft.yaml ? (draftValid ? "ok" : "warn") : "bad",
+      status: draft.yaml ? (draftValid ? "ok" : "warn") : "idle",
       fallbackLabel: "Generate Draft",
       detail: draft.yaml
         ? `${text(draft.name || savedDraftId)} ${draftValid ? "is valid" : "needs validation review"}.`
@@ -4330,31 +4356,31 @@ function workbenchHomeState() {
       note: selected.length ? `${selected.map((item) => text(item.symbol)).slice(0, 5).join(", ")}; ${dataReadiness.summary}.` : "Select datasets.",
     },
     {
-      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) > 0 ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? Number(alignment.common_timestamp_count || 0) > 0 ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle",
       label: "Alignment",
       title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
       note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Not previewed.",
     },
     {
-      status: hasDateRange ? "ok" : selected.length ? "warn" : "bad",
+      status: hasDateRange ? "ok" : selected.length ? "warn" : "idle",
       label: "Window",
       title: hasDateRange ? "Bounded" : "Full History",
       note: hasDateRange ? timeRangeLabel(configDateRangePayload().start, configDateRangePayload().end) : "No date range set.",
     },
     {
-      status: draftReady ? "ok" : draft.yaml || savedDraft ? "warn" : "bad",
+      status: draftReady ? "ok" : draft.yaml || savedDraft ? "warn" : "idle",
       label: "Draft",
       title: savedDraftId ? text(savedDraftId) : draft.yaml ? "Generated" : "Missing",
       note: draftReady ? "Valid." : draft.yaml || savedDraft ? "Needs validation." : "Generate a draft.",
     },
     {
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftReady ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftReady ? "warn" : "idle",
       label: "Run",
       title: latestRun ? text(latestRun.status) : "Not Run",
       note: latestRun ? `${text(latestRun.action)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.` : "Run after validation.",
     },
     {
-      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle",
       label: "Results",
       title: hasArtifacts ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
       note: hasArtifacts ? "Performance/Runs can inspect artifacts." : "No loaded artifact yet.",
@@ -4381,6 +4407,7 @@ function renderWorkbenchHome() {
     </div>
   `).join("");
   renderWorkbenchStageSummary(stateModel);
+  renderWorkbenchBackendStatus();
   renderWorkbenchActionSummary(stateModel);
   renderWorkbenchExampleGallery();
   renderWorkbenchSimulationPlan(stateModel);
@@ -4420,7 +4447,7 @@ function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
   const resultsTile = tiles.find((tile) => tile.label === "Results") || {};
   const nextHref = workbenchNextActionHref(stateModel.nextAction);
   const nextLabel = workbenchNextActionLabel(stateModel.nextAction);
-  const status = badCount ? "bad" : warnCount ? "warn" : "ok";
+  const status = badCount ? "bad" : warnCount ? "warn" : okCount ? "ok" : "idle";
   $("workbench-stage-note").textContent = `${stateModel.result}; ${numberText(okCount, 0)} ready / ${numberText(warnCount, 0)} review / ${numberText(badCount, 0)} blocked. Next: ${nextLabel}.`;
   const cards = [
     {
@@ -4431,39 +4458,39 @@ function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
       className: statusClass(status),
     },
     {
-      status: dataTile.status || "bad",
+      status: dataTile.status || "idle",
       label: "Data Packet",
       title: dataTile.title || "None",
       note: dataTile.note || "Select saved files before generating a draft.",
-      className: statusClass(dataTile.status || "bad"),
+      className: statusClass(dataTile.status || "idle"),
     },
     {
-      status: alignmentTile.status || "bad",
+      status: alignmentTile.status || "idle",
       label: "Alignment",
       title: alignmentTile.title || "Preview",
       note: alignmentTile.note || "Preview shared timestamps before running.",
-      className: statusClass(alignmentTile.status || "bad"),
+      className: statusClass(alignmentTile.status || "idle"),
     },
     {
-      status: draftTile.status || "bad",
+      status: draftTile.status || "idle",
       label: "Draft",
       title: draftTile.title || "Missing",
       note: draftTile.note || "Generate and validate a public-safe draft.",
-      className: statusClass(draftTile.status || "bad"),
+      className: statusClass(draftTile.status || "idle"),
     },
     {
-      status: runTile.status || "bad",
+      status: runTile.status || "idle",
       label: "Run",
       title: runTile.title || "Not Run",
       note: runTile.note || "Run after draft validation.",
-      className: statusClass(runTile.status || "bad"),
+      className: statusClass(runTile.status || "idle"),
     },
     {
-      status: resultsTile.status || "bad",
+      status: resultsTile.status || "idle",
       label: "Results",
       title: resultsTile.title || "Missing",
       note: resultsTile.note || "Load artifacts before reading Performance.",
-      className: statusClass(resultsTile.status || "bad"),
+      className: statusClass(resultsTile.status || "idle"),
     },
   ];
   $("workbench-stage-cards").innerHTML = cards.map((card) => `
@@ -4501,26 +4528,49 @@ function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
   const alignmentWarnings = Number(alignment.warning_count || (alignment.warnings || []).length || 0);
   const alignmentStatus = alignment.dataset_count
     ? alignmentCommon > 0 ? alignmentWarnings ? "warn" : "ok" : "bad"
-    : selected.length ? "warn" : "bad";
+    : selected.length ? "warn" : "idle";
   const nextHref = workbenchNextActionHref(stateModel.nextAction);
   const nextLabel = workbenchNextActionLabel(stateModel.nextAction);
   const runStatus = latestRun
     ? latestRun.status === "completed" ? "ok" : "warn"
-    : draftValid ? "warn" : "bad";
-  const resultsStatus = hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad";
+    : draftValid ? "warn" : "idle";
+  const resultsStatus = hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle";
+  const backend = workbenchBackendStatusModel();
+  const backendRows = backend.rows || [];
+  const backendEndpointRows = backendRows.filter((item) => item.label !== "required status");
+  const backendIssues = backendEndpointRows.filter((item) => item.status !== "ok");
+  const backendUnprobed = !backendEndpointRows.length && Boolean(state.status && state.status.generated_at);
+  const firstBackendIssue = backendIssues[0] || null;
   const overallStatus = (stateModel.tiles || []).some((tile) => tile.status === "bad")
     ? "bad"
-    : (stateModel.tiles || []).some((tile) => tile.status === "warn") ? "warn" : "ok";
+    : (stateModel.tiles || []).some((tile) => tile.status === "warn") ? "warn" : (stateModel.tiles || []).some((tile) => tile.status === "ok") ? "ok" : "idle";
+  const primaryNote = backendUnprobed
+    ? "Workbench endpoint checks have not run yet. Refresh Workbench APIs before treating empty drafts, runs, or schema options as missing."
+    : firstBackendIssue
+      ? `${text(firstBackendIssue.label)} is degraded: ${text(firstBackendIssue.detail)}. Confirm backend status before changing config inputs.`
+      : stateModel.note;
+  const primaryTitle = backendUnprobed ? "Check Workbench APIs" : firstBackendIssue ? "Refresh Workbench APIs" : stateModel.result;
+  const primaryStatus = backendUnprobed ? "idle" : firstBackendIssue ? "warn" : overallStatus;
+  const primaryHref = backendUnprobed || firstBackendIssue ? "#operations/diagnostics" : nextHref;
+  const primaryLabel = backendUnprobed || firstBackendIssue ? "API Health" : nextLabel;
   const cards = [
     {
+      label: "Backend Check",
+      status: backendUnprobed ? "bad" : firstBackendIssue ? "warn" : "ok",
+      title: backendUnprobed ? "No Checks" : firstBackendIssue ? "Review" : backend.title,
+      detail: backendUnprobed
+        ? "Refresh Workbench APIs to verify schema, draft, run, comparison, and rollup endpoints."
+        : firstBackendIssue ? `${text(firstBackendIssue.label)}: ${text(firstBackendIssue.detail)}` : backend.note,
+    },
+    {
       label: "Next Move",
-      status: overallStatus,
-      title: stateModel.result,
-      detail: stateModel.note,
+      status: primaryStatus,
+      title: primaryTitle,
+      detail: primaryNote,
     },
     {
       label: "Data",
-      status: selected.length ? dataReadiness.status : "bad",
+      status: selected.length ? dataReadiness.status : "idle",
       title: selected.length ? `${numberText(selected.length, 0)} selected` : "Choose files",
       detail: selected.length ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote : "Start from Data Library, Compare, or Fetch Outputs.",
     },
@@ -4532,13 +4582,13 @@ function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
     },
     {
       label: "Plugin And Mode",
-      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       title: plugin.label || plugin.id || "No plugin",
       detail: plugin.id ? `${text(mode || "mode n/a")} / ${text(plugin.visibility || plugin.boundary || "registry metadata")}.` : "Choose a public example or ignored local plugin.",
     },
     {
       label: "Draft",
-      status: draftValid ? "ok" : draft.yaml || savedDraft ? "warn" : alignmentCommon > 0 ? "warn" : "bad",
+      status: draftValid ? "ok" : draft.yaml || savedDraft ? "warn" : alignmentCommon > 0 ? "warn" : "idle",
       title: savedDraftId || (draft.yaml ? "Generated" : "Missing"),
       detail: draftValid ? "Draft is valid enough to run." : draft.yaml || savedDraft ? "Draft exists, but validation needs review." : "Generate and save a draft after data/plugin review.",
     },
@@ -4550,7 +4600,7 @@ function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
     },
   ];
   const actions = [
-    { href: nextHref, label: nextLabel },
+    { href: primaryHref, label: primaryLabel },
     { href: "#data/browse", label: "Data Library", secondary: true },
     { href: "#workbench/builder", label: "Builder", secondary: true },
     { href: "#workbench/run", label: "Run", secondary: true },
@@ -4619,7 +4669,7 @@ function workbenchExampleGalleryModel() {
   } else {
     cards.push({
       type: "private",
-      status: "bad",
+      status: "idle",
       pluginId: "",
       mode: defaultMode,
       label: "Ignored Local",
@@ -4731,35 +4781,35 @@ function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
     {
       label: "2. Bound Window",
       title: hasRange ? "Date range set" : "Full history",
-      status: selected.length ? hasRange ? "ok" : "warn" : "bad",
+      status: selected.length ? hasRange ? "ok" : "warn" : "idle",
       note: hasRange ? timeRangeLabel(range.start, range.end) : "Optional, but useful when comparing runs or avoiding stale periods.",
       href: "#workbench/builder",
     },
     {
       label: "3. Preview Alignment",
       title: alignment.dataset_count ? `${numberText(alignment.common_timestamp_count, 0)} common` : "Not previewed",
-      status: alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle",
       note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignment.warning_count || 0, 0)} warning${Number(alignment.warning_count || 0) === 1 ? "" : "s"}.` : "Preview shared timestamps before generating YAML.",
       href: "#workbench/builder",
     },
     {
       label: "4. Pick Plugin",
       title: plugin.label || plugin.id || "No plugin",
-      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       note: plugin.id ? text(plugin.description || plugin.boundary || "Review public/private boundary before saving.") : "Choose a public example or ignored local plugin.",
       href: "#workbench/builder",
     },
     {
       label: "5. Validate Draft",
       title: savedDraftId || (draft.yaml ? "Generated" : "No draft"),
-      status: draftReady ? "ok" : hasDraft ? "warn" : alignmentReady ? "warn" : "bad",
+      status: draftReady ? "ok" : hasDraft ? "warn" : alignmentReady ? "warn" : "idle",
       note: draftReady ? "Draft validation is clean enough to run." : hasDraft ? "Draft exists, but validation still needs review." : "Generate or preview draft YAML after data/plugin/risk review.",
       href: "#workbench/run",
     },
     {
       label: "6. Run And Inspect",
       title: hasArtifacts ? "Artifacts loaded" : latestRun ? text(latestRun.status) : "Not run",
-      status: hasArtifacts ? "ok" : runCompleted ? "warn" : latestRun ? "warn" : draftReady ? "warn" : "bad",
+      status: hasArtifacts ? "ok" : runCompleted ? "warn" : latestRun ? "warn" : draftReady ? "warn" : "idle",
       note: hasArtifacts ? "Open Performance for charts or Runs for events/logs." : runCompleted ? "Completed run has artifacts available; load them before reading results." : latestRun ? "Review run status before comparing results." : "Run validate/replay/simulated-paper after validation.",
       href: hasArtifacts ? "#performance" : "#workbench/run",
     },
@@ -4798,7 +4848,7 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
   const runComplete = Boolean(latestRun && latestRun.status === "completed");
   const runIssue = Boolean(latestRun && latestRun.status && !["completed", "success", "ok"].includes(text(latestRun.status).toLowerCase()));
   const publicExample = plugin.visibility === "public_example";
-  let status = "bad";
+  let status = "idle";
   let title = "Select Data";
   let note = "Start with saved historical data, then preview timestamp alignment before generating a replay draft.";
   let primaryHref = "#data/browse";
@@ -4818,7 +4868,7 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
     primaryHref = "#workbench/builder";
     primaryLabel = "Preview Alignment";
   } else if (selected.length && alignmentReady && !plugin.id) {
-    status = "bad";
+    status = "idle";
     title = "Choose Plugin";
     note = "Pick a public example plugin or ignored local/private plugin before generating a draft.";
     primaryHref = "#workbench/builder";
@@ -4859,12 +4909,12 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
     primaryLabel = "Open Performance";
   }
   $("workbench-readiness-note").textContent = `${title} - ${note}`;
-  const alignmentStatus = alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad";
+  const alignmentStatus = alignment.dataset_count ? alignmentReady ? Number(alignment.warning_count || 0) ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle";
   const cards = [
     {
       label: "Selected Data",
       title: selected.length ? `${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"}` : "none",
-      status: selected.length ? dataReadiness.status : "bad",
+      status: selected.length ? dataReadiness.status : "idle",
       detail: selected.length ? dataReadiness.issueCount ? dataReadiness.reviewNote : dataReadiness.cleanNote : "Choose saved files from Data Library.",
     },
     {
@@ -4876,25 +4926,25 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
     {
       label: "Plugin Boundary",
       title: plugin.label || plugin.id || "none",
-      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       detail: plugin.id ? text(plugin.visibility || plugin.boundary || "registry metadata loaded") : "Choose a public example or local/private plugin.",
     },
     {
       label: "Draft",
       title: draftGenerated ? draftValid ? "valid" : "review" : "none",
-      status: draftGenerated ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad",
+      status: draftGenerated ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "idle",
       detail: savedDraftId ? `${text(savedDraftId)}${validation ? ` / validation ${text(validation.status || validation.valid)}` : ""}` : draft.yaml ? "Generated YAML is not saved as a selected draft." : "Generate or preview YAML after setup.",
     },
     {
       label: "Latest Run",
       title: latestRun ? text(latestRun.status || latestRun.action || latestRun.run_id) : "not run",
-      status: latestRun ? runComplete ? "ok" : runIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      status: latestRun ? runComplete ? "ok" : runIssue ? "bad" : "warn" : draftValid ? "warn" : "idle",
       detail: latestRun ? `${text(latestRun.action || "run")} / ${text(latestRun.run_id || "no id")}` : "Run validate or replay after the draft is valid.",
     },
     {
       label: "Results",
       title: hasArtifacts ? "loaded" : latestRun && latestRun.artifact_path ? "available" : "missing",
-      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle",
       detail: hasArtifacts ? "Performance and Runs can inspect loaded artifacts." : "Load run artifacts before interpreting charts or trades.",
     },
   ];
@@ -4937,7 +4987,7 @@ function workbenchEvidenceModel() {
   const latestRunComplete = Boolean(latestRun && latestRun.status === "completed");
   const latestRunIssue = Boolean(latestRun && latestRun.status && !["completed", "success", "ok"].includes(text(latestRun.status).toLowerCase()));
   const artifactsMatchRun = !hasArtifacts || !latestRun || !artifacts.run_id || !latestRun.run_id || artifacts.run_id === latestRun.run_id;
-  let headlineStatus = "bad";
+  let headlineStatus = "idle";
   let headline = "No Workbench evidence";
   let note = "Select saved data before trusting a replay or simulated-paper workflow.";
   if (hasArtifacts) {
@@ -4980,70 +5030,70 @@ function workbenchEvidenceModel() {
     },
     {
       label: "Selected Data",
-      status: selected.length ? dataReadiness.status : "bad",
+      status: selected.length ? dataReadiness.status : "idle",
       title: selected.length ? `${numberText(selected.length, 0)} file${selected.length === 1 ? "" : "s"}` : "None",
       note: selected.length
         ? `${selectedSymbols.slice(0, 5).join(", ") || "selected files"}; ${dataReadiness.summary}.`
         : "Choose saved data from Data Library, Compare, Fetch Outputs, or Builder.",
-      className: statusClass(selected.length ? dataReadiness.status : "bad"),
+      className: statusClass(selected.length ? dataReadiness.status : "idle"),
     },
     {
       label: "Alignment",
-      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle",
       title: alignment.dataset_count ? `${numberText(commonTimestamps, 0)} common` : "Not previewed",
       note: alignment.dataset_count
         ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignmentWarnings, 0)} warning${alignmentWarnings === 1 ? "" : "s"}.`
         : "Preview shared timestamps before generating YAML.",
-      className: statusClass(alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad"),
+      className: statusClass(alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle"),
     },
     {
       label: "Plugin",
-      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       title: plugin.label || plugin.id || "None",
       note: plugin.id
         ? `${text(plugin.visibility || plugin.status || "registry")}; ${text(plugin.description || plugin.boundary || "review registry metadata")}.`
         : "Choose a public example plugin or ignored local plugin.",
-      className: statusClass(plugin.id ? pluginBoundaryStatus(plugin) : "bad"),
+      className: statusClass(plugin.id ? pluginBoundaryStatus(plugin) : "idle"),
     },
     {
       label: "Draft",
-      status: hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad",
+      status: hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "idle",
       title: savedDraftId || (draft.yaml ? "Generated" : "Missing"),
       note: hasDraft
         ? draftValid ? "Validation evidence is clean enough to run." : "Validation failed or has not passed."
         : "Generate and save a draft before running.",
-      className: statusClass(hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "bad"),
+      className: statusClass(hasDraft ? draftValid ? "ok" : "bad" : alignmentReady ? "warn" : "idle"),
     },
     {
       label: "Run And Results",
-      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "idle",
       title: hasArtifacts ? "Artifacts loaded" : latestRun ? text(latestRun.status || latestRun.action) : "Not run",
       note: hasArtifacts
         ? `${text(artifacts.run_id || artifacts.draft_id)} loaded.`
         : latestRun
           ? `${text(latestRun.action)} ${text(latestRun.run_id || latestRun.draft_id || "run")} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
           : "Run validate, replay, or simulated paper after validation.",
-      className: statusClass(hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad"),
+      className: statusClass(hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRun ? latestRunComplete ? "warn" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "idle"),
     },
   ];
   const range = configDateRangePayload();
   const lines = [
     {
-      status: selected.length ? dataReadiness.status : "bad",
+      status: selected.length ? dataReadiness.status : "idle",
       title: "Data Evidence",
       detail: selected.length
         ? `${numberText(selected.length, 0)} selected file${selected.length === 1 ? "" : "s"} across ${Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a"))).join(", ") || "unknown bar sizes"}; replay window ${range.start || "first bar"} to ${range.end || "last bar"}.`
         : "No saved files are selected for the workflow.",
     },
     {
-      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? alignmentReady ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle",
       title: "Alignment Evidence",
       detail: alignment.dataset_count
         ? `${numberText(commonTimestamps, 0)} common timestamps from ${text(alignment.common_first_timestamp || "n/a")} to ${text(alignment.common_last_timestamp || "n/a")}; ${pctText(alignment.common_coverage_pct)} common coverage.`
         : "No alignment preview is loaded for the current selected data packet.",
     },
     {
-      status: plugin.id ? pluginBoundaryStatus(plugin) : "bad",
+      status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       title: "Plugin Boundary",
       detail: plugin.id
         ? `${text(plugin.id)} is ${text(plugin.visibility || plugin.status || "registry")}; public examples are wiring demos and private plugins should stay in ignored local config.`
@@ -5057,14 +5107,14 @@ function workbenchEvidenceModel() {
         : "No generated or saved draft is active for this workflow.",
     },
     {
-      status: latestRun ? latestRunComplete ? "ok" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "bad",
+      status: latestRun ? latestRunComplete ? "ok" : latestRunIssue ? "bad" : "warn" : draftValid ? "warn" : "idle",
       title: "Run Evidence",
       detail: latestRun
         ? `${text(latestRun.action || "run")} ${text(latestRun.status || "unknown")} for ${text(latestRun.draft_id || savedDraftId || "draft")}; artifact path ${text(latestRun.artifact_path || "not recorded")}.`
         : "No recent Workbench run is attached to the active draft.",
     },
     {
-      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRunComplete && latestRun.artifact_path ? "warn" : "bad",
+      status: hasArtifacts ? artifactsMatchRun ? "ok" : "warn" : latestRunComplete && latestRun.artifact_path ? "warn" : "idle",
       title: "Artifact Evidence",
       detail: hasArtifacts
         ? `Loaded artifact ${text(artifacts.run_id || artifacts.draft_id)}${artifactsMatchRun ? " matches the current run context or no newer run is selected" : " differs from the latest selected run"}.`
@@ -5072,13 +5122,13 @@ function workbenchEvidenceModel() {
     },
   ];
   const next = !selected.length
-    ? { label: "Select Data", href: "#data/browse", status: "bad" }
+    ? { label: "Select Data", href: "#data/browse", status: "idle" }
     : !alignmentReady
       ? { label: "Preview Alignment", href: "#workbench/builder", status: "warn" }
       : !plugin.id
-        ? { label: "Choose Plugin", href: "#workbench/builder", status: "bad" }
+        ? { label: "Choose Plugin", href: "#workbench/builder", status: "idle" }
         : !draftValid
-          ? { label: "Validate Draft", href: "#workbench/run", status: "bad" }
+          ? { label: "Validate Draft", href: "#workbench/run", status: "idle" }
           : !latestRun
             ? { label: "Run Draft", href: "#workbench/run", status: "warn" }
             : !hasArtifacts
@@ -5177,7 +5227,7 @@ function workbenchWorkflowCards() {
       label: "Preview Alignment",
       title: hasAlignment ? `${numberText(commonTimestamps, 0)} common` : "Not Previewed",
       value: hasRange ? `${range.start || "first"} to ${range.end || "last"}` : "full range",
-      status: hasAlignment ? commonTimestamps > 0 ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "bad",
+      status: hasAlignment ? commonTimestamps > 0 ? alignmentWarnings ? "warn" : "ok" : "bad" : selected.length ? "warn" : "idle",
       detail: hasAlignment
         ? `${pctText(alignment.common_coverage_pct)} common coverage; ${numberText(alignmentWarnings, 0)} warning${alignmentWarnings === 1 ? "" : "s"}.`
         : "Preview timestamp overlap before trusting a replay or simulated-paper draft.",
@@ -5199,7 +5249,7 @@ function workbenchWorkflowCards() {
       label: "Run Draft",
       title: latestRun ? text(latestRun.status) : "Not Run",
       value: latestRun ? text(latestRun.action) : "validate/replay",
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : draftValid ? "warn" : "idle",
       detail: latestRun
         ? `${text(latestRun.draft_id || savedDraftId)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.`
         : draftValid ? "Run validate, replay, or simulated paper from the saved draft." : "Generate and validate a draft before running.",
@@ -5210,7 +5260,7 @@ function workbenchWorkflowCards() {
       label: "Open Results",
       title: hasArtifacts ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "No Artifacts",
       value: hasArtifacts ? text(artifacts.run_id || artifacts.draft_id) : latestRun && latestRun.artifact_path ? "loadable" : "missing",
-      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : latestRun ? "bad" : "bad",
+      status: hasArtifacts ? "ok" : latestRun && latestRun.artifact_path ? "warn" : latestRun ? "bad" : "idle",
       detail: hasArtifacts
         ? "Performance and Runs can inspect this run's charts, orders, fills, decisions, and logs."
         : latestRun && latestRun.artifact_path
@@ -5223,7 +5273,7 @@ function workbenchWorkflowCards() {
       label: "Review Boundary",
       title: plugin.visibility || plugin.status || "Unknown",
       value: plugin.status || "plugin",
-      status: plugin.visibility === "public_example" || plugin.status === "example_only" ? "warn" : plugin.id ? "ok" : "bad",
+      status: plugin.visibility === "public_example" || plugin.status === "example_only" ? "warn" : plugin.id ? "ok" : "idle",
       detail: plugin.id
         ? text(plugin.boundary || "Public examples are illustrative; private strategies belong in ignored local configs.")
         : "Choose a configured Workbench plugin before generating a draft.",
@@ -5390,7 +5440,7 @@ function renderWorkbenchPluginBoundary() {
       note: registry.count ? registry.label : "No plugin registry paths reported by config_options.",
     },
     {
-      status: strategyFields.length || resultFields.length ? "ok" : selected.id ? "warn" : "bad",
+      status: strategyFields.length || resultFields.length ? "ok" : selected.id ? "warn" : "idle",
       label: "Exposed Fields",
       title: `${numberText(strategyFields.length, 0)} in / ${numberText(resultFields.length, 0)} out`,
       note: selected.id
@@ -6068,7 +6118,7 @@ function savedDataMetricModel() {
   }
   return {
     value: `${numberText(catalogRows, 0)} files`,
-    status: catalogRows ? "warn" : "bad",
+    status: catalogRows ? "warn" : "idle",
     title: catalogRows ? "Parsed catalog is loaded, but broad symbol index is not." : "No saved data is visible.",
   };
 }
@@ -6302,6 +6352,7 @@ function renderDashboardApiHealth() {
     : row([`<span class="muted">No dashboard API refresh evidence has been recorded yet.</span>`, "", ""]);
   renderDataBackendStatus();
   renderFetchBackendStatus();
+  renderWorkbenchBackendStatus();
 }
 
 function fetchBackendStatusModel() {
@@ -6316,7 +6367,7 @@ function fetchBackendStatusModel() {
   const sessions = runtimeSessions.sessions || [];
   const manifestErrors = Number(fetchManifests.error_count || 0) + Number((fetchManifests.errors || []).length);
   const sessionErrors = Number(runtimeSessions.error_count || 0) + Number((runtimeSessions.errors || []).length);
-  const status = !statusLoaded ? "bad" : issues.length ? "warn" : rows.length ? "ok" : "bad";
+  const status = !statusLoaded ? "bad" : issues.length ? "warn" : rows.length ? "ok" : "idle";
   const title = !statusLoaded
     ? "Status Missing"
     : rows.length
@@ -6337,7 +6388,7 @@ function fetchBackendStatusModel() {
       note,
     },
     {
-      status: rows.find((item) => item.label === "fetch manifests")?.status || "bad",
+      status: rows.find((item) => item.label === "fetch manifests")?.status || "idle",
       label: "Fetch Manifests",
       title: manifests.length ? `${numberText(manifests.length, 0)} job${manifests.length === 1 ? "" : "s"}` : "No Jobs",
       note: manifestErrors
@@ -6345,7 +6396,7 @@ function fetchBackendStatusModel() {
         : manifests.length ? "Manifest rows loaded from configured roots." : "Endpoint loaded, but no manifest rows are visible yet.",
     },
     {
-      status: rows.find((item) => item.label === "runtime sessions")?.status || "bad",
+      status: rows.find((item) => item.label === "runtime sessions")?.status || "idle",
       label: "Runtime Sessions",
       title: sessions.length ? `${numberText(sessions.length, 0)} session${sessions.length === 1 ? "" : "s"}` : "No Sessions",
       note: sessionErrors
@@ -6422,6 +6473,142 @@ function handleFetchBackendStatusAction(action) {
   }
 }
 
+function workbenchBackendStatusModel() {
+  const contracts = state.refreshContracts || [];
+  const workbenchLabels = new Set([
+    "workbench diagnostics",
+    "workbench status",
+    "cleanup plan",
+    "endpoint map",
+    "config options",
+    "config drafts",
+    "draft validations",
+    "draft runs",
+    "run comparison",
+    "performance rollups",
+  ]);
+  const rows = contracts.filter((item) => workbenchLabels.has(item.label));
+  const issues = rows.filter((item) => item.status !== "ok");
+  const statusLoaded = Boolean(state.status && state.status.generated_at);
+  const options = state.configOptions || {};
+  const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
+  const runs = (state.configRuns && state.configRuns.runs) || [];
+  const comparisonRuns = (state.runComparison && state.runComparison.runs) || [];
+  const rollups = (state.performanceRollups && state.performanceRollups.rollups) || [];
+  const status = !statusLoaded ? "bad" : issues.length ? "warn" : rows.length ? "ok" : "idle";
+  const title = !statusLoaded
+    ? "Status Missing"
+    : rows.length
+      ? `${numberText(rows.length - issues.length, 0)} / ${numberText(rows.length, 0)} OK`
+      : "No Checks";
+  const note = !statusLoaded
+    ? "The required /status endpoint did not load, so Workbench backend state is not trustworthy yet."
+    : issues.length
+      ? `First issue: ${text(issues[0].label)}. Refresh Workbench APIs or open API Health before changing config inputs.`
+      : rows.length
+        ? "Workbench schema, draft, run, comparison, rollup, and maintenance endpoint checks are visible."
+        : "Refresh Workbench APIs to probe schema, draft, run, and artifact-support endpoints from this page.";
+  const cards = [
+    {
+      status,
+      label: "Workbench APIs",
+      title,
+      note,
+    },
+    {
+      status: rows.find((item) => item.label === "config options")?.status || "bad",
+      label: "Schema Options",
+      title: `${numberText((options.plugins || []).length, 0)} plugins`,
+      note: `${numberText((options.modes || []).length, 0)} modes loaded from public/private-safe registry metadata.`,
+    },
+    {
+      status: rows.find((item) => item.label === "config drafts")?.status || "idle",
+      label: "Drafts",
+      title: drafts.length ? `${numberText(drafts.length, 0)} draft${drafts.length === 1 ? "" : "s"}` : "No Drafts",
+      note: drafts.length ? "Saved draft metadata loaded." : "Endpoint loaded, but no saved drafts are visible yet.",
+    },
+    {
+      status: rows.find((item) => item.label === "draft runs")?.status || "idle",
+      label: "Runs",
+      title: runs.length ? `${numberText(runs.length, 0)} run${runs.length === 1 ? "" : "s"}` : "No Runs",
+      note: runs.length ? "Saved run metadata loaded for Workbench Run and Artifacts." : "Endpoint loaded, but no saved Workbench runs are visible yet.",
+    },
+    {
+      status: rows.find((item) => item.label === "run comparison")?.status || "bad",
+      label: "Comparison",
+      title: comparisonRuns.length ? `${numberText(comparisonRuns.length, 0)} row${comparisonRuns.length === 1 ? "" : "s"}` : "No Rows",
+      note: rollups.length ? `${numberText(rollups.length, 0)} performance rollup rows also loaded.` : "Run comparison is available when saved runs exist.",
+    },
+  ];
+  const tableRows = [
+    {
+      label: "required status",
+      status: statusLoaded ? "ok" : "bad",
+      detail: statusLoaded ? `latest /status generated ${text(state.status.generated_at)}` : "required /status payload missing",
+    },
+    ...rows,
+  ];
+  return { status, title, note, rows: tableRows, cards, unprobed: statusLoaded && !rows.length, issues };
+}
+
+function renderWorkbenchBackendStatus() {
+  if (!$("workbench-backend-status-note") || !$("workbench-backend-status-cards") || !$("workbench-backend-status-body") || !$("workbench-backend-status-actions")) return;
+  const model = workbenchBackendStatusModel();
+  $("workbench-backend-status-note").textContent = model.note;
+  $("workbench-backend-status-note").className = `section-note ${statusClass(model.status)}`;
+  $("workbench-backend-status-cards").innerHTML = model.cards.map((card) => `
+    <div class="action-card status-${escapeHtml(card.status)}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <small>${escapeHtml(card.note)}</small>
+    </div>
+  `).join("");
+  $("workbench-backend-status-actions").innerHTML = [
+    `<button type="button" data-workbench-backend-status-action="check">Refresh Workbench APIs</button>`,
+    `<button type="button" class="secondary" data-workbench-backend-status-action="operations">Open API Health</button>`,
+    `<button type="button" class="secondary" data-workbench-backend-status-action="copy"${model.rows.length ? "" : " disabled"}>Copy Report</button>`,
+    `<button type="button" class="secondary" data-workbench-backend-status-action="export"${model.rows.length ? "" : " disabled"}>Export CSV</button>`,
+  ].join("");
+  $("workbench-backend-status-body").innerHTML = model.rows.length
+    ? model.rows.map((item) => row([
+      escapeHtml(item.label),
+      statusText(item.status),
+      escapeHtml(item.detail),
+    ])).join("")
+    : row([`<span class="muted">No Workbench backend endpoint checks have been recorded yet.</span>`, "", ""]);
+}
+
+async function checkWorkbenchBackendApis() {
+  $("last-refresh").textContent = "Refreshing Workbench backend APIs...";
+  try {
+    await refresh();
+    $("last-refresh").textContent = `Workbench backend API checks completed: ${new Date().toLocaleString()}`;
+  } catch (err) {
+    $("last-refresh").textContent = `Workbench backend API checks failed: ${err.message}`;
+  } finally {
+    renderWorkbenchBackendStatus();
+    renderDashboardApiHealth();
+  }
+}
+
+function handleWorkbenchBackendStatusAction(action) {
+  if (action === "check") {
+    checkWorkbenchBackendApis();
+    return;
+  }
+  if (action === "operations") {
+    navigateToOperationsLens("diagnostics");
+    return;
+  }
+  if (action === "copy") {
+    copyDashboardApiHealthReport();
+    return;
+  }
+  if (action === "export") {
+    downloadDashboardApiHealthCsv();
+  }
+}
+
 function dataBackendStatusModel() {
   const rows = (state.dataEndpointContracts || []);
   const ok = rows.filter((item) => item.status === "ok").length;
@@ -6449,7 +6636,7 @@ function dataBackendStatusModel() {
       note,
     },
     {
-      status: (state.dataLibrary || {}).catalogError ? "warn" : (state.dataLibrary || {}).catalogLoaded ? "ok" : loading ? "warn" : "bad",
+      status: (state.dataLibrary || {}).catalogError ? "warn" : (state.dataLibrary || {}).catalogLoaded ? "ok" : loading ? "warn" : "idle",
       label: "Catalog Refresh",
       title: (state.dataLibrary || {}).catalogError ? "Review" : (state.dataLibrary || {}).catalogLoaded ? "Loaded" : loading ? "Loading" : "Not Loaded",
       note: (state.dataLibrary || {}).catalogError || ((state.dataLibrary || {}).catalogLoaded ? "Async Data Library refresh completed." : "No completed saved-data refresh is recorded yet."),
@@ -6697,7 +6884,7 @@ function runtimeStatusItems() {
     {
       label: "Latest Decision",
       value: timestampAgeLabel(decisionTimestamp),
-      status: decisionTimestamp ? "ok" : latestRun ? "warn" : "bad",
+      status: decisionTimestamp ? "ok" : latestRun ? "warn" : "idle",
       detail: latestDecision
         ? `${text(latestDecision.symbol)} ${text(latestDecision.detail)}`
         : "No recent decision event is available.",
@@ -6793,7 +6980,7 @@ function paperMonitorItems() {
     },
     {
       label: "Observing Market",
-      status: marketData.status === "bad" ? "bad" : observing ? (stale ? "warn" : "ok") : "bad",
+      status: marketData.status === "bad" ? "bad" : observing ? (stale ? "warn" : "ok") : "idle",
       detail: marketData.status === "bad"
         ? marketData.detail
         : observing
@@ -6817,6 +7004,13 @@ function paperMonitorItems() {
 }
 
 function performancePeriodWindow(accountRows, period) {
+  if (typeof period === "string" && period.startsWith("day:")) {
+    const day = period.slice(4);
+    const start = timestampMillis(`${day}T00:00:00Z`);
+    if (start !== null) {
+      return { start, end: start + 24 * 60 * 60 * 1000 - 1, label: `day ${day}` };
+    }
+  }
   const rows = (accountRows || []).filter((item) => timestampMillis(item.timestamp) !== null);
   if (!rows.length || period === "all") {
     return { start: null, end: null, label: "all available" };
@@ -7073,7 +7267,7 @@ function renderPerformanceTradeControls(ledger) {
   const activeFilters = [stateFilter, sideFilter, symbolFilter].filter(Boolean).length;
   const cards = [
     {
-      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "bad",
+      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "idle",
       title: numberText(ledger.stats.open_count, 0),
       label: "Open",
       note: ledger.stats.open_count
@@ -7097,7 +7291,7 @@ function renderPerformanceTradeControls(ledger) {
         : "Needs closed trades.",
     },
     {
-      status: rows.length ? "ok" : ledger.rows.length ? "warn" : "bad",
+      status: rows.length ? "ok" : ledger.rows.length ? "warn" : "idle",
       title: `${numberText(rows.length, 0)} / ${numberText(ledger.rows.length, 0)}`,
       label: "Shown",
       note: activeFilters
@@ -7184,7 +7378,7 @@ function renderPerformanceTradeAssistant(ledger, shownRows = [], fills = []) {
       note: ledger.stats.closed_count ? `${numberText(ledger.stats.closed_count, 0)} closed paired trades.` : "No closed trades yet.",
     },
     {
-      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "bad",
+      status: ledger.stats.open_count ? "warn" : ledger.rows.length ? "ok" : "idle",
       label: "Open",
       title: numberText(ledger.stats.open_count, 0),
       note: newestOpen ? `${text(newestOpen.symbol)} entered ${text(newestOpen.entry_time)}.` : "No open matched lots.",
@@ -7412,10 +7606,10 @@ function overviewHealthChecks() {
   const gatewayStatus = gateway.enabled
     ? gateway.reachable ? "ok" : "bad"
     : "warn";
-  const dataStatus = datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad";
+  const dataStatus = datasets.length > 2 ? "ok" : datasets.length ? "warn" : "idle";
   const fetchRootStatus = fetchRoots.some((root) => root.exists && root.is_dir) ? "ok" : "warn";
-  const runStatus = runs.length ? "ok" : workbenchRuns.length ? "warn" : "bad";
-  const eventStatus = events.length ? "ok" : runs.length ? "warn" : "bad";
+  const runStatus = runs.length ? "ok" : workbenchRuns.length ? "warn" : "idle";
+  const eventStatus = events.length ? "ok" : runs.length ? "warn" : "idle";
   return [
     {
       label: "Telemetry",
@@ -7910,7 +8104,7 @@ function renderOverviewCommandCenter() {
     {
       label: "Decision Loop",
       title: latestDecision ? text(latestDecision.symbol || "checked") : runs.length ? "awaiting" : "offline",
-      status: latestRejectedOrder ? "bad" : latestDecision ? "ok" : runs.length ? "warn" : "bad",
+      status: latestRejectedOrder ? "bad" : latestDecision ? "ok" : runs.length ? "warn" : "idle",
       detail: latestRejectedOrder
         ? `${text(latestRejectedOrder.symbol)} ${text(latestRejectedOrder.status)} ${shortTimestampAgeLabel(latestRejectedOrder.timestamp)}.`
         : latestDecision
@@ -8004,7 +8198,7 @@ function overviewGlanceModel() {
     secondary = { label: "Runs", target: "runs" };
   }
   if (!dataInventory.fileCount && datasets.length === 0 && !hasCurrentTelemetry) {
-    status = "bad";
+    status = "idle";
     title = "Add Data Roots";
     summary = "No saved historical data is visible, so replay and benchmark workflows will be limited.";
     primary = { label: "Data Library", target: "data" };
@@ -8090,7 +8284,7 @@ function overviewGlanceModel() {
       value: dataInventory.symbolCount
         ? `${numberText(dataInventory.symbolCount, 0)} symbols`
         : numberText(datasets.length, 0),
-      status: dataInventory.fileCount ? dataInventory.status : datasets.length > 2 ? "ok" : datasets.length ? "warn" : "bad",
+      status: dataInventory.fileCount ? dataInventory.status : datasets.length > 2 ? "ok" : datasets.length ? "warn" : "idle",
       detail: dataInventory.fileCount
         ? `${numberText(dataInventory.fileCount, 0)} indexed file${dataInventory.fileCount === 1 ? "" : "s"}; ${dataInventory.indexComplete === false ? "partial" : "complete"} root index.`
         : fetchManifests.length
@@ -8133,7 +8327,8 @@ function renderOverviewGlance() {
 }
 
 function worstStatusFrom(items = []) {
-  const ranks = { bad: 3, warn: 2, unknown: 1, ok: 0 };
+  // "idle" means empty-by-design (nothing started yet); it never raises a rollup.
+  const ranks = { bad: 3, warn: 2, unknown: 1, ok: 0, idle: 0 };
   return (items || []).reduce((worst, item) => {
     const status = text(item.status || "unknown").toLowerCase();
     return (ranks[status] ?? 1) > (ranks[worst] ?? 1) ? status : worst;
@@ -8162,6 +8357,14 @@ function overviewHealthReportModel() {
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const fetchManifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
+  const artifactRows = remoteRunArtifactEvidenceRows(runs);
+  const artifactExisting = artifactRows.reduce((sum, item) => sum + Number(item.evidence.existing_count || 0), 0);
+  const artifactMissing = artifactRows.reduce((sum, item) => sum + Number(item.evidence.missing_count || 0), 0);
+  const artifactJsonlRows = artifactRows.reduce((sum, item) => sum + Number(item.evidence.jsonl_row_count || 0), 0);
+  const performanceArtifactRuns = artifactRows.filter((item) => {
+    const categories = item.evidence.category_counts || {};
+    return Number(categories.performance || 0) > 0;
+  }).length;
   const todayWindow = performancePeriodWindow(accountRows, "today");
   const todayRows = rowsInWindow(accountRows, todayWindow);
   const todayPerf = performanceFromAccountRows(todayRows);
@@ -8302,7 +8505,7 @@ function overviewHealthReportModel() {
       detail: `${text(source.label || source.source_type)}; latest account ${accountFresh}; ${numberText(positions.length, 0)} open position${positions.length === 1 ? "" : "s"}; today return ${pctText(todayPerf.total_return_pct)}.`,
     },
     {
-      status: artifactRows.length ? artifactMissing ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      status: artifactRows.length ? artifactMissing ? "warn" : "ok" : runs.length ? "warn" : "idle",
       title: "Artifact Evidence",
       detail: artifactRows.length
         ? `${numberText(artifactRows.length, 0)} current run${artifactRows.length === 1 ? "" : "s"}; ${numberText(artifactExisting, 0)} existing expected files; ${numberText(artifactMissing, 0)} missing; ${numberText(artifactJsonlRows, 0)} JSONL rows; ${numberText(performanceArtifactRuns, 0)} performance rollup artifact${performanceArtifactRuns === 1 ? "" : "s"}.`
@@ -8416,7 +8619,7 @@ function overviewWorkflowCards() {
       label: "Review Performance",
       title: performanceReady ? "Results Available" : "No Result Path",
       value: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : rollups.length ? `${numberText(rollups.length, 0)} day rows` : "empty",
-      status: performanceReady ? "ok" : runs.length ? "warn" : "bad",
+      status: performanceReady ? "ok" : runs.length ? "warn" : "idle",
       detail: performanceReady
         ? "Open the portfolio-first performance page for returns, drawdown, trades, and rollups."
         : runs.length
@@ -8440,7 +8643,7 @@ function overviewWorkflowCards() {
       label: "Build And Simulate",
       title: datasets.length ? "Workbench Available" : "Needs Data",
       value: draftRows.length ? `${numberText(draftRows.length, 0)} drafts` : "no drafts",
-      status: datasets.length ? draftRows.length ? "ok" : "warn" : "bad",
+      status: datasets.length ? draftRows.length ? "ok" : "warn" : "idle",
       detail: datasets.length
         ? "Select scanned files, preview timestamp alignment, generate a public-safe draft, then run validation or replay."
         : "The workbench needs saved datasets before it can build a useful replay or simulated-paper config.",
@@ -8536,7 +8739,7 @@ function renderOverviewSessionState() {
   const fills = eventSummary(dayEvents, "fill");
   const rejections = eventSummary(dayEvents.filter(eventStatusIsBad), "order");
   let stateLabel = "No Current Run";
-  let stateStatus = "bad";
+  let stateStatus = "idle";
   let stateNote = "No runner telemetry is publishing into the dashboard.";
   if (runs.length && !decisions.count) {
     stateLabel = "Awaiting Check";
@@ -8730,7 +8933,9 @@ function renderMetrics() {
   const remote = payload.remote_control || {};
   const alerts = payload.alerts || [];
   const history = state.history || [];
-  $("subtitle").textContent = `${text(payload.node_id)} - ${text(payload.generated_at)}`;
+  $("subtitle").textContent = state.statusFetchError
+    ? `Status fetch failed: ${state.statusFetchError}`
+    : `${text(payload.node_id)} - ${text(payload.generated_at)}`;
   renderTopbarStatusStrip();
   $("metric-status").textContent = text(payload.status);
   $("metric-status").className = statusClass(payload.status);
@@ -8760,6 +8965,20 @@ function renderMetrics() {
 
 function renderPerformance() {
   $("performance-source-mode").value = state.performanceSourceMode || "current";
+  const telemetryRunSelect = $("performance-telemetry-run");
+  if (telemetryRunSelect) {
+    const telemetryRuns = (state.status && state.status.runs) || [];
+    const optionKey = telemetryRuns.map((runItem) => String(runItem.id || "")).join("|");
+    if (telemetryRunSelect.dataset.optionKey !== optionKey) {
+      telemetryRunSelect.innerHTML = telemetryRuns.length
+        ? telemetryRuns.map((runItem) => `<option value="${escapeHtml(String(runItem.id || ""))}">${escapeHtml(String(runItem.id || "run"))}</option>`).join("")
+        : `<option value="">No published runs</option>`;
+      telemetryRunSelect.dataset.optionKey = optionKey;
+    }
+    const selectedRun = selectedTelemetryRun();
+    telemetryRunSelect.value = selectedRun && selectedRun.id ? String(selectedRun.id) : "";
+    telemetryRunSelect.disabled = telemetryRuns.length < 2;
+  }
   renderPerformanceBenchmarkOptions();
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
@@ -9207,13 +9426,13 @@ function renderPerformanceTriage(context) {
   const hasBenchmark = Boolean(benchmark.path);
   const hasArtifactDepth = Boolean((source.account || []).length || (source.fills || []).length || (source.orders || []).length || (source.decisions || []).length);
   const sourceStatus = source.has_data ? (hasArtifactDepth ? "ok" : "warn") : "bad";
-  const windowStatus = accountRows.length ? "ok" : source.has_data ? "warn" : "bad";
+  const windowStatus = accountRows.length ? "ok" : source.has_data ? "warn" : "idle";
   const executionStatus = rejections > 0 || approvalRequired > 0
     ? "warn"
     : fillCount > 0
       ? "ok"
       : decisions || orders ? "warn" : "bad";
-  let nextStatus = "bad";
+  let nextStatus = "idle";
   let nextTitle = "Load Source";
   let nextNote = "Publish telemetry, run a Workbench config, or open a saved artifact.";
   if (source.has_data && !accountRows.length && !hasArtifactDepth) {
@@ -9295,7 +9514,7 @@ function renderPerformanceTriage(context) {
         : "Optional normalized saved-data overlay is not loaded.",
     },
     {
-      status: latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "bad",
+      status: latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "idle",
       title: mode ? text(mode) : "Unknown",
       label: "Account Freshness",
       note: latestAccount.timestamp
@@ -9364,11 +9583,11 @@ function renderPerformanceHome(context) {
     : fillCount > 0
       ? "ok"
       : decisions || orders ? "warn" : "bad";
-  const freshnessStatus = latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "bad";
-  const tradeStatus = ledger.stats.closed_count ? "ok" : fills.length ? "warn" : "bad";
+  const freshnessStatus = latestAccount.timestamp ? "ok" : source.has_data ? "warn" : "idle";
+  const tradeStatus = ledger.stats.closed_count ? "ok" : fills.length ? "warn" : "idle";
   const tiles = [
     {
-      status: source.has_data ? "ok" : "bad",
+      status: source.has_data ? "ok" : "idle",
       label: "Source",
       value: text(source.source_type || source.label),
       detail: source.has_data ? text(source.label) : "No current or saved run selected.",
@@ -9517,7 +9736,7 @@ function performanceActionSummaryModel(context) {
   }
   const cards = [
     {
-      status: source.has_data ? selectedAccounts ? "ok" : "warn" : "bad",
+      status: source.has_data ? selectedAccounts ? "ok" : "warn" : "idle",
       label: "Source",
       title: source.has_data ? text(source.label) : "No Source",
       note: source.has_data
@@ -9755,7 +9974,7 @@ function renderPerformanceReview(context) {
       label: "Evidence Depth",
       title: accountRows.length ? `${numberText(accountRows.length, 0)} snapshots` : "No snapshots",
       note: `${numberText(fills.length, 0)} fills / ${numberText(ledger.stats.closed_count, 0)} closed trades / ${numberText(decisions, 0)} decisions in scope.`,
-      className: statusClass(accountRows.length ? "ok" : source.has_data ? "warn" : "bad"),
+      className: statusClass(accountRows.length ? "ok" : source.has_data ? "warn" : "idle"),
     },
     {
       status: totalReturn === null ? "warn" : totalReturn >= 0 ? "ok" : "bad",
@@ -9769,7 +9988,7 @@ function renderPerformanceReview(context) {
       label: "Execution Quality",
       title: executionIssues ? `${numberText(executionIssues, 0)} issues` : `${numberText(fillCount, 0)} fills`,
       note: `${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approval holds.`,
-      className: statusClass(executionIssues ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad"),
+      className: statusClass(executionIssues ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "idle"),
     },
     {
       status: latestDay ? "ok" : source.has_data ? "warn" : "bad",
@@ -9778,16 +9997,16 @@ function renderPerformanceReview(context) {
       note: latestDay
         ? `${text(latestDay.day)} ${text(latestDay.node_id)}; ${numberText(rollups.length, 0)} status-history day row${rollups.length === 1 ? "" : "s"}.`
         : "Status-history rollups are not loaded, so current paper/live continuity is not visible here.",
-      className: latestDay ? rollupReturnClass(latestDay.daily_return_pct) : statusClass(source.has_data ? "warn" : "bad"),
+      className: latestDay ? rollupReturnClass(latestDay.daily_return_pct) : statusClass(source.has_data ? "warn" : "idle"),
     },
     {
-      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "idle",
       label: "Market Context",
       title: benchmark.path ? text(benchmark.symbol) : "No benchmark",
       note: benchmark.path
         ? `${text(benchmark.bar_size)} benchmark overlay loaded from saved data.`
         : "Load a saved benchmark dataset when strategy return needs market context.",
-      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "bad"),
+      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "idle"),
     },
   ];
   $("performance-review-note").textContent = `${text(source.label)} / ${text(mode)} / ${window.label}; latest account ${latestAccount.timestamp ? shortTimestampAgeLabel(latestAccount.timestamp) : "n/a"}`;
@@ -9842,7 +10061,7 @@ function performanceReportModel(context) {
   const issueCount = Number(rejections || 0) + Number(approvalRequired || 0);
   const hasCurrentRollups = rollups.length > 0;
   const hasSnapshots = accountRows.length || (allAccountRows || []).length;
-  let status = "bad";
+  let status = "idle";
   let headline = "No current performance evidence";
   let note = "Publish paper/live status or load a saved run artifact before reading the report.";
   if (source.has_data && hasSnapshots) {
@@ -10023,7 +10242,7 @@ function performanceEvidenceModel(context) {
   const windowAccountCount = Number((accountRows || []).length || 0);
   const closedTradeCount = Number((ledger.stats || {}).closed_count || 0);
   const statusPeriodCount = Number((periodRollups.month || []).length || 0) + Number((periodRollups.year || []).length || 0);
-  let headlineStatus = "bad";
+  let headlineStatus = "idle";
   let headline = "No evidence chain";
   let note = "Publish telemetry, load a saved run, or open Workbench artifacts before trusting performance metrics.";
   if (source.has_data && windowAccountCount) {
@@ -10060,39 +10279,39 @@ function performanceEvidenceModel(context) {
       status: source.has_data ? "ok" : "bad",
       title: text(source.source_type || "none"),
       note: `${text(source.label)}; mode ${text(mode || "n/a")}; updated ${timestamp ? shortTimestampAgeLabel(timestamp) : "n/a"}.`,
-      className: statusClass(source.has_data ? "ok" : "bad"),
+      className: statusClass(source.has_data ? "ok" : "idle"),
     },
     {
       label: "Account Path",
       status: windowAccountCount ? "ok" : accountCount ? "warn" : "bad",
       title: windowAccountCount ? `${numberText(windowAccountCount, 0)} in window` : `${numberText(accountCount, 0)} total`,
       note: latestAccount.timestamp ? `Latest account ${timestampAgeLabel(latestAccount.timestamp)}.` : "No account snapshot timestamp.",
-      className: statusClass(windowAccountCount ? "ok" : accountCount ? "warn" : "bad"),
+      className: statusClass(windowAccountCount ? "ok" : accountCount ? "warn" : "idle"),
     },
     {
       label: "Execution Rows",
       status: issueCount ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad",
       title: `${numberText(fillCount, 0)} fills`,
       note: `${numberText(decisions, 0)} decisions / ${numberText(orders, 0)} orders / ${numberText(rejections, 0)} rejects / ${numberText(approvalRequired, 0)} approvals.`,
-      className: statusClass(issueCount ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "bad"),
+      className: statusClass(issueCount ? "warn" : fillCount ? "ok" : source.has_data ? "warn" : "idle"),
     },
     {
       label: "Status Rollups",
-      status: rollups.length ? "ok" : source.has_data ? "warn" : "bad",
+      status: rollups.length ? "ok" : source.has_data ? "warn" : "idle",
       title: `${numberText(rollups.length, 0)} day rows`,
       note: latestRollup
         ? `Latest ${text(latestRollup.day)} ${text(latestRollup.node_id)} return ${pctText(latestRollup.daily_return_pct)}; ${numberText(statusPeriodCount, 0)} period rows.`
         : "No persisted live/paper status-history rollups loaded.",
-      className: latestRollup ? rollupReturnClass(latestRollup.daily_return_pct) : statusClass(source.has_data ? "warn" : "bad"),
+      className: latestRollup ? rollupReturnClass(latestRollup.daily_return_pct) : statusClass(source.has_data ? "warn" : "idle"),
     },
     {
       label: "Benchmark",
-      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "idle",
       title: benchmark.path ? text(benchmark.symbol) : "Not loaded",
       note: benchmark.path
         ? `${text(benchmark.bar_size)} ${text(benchmark.source)} overlay is available.`
         : "No market-context saved dataset is loaded for this result.",
-      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "bad"),
+      className: statusClass(benchmark.path ? "ok" : source.has_data ? "warn" : "idle"),
     },
   ];
   const lines = [
@@ -10117,7 +10336,7 @@ function performanceEvidenceModel(context) {
       detail: `${numberText(fills.length, 0)} fills in selected window; ${numberText(closedTradeCount, 0)} closed trades and ${numberText((ledger.stats || {}).open_count || 0, 0)} open trade rows after pairing.`,
     },
     {
-      status: issueCount ? "warn" : source.has_data ? "ok" : "bad",
+      status: issueCount ? "warn" : source.has_data ? "ok" : "idle",
       title: "Execution Issues",
       detail: issueCount
         ? `${numberText(rejections, 0)} rejections and ${numberText(approvalRequired, 0)} approval holds need order-level review.`
@@ -10131,7 +10350,7 @@ function performanceEvidenceModel(context) {
         : "No persisted status-history day rows are available; current performance may depend on loaded artifacts only.",
     },
     {
-      status: benchmark.path ? "ok" : source.has_data ? "warn" : "bad",
+      status: benchmark.path ? "ok" : source.has_data ? "warn" : "idle",
       title: "Benchmark Context",
       detail: benchmark.path
         ? `Benchmark ${text(benchmark.symbol)} from ${text(benchmark.path)} is loaded for normalized-return overlay.`
@@ -10326,8 +10545,8 @@ function performanceSnapshotModel(context) {
       note: `Peak-to-current equity loss. Source: ${drawdownSource}.`,
     },
     {
-      status: Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "bad",
-      className: statusClass(Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "bad"),
+      status: Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "idle",
+      className: statusClass(Number(rejections || 0) || Number(approvalRequired || 0) ? "warn" : source.has_data ? "ok" : "idle"),
       label: "Readiness",
       title: source.has_data ? text(mode || "loaded") : "No Source",
       note: source.has_data
@@ -10440,7 +10659,7 @@ function performanceWorkflowCards(context) {
       label: "Inspect Trades",
       title: ledger.stats.closed_count ? `${numberText(ledger.stats.closed_count, 0)} closed` : fills.length ? `${numberText(fills.length, 0)} fills` : "No Trades",
       value: ledger.stats.closed_count ? `${numberText(ledger.stats.wins, 0)}W/${numberText(ledger.stats.losses, 0)}L` : `${numberText(rejections, 0)} rejects`,
-      status: executionIssueCount ? "warn" : hasTradeEvidence ? "ok" : source.has_data ? "warn" : "bad",
+      status: executionIssueCount ? "warn" : hasTradeEvidence ? "ok" : source.has_data ? "warn" : "idle",
       detail: executionIssueCount
         ? `${numberText(rejections, 0)} rejects and ${numberText(approvalRequired, 0)} approval holds need review.`
         : hasTradeEvidence ? "Open the trade lens for paired fills, open positions, win/loss, and filters." : "No fills are available for trade pairing.",
@@ -10462,7 +10681,7 @@ function performanceWorkflowCards(context) {
       label: "Compare Benchmark",
       title: benchmark.path ? text(benchmark.symbol) : "No Benchmark",
       value: benchmark.path ? text(benchmark.bar_size) : `${numberText(datasets.length, 0)} datasets`,
-      status: benchmark.path ? "ok" : datasets.length && source.has_data ? "warn" : "bad",
+      status: benchmark.path ? "ok" : datasets.length && source.has_data ? "warn" : "idle",
       detail: benchmark.path
         ? "Benchmark overlay is loaded against the selected strategy equity path."
         : datasets.length ? "Choose a saved Data Library file to overlay normalized benchmark returns." : "No saved datasets are available for benchmark overlay.",
@@ -10733,7 +10952,7 @@ function statusRollupContinuityModel() {
         : `${rangeLabel(firstDay, lastDay)}; ${numberText(missingDays, 0)} missing calendar day${missingDays === 1 ? "" : "s"} inside the range.`,
     },
     {
-      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "bad",
+      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "idle",
       label: "Latest Status",
       title: latestTimestamp ? timestampAgeLabel(latestTimestamp) : "n/a",
       note: latest ? `${text(latest.node_id)} / ${text(latest.mode)} / ${text(latest.day)}.` : "No live/paper status day row is loaded.",
@@ -10772,7 +10991,7 @@ function statusRollupContinuityModel() {
         : archivedRows.length ? "Archived run rollups explain saved replay/simulation artifacts, but current paper/live continuity is missing." : "There is no persisted rollup evidence for current or archived performance.",
     },
     {
-      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "bad",
+      status: latest ? veryStale ? "bad" : stale ? "warn" : "ok" : "idle",
       title: "Freshness",
       detail: latestTimestamp
         ? `Latest status rollup timestamp is ${timestampAgeLabel(latestTimestamp)} from ${text(latestTimestamp)}.`
@@ -10918,6 +11137,47 @@ function handlePerformanceRollupAssistantAction(action) {
   });
 }
 
+async function reloadTelemetryArtifacts() {
+  const run = selectedTelemetryRun();
+  const runId = run && run.id ? String(run.id) : "";
+  if (!runId) {
+    state.telemetryAccount = { run_id: "", account: [], decisions: [], orders: [], fills: [], performance: {} };
+    renderAll();
+    return;
+  }
+  const result = await fetchOptionalJson(
+    "telemetry account",
+    `/telemetry_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=500`,
+    { account: [], decisions: [], orders: [], fills: [], performance: {} },
+  );
+  const payload = result.payload || {};
+  state.telemetryAccount = {
+    run_id: runId,
+    account: payload.account || [],
+    decisions: payload.decisions || [],
+    orders: payload.orders || [],
+    fills: payload.fills || [],
+    performance: payload.performance || {},
+  };
+  renderAll();
+}
+
+function focusPerformanceDay(day) {
+  const select = $("performance-period");
+  if (!select || !day) return;
+  const value = `day:${day}`;
+  let option = select.querySelector('option[data-day-focus="1"]');
+  if (!option) {
+    option = document.createElement("option");
+    option.dataset.dayFocus = "1";
+    select.appendChild(option);
+  }
+  option.value = value;
+  option.textContent = `Day ${day}`;
+  select.value = value;
+  renderPerformance();
+}
+
 function renderStatusEquityRollups() {
   if (
     !$("performance-status-rollups-body")
@@ -10950,7 +11210,7 @@ function renderStatusEquityRollups() {
   $("performance-status-return-chart").innerHTML = statusRollupReturnChart(rollups);
   $("performance-status-rollups-body").innerHTML = rollups.length
     ? rollups.map((item) => row([
-        escapeHtml(item.day),
+        `<button type="button" class="secondary rollup-day-focus" data-day="${escapeHtml(item.day)}" title="Focus charts, KPIs, and trades on this day">${escapeHtml(item.day)}</button>`,
         escapeHtml(item.node_id),
         escapeHtml(text(item.mode)),
         signedValueHtml(item.daily_return_pct, pctText),
@@ -12352,7 +12612,7 @@ function renderDataSearchAssistant(filteredRows = []) {
     },
     {
       label: "Quality",
-      status: Number(qualityCounts.bad || 0) ? "bad" : Number(qualityCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      status: Number(qualityCounts.bad || 0) ? "bad" : Number(qualityCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "idle",
       title: countSummary(qualityCounts),
       note: Number(qualityCounts.bad || 0) || Number(qualityCounts.warn || 0)
         ? "Review warn/bad files before replay."
@@ -12360,7 +12620,7 @@ function renderDataSearchAssistant(filteredRows = []) {
     },
     {
       label: "Contract",
-      status: Number(contractCounts.bad || 0) ? "bad" : Number(contractCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "bad",
+      status: Number(contractCounts.bad || 0) ? "bad" : Number(contractCounts.warn || 0) ? "warn" : filteredRows.length ? "ok" : "idle",
       title: countSummary(contractCounts),
       note: Number(contractCounts.bad || 0) || Number(contractCounts.warn || 0)
         ? "Review storage metadata before replay."
@@ -12528,13 +12788,13 @@ function renderSymbolProfile(symbol) {
   const contractStatus = model.contractScore === 0 ? "ok" : model.contractScore === 1 ? "warn" : model.contractScore === 2 ? "bad" : "warn";
   const cards = [
     {
-      status: hasRows ? "ok" : "bad",
+      status: hasRows ? "ok" : "idle",
       label: "Files",
       title: numberText(model.rows.length, 0),
       note: hasRows ? `${numberText(model.totalRows, 0)} total rows across selected symbol files.` : "No catalog-visible files for this symbol.",
     },
     {
-      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "bad",
+      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "idle",
       label: "Coverage",
       title: model.range.start && model.range.end ? `${model.range.start} -> ${model.range.end}` : "n/a",
       note: model.latestMillis ? `Latest saved bar ${new Date(model.latestMillis).toISOString().slice(0, 10)}.` : "No timestamp range loaded.",
@@ -12554,7 +12814,7 @@ function renderSymbolProfile(symbol) {
         : "Review timestamp/session/bar-size/adjustment metadata before replay.",
     },
     {
-      status: model.best ? "ok" : "bad",
+      status: model.best ? "ok" : "idle",
       label: "Best File",
       title: model.best ? `${text(model.best.bar_size)} ${text(model.best.source)}` : "n/a",
       note: model.best ? `${numberText(model.best.rows, 0)} rows / ${text(model.best.storage_session)} / ${bytes(model.best.size_bytes)}` : "No inspectable file selected.",
@@ -12875,7 +13135,7 @@ function renderSymbolDirectoryAssistant(directory) {
   $("data-directory-assistant-note").textContent = note;
   const cards = [
     {
-      status: rows.length ? "ok" : "bad",
+      status: rows.length ? "ok" : "idle",
       label: "Matched",
       title: `${numberText(shown.length, 0)} / ${numberText(rows.length, 0)}`,
       note: activeFilters.length ? `Filters: ${activeFilters.join(", ")}.` : "No directory filters applied.",
@@ -12887,13 +13147,13 @@ function renderSymbolDirectoryAssistant(directory) {
       note: latest ? `Latest bar ${text(latest.last_day)}.` : "No timestamped symbol row.",
     },
     {
-      status: qualityOk ? "ok" : rows.length ? "warn" : "bad",
+      status: qualityOk ? "ok" : rows.length ? "warn" : "idle",
       label: "Clean",
       title: numberText(qualityOk, 0),
       note: rows.length ? `${numberText(rows.length - qualityOk, 0)} matched symbol${rows.length - qualityOk === 1 ? "" : "s"} need quality review.` : "No quality rows loaded.",
     },
     {
-      status: contractOk ? "ok" : rows.length ? "warn" : "bad",
+      status: contractOk ? "ok" : rows.length ? "warn" : "idle",
       label: "Contract Clear",
       title: numberText(contractOk, 0),
       note: rows.length ? `${numberText(rows.length - contractOk, 0)} matched symbol${rows.length - contractOk === 1 ? "" : "s"} need metadata review.` : "No contract rows loaded.",
@@ -13185,7 +13445,7 @@ function renderDataUniversePanel() {
     },
     {
       label: "Bars And Sessions",
-      status: mixedSessionSymbols.length ? "warn" : barTop.length || sessionTop.length ? "ok" : rows.length ? "warn" : "bad",
+      status: mixedSessionSymbols.length ? "warn" : barTop.length || sessionTop.length ? "ok" : rows.length ? "warn" : "idle",
       title: barTop.length ? barTop.map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ") : "none",
       note: mixedSessionSymbols.length
         ? `${numberText(mixedSessionSymbols.length, 0)} symbol${mixedSessionSymbols.length === 1 ? "" : "s"} have mixed session files; verify RTH/extended scope before replay.`
@@ -14203,7 +14463,7 @@ function renderDataExplorer(datasets = [], filteredRows = []) {
     : "Configure data roots or fetch history, then refresh Data Library to explore saved files.";
   const cards = [
     {
-      status: indexError !== "n/a" ? "bad" : indexFileCount ? (indexCapped ? "warn" : "ok") : datasets.length ? "warn" : "bad",
+      status: indexError !== "n/a" ? "bad" : indexFileCount ? (indexCapped ? "warn" : "ok") : datasets.length ? "warn" : "idle",
       label: "Root Index",
       title: indexFileCount ? `${numberText(indexFileCount, 0)} files` : "n/a",
       note: indexError !== "n/a"
@@ -14213,7 +14473,7 @@ function renderDataExplorer(datasets = [], filteredRows = []) {
           : "No broad symbol index loaded yet.",
     },
     {
-      status: datasets.length ? "ok" : "bad",
+      status: datasets.length ? "ok" : "idle",
       label: "Full Catalog",
       title: `${numberText(datasets.length, 0)} files`,
       note: `${numberText(symbolCount, 0)} symbols / ${numberText(totalRows, 0)} parsed rows with quality and preview metadata.`,
@@ -14225,7 +14485,7 @@ function renderDataExplorer(datasets = [], filteredRows = []) {
       note: `${numberText(filteredSymbolCount, 0)} symbols after Browse filters.`,
     },
     {
-      status: latest ? "ok" : datasets.length ? "warn" : "bad",
+      status: latest ? "ok" : datasets.length ? "warn" : "idle",
       label: "Latest Bar",
       title: latest ? new Date(latest).toISOString().slice(0, 10) : "n/a",
       note: latest ? "Newest timestamp in the loaded catalog." : "No timestamped saved files loaded.",
@@ -14406,13 +14666,13 @@ function renderDataScopeAssistant(filteredRows = []) {
   $("data-scope-assistant-note").textContent = note;
   const cards = [
     {
-      status: loading ? "warn" : capped ? "warn" : count ? "ok" : "bad",
+      status: loading ? "warn" : capped ? "warn" : count ? "ok" : "idle",
       label: "Loaded Files",
       title: count ? `${numberText(count, 0)} / ${limit ? numberText(limit, 0) : "n/a"}` : loading ? "Loading" : "None",
       note: capped ? "The scan hit its row cap." : count ? `Rows available to Browse, Inspect, Compare, and Workbench; scope ${text(catalog.catalog_visibility_status || "unknown")}.` : "No catalog rows are loaded.",
     },
     {
-      status: symbols.size ? "ok" : count ? "warn" : "bad",
+      status: symbols.size ? "ok" : count ? "warn" : "idle",
       label: "Symbols",
       title: numberText(symbols.size, 0),
       note: symbols.size ? `${numberText(skippedCandidates, 0)} supported candidate${skippedCandidates === 1 ? "" : "s"} skipped in this bounded scan.` : "No symbols could be inferred from loaded files.",
@@ -14630,17 +14890,17 @@ function dataVisibilityReportModel(filteredRows = []) {
       detail: `${numberText(catalogRows, 0)} file row${catalogRows === 1 ? "" : "s"} and ${numberText(symbols.size, 0)} symbol${symbols.size === 1 ? "" : "s"} are loaded under configured roots.`,
     },
     {
-      status: hiddenByFilters ? hiddenByFilters === catalogRows ? "bad" : "warn" : catalogRows ? "ok" : "bad",
+      status: hiddenByFilters ? hiddenByFilters === catalogRows ? "bad" : "warn" : catalogRows ? "ok" : "idle",
       title: "Active Filters",
       detail: filterLabels.length ? `${filterLabels.join(" / ")}; ${numberText(hiddenByFilters, 0)} row${hiddenByFilters === 1 ? "" : "s"} hidden.` : "No Data Library filters are active.",
     },
     {
-      status: capped ? "warn" : catalogRows ? "ok" : "bad",
+      status: capped ? "warn" : catalogRows ? "ok" : "idle",
       title: "Scan Limit",
       detail: capped ? `Catalog appears capped at ${numberText(catalog.limit || 0, 0)} rows. Raise the scan limit before concluding symbols are missing.` : "No catalog scan cap is visible in root summaries.",
     },
     {
-      status: inventory.status || (suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "bad"),
+      status: inventory.status || (suggestedRoots.length || suggestedFiles || hiddenConfigured ? "warn" : roots.length ? "ok" : "idle"),
       title: "Root Visibility",
       detail: `${numberText(roots.length, 0)} configured root${roots.length === 1 ? "" : "s"}; inventory ${text(inventory.status || "unknown")} (${text(inventory.primary_issue || "no summary")}); ${numberText(configuredVisible, 0)} catalog-visible configured files; ${numberText(hiddenConfigured, 0)} hidden configured; ${numberText(suggestedFiles || suggestedRoots.length, 0)} suggested outside configured roots.`,
     },
@@ -14842,13 +15102,13 @@ function dataActionSummaryModel(filteredRows = []) {
       detail: `${numberText(qualityIssues, 0)} quality review / ${numberText(contractIssues, 0)} contract review / ${numberText(parserErrors, 0)} parser errors.`,
     },
     {
-      status: blockedGroups ? "bad" : readyGroups ? "ok" : matrix.length ? "warn" : catalogRows ? "warn" : "bad",
+      status: blockedGroups ? "bad" : readyGroups ? "ok" : matrix.length ? "warn" : catalogRows ? "warn" : "idle",
       label: "History Groups",
       title: `${numberText(matrix.length, 0)} groups`,
       detail: `${numberText(readyGroups, 0)} ready and ${numberText(blockedGroups, 0)} blocked for Workbench replay. ${range.start && range.end ? `${range.start} to ${range.end}.` : "No timestamp range loaded."}`,
     },
     {
-      status: best ? "ok" : catalogRows ? "warn" : "bad",
+      status: best ? "ok" : catalogRows ? "warn" : "idle",
       label: "Inspect First",
       title: best ? text(best.symbol) : "none",
       detail: best ? `${text(best.bar_size)} ${text(best.source)} / ${numberText(best.rows, 0)} rows / ${text(best.quality_status)} quality.` : "No inspectable file is currently visible.",
@@ -14948,13 +15208,13 @@ function rootIndexSpotlightModel(filteredRows = []) {
     },
     {
       label: "Sources",
-      status: inventory.fileCount ? "ok" : "bad",
+      status: inventory.fileCount ? "ok" : "idle",
       title: sourceSummary,
       note: `Assets ${assetSummary}; bars ${barSummary}.`,
     },
     {
       label: "Cleanup",
-      status: unsupported ? "warn" : inventory.fileCount ? "ok" : "bad",
+      status: unsupported ? "warn" : inventory.fileCount ? "ok" : "idle",
       title: `${numberText(unsupported, 0)} unsupported`,
       note: unsupported ? "Unsupported files exist near saved data roots; diagnostics can explain what the scanner skipped." : "No unsupported files reported in the root-index summary.",
     },
@@ -15227,7 +15487,7 @@ function dataInventoryEvidenceModel(filteredRows = []) {
         : `No Browse filters are active; Data Home is using all ${numberText(activeRows.length, 0)} catalog file${activeRows.length === 1 ? "" : "s"}.`,
     },
     {
-      status: range.start && range.end ? "ok" : activeRows.length ? "warn" : "bad",
+      status: range.start && range.end ? "ok" : activeRows.length ? "warn" : "idle",
       title: "Saved-Bar Window",
       detail: range.start && range.end
         ? `${range.start} to ${range.end} across ${numberText(totalRows, 0)} parsed row${totalRows === 1 ? "" : "s"} in the current scope.`
@@ -15527,7 +15787,7 @@ function renderDataInventoryPanel(filteredRows = []) {
     {
       label: "Root Index",
       title: indexFileCount ? `${numberText(indexSymbolCount, 0)} symbols` : "n/a",
-      status: indexError !== "n/a" ? "bad" : indexFileCount ? inventory.status : catalogCount ? "warn" : "bad",
+      status: indexError !== "n/a" ? "bad" : indexFileCount ? inventory.status : catalogCount ? "warn" : "idle",
       detail: indexError !== "n/a"
         ? `Index failed: ${indexError}.`
         : indexFileCount
@@ -15644,13 +15904,13 @@ function renderDataHistoryReview(filteredRows = []) {
     {
       label: "Visible Universe",
       title: firstCatalogLoad ? "Loading" : `${numberText(visibleSymbols.size || symbols.size, 0)} symbols`,
-      status: firstCatalogLoad ? "warn" : visibleRows.length ? "ok" : catalogCount ? "warn" : "bad",
+      status: firstCatalogLoad ? "warn" : visibleRows.length ? "ok" : catalogCount ? "warn" : "idle",
       detail: `${numberText(visibleRows.length, 0)} shown / ${numberText(catalogCount, 0)} catalog files; ${numberText(hiddenByFilters, 0)} hidden by filters.`,
     },
     {
       label: "Coverage Window",
       title: visibleRange.start && visibleRange.end ? `${visibleRange.start} to ${visibleRange.end}` : range.start && range.end ? `${range.start} to ${range.end}` : "n/a",
-      status: range.start && range.end ? "ok" : catalogCount ? "warn" : "bad",
+      status: range.start && range.end ? "ok" : catalogCount ? "warn" : "idle",
       detail: catalog.latest_modified_at ? `Newest file modified ${timestampAgeLabel(catalog.latest_modified_at)}.` : "No file modification timestamp loaded.",
     },
     {
@@ -15674,7 +15934,7 @@ function renderDataHistoryReview(filteredRows = []) {
     {
       label: "Best Next File",
       title: best ? text(best.symbol) : "none",
-      status: best ? "ok" : catalogCount ? "warn" : "bad",
+      status: best ? "ok" : catalogCount ? "warn" : "idle",
       detail: best ? `${text(best.bar_size)} ${text(best.source)} / ${numberText(best.rows, 0)} rows / ${text(best.path)}` : "No inspectable file is selected or visible.",
     },
   ];
@@ -16012,7 +16272,7 @@ function dataHomeWorkflowCards(filteredRows = []) {
       label: "Find A Symbol",
       title: visibleSymbols.size ? `${numberText(visibleSymbols.size, 0)} symbols` : "No Symbols",
       value: `${numberText(datasets.length, 0)} files`,
-      status: visibleSymbols.size ? "ok" : "bad",
+      status: visibleSymbols.size ? "ok" : "idle",
       detail: visibleSymbols.size
         ? "Open the catalog-backed Symbol Browser and Directory to search every scanned symbol."
         : "No symbols are visible because no parseable saved data is loaded.",
@@ -16045,7 +16305,7 @@ function dataHomeWorkflowCards(filteredRows = []) {
       label: "Build Simulation",
       title: selectedRows.length ? `${numberText(selectedRows.length, 0)} selected` : datasets.length ? "Ready To Select" : "Needs Data",
       value: filteredRows.length ? `${numberText(filteredRows.length, 0)} shown` : "no rows",
-      status: datasets.length ? selectedRows.length ? "ok" : "warn" : "bad",
+      status: datasets.length ? selectedRows.length ? "ok" : "warn" : "idle",
       detail: selectedRows.length
         ? "Selected datasets can be previewed for timestamp alignment in Workbench."
         : datasets.length
@@ -16427,7 +16687,7 @@ function renderSymbolSelectionPanel(symbol) {
   const contractStatus = contractScore === 0 ? "ok" : contractScore === 1 ? "warn" : contractScore === 2 ? "bad" : "warn";
   const cards = [
     {
-      status: hasRows ? "ok" : hasQuery ? "warn" : "bad",
+      status: hasRows ? "ok" : hasQuery ? "warn" : "idle",
       label: "Selection",
       title: hasQuery ? model.symbol : "n/a",
       note: hasRows
@@ -16443,7 +16703,7 @@ function renderSymbolSelectionPanel(symbol) {
         : "Inspect and Workbench need a saved file.",
     },
     {
-      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "bad",
+      status: model.range.start && model.range.end ? "ok" : hasRows ? "warn" : "idle",
       label: "Coverage",
       title: model.range.start && model.range.end ? `${model.range.start} -> ${model.range.end}` : "n/a",
       note: model.latestMillis ? `Latest saved bar ${new Date(model.latestMillis).toISOString().slice(0, 10)}.` : "No timestamp range loaded.",
@@ -16905,7 +17165,7 @@ function renderDataLibraryGuide(context = {}) {
           : "Add cache or history directories with dashboard.data_roots or --data-root.",
     },
     {
-      status: !catalogCount ? "bad" : capped || (catalogLimit && totalCandidates > catalogCount) ? "warn" : "ok",
+      status: !catalogCount ? "idle" : capped || (catalogLimit && totalCandidates > catalogCount) ? "warn" : "ok",
       label: "Scan Catalog",
       detail: !catalogCount
         ? "No catalog rows loaded; increase the scan limit only after roots are correct."
@@ -16934,7 +17194,7 @@ function renderDataLibraryGuide(context = {}) {
           : "Use Symbol Browser or table filters to find any scanned saved dataset.",
     },
     {
-      status: detail.path ? "ok" : catalogCount ? "warn" : "bad",
+      status: detail.path ? "ok" : catalogCount ? "warn" : "idle",
       label: "Inspect History",
       detail: detail.path
         ? `Data Detail is showing ${text(detail.symbol)} from ${text(detail.path)}.`
@@ -16943,7 +17203,7 @@ function renderDataLibraryGuide(context = {}) {
           : "Fetch or configure data before opening Data Detail.",
     },
     {
-      status: selected.length ? "ok" : catalogCount ? "warn" : "bad",
+      status: selected.length ? "ok" : catalogCount ? "warn" : "idle",
       label: "Simulate",
       detail: selected.length
         ? `${numberText(selected.length, 0)} dataset${selected.length === 1 ? "" : "s"} selected in Config Workbench.`
@@ -18142,7 +18402,7 @@ function renderSymbolBatchDiagnostic() {
     },
     {
       label: "Visible",
-      status: Number(payload.visible_count || 0) ? "ok" : rows.length ? "warn" : "bad",
+      status: Number(payload.visible_count || 0) ? "ok" : rows.length ? "warn" : "idle",
       title: numberText(payload.visible_count || 0, 0),
       note: "Symbols with at least one current parsed catalog row.",
     },
@@ -18380,7 +18640,7 @@ function dataDetailActionSummaryModel(detail = {}, timezoneMode = "utc") {
     ? datasets.filter((dataset) => text(dataset.symbol).toUpperCase() === symbol && dataset.path)
     : [];
   if (!opened) {
-    const catalogStatus = datasets.length ? "ok" : "bad";
+    const catalogStatus = datasets.length ? "ok" : "idle";
     const symbolStatus = symbol ? best ? "ok" : "warn" : "warn";
     const note = datasets.length
       ? symbol
@@ -18911,7 +19171,7 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
     $("data-detail-assistant-note").textContent = "Use Jump to Symbol, Symbol Browser, or a catalog row to inspect saved history before simulating.";
     $("data-detail-assistant-cards").innerHTML = [
       {
-        status: "bad",
+        status: "idle",
         title: "No File",
         label: "Readiness",
         note: "No saved dataset is loaded.",
@@ -19192,7 +19452,7 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
       note: `${numberText(symbolCount, 0)} symbols; quality ${countSummary(qualityCounts) || "n/a"} / contract ${countSummary(contractCounts) || "n/a"}.`,
     },
     {
-      status: selectedSymbol ? matchingSymbolFiles.length ? "ok" : "warn" : datasets.length ? "warn" : "bad",
+      status: selectedSymbol ? matchingSymbolFiles.length ? "ok" : "warn" : datasets.length ? "warn" : "idle",
       title: selectedSymbol || "No Symbol",
       label: "Symbol",
       note: selectedSymbol
@@ -19560,7 +19820,7 @@ function dataCompareActionSummaryModel(comparison = {}, timezoneMode = "utc") {
 
   let note = "Select two saved datasets, apply an overlap window if needed, then compare normalized close-return paths.";
   let nextTitle = "Select Files";
-  let nextStatus = datasets.length ? "warn" : "bad";
+  let nextStatus = datasets.length ? "warn" : "idle";
   let nextNote = datasets.length
     ? "Choose at least two catalog files or use Select Shown after filtering."
     : "Refresh or configure saved-data roots so catalog files appear.";
@@ -19606,7 +19866,7 @@ function dataCompareActionSummaryModel(comparison = {}, timezoneMode = "utc") {
         note: `${numberText(visibleCount, 0)} visible under Compare filters.`,
       },
       {
-        status: selectedCount >= 2 ? "ok" : "bad",
+        status: selectedCount >= 2 ? "ok" : "idle",
         label: "Selection",
         title: numberText(selectedCount, 0),
         note: selectedCount
@@ -19756,7 +20016,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
   $("data-compare-assistant-note").textContent = nextAction;
   const cards = [
     {
-      status: selectedCount >= 2 ? "ok" : "bad",
+      status: selectedCount >= 2 ? "ok" : "idle",
       title: numberText(selectedCount, 0),
       label: "Selected",
       note: selectedSymbols.length
@@ -19778,7 +20038,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
         : "Run Compare to measure actual normalized overlap.",
     },
     {
-      status: selectedContractIssues ? "warn" : selectedCount ? "ok" : "bad",
+      status: selectedContractIssues ? "warn" : selectedCount ? "ok" : "idle",
       title: selectedCount ? countSummary(selectedContractCounts) : "n/a",
       label: "Contract",
       note: selectedContractIssues
@@ -19808,7 +20068,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
   $("data-compare-assistant-actions").innerHTML = dataCompareAssistantActionsHtml([
     {
       action: "compare",
-      status: selectedCount >= 2 && hasOverlap ? "ok" : "bad",
+      status: selectedCount >= 2 && hasOverlap ? "ok" : "idle",
       title: "Run Compare",
       note: selectedCount >= 2 ? "Load normalized close-return paths for the selected files." : "Select at least two files first.",
       disabled: selectedCount < 2,
@@ -19822,7 +20082,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
     },
     {
       action: "workbench",
-      status: selectedCount ? (warningCount || selectedContractIssues) ? "warn" : "ok" : "bad",
+      status: selectedCount ? (warningCount || selectedContractIssues) ? "warn" : "ok" : "idle",
       title: "Use In Workbench",
       note: selectedContractIssues
         ? "Send selected datasets only after reviewing storage-contract warnings."
@@ -19838,7 +20098,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
     },
     {
       action: "copy-json",
-      status: selectedCount >= 2 ? "ok" : "bad",
+      status: selectedCount >= 2 ? "ok" : "idle",
       title: "Copy Request JSON",
       note: selectedCount >= 2 ? "Copy the exact compare request payload." : "Select at least two files first.",
       disabled: selectedCount < 2,
@@ -20022,7 +20282,7 @@ function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
       note: `${numberText(comparison.preview_points, 0)} requested points; chart uses sampled paths unless full mode fits.`,
     },
     {
-      status: contractIssues ? "warn" : selected.length ? "ok" : "bad",
+      status: contractIssues ? "warn" : selected.length ? "ok" : "idle",
       title: selected.length ? countSummary(contractCounts) : "n/a",
       label: "Storage Contract",
       note: contractIssues ? "Review selected file metadata before replay." : "Selected files pass current metadata checks.",
@@ -20171,7 +20431,7 @@ function renderFetchHealthPanel(context = {}) {
   const selectedDetail = state.fetchManifestDetail || {};
   const selectedVisibleOutputs = fetchVisibleOutputPaths(selectedDetail);
   const hiddenByFilters = Math.max(0, manifests.length - filteredManifests.length);
-  let status = "bad";
+  let status = "idle";
   let title = "No Fetch Jobs";
   let note = "No dashboard-readable fetch manifests are loaded. Configure manifest roots or run a fetcher that writes JSON manifests.";
   let primaryHref = "#fetch";
@@ -20224,13 +20484,13 @@ function renderFetchHealthPanel(context = {}) {
     {
       label: "Loaded Jobs",
       title: `${numberText(filteredManifests.length, 0)} / ${numberText(manifests.length, 0)}`,
-      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "bad",
+      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "idle",
       detail: hiddenByFilters ? `${numberText(hiddenByFilters, 0)} job${hiddenByFilters === 1 ? "" : "s"} hidden by filters.` : `${numberText(context.rowsTotal || 0, 0)} fetched rows summarized.`,
     },
     {
       label: "Active Jobs",
       title: numberText(activeJobs.length, 0),
-      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "idle",
       detail: activeJobs.length ? "Inspect active/non-terminal manifests before launching another pull." : "No active/non-terminal jobs loaded.",
     },
     {
@@ -20242,7 +20502,7 @@ function renderFetchHealthPanel(context = {}) {
     {
       label: "Output Visibility",
       title: `${numberText(visibleOutputs, 0)} visible`,
-      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      status: outputIssues ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "idle",
       detail: outputIssues ? `${numberText(outputIssues, 0)} missing/outside/no-path/unsupported output issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can be opened from Fetch Detail.",
     },
     {
@@ -20293,7 +20553,7 @@ function fetchActionSummaryModel(context = {}) {
   const focusJob = selectedDetail.job_id
     ? selectedDetail
     : activeJobs[0] || issueJobs[0] || outputIssueJobs[0] || filteredManifests[0] || manifests[0] || null;
-  let status = "bad";
+  let status = "idle";
   let title = "Configure Manifest Roots";
   let note = "No dashboard-readable fetch manifests are loaded. Add manifest roots or run a fetcher that writes JSON manifests.";
   let primaryHref = "#fetch";
@@ -20364,7 +20624,7 @@ function fetchActionSummaryModel(context = {}) {
     },
     {
       label: "Focus Job",
-      status: focusJob ? fetchManifestIssueCount(focusJob) || fetchManifestOutputIssueCount(focusJob) ? "warn" : fetchJobTerminal(focusJob.status) ? "ok" : "warn" : "bad",
+      status: focusJob ? fetchManifestIssueCount(focusJob) || fetchManifestOutputIssueCount(focusJob) ? "warn" : fetchJobTerminal(focusJob.status) ? "ok" : "warn" : "idle",
       title: focusJob ? fetchManifestLabel(focusJob) : "none",
       note: focusJob
         ? `${text(focusJob.status)} / ${text(focusJob.kind)} / rows ${numberText(focusJob.rows, 0)} / activity ${focusJob.last_event_at ? timestampAgeLabel(focusJob.last_event_at) : "n/a"}.`
@@ -20378,7 +20638,7 @@ function fetchActionSummaryModel(context = {}) {
     },
     {
       label: "Output Handoff",
-      status: outputIssueJobs.length ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "bad",
+      status: outputIssueJobs.length ? "warn" : visibleOutputs ? "ok" : manifests.length ? "warn" : "idle",
       title: `${numberText(visibleOutputs, 0)} visible`,
       note: outputIssueJobs.length
         ? `${numberText(outputIssueJobs.length, 0)} job${outputIssueJobs.length === 1 ? "" : "s"} have output-root issues.`
@@ -20459,7 +20719,7 @@ function fetchEvidenceModel(context = {}) {
     : fetchProgressJob(filteredManifests.length ? filteredManifests : manifests);
   const hiddenByFilters = Math.max(0, manifests.length - filteredManifests.length);
   let headline = "No fetch evidence";
-  let headlineStatus = "bad";
+  let headlineStatus = "idle";
   let note = "Configure manifest roots or run a fetcher that writes dashboard-readable JSON manifests.";
   if (!roots.length && rootConfigPaths.length) {
     headline = "Configured roots need manifests";
@@ -20535,7 +20795,7 @@ function fetchEvidenceModel(context = {}) {
         : rootConfigPaths.length ? "Manifest root paths are available to copy into local config, but the current scan has no readable roots." : "No fetch manifest roots are loaded.",
     },
     {
-      status: manifests.length ? "ok" : "bad",
+      status: manifests.length ? "ok" : "idle",
       title: "Manifest Evidence",
       detail: manifests.length
         ? `${numberText(manifests.length, 0)} loaded manifest${manifests.length === 1 ? "" : "s"} across statuses ${countSummary(countBy(manifests, "status"))}; kinds ${countSummary(countBy(manifests, "kind"))}.`
@@ -20552,7 +20812,7 @@ function fetchEvidenceModel(context = {}) {
       detail: `${numberText(visibleOutputs, 0)} Data Library-visible outputs; ${numberText(outputIssues, 0)} output path issues across loaded manifests.`,
     },
     {
-      status: selectedDetail.job_id ? selectedVisibleOutputs.length ? "ok" : "warn" : "bad",
+      status: selectedDetail.job_id ? selectedVisibleOutputs.length ? "ok" : "warn" : "idle",
       title: "Selected Detail",
       detail: selectedDetail.job_id
         ? `${text(selectedDetail.job_id)} selected; ${numberText(selectedVisibleOutputs.length, 0)} visible output paths; resume command ${selectedResume ? "available" : "not available"}.`
@@ -20724,7 +20984,7 @@ function fetchProgressReviewModel(context = {}) {
       note: filteredManifests.length === manifests.length ? "No Fetch Jobs filters are hiding manifests." : `${numberText(Math.max(0, manifests.length - filteredManifests.length), 0)} hidden by filters.`,
     },
     {
-      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "idle",
       label: "Active",
       title: numberText(activeJobs.length, 0),
       note: activeJobs.length ? "Non-terminal manifests are still updating or incomplete." : "No active/non-terminal manifests loaded.",
@@ -20736,7 +20996,7 @@ function fetchProgressReviewModel(context = {}) {
       note: "Partial/failed manifests should be inspected before broad retry.",
     },
     {
-      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "bad",
+      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "idle",
       label: "Retry / Pace",
       title: `${numberText(retryEvents, 0)}R / ${numberText(pacingWaits, 0)}W`,
       note: pacingWaits ? `${interval(pacingSeconds)} total pacing wait time.` : "No retry or pacing pressure reported.",
@@ -20748,7 +21008,7 @@ function fetchProgressReviewModel(context = {}) {
       note: outputIssues ? `${numberText(outputIssues, 0)} output visibility issue${outputIssues === 1 ? "" : "s"}.` : "Visible outputs can be reviewed in Data Library.",
     },
     {
-      status: selectedJob ? selectedIssueCount ? "warn" : selectedActive ? "warn" : "ok" : "bad",
+      status: selectedJob ? selectedIssueCount ? "warn" : selectedActive ? "warn" : "ok" : "idle",
       label: "Review Job",
       title: selectedJob ? fetchManifestLabel(selectedJob) : "none",
       note: selectedJob
@@ -20758,35 +21018,35 @@ function fetchProgressReviewModel(context = {}) {
   ];
   const lines = [
     {
-      status: selectedJob ? selectedActive ? "warn" : selectedIssueCount ? "warn" : "ok" : "bad",
+      status: selectedJob ? selectedActive ? "warn" : selectedIssueCount ? "warn" : "ok" : "idle",
       title: selectedJob ? `Focus job: ${fetchManifestLabel(selectedJob)}` : "No focus job",
       detail: selectedJob
         ? `${rangeLabel(selectedJob.range_start, selectedJob.range_end || selectedJob.duration || selectedJob.months)}; rows ${numberText(selectedJob.rows, 0)}; status ${text(selectedJob.status)}.`
         : "No fetch manifest is loaded; configure roots or run a fetcher that writes JSON manifests.",
     },
     {
-      status: selectedJob && (symbolTotal || symbolDone) ? "ok" : selectedJob ? "warn" : "bad",
+      status: selectedJob && (symbolTotal || symbolDone) ? "ok" : selectedJob ? "warn" : "idle",
       title: "Symbol progress",
       detail: selectedJob
         ? `${fetchProgressPair(symbolDone, symbolTotal)} symbols; ok ${numberText(selectedJob.success_symbols, 0)}, empty ${numberText(selectedJob.empty_symbols, 0)}, failed ${numberText(selectedJob.failed_symbols, 0)}, skipped ${numberText(selectedJob.skipped_symbols, 0)}.`
         : "No symbol progress available.",
     },
     {
-      status: selectedJob && (chunkTotal || chunkDone) ? "ok" : selectedJob ? "warn" : "bad",
+      status: selectedJob && (chunkTotal || chunkDone) ? "ok" : selectedJob ? "warn" : "idle",
       title: "Chunk progress",
       detail: selectedJob
         ? `${fetchProgressPair(chunkDone, chunkTotal)} chunks; ok ${numberText(selectedJob.success_chunks, 0)}, empty ${numberText(selectedJob.empty_chunks, 0)}, failed ${numberText(selectedJob.failed_chunks, 0)}.`
         : "No chunk progress available.",
     },
     {
-      status: selectedJob && (eta || avgChunk || avgSymbol) ? "ok" : selectedJob ? "warn" : "bad",
+      status: selectedJob && (eta || avgChunk || avgSymbol) ? "ok" : selectedJob ? "warn" : "idle",
       title: "ETA and pace",
       detail: selectedJob
         ? [eta ? `ETA ${eta}` : "", avgChunk ? `avg chunk ${avgChunk}` : "", avgSymbol ? `avg symbol ${avgSymbol}` : "", selectedJob.pacing_wait_events ? `${numberText(selectedJob.pacing_wait_events, 0)} waits` : "", selectedJob.retry_events ? `${numberText(selectedJob.retry_events, 0)} retries` : ""].filter(Boolean).join("; ") || "This manifest has no latest ETA or rolling average fields."
         : "No pacing evidence available.",
     },
     {
-      status: selectedJob ? selectedIssueCount ? "warn" : "ok" : "bad",
+      status: selectedJob ? selectedIssueCount ? "warn" : "ok" : "idle",
       title: "Recovery and visibility",
       detail: selectedJob
         ? `Recovery ${text(selectedJob.recovery_status || "n/a")} / ${text(selectedJob.recovery_action || "n/a")}; visible outputs ${numberText(selectedJob.output_visible_count || selectedJob.visible_output_count, 0)}; output issues ${numberText(fetchManifestOutputIssueCount(selectedJob), 0)}.`
@@ -21006,7 +21266,7 @@ function fetchOutputVisibilityHtml(item) {
   const noPath = Number(item.output_no_path_count || 0);
   const unsupported = Number(item.output_unsupported_file_count || 0);
   const issueCount = missing + outside + noPath + unsupported;
-  const status = issueCount ? "warn" : visible ? "ok" : "unknown";
+  const status = issueCount ? "warn" : visible ? "ok" : "idle";
   const detail = [
     `visible ${numberText(visible, 0)}`,
     missing ? `missing ${numberText(missing, 0)}` : "",
@@ -21061,7 +21321,7 @@ function renderFetchTriageCards(context = {}) {
         : "Add dashboard.fetch_manifest_roots or run a fetcher that writes JSON manifests.",
     },
     {
-      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "idle",
       title: numberText(activeJobs.length, 0),
       label: "Active Jobs",
       note: activeJobs.length
@@ -21071,7 +21331,7 @@ function renderFetchTriageCards(context = {}) {
           : "No fetch manifests are loaded.",
     },
     {
-      status: failedJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: failedJobs.length ? "warn" : manifests.length ? "ok" : "idle",
       title: numberText(failedJobs.length, 0),
       label: "Jobs Needing Review",
       note: failedJobs.length
@@ -21081,7 +21341,7 @@ function renderFetchTriageCards(context = {}) {
           : "Load manifests before reviewing failures.",
     },
     {
-      status: outputIssues ? "warn" : outputVisible ? "ok" : manifests.length ? "warn" : "bad",
+      status: outputIssues ? "warn" : outputVisible ? "ok" : manifests.length ? "warn" : "idle",
       title: `${numberText(outputVisible, 0)} visible`,
       label: "Output Visibility",
       note: outputIssues
@@ -21091,7 +21351,7 @@ function renderFetchTriageCards(context = {}) {
           : "Select a manifest to annotate output paths against configured data roots.",
     },
     {
-      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "bad",
+      status: retryEvents || pacingWaits ? "warn" : manifests.length ? "ok" : "idle",
       title: `${numberText(retryEvents, 0)}R / ${numberText(pacingWaits, 0)}W`,
       label: "Retries / Waits",
       note: pacingWaits
@@ -21153,7 +21413,7 @@ function fetchWorkflowCards(context = {}) {
       label: "Monitor Jobs",
       title: activeJobs.length ? `${numberText(activeJobs.length, 0)} active` : manifests.length ? "No Active" : "No Jobs",
       value: `${numberText(filteredManifests.length, 0)} shown`,
-      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: activeJobs.length ? "warn" : manifests.length ? "ok" : "idle",
       detail: activeJobs.length
         ? "Inspect active/non-terminal jobs before starting another fetch."
         : manifests.length ? "Use the Jobs lens to scan completed and failed fetches." : "No fetch manifest rows are loaded.",
@@ -21164,7 +21424,7 @@ function fetchWorkflowCards(context = {}) {
       label: "Recover Failures",
       title: detail.job_id ? text(detail.recovery_status || detail.status || "selected") : jobsNeedingReview.length ? `${numberText(jobsNeedingReview.length, 0)} review` : "No Detail",
       value: detail.job_id && resumeCommand ? "resume ready" : `${numberText(retryEvents, 0)}R/${numberText(pacingWaits, 0)}W`,
-      status: detail.job_id ? selectedHasFailures ? resumeCommand ? "ok" : "warn" : "ok" : jobsNeedingReview.length ? "warn" : manifests.length ? "ok" : "bad",
+      status: detail.job_id ? selectedHasFailures ? resumeCommand ? "ok" : "warn" : "ok" : jobsNeedingReview.length ? "warn" : manifests.length ? "ok" : "idle",
       detail: detail.job_id
         ? selectedHasFailures ? "Selected job has failed work; review recovery plan and copy resume command when available." : "Selected job has no summarized failed symbols/chunks."
         : jobsNeedingReview.length ? "Open a job with failures or output issues to see recovery guidance." : "No loaded job currently reports recovery pressure.",
@@ -21186,7 +21446,7 @@ function fetchWorkflowCards(context = {}) {
       label: "Open Saved Data",
       title: visibleOutputPaths.length ? "Ready" : "Needs Visible Outputs",
       value: visibleOutputPaths.length ? `${numberText(visibleOutputPaths.length, 0)} files` : "none selected",
-      status: visibleOutputPaths.length ? "ok" : detail.job_id ? "warn" : "bad",
+      status: visibleOutputPaths.length ? "ok" : detail.job_id ? "warn" : "idle",
       detail: visibleOutputPaths.length
         ? "Use Show Outputs in Data Library, Compare Outputs, or Copy Output Paths from Fetch Detail."
         : "Select a job with Data Library-visible output files first.",
@@ -21254,7 +21514,7 @@ function renderFetchJobsGuide(context = {}) {
           : "Add dashboard.fetch_manifest_roots or run a fetcher that writes JSON manifests.",
     },
     {
-      status: manifests.length ? "ok" : existingRoots.length ? "warn" : "bad",
+      status: manifests.length ? "ok" : existingRoots.length ? "warn" : "idle",
       label: "Load Jobs",
       detail: manifests.length
         ? `${numberText(manifests.length, 0)} job${manifests.length === 1 ? "" : "s"} loaded; ${numberText(activeJobs.length, 0)} active and ${numberText(terminalJobs.length, 0)} terminal.`
@@ -21263,7 +21523,7 @@ function renderFetchJobsGuide(context = {}) {
           : "No readable manifest roots are available.",
     },
     {
-      status: !manifests.length ? "bad" : failedJobs.length ? "warn" : "ok",
+      status: !manifests.length ? "idle" : failedJobs.length ? "warn" : "ok",
       label: "Review Failures",
       detail: !manifests.length
         ? "No jobs loaded to review."
@@ -21272,7 +21532,7 @@ function renderFetchJobsGuide(context = {}) {
           : "No loaded job reports errors or failed chunks.",
     },
     {
-      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "bad",
+      status: filteredManifests.length ? "ok" : manifests.length ? "warn" : "idle",
       label: "Find a Job",
       detail: filteredManifests.length
         ? `${numberText(filteredManifests.length, 0)} job${filteredManifests.length === 1 ? "" : "s"} match the current search/filter.`
@@ -21281,7 +21541,7 @@ function renderFetchJobsGuide(context = {}) {
           : "Load manifests before filtering.",
     },
     {
-      status: detail.job_id ? (outputTotal ? "ok" : "warn") : manifests.length ? "warn" : "bad",
+      status: detail.job_id ? (outputTotal ? "ok" : "warn") : manifests.length ? "warn" : "idle",
       label: "Inspect Outputs",
       detail: detail.job_id
         ? outputTotal
@@ -21292,7 +21552,7 @@ function renderFetchJobsGuide(context = {}) {
           : "No job is available to inspect.",
     },
     {
-      status: !detail.job_id ? "warn" : visibleOutputPaths.length ? "ok" : outputTotal ? "warn" : "bad",
+      status: !detail.job_id ? "warn" : visibleOutputPaths.length ? "ok" : outputTotal ? "warn" : "idle",
       label: "Open Saved Data",
       detail: !detail.job_id
         ? "Select a job first; visible output files can jump directly into Data Library."
@@ -21753,7 +22013,7 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
       : hasFailures
         ? "Review errors and rerun with the same inputs after fixing the cause."
         : "No failed symbols or chunks recorded.");
-  const coverageStatus = failedSymbols > 0 ? "warn" : successSymbols > 0 ? "ok" : "bad";
+  const coverageStatus = failedSymbols > 0 ? "warn" : successSymbols > 0 ? "ok" : "idle";
   const visibilityStatus = !outputTotal
     ? "bad"
     : missingOutputs || outsideOutputs || noPathOutputs || unsupportedOutputs
@@ -21882,7 +22142,7 @@ function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) 
       : "This manifest kind is not resumable through the generic resume command.",
   });
   steps.push({
-    status: visibleOutputPaths.length ? "ok" : Number(detail.output_total || 0) ? "warn" : "bad",
+    status: visibleOutputPaths.length ? "ok" : Number(detail.output_total || 0) ? "warn" : "idle",
     label: visibleOutputPaths.length ? "Review visible outputs" : "No visible outputs",
     detail: visibleOutputPaths.length
       ? `Show ${numberText(visibleOutputPaths.length, 0)} Data Library-visible output${visibleOutputPaths.length === 1 ? "" : "s"} as a filtered saved-data set.`
@@ -22377,7 +22637,7 @@ function renderConfigBuilderReadiness() {
         : "Choose one or more Data Library files.",
     },
     {
-      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "idle",
       title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
       label: "Alignment",
       note: alignment.dataset_count
@@ -22393,7 +22653,7 @@ function renderConfigBuilderReadiness() {
         : text(plugin.boundary || "Private/local plugin metadata loaded from registry."),
     },
     {
-      status: mode ? "ok" : "bad",
+      status: mode ? "ok" : "idle",
       title: text(mode),
       label: "Mode",
       note: dateRange.start || dateRange.end
@@ -22413,7 +22673,7 @@ function renderConfigBuilderReadiness() {
       note: "Simulated slippage and commission basis points.",
     },
     {
-      status: draft.yaml ? draftValid ? "ok" : "warn" : "bad",
+      status: draft.yaml ? draftValid ? "ok" : "warn" : "idle",
       title: draft.yaml ? draftValid ? "Valid" : "Review" : "Not Generated",
       label: "Draft",
       note: draft.yaml
@@ -22467,7 +22727,7 @@ function renderWorkbenchBuilderAssistant() {
   $("workbench-builder-assistant-note").textContent = note;
   const cards = [
     {
-      status: selected.length ? dataReviewBlocked ? "warn" : "ok" : "bad",
+      status: selected.length ? dataReviewBlocked ? "warn" : "ok" : "idle",
       label: "Data",
       title: numberText(selected.length, 0),
       note: selected.length
@@ -22475,13 +22735,13 @@ function renderWorkbenchBuilderAssistant() {
         : "No saved files selected.",
     },
     {
-      status: plugin.id ? plugin.visibility === "public_example" ? "warn" : "ok" : "bad",
+      status: plugin.id ? plugin.visibility === "public_example" ? "warn" : "ok" : "idle",
       label: "Plugin",
       title: text(plugin.label || plugin.id),
       note: plugin.id ? text(plugin.visibility || plugin.boundary || "registry loaded") : "No plugin selected.",
     },
     {
-      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "bad",
+      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "idle",
       label: "Alignment",
       title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
       note: alignment.dataset_count ? `${pctText(alignment.common_coverage_pct)} common coverage.` : "Alignment has not been previewed.",
@@ -22493,7 +22753,7 @@ function renderWorkbenchBuilderAssistant() {
       note: draft.yaml ? savedPath ? "Saved draft path exists." : "Generated draft is not saved." : "Generate YAML and local commands.",
     },
     {
-      status: draftValid && savedPath ? "ok" : draftValid ? "warn" : "bad",
+      status: draftValid && savedPath ? "ok" : draftValid ? "warn" : "idle",
       label: "Run",
       title: draftValid && savedPath ? "Ready" : "Not Ready",
       note: draftValid && savedPath ? "Open Run to execute or validate saved drafts." : "Run requires a valid saved draft.",
@@ -22610,7 +22870,7 @@ function renderWorkbenchRunCommands() {
     : "Select a saved draft to copy local plugin-runner commands.";
   const cards = [
     {
-      status: draft ? "ok" : "bad",
+      status: draft ? "ok" : "idle",
       title: draft ? text(draft.draft_id) : "No draft",
       label: "Selected Draft",
       note: draft && draft.path ? `Local YAML: ${text(draft.path)}` : "Generate and save a draft before running.",
@@ -22700,7 +22960,7 @@ function renderConfigCompatibility() {
       next: "Refresh the dashboard server so config_options includes all schema versions.",
     },
     {
-      status: plugin.id ? visibility === "public_example" ? "warn" : "ok" : "bad",
+      status: plugin.id ? visibility === "public_example" ? "warn" : "ok" : "idle",
       title: text(plugin.label || plugin.id),
       label: "Plugin",
       note: `${text(visibility)}; ${numberText(strategyFields.length, 0)} public-safe field${strategyFields.length === 1 ? "" : "s"}.`,
@@ -22709,7 +22969,7 @@ function renderConfigCompatibility() {
         : "Choose a configured Workbench plugin.",
     },
     {
-      status: !selected.length ? "bad" : contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad") ? "bad" : (qualityIssues.length && !allowQualityWarnings) || contractIssues.length ? "warn" : "ok",
+      status: !selected.length ? "idle" : contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad") ? "bad" : (qualityIssues.length && !allowQualityWarnings) || contractIssues.length ? "warn" : "ok",
       title: selected.length ? numberText(selected.length, 0) : "None",
       label: "Data",
       note: selected.length
@@ -22722,7 +22982,7 @@ function renderConfigCompatibility() {
     {
       status: alignment.dataset_count
         ? commonTimestamps > 0 ? alignmentWarnings ? "warn" : "ok" : "bad"
-        : selected.length ? "warn" : "bad",
+        : selected.length ? "warn" : "idle",
       title: alignment.dataset_count ? numberText(commonTimestamps, 0) : "Preview",
       label: "Alignment",
       note: alignment.dataset_count
@@ -22899,7 +23159,7 @@ function renderWorkbenchTriage() {
   const failedRuns = runs.filter((run) => run.status === "failed" || run.status === "timeout");
   const completedRuns = runs.filter((run) => run.status === "completed");
   const selectedHasArtifacts = Boolean(latestRun && latestRun.artifact_path);
-  let nextStatus = "bad";
+  let nextStatus = "idle";
   let nextTitle = "Generate";
   let nextNote = "Select saved data and generate a local draft.";
   if (selectedDraft) {
@@ -22931,7 +23191,7 @@ function renderWorkbenchTriage() {
   }
   const cards = [
     {
-      status: drafts.length ? uncheckedCount ? "warn" : "ok" : "bad",
+      status: drafts.length ? uncheckedCount ? "warn" : "ok" : "idle",
       title: numberText(drafts.length, 0),
       label: "Drafts",
       note: drafts.length
@@ -22939,7 +23199,7 @@ function renderWorkbenchTriage() {
         : "No saved drafts; generate one from the Config Builder.",
     },
     {
-      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "bad",
+      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "idle",
       title: validations.length ? `${numberText(validations.length - invalidCount, 0)} valid` : "Not Checked",
       label: "Validation",
       note: validations.length
@@ -22947,7 +23207,7 @@ function renderWorkbenchTriage() {
         : "Click Validate Drafts before running saved configs.",
     },
     {
-      status: runs.length ? failedRuns.length ? "warn" : "ok" : "bad",
+      status: runs.length ? failedRuns.length ? "warn" : "ok" : "idle",
       title: numberText(runs.length, 0),
       label: "Runs",
       note: runs.length
@@ -22955,7 +23215,7 @@ function renderWorkbenchTriage() {
         : "No validate/replay/simulated-paper runs recorded yet.",
     },
     {
-      status: selectedDraft ? selectedValidation && !selectedValidation.valid ? "bad" : "ok" : "bad",
+      status: selectedDraft ? selectedValidation && !selectedValidation.valid ? "bad" : "ok" : "idle",
       title: text(selectedDraftId),
       label: "Selected Draft",
       note: selectedDraft
@@ -22971,7 +23231,7 @@ function renderWorkbenchTriage() {
         : "Run the selected draft to create comparable artifacts.",
     },
     {
-      status: artifacts.run_id || artifacts.draft_id ? "ok" : selectedHasArtifacts ? "warn" : "bad",
+      status: artifacts.run_id || artifacts.draft_id ? "ok" : selectedHasArtifacts ? "warn" : "idle",
       title: artifacts.run_id || artifacts.draft_id ? "Loaded" : selectedHasArtifacts ? "Available" : "Missing",
       label: "Artifacts",
       note: artifacts.run_id || artifacts.draft_id
@@ -23042,31 +23302,31 @@ function workbenchDraftInventoryModel() {
   }
   const cards = [
     {
-      status: drafts.length ? "ok" : "bad",
+      status: drafts.length ? "ok" : "idle",
       label: "Drafts",
       title: numberText(drafts.length, 0),
       note: Object.keys(folders).length ? `Folders: ${countSummary(folders)}.` : "No draft folders loaded.",
     },
     {
-      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "bad",
+      status: validations.length ? invalidCount ? "bad" : "ok" : drafts.length ? "warn" : "idle",
       label: "Validation",
       title: `${numberText(validCount, 0)} valid`,
       note: validations.length ? `${numberText(invalidCount, 0)} invalid; ${numberText(uncheckedDrafts.length, 0)} unchecked.` : "Click Validate Drafts to populate validation state.",
     },
     {
-      status: runnableDrafts.length ? "ok" : drafts.length ? "warn" : "bad",
+      status: runnableDrafts.length ? "ok" : drafts.length ? "warn" : "idle",
       label: "Runnable",
       title: numberText(runnableDrafts.length, 0),
       note: "Drafts with passing saved-draft validation.",
     },
     {
-      status: runs.length ? failedRuns.length ? "warn" : "ok" : drafts.length ? "warn" : "bad",
+      status: runs.length ? failedRuns.length ? "warn" : "ok" : drafts.length ? "warn" : "idle",
       label: "Runs",
       title: numberText(runs.length, 0),
       note: `${numberText(completedRuns.length, 0)} completed; ${numberText(failedRuns.length, 0)} failed/timeout; ${numberText(draftIdsWithRuns.size, 0)} draft IDs with runs.`,
     },
     {
-      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "bad",
+      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "idle",
       label: "Selected",
       title: selectedDraft ? text(selectedDraft.draft_id) : "None",
       note: selectedDraft
@@ -23074,7 +23334,7 @@ function workbenchDraftInventoryModel() {
         : "Choose a saved draft in the Run form.",
     },
     {
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "idle",
       label: "Selected Latest",
       title: latestRun ? text(latestRun.status) : "No run",
       note: latestRun ? `${text(latestRun.action)} ${timestampAgeLabel(latestRun.finished_at || latestRun.started_at)}.` : "No run recorded for the selected draft.",
@@ -23082,22 +23342,22 @@ function workbenchDraftInventoryModel() {
   ];
   const lines = [
     {
-      status: drafts.length ? "ok" : "bad",
+      status: drafts.length ? "ok" : "idle",
       title: "Draft organization",
       detail: drafts.length ? `Folders ${countSummary(folders)}; statuses ${countSummary(statuses)}; top tags ${topTags || "none"}.` : "No saved drafts are available yet.",
     },
     {
-      status: uncheckedDrafts.length ? "warn" : invalidCount ? "bad" : validations.length ? "ok" : drafts.length ? "warn" : "bad",
+      status: uncheckedDrafts.length ? "warn" : invalidCount ? "bad" : validations.length ? "ok" : drafts.length ? "warn" : "idle",
       title: "Validation coverage",
       detail: validations.length ? `${numberText(validations.length, 0)} checked at ${text((state.draftValidations || {}).generated_at)}; ${numberText(uncheckedDrafts.length, 0)} unchecked.` : "No saved-draft validation results are loaded in this session.",
     },
     {
-      status: failedRuns.length ? "warn" : runs.length ? "ok" : drafts.length ? "warn" : "bad",
+      status: failedRuns.length ? "warn" : runs.length ? "ok" : drafts.length ? "warn" : "idle",
       title: "Run coverage",
       detail: runs.length ? `${numberText(completedRuns.length, 0)} completed and ${numberText(failedRuns.length, 0)} failed/timeout runs; ${numberText(draftIdsWithRuns.size, 0)} draft IDs have run evidence.` : "No saved draft runs have been recorded yet.",
     },
     {
-      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "bad",
+      status: selectedDraft ? selectedValidation && selectedValidation.valid === false ? "bad" : selectedValidation ? "ok" : "warn" : "idle",
       title: "Selected draft next step",
       detail: selectedDraft
         ? selectedValidation
@@ -23207,7 +23467,7 @@ function workbenchRunReadinessModel() {
   if (maxSteps !== null && maxSteps <= 0) blockers.push("Max steps must be positive.");
   if (timeoutSeconds !== null && timeoutSeconds <= 0) blockers.push("Timeout must be positive.");
 
-  let status = "bad";
+  let status = selectedDraft ? "bad" : "idle";
   let title = "Blocked";
   let note = blockers.join(" ");
   let primaryAction = "select";
@@ -23229,7 +23489,7 @@ function workbenchRunReadinessModel() {
 
   const cards = [
     {
-      status: selectedDraft ? "ok" : "bad",
+      status: selectedDraft ? "ok" : "idle",
       label: "Draft",
       title: selectedDraft ? text(selectedDraft.draft_id) : "Missing",
       note: selectedDraft
@@ -23237,7 +23497,7 @@ function workbenchRunReadinessModel() {
         : "Save a generated draft, then select it here.",
     },
     {
-      status: validation ? validation.valid ? "ok" : "bad" : selectedDraft ? "warn" : "bad",
+      status: validation ? validation.valid ? "ok" : "bad" : selectedDraft ? "warn" : "idle",
       label: "Validation",
       title: validation ? validation.valid ? "Valid" : "Invalid" : "Unchecked",
       note: validation
@@ -23251,7 +23511,7 @@ function workbenchRunReadinessModel() {
       note: `Max steps ${maxSteps === null ? "default" : numberText(maxSteps, 0)}; timeout ${timeoutSeconds === null ? "default" : numberText(timeoutSeconds, 0)} seconds.`,
     },
     {
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "idle",
       label: "Latest Run",
       title: latestRun ? text(latestRun.status) : "None",
       note: latestRun
@@ -23259,7 +23519,7 @@ function workbenchRunReadinessModel() {
         : "No recorded run for this draft yet.",
     },
     {
-      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle",
       label: "Results",
       title: loadedSameRun || loadedSameDraft ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
       note: loadedSameRun || loadedSameDraft
@@ -23371,7 +23631,7 @@ function workbenchResultModel() {
   const artifacts = state.configArtifacts || {};
   const loadedSameRun = Boolean(latestRun && artifacts.run_id && artifacts.run_id === latestRun.run_id);
   const loadedSameDraft = Boolean(selectedDraftId && artifacts.draft_id && artifacts.draft_id === selectedDraftId);
-  let status = "bad";
+  let status = "idle";
   let title = "Select Draft";
   let note = "Choose a saved draft, validate it, then run replay or simulated paper.";
   if (selectedDraft) {
@@ -23408,19 +23668,19 @@ function workbenchResultModel() {
   const canOpenPerformance = Boolean(selectedDraftId && latestRun && latestRun.action !== "validate" && latestRun.status === "completed");
   const cards = [
     {
-      status: selectedDraft ? validation && validation.valid === false ? "bad" : "ok" : "bad",
+      status: selectedDraft ? validation && validation.valid === false ? "bad" : "ok" : "idle",
       label: "Selected Draft",
       title: selectedDraft ? text(selectedDraft.draft_id) : "None",
       note: selectedDraft ? `${text(selectedDraft.mode)} / ${(selectedDraft.symbols || []).join(", ") || "no symbols"}` : "Select a saved draft in Run Draft.",
     },
     {
-      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "bad",
+      status: latestRun ? latestRun.status === "completed" ? "ok" : "warn" : selectedDraft ? "warn" : "idle",
       label: "Latest Run",
       title: latestRun ? text(latestRun.action) : "None",
       note: latestRun ? `${text(latestRun.run_id)} / ${text(latestRun.status)}` : "No run recorded for the selected draft.",
     },
     {
-      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "bad",
+      status: loadedSameRun || loadedSameDraft ? "ok" : latestRun && latestRun.artifact_path ? "warn" : "idle",
       label: "Artifacts",
       title: loadedSameRun || loadedSameDraft ? "Loaded" : latestRun && latestRun.artifact_path ? "Available" : "Missing",
       note: loadedSameRun || loadedSameDraft
@@ -23430,7 +23690,7 @@ function workbenchResultModel() {
           : "No artifact path is visible for this run.",
     },
     {
-      status: latestRun && latestRun.status === "completed" ? "ok" : latestRun ? "warn" : "bad",
+      status: latestRun && latestRun.status === "completed" ? "ok" : latestRun ? "warn" : "idle",
       label: "Activity",
       title: latestRun ? `${numberText(summary.fills, 0)} fills` : "n/a",
       note: latestRun
@@ -23657,7 +23917,7 @@ function renderComparisonSummaryCards(runs, allRuns) {
   const rejects = comparisonTotal(runs, "rejections");
   const modes = new Set(runs.map((runItem) => text(runItem.mode)).filter((value) => value !== "n/a")).size;
   const drafts = new Set(runs.map((runItem) => text(runItem.draft_id)).filter((value) => value !== "n/a")).size;
-  let nextStatus = "bad";
+  let nextStatus = "idle";
   let nextTitle = "No Runs";
   let nextNote = "Run a Workbench replay or simulated-paper draft to create comparable summaries.";
   if (runs.length && !summarized.length) {
@@ -23796,7 +24056,7 @@ function renderRunDetail() {
   if ($("run-evidence-cards")) {
     const cards = evidence.evidence_cards || [
       {
-        status: detail.run_id ? statusClass(detail.status).replace("status-", "") || "warn" : "bad",
+        status: detail.run_id ? statusClass(detail.status).replace("status-", "") || "warn" : "idle",
         label: "Execution",
         title: detail.run_id ? text(detail.status) : "No Run",
         note: detail.run_id ? `Return code ${text(detail.returncode)}.` : "Select a run from Workbench or Runs.",
@@ -24539,7 +24799,7 @@ function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {
   const unlabeledFields = finiteNumber(pluginSummary.unlabeled_public_key_count) || 0;
   const rollupCount = ((performanceRollups || {}).rollups || []).length;
   const hasLog = Boolean(state.runDetail && (state.runDetail.run_id === artifacts.run_id || state.runDetail.draft_id === artifacts.draft_id));
-  let status = "bad";
+  let status = "idle";
   let title = "Load Artifacts";
   let note = "Open Results or Artifacts from a completed Workbench run.";
   if (hasArtifacts) {
@@ -24551,7 +24811,7 @@ function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {
   }
   const cards = [
     {
-      status: hasArtifacts ? "ok" : "bad",
+      status: hasArtifacts ? "ok" : "idle",
       title: hasArtifacts ? runId : "None",
       label: "Loaded Run",
       note: hasArtifacts ? `${draftId}; output ${text(artifacts.output_dir)}.` : "No run artifact payload is loaded.",
@@ -24577,7 +24837,7 @@ function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {
         : declaredFields ? "Declared result fields are available for this artifact." : "No public-safe result_fields metadata declared.",
     },
     {
-      status: rollupCount ? "ok" : hasArtifacts ? "warn" : "bad",
+      status: rollupCount ? "ok" : hasArtifacts ? "warn" : "idle",
       title: numberText(rollupCount, 0),
       label: "Rollups",
       note: rollupCount ? "Runner-owned daily rollups are loaded." : "No performance_rollups.json data loaded.",
@@ -24649,7 +24909,7 @@ function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts 
   const declaredFields = finiteNumber(pluginSummary.declared_field_count) || ((artifacts.plugin || {}).result_fields || []).length;
   const unlabeledKeys = finiteNumber(pluginSummary.unlabeled_public_key_count) || 0;
   const rollups = ((artifacts.performance_rollups || {}).rollups || []).length;
-  let status = "bad";
+  let status = "idle";
   let title = "Load Latest Artifact";
   let note = savedRuns.length
     ? `${numberText(savedRuns.length, 0)} saved run${savedRuns.length === 1 ? "" : "s"} are available; load one before reading artifact detail.`
@@ -24670,13 +24930,13 @@ function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts 
   const cards = [
     {
       label: "Artifact State",
-      status: loaded ? "ok" : loadableRun ? "warn" : "bad",
+      status: loaded ? "ok" : loadableRun ? "warn" : "idle",
       title: loaded ? "Loaded" : loadableRun ? "Available" : "Missing",
       note: loaded ? `${draftId} / ${runId}` : loadableRun ? "Completed run exists but is not loaded." : "No completed run artifact is available.",
     },
     {
       label: "Result",
-      status: returnPct === null ? loaded ? "warn" : "bad" : returnPct >= 0 ? "ok" : "bad",
+      status: returnPct === null ? loaded ? "warn" : "idle" : returnPct >= 0 ? "ok" : "bad",
       title: loaded ? pctText(returnPct) : "n/a",
       note: loaded ? `Drawdown ${pctText(drawdownPct)}; ${numberText(accountRows, 0)} account snapshot${accountRows === 1 ? "" : "s"}.` : "Load artifacts for return and drawdown.",
     },
@@ -24688,13 +24948,13 @@ function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts 
     },
     {
       label: "Plugin Evidence",
-      status: unlabeledKeys ? "warn" : emittedFields ? "ok" : declaredFields ? "warn" : loaded ? "warn" : "bad",
+      status: unlabeledKeys ? "warn" : emittedFields ? "ok" : declaredFields ? "warn" : loaded ? "warn" : "idle",
       title: declaredFields ? `${numberText(emittedFields, 0)} / ${numberText(declaredFields, 0)}` : "none",
       note: unlabeledKeys ? `${numberText(unlabeledKeys, 0)} public keys lack declared labels.` : "Declared result fields drive the plugin result cards below.",
     },
     {
       label: "Logs / Rollups",
-      status: logsLoaded && rollups ? "ok" : loaded ? "warn" : "bad",
+      status: logsLoaded && rollups ? "ok" : loaded ? "warn" : "idle",
       title: `${logsLoaded ? "log" : "no log"} / ${numberText(rollups, 0)} rollups`,
       note: logsLoaded ? "Bounded stdout/stderr evidence is loaded." : "Open Log for bounded stdout/stderr and artifact evidence.",
     },
@@ -25338,7 +25598,7 @@ function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
     },
     {
       label: "Freshness",
-      status: staleRuns.length ? "warn" : visibleRuns.length ? "ok" : "bad",
+      status: staleRuns.length ? "warn" : visibleRuns.length ? "ok" : "idle",
       title: Number.isFinite(newestAge) ? age(newestAge) : "n/a",
       note: staleRuns.length
         ? `${numberText(staleRuns.length, 0)} visible run${staleRuns.length === 1 ? "" : "s"} marked stale.`
@@ -25489,7 +25749,7 @@ function renderRunsTriage() {
   const rejectedOrders = events.filter((event) => event.type === "order" && eventStatusIsBad(event));
   const latestEvent = events[0] || null;
   const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
-  let nextStatus = "bad";
+  let nextStatus = "idle";
   let nextTitle = "Start Runner";
   let nextNote = "No run telemetry is currently published.";
   if (runs.length) {
@@ -25521,7 +25781,7 @@ function renderRunsTriage() {
   }
   const cards = [
     {
-      status: runs.length ? "ok" : history.length ? "warn" : "bad",
+      status: runs.length ? "ok" : history.length ? "warn" : "idle",
       title: numberText(runs.length, 0),
       label: "Published Runs",
       note: latestRun
@@ -25547,7 +25807,7 @@ function renderRunsTriage() {
         : "Latest selected/current account source is flat or missing.",
     },
     {
-      status: events.length ? rejectedOrders.length ? "warn" : "ok" : runs.length ? "warn" : "bad",
+      status: events.length ? rejectedOrders.length ? "warn" : "ok" : runs.length ? "warn" : "idle",
       title: numberText(events.length, 0),
       label: "Recent Events",
       note: latestEvent
@@ -25606,7 +25866,7 @@ function renderRunsReviewPanel() {
   const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
   const savedRuns = (state.configRuns && state.configRuns.runs) || [];
   const accountRow = latestAccountRow(source.account || []);
-  let status = "bad";
+  let status = "idle";
   let title = "No Current Run";
   let note = "No current published run telemetry is available. Start/publish a runner or load a saved Workbench artifact.";
   let primaryHref = "#operations/paper";
@@ -25675,7 +25935,7 @@ function renderRunsReviewPanel() {
     {
       label: "Account State",
       title: positions.length ? `${numberText(positions.length, 0)} positions` : source.has_data ? "flat/unknown" : "missing",
-      status: positions.length ? "warn" : source.has_data ? "ok" : "bad",
+      status: positions.length ? "warn" : source.has_data ? "ok" : "idle",
       detail: source.account && source.account.length
         ? `Latest account ${shortTimestampAgeLabel(accountRow.timestamp)} from ${text(source.label)}.`
         : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "No account source loaded.",
@@ -25695,7 +25955,7 @@ function renderRunsReviewPanel() {
     {
       label: "Artifacts",
       title: artifactLoaded ? "loaded" : savedRuns.length ? "available" : "missing",
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
       detail: artifactLoaded
         ? "Charts, logs, decisions, fills, and account rows can be inspected."
         : savedRuns.length ? "Load a saved run artifact for detailed evidence." : "Run or load a Workbench artifact for richer detail.",
@@ -25733,7 +25993,7 @@ function runsActionSummaryModel() {
   const latestRun = runs[0] || null;
   const latestMetrics = normalizedRunMetrics(latestRun);
   const latestEvent = events[0] || null;
-  let status = "bad";
+  let status = "idle";
   let title = "Start With State";
   let note = "No current run payload is publishing. Start a runner or load a saved artifact before inspecting results.";
   let primaryHref = "#operations/paper";
@@ -25798,7 +26058,7 @@ function runsActionSummaryModel() {
     },
     {
       label: "Current Run",
-      status: runs.length ? (latestRun && (latestRun.freshness || {}).stale ? "warn" : "ok") : savedRuns.length || artifactLoaded ? "warn" : "bad",
+      status: runs.length ? (latestRun && (latestRun.freshness || {}).stale ? "warn" : "ok") : savedRuns.length || artifactLoaded ? "warn" : "idle",
       title: runs.length ? text(latestRun.id) : artifactLoaded ? "artifact" : savedRuns.length ? `${numberText(savedRuns.length, 0)} saved` : "none",
       note: latestRun
         ? `${text(latestRun.status)} / ${text(latestMetrics.mode)} / age ${age((latestRun.freshness || {}).age_seconds)}.`
@@ -25806,7 +26066,7 @@ function runsActionSummaryModel() {
     },
     {
       label: "Account Boundary",
-      status: orders.length || positions.length ? "warn" : source.has_data ? "ok" : "bad",
+      status: orders.length || positions.length ? "warn" : source.has_data ? "ok" : "idle",
       title: `${numberText(orders.length, 0)} orders / ${numberText(positions.length, 0)} pos`,
       note: source.has_data
         ? `${text(source.label || source.source_type)} is the selected/current account source.`
@@ -25814,7 +26074,7 @@ function runsActionSummaryModel() {
     },
     {
       label: "Event Pressure",
-      status: badEvents.length ? "bad" : fills.length ? "ok" : orderEvents.length ? "warn" : decisions.length ? "ok" : runs.length ? "warn" : "bad",
+      status: badEvents.length ? "bad" : fills.length ? "ok" : orderEvents.length ? "warn" : decisions.length ? "ok" : runs.length ? "warn" : "idle",
       title: `${numberText(decisions.length, 0)}D / ${numberText(orderEvents.length, 0)}O / ${numberText(fills.length, 0)}F`,
       note: latestEvent
         ? `Latest ${text(latestEvent.type)} ${text(latestEvent.status)} ${text(latestEvent.symbol)}.`
@@ -25822,7 +26082,7 @@ function runsActionSummaryModel() {
     },
     {
       label: "Artifact Depth",
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
       title: artifactLoaded ? "loaded" : savedRuns.length ? "available" : "missing",
       note: artifactLoaded
         ? `${numberText((artifacts.decisions || []).length, 0)} decisions / ${numberText((artifacts.orders || []).length, 0)} orders / ${numberText((artifacts.fills || []).length, 0)} fills.`
@@ -25900,7 +26160,7 @@ function runsEvidenceModel() {
   ].filter(Boolean);
   const latestRun = runs[0] || null;
   const latestMetrics = normalizedRunMetrics(latestRun);
-  let statusValue = "bad";
+  let statusValue = "idle";
   let headline = "No run evidence loaded";
   let next = { action: "state", label: "Review State" };
   let note = "Publish runner telemetry or load saved Workbench artifacts before trusting run evidence.";
@@ -25969,7 +26229,7 @@ function runsEvidenceModel() {
       note: execution.note,
     },
     {
-      status: accountRows.length || artifactAccountRows.length ? positions.length ? "warn" : "ok" : source.has_data ? "warn" : "bad",
+      status: accountRows.length || artifactAccountRows.length ? positions.length ? "warn" : "ok" : source.has_data ? "warn" : "idle",
       label: "Account Proof",
       title: accountRows.length || artifactAccountRows.length ? `${numberText(Math.max(accountRows.length, artifactAccountRows.length), 0)} rows` : "Missing",
       note: accountRows.length
@@ -25977,7 +26237,7 @@ function runsEvidenceModel() {
         : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "No selected/current account source.",
     },
     {
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
       label: "Artifact Proof",
       title: artifactLoaded ? "Loaded" : savedRuns.length ? "Available" : "Missing",
       note: artifactLoaded
@@ -26021,7 +26281,7 @@ function runsEvidenceModel() {
       detail: `${text(source.label || source.source_type)}; ${numberText(accountRows.length || artifactAccountRows.length, 0)} account row${(accountRows.length || artifactAccountRows.length) === 1 ? "" : "s"}; ${numberText(orders.length, 0)} non-terminal order event${orders.length === 1 ? "" : "s"}; ${numberText(positions.length, 0)} position${positions.length === 1 ? "" : "s"}.`,
     },
     {
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
       title: "Artifact Evidence",
       detail: artifactLoaded
         ? `${numberText(artifactDecisionRows.length, 0)} decisions, ${numberText(artifactOrderRows.length, 0)} orders, ${numberText(artifactFillRows.length, 0)} fills, ${numberText(artifactAccountRows.length, 0)} account rows, ${numberText(artifactRollups.length, 0)} rollup rows, ${numberText(artifactLogs.length, 0)} logs.`
@@ -26130,7 +26390,7 @@ function runsWorkflowCards() {
       label: "Open Orders",
       title: orders.length ? `${numberText(orders.length, 0)} Open` : "No Open Orders",
       value: rejectedOrders.length ? `${numberText(rejectedOrders.length, 0)} rejects` : "orders clear",
-      status: rejectedOrders.length ? "bad" : orders.length ? "warn" : runs.length || artifactLoaded ? "ok" : "bad",
+      status: rejectedOrders.length ? "bad" : orders.length ? "warn" : runs.length || artifactLoaded ? "ok" : "idle",
       detail: rejectedOrders.length
         ? "Rejected or canceled order telemetry is present; inspect broker/account state before trusting the run."
         : orders.length ? "Non-terminal order telemetry is visible; reconcile it with broker state." : "No recent non-terminal order telemetry is visible.",
@@ -26152,7 +26412,7 @@ function runsWorkflowCards() {
       label: "Event Timeline",
       title: events.length ? `${numberText(events.length, 0)} Events` : "No Events",
       value: latestEvent ? text(latestEvent.type) : "empty",
-      status: rejectedOrders.length ? "bad" : events.length ? "ok" : runs.length ? "warn" : "bad",
+      status: rejectedOrders.length ? "bad" : events.length ? "ok" : runs.length ? "warn" : "idle",
       detail: latestEvent
         ? `Latest ${text(latestEvent.type)} ${text(latestEvent.status)} ${text(latestEvent.symbol)} at ${text(latestEvent.timestamp)}.`
         : "No recent decisions, orders, fills, or rejects are published.",
@@ -26163,7 +26423,7 @@ function runsWorkflowCards() {
       label: "Run Search",
       title: visibleRuns.length ? `${numberText(visibleRuns.length, 0)} Shown` : "No Matches",
       value: runs.length ? `${numberText(runs.length, 0)} total` : `${numberText(savedRuns.length, 0)} saved`,
-      status: visibleRuns.length ? "ok" : runs.length || savedRuns.length ? "warn" : "bad",
+      status: visibleRuns.length ? "ok" : runs.length || savedRuns.length ? "warn" : "idle",
       detail: visibleRuns.length
         ? "Open the filtered run table for status, mode, freshness, decisions, orders, fills, and rejects."
         : runs.length ? "Current filters hide all published runs; adjust search, status, mode, or sort." : "No published run table is available yet.",
@@ -26176,7 +26436,7 @@ function runsWorkflowCards() {
       value: artifactLoaded
         ? text((state.configArtifacts || {}).run_id || (state.configArtifacts || {}).draft_id)
         : savedRuns.length ? `${numberText(savedRuns.length, 0)} saved` : "missing",
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "bad",
+      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
       detail: artifactLoaded
         ? `Loaded artifacts expose decisions, fills, logs, account rows, and Performance charts; ${numberText(fills.length, 0)} recent fills are also visible.`
         : savedRuns.length ? "Open a saved Workbench run artifact for full sanitized detail." : "Run or load a Workbench artifact to inspect replay/simulated-paper evidence.",
@@ -26235,7 +26495,7 @@ function runsStateActionSummaryModel() {
   const latestRun = runs[0] || null;
   const latestMetrics = normalizedRunMetrics(latestRun);
   const accountFreshness = accountRow && accountRow.timestamp ? shortTimestampAgeLabel(accountRow.timestamp) : "n/a";
-  let status = "bad";
+  let status = "idle";
   let title = "No Account State Proof";
   let note = "Publish runner telemetry or load a saved artifact with account snapshots before trusting positions or order state.";
   let primaryAction = "operations";
@@ -26295,7 +26555,7 @@ function runsStateActionSummaryModel() {
     },
     {
       label: "Account Source",
-      status: accountRows.length ? "ok" : source.has_data ? "warn" : "bad",
+      status: accountRows.length ? "ok" : source.has_data ? "warn" : "idle",
       title: accountRows.length ? `${numberText(accountRows.length, 0)} rows` : source.has_data ? "partial" : "missing",
       note: accountRows.length
         ? `${text(source.label)} latest ${accountFreshness}.`
@@ -26303,7 +26563,7 @@ function runsStateActionSummaryModel() {
     },
     {
       label: "Orders / Positions",
-      status: orders.length || positions.length ? "warn" : accountRows.length ? "ok" : "bad",
+      status: orders.length || positions.length ? "warn" : accountRows.length ? "ok" : "idle",
       title: `${numberText(orders.length, 0)} / ${numberText(positions.length, 0)}`,
       note: orders.length
         ? `${text(orders[0].symbol)} ${text(orders[0].status)} is latest non-terminal order.`
@@ -26458,7 +26718,7 @@ function renderRunsAccountBoundary() {
       note: authority[2],
     },
     {
-      status: hasAccountSnapshots ? "ok" : source.has_data ? "warn" : "bad",
+      status: hasAccountSnapshots ? "ok" : source.has_data ? "warn" : "idle",
       title: hasAccountSnapshots ? numberText(source.account.length, 0) : "None",
       label: "Account Snapshots",
       note: hasAccountSnapshots
@@ -26474,7 +26734,7 @@ function renderRunsAccountBoundary() {
         : "Selected source is flat or lacks position detail.",
     },
     {
-      status: hasTelemetryRuns ? "ok" : source.source_type === "archived_artifact" ? "warn" : "bad",
+      status: hasTelemetryRuns ? "ok" : source.source_type === "archived_artifact" ? "warn" : "idle",
       title: numberText(runs.length, 0),
       label: "Current Telemetry",
       note: hasTelemetryRuns
@@ -26829,7 +27089,7 @@ function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
     filters.type ? `type ${filters.type}` : "",
     filters.status ? `status ${filters.status}` : "",
   ].filter(Boolean);
-  let status = "bad";
+  let status = "idle";
   let title = "No Events";
   let note = "No current published decisions, orders, or fills are available.";
   if (visibleEvents.length) {
@@ -26868,7 +27128,7 @@ function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
       note: `${numberText(decisions.length, 0)} decisions / ${numberText(orders.length, 0)} orders visible.`,
     },
     {
-      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "bad",
+      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "idle",
       title: latest ? text(latest.type) : "n/a",
       label: "Latest",
       note: latest ? `${text(latest.timestamp)} / ${text(latest.run_id)} / ${text(latest.symbol)}` : "No latest event available.",
@@ -26919,7 +27179,7 @@ function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
     },
     {
       action: "latest-run",
-      status: latestRunId ? "ok" : "bad",
+      status: latestRunId ? "ok" : "idle",
       title: "Latest Run",
       note: latestRunId ? `Filter to ${latestRunId}.` : "No latest run available.",
       disabled: !latestRunId,
@@ -26971,7 +27231,7 @@ function runsEventFlowModel(allEvents = [], visibleEvents = []) {
     filters.type ? `type ${filters.type}` : "",
     filters.status ? `status ${filters.status}` : "",
   ].filter(Boolean);
-  let status = "bad";
+  let status = "idle";
   let headline = "No event flow visible";
   let nextAction = "Start or publish a runner, or load a Workbench artifact with decisions/orders/fills.";
   if (visibleEvents.length) {
@@ -27017,13 +27277,13 @@ function runsEventFlowModel(allEvents = [], visibleEvents = []) {
         : allBadEvents.length ? `${numberText(allBadEvents.length, 0)} issue event${allBadEvents.length === 1 ? "" : "s"} hidden by filters.` : "No rejected/canceled/failed/error statuses in recent events.",
     },
     {
-      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "bad",
+      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "idle",
       label: "Decision -> Fill",
       title: `${numberText(decisions.length, 0)}D / ${numberText(orders.length, 0)}O / ${numberText(fills.length, 0)}F`,
       note: fills.length ? "Executions are visible." : orders.length ? "Orders are visible without matching visible fills." : decisions.length ? "Only decision events are visible." : "No event mix loaded.",
     },
     {
-      status: runIds.size ? "ok" : "bad",
+      status: runIds.size ? "ok" : "idle",
       label: "Runs / Symbols",
       title: `${numberText(runIds.size, 0)} / ${numberText(symbols.size, 0)}`,
       note: topCountEntries(runCounts, 1).length
@@ -27056,12 +27316,12 @@ function runsEventFlowModel(allEvents = [], visibleEvents = []) {
         : allBadEvents.length ? `${numberText(allBadEvents.length, 0)} issue event${allBadEvents.length === 1 ? "" : "s"} exist outside the current filter.` : "No issue event status is visible in the recent event window.",
     },
     {
-      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "bad",
+      status: fills.length ? "ok" : orders.length ? "warn" : decisions.length ? "ok" : "idle",
       title: "Event Mix",
       detail: `Types ${countSummary(typeCounts)}; statuses ${countSummary(statusCounts)}.`,
     },
     {
-      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "bad",
+      status: latest ? eventStatusIsBad(latest) ? "bad" : latest.type === "order" ? "warn" : "ok" : "idle",
       title: "Latest Event",
       detail: latest ? `${text(latest.timestamp)} / ${text(latest.run_id)} / ${text(latest.type)} / ${text(latest.status)} / ${text(latest.symbol)} / ${text(latest.detail)}` : "No latest event row is available.",
     },
@@ -27330,7 +27590,7 @@ function executionQualityReviewModel(allEvents = [], visibleEvents = []) {
         : "No effective-spread or sufficient bid/ask plus fill-price fields are visible.",
     },
     {
-      status: missing.length ? "warn" : rows.length ? "ok" : "bad",
+      status: missing.length ? "warn" : rows.length ? "ok" : "idle",
       title: "Instrumentation Gap",
       detail: missing.length
         ? `Next runner/broker fields to publish: ${missing.join(", ")}.`
@@ -29402,7 +29662,7 @@ function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, cont
   const heartbeatMillis = timestampMillis(summary.received_at || summary.generated_at || detail.generated_at);
   const heartbeatAgeSeconds = heartbeatMillis === null ? null : (Date.now() - heartbeatMillis) / 1000;
   const heartbeatStale = heartbeatAgeSeconds === null || heartbeatAgeSeconds > 900;
-  let status = "bad";
+  let status = "idle";
   let title = "Select Remote Node";
   let note = "Click Detail on a Remote Nodes row to inspect sanitized monitoring detail.";
   if (detail.node_id) {
@@ -29417,13 +29677,13 @@ function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, cont
   $("remote-detail-assistant-note").textContent = note;
   const cards = [
     {
-      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "idle",
       title: detail.node_id ? timestampAgeLabel(summary.received_at || summary.generated_at || detail.generated_at) : "No Node",
       label: "Heartbeat",
       note: detail.node_id ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored snapshots.` : "No remote detail payload loaded.",
     },
     {
-      status: alerts.length ? "bad" : detail.node_id ? "ok" : "bad",
+      status: alerts.length ? "bad" : detail.node_id ? "ok" : "idle",
       title: numberText(alerts.length, 0),
       label: "Alerts",
       note: alerts.length ? text((alerts[0] || {}).message || (alerts[0] || {}).kind) : "No latest alerts in the selected node snapshot.",
@@ -29435,7 +29695,7 @@ function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, cont
       note: `${numberText(failedRuns.length, 0)} failed/error run${failedRuns.length === 1 ? "" : "s"} / ${numberText(runs.length, 0)} loaded.`,
     },
     {
-      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "idle",
       title: numberText(filteredActivity.length, 0),
       label: "Activity",
       note: latestActivity ? `${text(latestActivity.type)} ${timestampAgeLabel(eventTimestamp(latestActivity))}; ${numberText(rejectedActivity.length, 0)} issue events.` : "No sanitized decision/order/fill activity loaded.",
@@ -29485,7 +29745,7 @@ function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, cont
     },
     {
       action: "control",
-      status: detail.node_id ? "warn" : "bad",
+      status: detail.node_id ? "warn" : "idle",
       title: "Use As Control Target",
       note: detail.node_id ? `Fill command target with ${text(detail.node_id)} and open Control.` : "Select a node before targeting controls.",
       disabled: !detail.node_id,
@@ -29561,7 +29821,7 @@ function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, cont
   const artifactRowCount = artifactRows.reduce((sum, item) => sum + Number((item.evidence || {}).jsonl_row_count || 0), 0);
   const boundary = detail.boundary_policy || {};
   const hasBoundary = Boolean(boundary.name);
-  let status = "bad";
+  let status = "idle";
   let headline = "No remote node selected";
   let note = "Select Detail on a Remote Nodes row to build a health report.";
   if (detail.node_id) {
@@ -29571,49 +29831,49 @@ function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, cont
   }
   const cards = [
     {
-      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "idle",
       label: "Heartbeat",
       title: detail.node_id ? timestampAgeLabel(heartbeatTimestamp) : "No Node",
       note: detail.node_id ? `${numberText(detail.count || 0, 0)} loaded / ${numberText(detail.total || 0, 0)} stored status snapshots.` : "Select a remote node first.",
     },
     {
-      status: detail.node_id ? summary.gateway_reachable === false ? "bad" : summary.gateway_reachable === true ? "ok" : "warn" : "bad",
+      status: detail.node_id ? summary.gateway_reachable === false ? "bad" : summary.gateway_reachable === true ? "ok" : "warn" : "idle",
       label: "Gateway/API",
       title: detail.node_id ? text(summary.gateway_reachable) : "n/a",
       note: detail.node_id ? `${text(summary.status)} / mode ${text(summary.mode)}.` : "No remote Gateway evidence loaded.",
     },
     {
-      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "bad",
+      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "idle",
       label: "Feeds",
       title: `${accountStale ? "Review" : "Fresh"}`,
       note: `Account ${timestampAgeLabel(latestAccount)} / data ${timestampAgeLabel(latestData)}.`,
     },
     {
-      status: alerts.length ? "bad" : detail.node_id ? "ok" : "bad",
+      status: alerts.length ? "bad" : detail.node_id ? "ok" : "idle",
       label: "Alerts",
       title: numberText(alerts.length, 0),
       note: alerts.length ? text((alerts[0] || {}).message || (alerts[0] || {}).kind) : "No latest alerts in selected node detail.",
     },
     {
-      status: failedRuns.length ? "bad" : completedRuns.length ? "ok" : runs.length ? "warn" : detail.node_id ? "warn" : "bad",
+      status: failedRuns.length ? "bad" : completedRuns.length ? "ok" : runs.length ? "warn" : detail.node_id ? "warn" : "idle",
       label: "Runs",
       title: `${numberText(completedRuns.length, 0)} completed`,
       note: `${numberText(failedRuns.length, 0)} failed/error; ${numberText(runs.length, 0)} bounded latest run summaries.`,
     },
     {
-      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      status: rejectedActivity.length ? "bad" : activity.length ? "ok" : detail.node_id ? "warn" : "idle",
       label: "Activity",
       title: numberText(filteredActivity.length, 0),
       note: latestActivity ? `${text(latestActivity.type)} ${timestampAgeLabel(eventTimestamp(latestActivity))}; ${numberText(rejectedActivity.length, 0)} issue events.` : "No bounded decision/order/fill activity loaded.",
     },
     {
-      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "bad",
+      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "idle",
       label: "Artifacts",
       title: `${numberText(artifactFileCount, 0)} files`,
       note: `${numberText(artifactRows.length, 0)} run evidence rows / ${numberText(artifactRowCount, 0)} JSONL rows / ${numberText(artifactMissingCount, 0)} missing expected files.`,
     },
     {
-      status: hasBoundary ? "ok" : detail.node_id ? "warn" : "bad",
+      status: hasBoundary ? "ok" : detail.node_id ? "warn" : "idle",
       label: "Boundary",
       title: hasBoundary ? "Sanitized" : "Missing",
       note: hasBoundary ? text(boundary.retention_note || boundary.scope) : "Boundary policy is not loaded for the selected node.",
@@ -29626,24 +29886,24 @@ function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, cont
       detail: detail.node_id ? `${headline}: ${note}` : "No node is selected. Use Remote Nodes table Detail to load one.",
     },
     {
-      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "bad",
+      status: detail.node_id ? heartbeatStale ? "warn" : "ok" : "idle",
       title: "Heartbeat And Source",
       detail: detail.node_id
         ? `Latest heartbeat ${timestampAgeLabel(heartbeatTimestamp)}; ${numberText(detail.count || 0, 0)} loaded snapshots out of ${numberText(detail.total || 0, 0)} stored.`
         : "No heartbeat source is loaded.",
     },
     {
-      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "bad",
+      status: detail.node_id ? accountStale || dataStale ? "warn" : "ok" : "idle",
       title: "Account And Data Feeds",
       detail: `Equity ${money(summary.final_equity)}, cash ${money(summary.cash)}, positions ${numberText(summary.position_count, 0)}, open orders ${numberText(summary.open_order_count, 0)}, account ${timestampAgeLabel(latestAccount)}, data ${timestampAgeLabel(latestData)}.`,
     },
     {
-      status: failedRuns.length || rejectedActivity.length ? "warn" : runs.length || activity.length ? "ok" : detail.node_id ? "warn" : "bad",
+      status: failedRuns.length || rejectedActivity.length ? "warn" : runs.length || activity.length ? "ok" : detail.node_id ? "warn" : "idle",
       title: "Runs And Activity",
       detail: `${numberText(runs.length, 0)} latest run summaries, ${numberText(completedRuns.length, 0)} completed, ${numberText(failedRuns.length, 0)} failed/error, ${numberText(activity.length, 0)} activity rows, ${numberText(rejectedActivity.length, 0)} issue events.`,
     },
     {
-      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "bad",
+      status: artifactMissingCount ? "warn" : artifactRows.length ? "ok" : detail.node_id ? "warn" : "idle",
       title: "Artifact Evidence",
       detail: artifactRows.length
         ? `${numberText(artifactRows.length, 0)} latest runs include bounded artifact evidence: ${numberText(artifactFileCount, 0)} existing files, ${numberText(artifactRowCount, 0)} JSONL rows, ${numberText(artifactMissingCount, 0)} missing expected files.`
@@ -29862,19 +30122,19 @@ function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
   $("remote-nodes-assistant-note").textContent = note;
   const cards = [
     {
-      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "bad",
+      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "idle",
       title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
       label: "Heartbeat",
       note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No remote heartbeat loaded.",
     },
     {
-      status: alertNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      status: alertNodes.length ? "warn" : nodes.length ? "ok" : "idle",
       title: numberText(alertNodes.length, 0),
       label: "Alert Nodes",
       note: alertNodes.length ? alertNodes.slice(0, 3).map((node) => text(node.node_id)).join(", ") : "No remote node alerts visible.",
     },
     {
-      status: orderNodes.length ? "warn" : nodes.length ? "ok" : "bad",
+      status: orderNodes.length ? "warn" : nodes.length ? "ok" : "idle",
       title: numberText(orderNodes.length, 0),
       label: "Open-Order Nodes",
       note: orderNodes.length ? "Verify broker state locally before issuing controls." : "No non-terminal remote order events visible.",
@@ -29923,14 +30183,14 @@ function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
     },
     {
       action: "newest-detail",
-      status: newest ? "ok" : "bad",
+      status: newest ? "ok" : "idle",
       title: "Open Newest Detail",
       note: newest ? `Load bounded detail for ${text(newest.node_id)}.` : "No node detail can be loaded yet.",
       disabled: !newest,
     },
     {
       action: "request-status",
-      status: newest ? "warn" : "bad",
+      status: newest ? "warn" : "idle",
       title: "Prepare Status Check",
       note: newest ? `Prepare read-only request_status for ${text(newest.node_id)}.` : "No node is available as a target.",
       disabled: !newest,
@@ -30055,13 +30315,13 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
       note,
     },
     {
-      status: !nodes.length ? "bad" : staleNodes.length ? "bad" : "ok",
+      status: !nodes.length ? "idle" : staleNodes.length ? "bad" : "ok",
       label: "Heartbeat",
       title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
       note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No heartbeat loaded.",
     },
     {
-      status: alertTotal ? "warn" : nodes.length ? "ok" : "bad",
+      status: alertTotal ? "warn" : nodes.length ? "ok" : "idle",
       label: "Alerts",
       title: numberText(alertTotal, 0),
       note: alertNodes.length ? `${numberText(alertNodes.length, 0)} node${alertNodes.length === 1 ? "" : "s"} have alerts.` : "No remote alerts visible.",
@@ -30075,12 +30335,12 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
   ];
   const lines = [
     {
-      status: nodes.length ? "ok" : "bad",
+      status: nodes.length ? "ok" : "idle",
       title: "Coverage",
       detail: `${numberText(nodes.length, 0)} monitored node${nodes.length === 1 ? "" : "s"}; ${numberText(filteredNodes.length, 0)} visible after filters; statuses ${countSummary(statusCounts) || "none"}.`,
     },
     {
-      status: !nodes.length ? "bad" : staleNodes.length ? "bad" : "ok",
+      status: !nodes.length ? "idle" : staleNodes.length ? "bad" : "ok",
       title: "Heartbeat",
       detail: newest ? `Newest node ${text(newest.node_id)} arrived ${timestampAgeLabel(newest.received_at || newest.generated_at)}; ${numberText(staleNodes.length, 0)} stale node${staleNodes.length === 1 ? "" : "s"}.` : "No heartbeat evidence loaded.",
     },
@@ -30253,13 +30513,13 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
     },
     {
       label: "Coverage",
-      status: nodes.length ? filteredNodes.length ? "ok" : "warn" : "bad",
+      status: nodes.length ? filteredNodes.length ? "ok" : "warn" : "idle",
       title: `${numberText(filteredNodes.length, 0)} / ${numberText(nodes.length, 0)}`,
       note: activeFilters.length ? activeFilters.join(" / ") : "No remote filters are active.",
     },
     {
       label: "Heartbeat",
-      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "bad",
+      status: nodes.length ? staleNodes.length ? "bad" : "ok" : "idle",
       title: staleNodes.length ? `${numberText(staleNodes.length, 0)} stale` : nodes.length ? "Fresh" : "No Nodes",
       note: newest ? `Newest ${text(newest.node_id)} ${timestampAgeLabel(newest.received_at || newest.generated_at)}.` : "No heartbeat loaded.",
     },
@@ -30539,7 +30799,7 @@ function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
   const latestEquityRun = runs.find((runItem) => finiteNumber(runItem.final_equity) !== null) || null;
   const cards = [
     {
-      status: !selected ? "bad" : !runs.length ? "warn" : failedCount ? "bad" : "ok",
+      status: !selected ? "idle" : !runs.length ? "warn" : failedCount ? "bad" : "ok",
       label: "Latest Runs",
       title: runs.length ? `${numberText(completedCount, 0)} completed` : selected ? "No Runs" : "Select Node",
       note: runs.length ? `${numberText(runs.length, 0)} bounded run summaries; ${countSummary(statusCounts)}.` : "Select a node or wait for published run summaries.",
@@ -31279,12 +31539,32 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
 }
 
 async function refresh(options = {}) {
+  if (state.refreshInFlight) return;
+  state.refreshInFlight = true;
+  try {
+    await refreshOnce(options);
+  } finally {
+    state.refreshInFlight = false;
+  }
+}
+
+async function refreshOnce(options = {}) {
   const node = $("command-node").value || (state.status && state.status.node_id) || "";
   const beforeActivity = state.refreshLoaded ? activitySnapshot() : null;
-  const status = await fetchJson("/status");
+  // Keep last-known telemetry when /status fails so a transient error does
+  // not blank a previously healthy page; the topbar surfaces the failure.
+  let status = state.status || {};
+  try {
+    status = await fetchJson("/status");
+    state.statusFetchError = "";
+  } catch (err) {
+    state.statusFetchError = err && err.message ? err.message : String(err);
+  }
   state.status = status;
   const nodeId = encodeURIComponent(node || status.node_id || "");
-  const optionalResults = await Promise.all([
+  const telemetryRun = selectedTelemetryRun();
+  const telemetryRunId = telemetryRun && telemetryRun.id ? String(telemetryRun.id) : "";
+  const optionalRequests = [
     fetchOptionalJson("status history", `/status_history${nodeId ? `?node_id=${nodeId}&limit=20` : "?limit=20"}`, { history: [] }),
     fetchOptionalJson("remote nodes", "/remote_nodes?limit=100", { nodes: [] }),
     fetchOptionalJson("workbench diagnostics", "/workbench_diagnostics", {}),
@@ -31303,7 +31583,15 @@ async function refresh(options = {}) {
     fetchOptionalJson("commands", `/commands${nodeId ? `?node_id=${nodeId}` : ""}`, { commands: [] }),
     fetchOptionalJson("command results", `/command_results${nodeId ? `?node_id=${nodeId}` : ""}`, { results: [] }),
     fetchOptionalJson("command audit", `/command_audit${nodeId ? `?node_id=${nodeId}&limit=100` : "?limit=100"}`, { events: [] }),
-  ]);
+  ];
+  if (telemetryRunId) {
+    optionalRequests.push(fetchOptionalJson(
+      "telemetry account",
+      `/telemetry_run_artifacts?run_id=${encodeURIComponent(telemetryRunId)}&limit=500`,
+      { account: [], decisions: [], orders: [], fills: [], performance: {} },
+    ));
+  }
+  const optionalResults = await Promise.all(optionalRequests);
   const optional = Object.fromEntries(optionalResults.map((result) => [result.label, result.payload]));
   state.refreshContracts = optionalResults.map((result) => ({
     label: result.label,
@@ -31347,6 +31635,15 @@ async function refresh(options = {}) {
   state.runComparison = runComparison || { runs: [], leaders: {} };
   state.performanceRollups = performanceRollups || { rollups: [], errors: [] };
   state.statusEquityRollups = statusEquityRollups || { rollups: [], period_rollups: {} };
+  const telemetryAccount = optional["telemetry account"] || { account: [], decisions: [], orders: [], fills: [], performance: {} };
+  state.telemetryAccount = {
+    run_id: telemetryRunId,
+    account: telemetryAccount.account || [],
+    decisions: telemetryAccount.decisions || [],
+    orders: telemetryAccount.orders || [],
+    fills: telemetryAccount.fills || [],
+    performance: telemetryAccount.performance || {},
+  };
   state.commands = commands.commands || [];
   state.results = results.results || [];
   state.commandAudit = commandAudit || { events: [] };
@@ -33018,6 +33315,11 @@ function init() {
       handleWorkbenchHomeAction(button.dataset.workbenchHomeAction || "");
     });
   }
+  $("workbench-backend-status-actions").addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-workbench-backend-status-action]") : null;
+    if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
+    handleWorkbenchBackendStatusAction(target.dataset.workbenchBackendStatusAction || "");
+  });
   $("workbench-example-gallery-cards").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-workbench-example-action]") : null;
     if (!(target instanceof HTMLElement) || target.hasAttribute("disabled")) return;
@@ -33595,6 +33897,17 @@ function init() {
   $("performance-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("performance-home-open-data").addEventListener("click", () => navigateToView("data"));
   $("performance-period").addEventListener("change", renderPerformance);
+  $("performance-telemetry-run").addEventListener("change", () => {
+    state.performanceTelemetryRunId = $("performance-telemetry-run").value || "";
+    reloadTelemetryArtifacts().catch((err) => {
+      $("last-refresh").textContent = `Telemetry artifact reload failed: ${err.message}`;
+    });
+  });
+  $("performance-status-rollups-body").addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains("rollup-day-focus")) return;
+    focusPerformanceDay(target.dataset.day || "");
+  });
   $("performance-trade-filter-state").addEventListener("change", renderPerformance);
   $("performance-trade-filter-side").addEventListener("change", renderPerformance);
   $("performance-trade-filter-symbol").addEventListener("input", renderPerformance);
@@ -34024,6 +34337,12 @@ function init() {
   refresh().catch((err) => {
     $("last-refresh").textContent = `Refresh failed: ${err.message}`;
   });
+  window.setInterval(() => {
+    if (document.hidden) return;
+    refresh().catch((err) => {
+      $("last-refresh").textContent = `Auto-refresh failed: ${err.message}`;
+    });
+  }, AUTO_REFRESH_INTERVAL_MS);
 }
 
 document.addEventListener("DOMContentLoaded", init);

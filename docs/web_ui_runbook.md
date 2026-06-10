@@ -123,6 +123,12 @@ drawdown, trade/order proof, rollups, and the next verification route.
 Every top-level page also starts with a compact workflow rail. Read it left to
 right for the common path on that page before opening the deeper tables below.
 
+Status colors mean three different things. Green is healthy, amber needs
+review, and red means a real failure or a negative return — nothing else.
+Neutral cards with a dashed border are "idle": that part of the app has
+nothing to show yet (no draft, no saved runs, no node selected, nothing
+filtered in), which is normal for an unused surface and never a fault.
+
 In Data Library Diagnostics, read Catalog Scan Report before the raw scan
 table. It summarizes root scope, parser errors, unsupported/skipped files,
 catalog caps, Storage Audit visibility, and the next recovery action.
@@ -132,6 +138,13 @@ catalog caps, Storage Audit visibility, and the next recovery action.
 The dashboard only scans paths listed in `dashboard.data_roots`. Public example
 configs should point at `examples/data`; local private configs can point at
 cache/history folders.
+
+Roots share the catalog and root-index scan limits, but every root is
+guaranteed a fair share of the budget: a huge root cannot starve a small root
+listed after it, and unused budget rolls forward to later roots. When a root
+stops early its scan report says "per-root share of catalog limit reached" and
+shows the `root_scan_budget` it was given — raise the scan limit if you need
+deeper coverage of a large root.
 
 If Data Library only shows SPY/QQQ examples:
 
@@ -281,6 +294,16 @@ Open Performance Home for the fuller Current Strategy Report. It turns the
 selected source into copyable rows for source freshness, equity and return,
 risk, trades, execution issues, evidence depth, and the next action before you
 open charts, trades, or rollup tables.
+When more than one telemetry run is publishing, use the Strategy selector
+beside the Source control to pick which run the Current source shows; the
+charts, KPIs, and trade tables refetch that run's bridged account and
+decision/order/fill artifacts. The Current source carries real execution
+evidence now — the Trades lens pairs live fills into closed trades with win
+rate and largest-loss drilldowns without loading a Workbench artifact.
+To explain a single day's result, click that day's row in the Live/Paper
+status rollup table: a "Day YYYY-MM-DD" period is selected and every chart,
+KPI, and trade table re-windows to exactly that day. Switch the Period control
+back to All (or any preset) to leave day focus.
 Start with Performance Action Summary when you want the next click. It picks
 between creating source evidence, switching an empty selected period to All,
 reviewing execution issues, opening rollups for drawdown/risk, inspecting
@@ -549,24 +572,28 @@ matrix rows offline.
    window are ready to simulate.
 2. Open Workbench and select one or more saved datasets, or use one of the
    direct handoffs from Data Detail, Compare Saved Data, or Fetch Detail.
-3. Read Selected Data Packet in Workbench Builder before changing plugin
+3. Start with Workbench Backend Status if schemas, drafts, runs, or artifacts
+   look empty. Refresh Workbench APIs probes schema, draft, validation, run,
+   comparison, rollup, maintenance, and endpoint-map backends, then mirrors the
+   same evidence in Operations Diagnostics API Health.
+4. Read Selected Data Packet in Workbench Builder before changing plugin
    settings. It shows the selected files, symbols, bar sizes, sources, chosen
    date window, alignment overlap state, and quality pressure. Use Inspect,
    Compare, or Remove on a file row when the packet does not look like the
    replay input you intended. The Selected Data Coverage ledger below it
    summarizes replay readiness, source/bar/session mix, ranges, and can export
    the current saved-data handoff as CSV.
-4. On Workbench Home, read Example Config Gallery. Public examples are no-edge
+5. On Workbench Home, read Example Config Gallery. Public examples are no-edge
    wiring demos; ignored local/private plugins are only summarized there. Use a
    gallery action to populate plugin/mode fields, then choose a public example
    plugin or a private local plugin from an ignored registry in Builder.
-5. Read Workbench Evidence. It states whether the setup is only selected-data
+6. Read Workbench Evidence. It states whether the setup is only selected-data
    evidence, a valid draft, a completed run waiting for artifacts, or loaded
    artifact evidence that can be inspected in Performance and Runs.
-6. Preview alignment before generating a draft. The Selected Data Packet
+7. Preview alignment before generating a draft. The Selected Data Packet
    should move from Not Previewed to an overlap count or a clear no-overlap
    warning.
-7. Read Compatibility Review. It combines schema versions, plugin boundary,
+8. Read Compatibility Review. It combines schema versions, plugin boundary,
    selected data quality, alignment coverage, saved-draft validation, and the
    next action in one place. Plugin Field Help shows the selected plugin's
    public-safe strategy inputs, declarative validation rules, result fields, and

@@ -212,6 +212,21 @@ def fill_from_row(row: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def exit_monitor_fill_from_row(row: dict[str, str]) -> dict[str, Any]:
+    """Exits applied by the intra-hour exit monitor are real simulated fills,
+    but they are logged at the run root rather than inside a session dir."""
+    return {
+        "timestamp": iso_or_none(row.get("timestamp")),
+        "symbol": row.get("symbol") or None,
+        "side": "sell",
+        "quantity": parse_float(row.get("quantity")),
+        "price": parse_float(row.get("price")),
+        "commission": parse_float(row.get("commission")) or 0.0,
+        "tag": public_order_tag(row.get("reason")) or "exit",
+        "simulated": True,
+    }
+
+
 @dataclass
 class PositionLot:
     quantity: float
@@ -672,6 +687,44 @@ def build_crypto_run(state_path: Path, sessions_root: Path, out_dir: Path, *, ma
         orders.extend(crypto_order_from_row(row) for row in read_csv_rows(session / "orders.csv"))
         fills.extend(fill_from_row(row) for row in read_csv_rows(session / "fills.csv"))
 
+    # Without the exit monitor's fills, entries outnumber exits and every
+    # downstream trade ledger / position reconstruction is wrong. But some
+    # monitor exits are re-recorded by a later session's fills.csv, and the
+    # monitor log spans the full run while sessions are windowed — so dedupe
+    # against session sells and drop exits older than the earliest session fill.
+    session_sells = [
+        (str(f.get("symbol") or ""), f.get("quantity"), parse_timestamp(f.get("timestamp")))
+        for f in fills
+        if f.get("side") == "sell"
+    ]
+    earliest_session_fill = min(
+        (ts for f in fills if (ts := parse_timestamp(f.get("timestamp"))) is not None),
+        default=None,
+    )
+
+    def duplicates_session_sell(fill: dict[str, Any]) -> bool:
+        symbol = str(fill.get("symbol") or "")
+        quantity = fill.get("quantity") or 0.0
+        when = parse_timestamp(fill.get("timestamp"))
+        for sell_symbol, sell_quantity, sell_when in session_sells:
+            if sell_symbol != symbol or sell_quantity is None:
+                continue
+            if abs(float(sell_quantity) - float(quantity)) > max(1e-9, abs(float(quantity)) * 1e-6):
+                continue
+            if when is None or sell_when is None or abs((when - sell_when).total_seconds()) <= 12 * 3600:
+                return True
+        return False
+
+    for row in read_csv_rows(state_path.parent / "exit_monitor.csv"):
+        fill = exit_monitor_fill_from_row(row)
+        when = parse_timestamp(fill.get("timestamp"))
+        if earliest_session_fill is None or when is None or when < earliest_session_fill:
+            continue
+        if duplicates_session_sell(fill):
+            continue
+        fills.append(fill)
+    fills.sort(key=sort_key_timestamp)
+
     state_prices = state.get("sim_last_prices") if isinstance(state.get("sim_last_prices"), dict) else {}
     prices = {
         str(symbol): price
@@ -866,6 +919,36 @@ def stock_decision_from_signal(row: dict[str, str], manifest: dict[str, Any], se
     }
 
 
+def stock_no_candidates_decision(manifest: dict[str, Any], session: Path) -> dict[str, Any]:
+    """A session that ran and accepted nothing still counts as a decision.
+
+    Without this row, decision freshness regresses to the last day with
+    signal candidates and the publisher raises a false run_stale alert.
+    """
+    return {
+        "timestamp": iso_or_none(first_value(manifest.get("run_finished_at"), manifest.get("run_started_at"))),
+        "mode": "signal_monitor",
+        "step": session.name,
+        "intents": [],
+        "diagnostics": {
+            "symbols": [],
+            "dashboard": {
+                "reason": "no_candidates",
+                "signal_label": "Accepted candidate",
+                "signal_value": 0.0,
+                "threshold": 1.0,
+                "threshold_distance": -1.0,
+                "near_threshold": False,
+            },
+        },
+        "signal": {
+            "symbol": None,
+            "side": None,
+            "reason": "no_candidates",
+        },
+    }
+
+
 def stock_order_from_entry_row(row: dict[str, str]) -> dict[str, Any]:
     status = str(row.get("entry_status") or "").strip().lower() or "unknown"
     return {
@@ -959,7 +1042,9 @@ def build_stock_run(
                 "gross_exposure": account_values.get("gross_exposure"),
                 "net_exposure": account_values.get("net_exposure"),
             })
+        session_signal_rows = 0
         for row in read_csv_rows(session / "shadow_signals.csv"):
+            session_signal_rows += 1
             decision = stock_decision_from_signal(row, manifest, session)
             decisions.append(decision)
             if row.get("symbol"):
@@ -969,6 +1054,9 @@ def build_stock_run(
             else:
                 rejected += 1
             latest_reason = decision["signal"].get("reason")
+        if not session_signal_rows and manifest:
+            decisions.append(stock_no_candidates_decision(manifest, session))
+            latest_reason = "no_candidates"
         for symbol_row in read_csv_rows(session / "subscriptions.csv"):
             if symbol_row.get("symbol"):
                 symbols.add(symbol_row["symbol"])

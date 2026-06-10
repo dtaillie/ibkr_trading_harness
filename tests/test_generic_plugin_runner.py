@@ -1749,3 +1749,52 @@ def test_validate_config_rejects_empty_stop_marker(tmp_path):
         validate_config_file(config_path)
 
     assert "control.stop_marker must not be empty" in str(exc.value)
+
+
+def test_validate_config_rejects_non_strategy_plugin(tmp_path):
+    bars_path = tmp_path / "bars.csv"
+    config_path = tmp_path / "config.yaml"
+    output_dir = tmp_path / "out"
+    write_sample_bars(bars_path)
+    write_config(
+        config_path,
+        bars_path=bars_path,
+        output_dir=output_dir,
+        # A signal plugin for the bespoke runners: imports and instantiates
+        # cleanly but lacks the StrategyPlugin protocol.
+        plugin="examples.strategies.no_edge_stock_signal:create_plugin",
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_file(config_path)
+
+    assert "does not implement StrategyPlugin.on_" in str(exc.value)
+
+
+def test_normalize_frame_accepts_date_column_alias():
+    import pandas as pd
+    from live.plugin_runner import normalize_frame
+
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2026-04-01T09:30:00-04:00", "2026-04-01T09:35:00-04:00"]),
+        "open": [1.0, 2.0], "high": [1.0, 2.0], "low": [1.0, 2.0],
+        "close": [1.0, 2.0], "volume": [10, 20],
+    })
+
+    out = normalize_frame(df, symbol="AAPL")
+
+    assert str(out.index[0]) == "2026-04-01 13:30:00+00:00"
+
+
+def test_normalize_frame_refuses_integer_index_as_timestamps():
+    import pandas as pd
+    from live.plugin_runner import normalize_frame
+
+    df = pd.DataFrame({
+        "open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0], "volume": [10],
+    })
+
+    with pytest.raises(ValueError) as exc:
+        normalize_frame(df, symbol="AAPL")
+
+    assert "refusing to interpret the row index as timestamps" in str(exc.value)

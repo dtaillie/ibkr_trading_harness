@@ -5505,3 +5505,31 @@ footer {
     justify-content: flex-start;
   }
 }
+
+/* "Idle" status: empty-by-design (not started / nothing to show yet).
+   Neutral palette with a dashed border so red can exclusively mean broken. */
+.status-idle {
+  color: var(--muted);
+}
+
+.status-badge.status-idle,
+.topbar-status-chip.status-idle,
+.evidence-chip.status-idle,
+.strategy-identity-chip.status-idle {
+  border-color: var(--line);
+  border-style: dashed;
+  background: var(--status-neutral-bg);
+  color: var(--muted);
+}
+
+.action-card.status-idle,
+.performance-scoreboard-card.status-idle,
+.performance-report-line.status-idle,
+.workbench-selected-data-item.status-idle,
+.data-readiness-cell.status-idle,
+.workbench-stepper-step.status-idle,
+.check-item.status-idle {
+  border-color: var(--line);
+  border-style: dashed;
+  background: var(--status-neutral-bg);
+}

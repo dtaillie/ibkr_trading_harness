@@ -91,6 +91,10 @@ dashboard:
   # Optional tamper-evident audit signing. Set this to an environment variable
   # that contains an HMAC secret; never commit the secret value.
   # command_audit_signature_env: TRADING_COMMAND_AUDIT_HMAC_KEY
+  # Roots are scanned in order and share the catalog/root-index scan caps:
+  # list small operational roots (e.g. cache/ibkr_crypto) BEFORE huge ones
+  # (e.g. a 60k-file cache/ibkr), or the large root consumes the cap and the
+  # small root's data looks missing.
   data_roots:
     - examples/data
   fetch_manifest_roots:

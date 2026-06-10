@@ -47,6 +47,14 @@ strategy-private.
     browsing saved data, building simulations, inspecting runs/orders, and
     fixing setup. Each card reflects current telemetry/data/workbench state and
     deep-links to the focused page for that job.
+  - partial; added an "idle" status (neutral dashed style) distinct from
+    warn/bad, and converted ~290 empty-by-design states (no draft yet, no
+    saved runs, no node selected, no fetch jobs, nothing selected) from red
+    to idle across Overview, Workbench, Runs, Fetch, Data, and Remote panels.
+    Red now exclusively means a real failure or a negative return; rollup
+    summaries report idle instead of green when everything is unused. Live
+    Overview audit after the long-tail pass: 0 non-performance red elements
+    (every remaining red is a negative return figure).
 - Define page-level user outcomes before adding more controls:
   - Overview should answer whether the current strategy is healthy in under
     ten seconds.
@@ -331,6 +339,12 @@ strategy-private.
     Action Summary now leads with missing/degraded fetch endpoint checks before
     asking the user to change manifest roots, rerun pulls, or debug output
     visibility.
+    Workbench Home now mirrors schema, draft, validation, run, comparison,
+    rollup, maintenance, and endpoint-map refresh-contract evidence in its own
+    Backend Status panel, with Refresh Workbench APIs, Open API Health, Copy
+    Report, and Export CSV actions. Workbench Action Summary now leads with
+    missing/degraded Workbench endpoint checks before asking the user to change
+    plugin inputs, drafts, selected data, or artifact expectations.
 - Add a more intuitive first-run experience:
   - show a setup checklist when no current run is publishing telemetry
     - partial; Overview now shows a current checklist with telemetry, Gateway,
@@ -544,6 +558,12 @@ strategy-private.
     - partial; Performance Home now mirrors the Overview strategy identity
       strip for the selected Current / Loaded Artifact / Latest Saved Run
       source, making the active source visible before charts and tables.
+    - done; the Current source now has a Strategy selector listing every
+      published telemetry run (e.g. crypto_hourly_reversal, stock_intraday);
+      switching refetches that run's bridged account/decision/order/fill
+      artifacts and re-renders all Performance charts, KPIs, and trade tables.
+      Defaults to the latest-deciding run and is disabled with fewer than two
+      runs, so single-run deployments are unchanged.
   - current strategy snapshot independent of historical run comparison tables
     - partial; Performance now includes source, mode, latest account timestamp,
       open positions, and activity counts above artifact comparison tables
@@ -570,6 +590,15 @@ strategy-private.
       the desired cadence.
   - open/closed trade table
     - done for selected archived artifacts with sanitized fills
+    - done for the Current live-telemetry source: /telemetry_run_artifacts
+      now serves sanitized decisions/orders/fills from the bridged run dir,
+      so the trade ledger, open/closed/win-rate cards, and largest-loss
+      drilldown work without loading a Workbench artifact. The bridge also
+      merges the crypto exit monitor's exits (deduped against
+      session-recorded sells) so round trips pair correctly.
+    - done: clicking a status-rollup day row focuses every Performance
+      chart, KPI, and trade table on that single day (day:YYYY-MM-DD
+      period), giving a direct "explain this day's return" drilldown.
     - partial; Performance now adds open/closed/win-rate/shown summary cards
       and state, side, and symbol filters above the sanitized fill-derived
       trade table.
@@ -1305,6 +1334,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       Sample, Copy Paths, Diagnose, and Fetch Jobs actions instead of stopping
       at "not catalog-visible."
   - bar-size filter
+    - done (verified 2026-06-09); `data-filter-bar` select is wired into the
+      catalog query, options populate from visible datasets, and Explorer
+      one-click facets set it directly.
   - source filter: IBKR, Schwab, Polygon, FirstRate, file, unknown
     - partial; source facets are populated from catalog metadata, with backend
       inference and coverage/export tests for IBKR, Schwab, Polygon,
@@ -1315,6 +1347,9 @@ QQQ show up, treat that as a bug until proven otherwise.
       storage-contract readiness counts and provides a one-click Clear Browse
       Filters action, making active filter state visible before row scanning.
   - coverage range table for every symbol
+    - done (verified 2026-06-09); `/data_coverage` serves per-dataset
+      first/last day+timestamp ranges and calendar-day counts, rendered as the
+      coverage view; `/data_catalog` per-symbol summaries carry ranges too.
   - row count, gaps, duplicate timestamps, timezone, adjustment metadata
     - partial; Data Library rows now expose inferred storage session and
       adjustment metadata alongside source timezone.
@@ -1348,6 +1383,18 @@ QQQ show up, treat that as a bug until proven otherwise.
   - show why a root was not scanned
     - partial; Catalog Scan Diagnostics now includes not-scanned reasons for
       missing roots, non-directories, catalog-limit caps, and root scan errors.
+    - note (2026-06-09 live finding); roots share the scan caps in config
+      order, so a huge root listed first starves later small roots — the
+      1,857-file cache/ibkr_crypto ZeroHash history was invisible until it was
+      ordered before the 65k-file cache/ibkr root. The example config now
+      documents the ordering rule.
+    - done; scan_data_file_candidates now gives every root a fair share of
+      the global limit (a root may exceed its share only with spare budget
+      that leaves later roots their shares; leftovers roll forward), reports
+      `root_scan_budget` and a "per-root share of catalog limit reached"
+      not-scanned reason, and was verified live: with the 65k-file cache/ibkr
+      listed FIRST it stops at a 5,713-file budget and cache/ibkr_crypto still
+      scans all 1,858 files. Root order no longer decides visibility.
   - show why a file was skipped
     - partial; root scan summaries now include bounded skipped-file samples for
       parser errors and unsupported extensions, and the Data Library table shows
@@ -1991,6 +2038,23 @@ QQQ show up, treat that as a bug until proven otherwise.
   - validate
   - run
   - inspect results
+  - done (2026-06-09); first real end-to-end exercise of the pipeline on the
+    live deployment: draft from saved data -> validate -> replay -> archived
+    artifacts -> run comparison rows all worked. Two hardening fixes landed
+    from it: plugin_runner validation now instantiates the plugin and requires
+    StrategyPlugin.on_data (a bespoke-runner signal plugin used to pass
+    validation then crash mid-replay), and registry entries can be marked
+    runnable: false so metadata-only plugins are rejected at draft generation
+    with a clear error.
+  - done (2026-06-10); replaying the repo's own cache/ibkr parquet (4,032-bar
+    AAPL+MSFT April month) exposed silent 1970 timestamps: the caches use a
+    "date" column, drafts hardcoded timestamp_column: timestamp, and the
+    runner's fallback fabricated epoch-nanosecond timestamps from the row
+    index. Fixed both layers (alias detection + integer-index refusal in the
+    runner; alignment-detected column in generated YAML) and verified the
+    replay reports real 2026-04 timestamps. Note: the demo_minimal preset's
+    max_steps=100 silently bounds replays — fine for demos, but users
+    replaying months of data should raise it in the run form.
   - partial; Workbench now has a visible Simulate From Saved Data guide that
     tracks data selection, data quality, alignment, draft generation,
     validation/run state, and artifact inspection. The form and step metadata
@@ -2302,6 +2366,17 @@ QQQ show up, treat that as a bug until proven otherwise.
     next operational route in copyable plain-language rows.
 
 ## P1: Operations and cloud monitoring
+
+- done (2026-06-10); first live end-to-end verification of the remote-control
+  loop on the local deployment: request_status and summarize_run queued via
+  POST /commands, picked up by the running command worker, executed, and
+  results returned with full payloads. Audit verified at all three layers —
+  receiver chain (queued -> pending_returned -> result_received), worker
+  chain (command_received -> command_result with linking prev/record hashes),
+  and the publisher's integrity check reporting the identical latest hash
+  with 0 invalid records. Reserved high-risk actions (enable_live_orders,
+  flatten_live_positions) confirmed rejected at the receiver with clear
+  errors. No defects found.
 
 - Add real cloud endpoint support beyond the local mock receiver.
   - partial; the receiver already accepts authenticated status posts and command

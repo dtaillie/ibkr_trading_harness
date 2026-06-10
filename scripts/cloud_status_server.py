@@ -498,6 +498,13 @@ PUBLIC_ENDPOINTS = (
     },
     {
         "method": "GET",
+        "path": "/telemetry_run_artifacts",
+        "category": "telemetry",
+        "description": "Return sanitized account history for one published telemetry run's bridged artifacts.",
+        "response": "JSON account artifact summary",
+    },
+    {
+        "method": "GET",
         "path": "/remote_nodes",
         "category": "telemetry",
         "description": "Return sanitized latest read-only monitoring summaries by node.",
@@ -2526,7 +2533,13 @@ def scan_data_file_candidates(
     prior_roots: list[Path] = []
     configured_roots = [root.resolve() for root in data_roots]
     seen_files: set[Path] = set()
-    for root in prioritized_data_roots(data_roots, filters):
+    ordered_roots = list(prioritized_data_roots(data_roots, filters))
+    # Per-root fair share of the global limit: a huge root listed early may
+    # use spare budget but can never starve later roots of their share, so
+    # config order stops deciding whether small roots are visible.
+    fair_share = max(1, limit // max(1, len(ordered_roots)))
+    for root_position, root in enumerate(ordered_roots):
+        roots_after = len(ordered_roots) - root_position - 1
         started = time.monotonic()
         resolved = root.resolve()
         child_roots = explicit_child_roots(resolved, configured_roots)
@@ -2556,6 +2569,8 @@ def scan_data_file_candidates(
             "sample_unsupported_files": [],
             "sample_deferred_files": [],
         }
+        root_budget = max(fair_share, limit - len(files) - fair_share * roots_after)
+        summary["root_scan_budget"] = root_budget
         root_summaries.append(summary)
         prior_roots.append(resolved)
         if len(files) >= limit:
@@ -2602,6 +2617,11 @@ def scan_data_file_candidates(
                 if len(files) >= limit:
                     summary["scan_capped"] = True
                     summary["not_scanned_reason"] = "global catalog limit reached"
+                    summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
+                    break
+                if summary["candidate_count"] >= root_budget:
+                    summary["scan_capped"] = True
+                    summary["not_scanned_reason"] = "per-root share of catalog limit reached"
                     summary["scan_duration_ms"] = round((time.monotonic() - started) * 1000.0, 3)
                     break
                 seen_files.add(resolved_path)
@@ -6815,6 +6835,10 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
         "spec": spec,
         "status": status,
         "visibility": visibility,
+        # runnable: false marks registry entries kept for artifact/result
+        # metadata only (e.g. bespoke-runner signal plugins) that must not be
+        # offered as generic-runner draft plugins.
+        "runnable": row.get("runnable") is not False,
         "description": description,
         "boundary": boundary,
         "strategy_fields": strategy_fields,
@@ -8280,6 +8304,10 @@ def build_config_draft(
     plugin = config_plugin_by_id(plugin_id, available_plugins)
     if plugin is None:
         raise ValueError(f"unsupported plugin_id: {plugin_id}")
+    if plugin.get("runnable", True) is False:
+        raise ValueError(
+            f"plugin {plugin_id} is registered for artifact metadata only and cannot run in the generic runner"
+        )
     mode = str(payload.get("mode") or "replay").replace("-", "_").lower()
     if mode not in CONFIG_BUILDER_MODES:
         raise ValueError(f"mode must be one of {', '.join(CONFIG_BUILDER_MODES)}")
@@ -8330,9 +8358,18 @@ def build_config_draft(
             "outside_session": str(payload.get("session_outside") or "idle").strip(),
         }
 
+    # Prefer the timestamp column the alignment scan actually detected (the
+    # repo's parquet caches use "date"); hardcoding "timestamp" used to make
+    # the runner fall back to fabricated row-index timestamps.
+    detected_ts_columns = {
+        str(row.get("timestamp_column"))
+        for row in alignment.get("rows", [])
+        if row.get("timestamp_column")
+    }
+    default_ts_column = detected_ts_columns.pop() if len(detected_ts_columns) == 1 else "timestamp"
     data_config = {
         "source": "files",
-        "timestamp_column": str(payload.get("timestamp_column") or "timestamp"),
+        "timestamp_column": str(payload.get("timestamp_column") or default_ts_column),
         "files": data_files,
     }
     if start_raw:
@@ -10859,6 +10896,50 @@ def load_config_draft_run_artifacts(
     }
 
 
+DEFAULT_RUNTIME_STATUS_ROOT = ROOT / "paper_logs" / "runtime_status"
+
+
+def build_telemetry_run_artifacts(run_id: str, *, root: Path | None = None, limit: int = 500) -> dict[str, Any]:
+    """Sanitized account series for one telemetry run's bridged artifact dir.
+
+    Telemetry runs publish summary metrics in status snapshots but not their
+    account history; this reads the bridge's account.jsonl so the Performance
+    "Current" source can chart equity without loading Workbench artifacts.
+    """
+    cleaned = str(run_id or "").strip()
+    if not cleaned or cleaned != Path(cleaned).name or cleaned.startswith("."):
+        raise ValueError("run_id is required")
+    base = (root or DEFAULT_RUNTIME_STATUS_ROOT).resolve()
+    run_dir = (base / cleaned).resolve()
+    if not run_dir.is_dir() or not run_dir.is_relative_to(base):
+        raise ValueError("telemetry run artifacts not found")
+    account_path = run_dir / "account.jsonl"
+    if not account_path.exists():
+        raise ValueError("telemetry run artifacts not found")
+    summary = read_json_file(run_dir / "summary.json")
+    account_raw = read_jsonl_tail(account_path, limit=limit)
+    decisions_raw = read_jsonl_tail(run_dir / "decisions.jsonl", limit=limit)
+    orders_raw = read_jsonl_tail(run_dir / "orders.jsonl", limit=limit)
+    fills_raw = read_jsonl_tail(run_dir / "fills.jsonl", limit=limit)
+    return {
+        "generated_at": utc_now(),
+        "run_id": cleaned,
+        "artifact_path": display_path(run_dir),
+        "account": [summarize_account_artifact(row) for row in account_raw],
+        "decisions": [summarize_decision_artifact(row) for row in decisions_raw],
+        "orders": [summarize_order_artifact(row) for row in orders_raw],
+        "fills": [summarize_fill_artifact(row) for row in fills_raw],
+        "performance": performance_from_account(account_raw, summary if isinstance(summary, dict) else None),
+        "counts": {
+            "account": len(account_raw),
+            "decisions": len(decisions_raw),
+            "orders": len(orders_raw),
+            "fills": len(fills_raw),
+        },
+        "limit": limit,
+    }
+
+
 def run_config_draft(
     payload: dict[str, Any],
     *,
@@ -12468,6 +12549,18 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 session_path = str(params.get("path", [""])[0] or "")
                 payload = build_runtime_session_detail(session_path, self.data_roots)
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+                return
+            json_response(self, 200, payload)
+            return
+        if parsed.path == "/telemetry_run_artifacts":
+            if not self.require_auth():
+                return
+            try:
+                run_id = str(params.get("run_id", [""])[0] or "")
+                limit = parse_limit(params, default=500, maximum=2000)
+                payload = build_telemetry_run_artifacts(run_id, limit=limit)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return

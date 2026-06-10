@@ -430,8 +430,10 @@ can expose private plugin metadata to the Workbench without publishing strategy
 logic. Workbench Home includes an Example Config Gallery that explains public
 examples and local plugin boundaries before opening Builder, plus an Action
 Summary and Stage Summary that show the current workflow stage, blockers, data,
-alignment, draft, run, results, and the next route. The workbench path also includes a Workbench
-Evidence panel that states whether the current setup is only data-backed,
+alignment, draft, run, results, and the next route. Workbench Backend Status
+checks schema, draft, validation, run, comparison, rollup, maintenance, and
+endpoint-map APIs before users debug empty builders or run tables. The
+workbench path also includes a Workbench Evidence panel that states whether the current setup is only data-backed,
 draft-backed, run-backed, or loaded-artifact-backed before users trust
 performance output. Workbench Artifacts starts with an Artifacts Action Summary
 that routes loaded or available run evidence to latest-artifact loading,

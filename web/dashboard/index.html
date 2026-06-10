@@ -520,6 +520,10 @@
             </select>
           </label>
           <label class="inline-control">
+            <span>Strategy</span>
+            <select id="performance-telemetry-run"></select>
+          </label>
+          <label class="inline-control">
             <span>Period</span>
             <select id="performance-period">
               <option value="all" selected>All</option>
@@ -2682,6 +2686,26 @@
         </div>
         <div id="workbench-stage-cards" class="action-card-grid"></div>
         <div id="workbench-stage-actions" class="hero-actions"></div>
+      </section>
+      <section class="nested-section workbench-backend-status-panel" aria-label="Workbench backend status">
+        <div class="section-head">
+          <h2>Backend Status</h2>
+          <span id="workbench-backend-status-note" class="section-note">No Workbench backend checks loaded</span>
+        </div>
+        <div id="workbench-backend-status-cards" class="action-card-grid"></div>
+        <div id="workbench-backend-status-actions" class="hero-actions"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Endpoint</th>
+                <th>Status</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="workbench-backend-status-body"></tbody>
+          </table>
+        </div>
       </section>
       <section class="nested-section workbench-action-summary-panel" aria-label="Workbench action summary">
         <div class="section-head">

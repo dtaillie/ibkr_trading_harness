@@ -1143,6 +1143,10 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "fetch-backend-status-cards" in html
         assert "fetch-backend-status-actions" in html
         assert "fetch-backend-status-body" in html
+        assert "workbench-backend-status-note" in html
+        assert "workbench-backend-status-cards" in html
+        assert "workbench-backend-status-actions" in html
+        assert "workbench-backend-status-body" in html
         assert "data-root-index-spotlight-note" in html
         assert "data-root-index-spotlight-cards" in html
         assert "data-root-index-spotlight-symbols" in html
@@ -1710,12 +1714,18 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "function fetchBackendStatusModel" in js
         assert "async function checkFetchBackendApis" in js
         assert "Refreshing Fetch Jobs backend APIs" in js
+        assert "function renderWorkbenchBackendStatus" in js
+        assert "function workbenchBackendStatusModel" in js
+        assert "async function checkWorkbenchBackendApis" in js
+        assert "Refreshing Workbench backend APIs" in js
         assert "Backend Check" in js
         assert "Data backend checks have not run" in js
         assert "Data backend needs review" in js
         assert "data-data-backend-status-action" in js
         assert "data-fetch-backend-status-action" in js
+        assert "data-workbench-backend-status-action" in js
         assert "Refresh Fetch APIs" in js
+        assert "Refresh Workbench APIs" in js
         assert "Open API Health" in js
         assert "dashboard_api_health.csv" in js
         assert "Required Status" in js
@@ -3504,12 +3514,17 @@ def test_cloud_status_server_marks_overlapping_symbol_index_roots(tmp_path):
         with request.urlopen(f"{base}/data_symbol_index?limit=5", timeout=5) as resp:
             index = json.loads(resp.read().decode("utf-8"))
         nested_summary = index["root_summaries"][1]
+        parent_summary = index["root_summaries"][0]
         assert nested_summary["display_path"].endswith("data/ibkr")
         assert nested_summary["overlaps_prior_root"] is True
         assert nested_summary["covered_by_root"].endswith("data")
-        assert nested_summary["not_scanned_reason"] == "global catalog limit already reached"
+        # Per-root budgets: the parent may exceed its fair share only by the
+        # spare budget, and the nested root still scans its own share instead
+        # of being starved by the parent.
+        assert parent_summary["candidate_count"] == 3
+        assert nested_summary["candidate_count"] == 2
+        assert nested_summary["not_scanned_reason"] == "global catalog limit reached"
         assert index["symbol_inventory"]["overlapping_root_count"] == 1
-        assert index["symbol_inventory"]["overlapping_not_scanned_root_count"] == 1
     finally:
         server.shutdown()
         server.server_close()
@@ -4910,7 +4925,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         + "\n",
         encoding="utf-8",
     )
-    server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root])
+    # Pin an empty registry list: the default path is config/plugin_registry_local.yaml,
+    # which exists (gitignored) on developer machines and would leak private plugins in.
+    server = create_server("127.0.0.1", 0, state_dir, data_roots=[data_root], plugin_registry_paths=[])
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -7874,3 +7891,127 @@ def test_command_worker_poll_once_handles_endpoint_down():
     assert results[0]["status"] == "failed"
     assert results[0]["action"] == "poll"
     assert "urlopen error" in results[0]["error"]
+
+
+def test_telemetry_run_artifacts_returns_sanitized_account_series(tmp_path):
+    run_dir = tmp_path / "crypto_hourly_reversal"
+    run_dir.mkdir()
+    rows = [
+        {"timestamp": "2026-01-02T15:00:00+00:00", "equity": 33000.0, "cash": 26000.0,
+         "mode": "simulate_fills", "metadata": {"private_signal": "hidden"}},
+        {"timestamp": "2026-01-02T16:00:00+00:00", "equity": 33100.0, "cash": 26000.0,
+         "mode": "simulate_fills", "metadata": {"private_signal": "hidden"}},
+    ]
+    (run_dir / "account.jsonl").write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    (run_dir / "summary.json").write_text(json.dumps({"final_equity": 33100.0}))
+    (run_dir / "fills.jsonl").write_text(json.dumps({
+        "timestamp": "2026-01-02T15:30:00+00:00", "symbol": "DOGE-USD", "side": "buy",
+        "quantity": 100.0, "price": 0.085, "metadata": {"private_signal": "hidden"},
+    }) + "\n")
+    (run_dir / "decisions.jsonl").write_text(json.dumps({
+        "timestamp": "2026-01-02T15:00:00+00:00", "mode": "signal_monitor",
+        "signal": {"symbol": "DOGE-USD", "reason": "accepted"},
+        "diagnostics": {"symbols": ["DOGE-USD"]},
+    }) + "\n")
+
+    payload = status_server.build_telemetry_run_artifacts("crypto_hourly_reversal", root=tmp_path)
+
+    assert payload["run_id"] == "crypto_hourly_reversal"
+    assert payload["counts"]["account"] == 2
+    assert payload["account"][1]["equity"] == 33100.0
+    assert "metadata" not in payload["account"][0]
+    assert payload["performance"]["final_equity"] == 33100.0
+    assert payload["counts"]["fills"] == 1 and payload["counts"]["decisions"] == 1
+    assert payload["fills"][0]["symbol"] == "DOGE-USD"
+    assert "metadata" not in payload["fills"][0]
+    assert payload["orders"] == [] and payload["counts"]["orders"] == 0
+
+
+def test_telemetry_run_artifacts_rejects_missing_or_traversal_run_ids(tmp_path):
+    (tmp_path / "real_run").mkdir()
+
+    with pytest.raises(ValueError):
+        status_server.build_telemetry_run_artifacts("", root=tmp_path)
+    with pytest.raises(ValueError):
+        status_server.build_telemetry_run_artifacts("../escape", root=tmp_path)
+    with pytest.raises(ValueError):
+        status_server.build_telemetry_run_artifacts("real_run", root=tmp_path)  # no account.jsonl
+    with pytest.raises(ValueError):
+        status_server.build_telemetry_run_artifacts("absent", root=tmp_path)
+
+
+def test_scan_data_file_candidates_per_root_budget_prevents_starvation(tmp_path):
+    big = tmp_path / "big_root"
+    small = tmp_path / "small_root"
+    big.mkdir()
+    small.mkdir()
+    for index in range(40):
+        (big / f"BIG{index:03d}_5min.csv").write_text("timestamp,open,high,low,close,volume\n")
+    for index in range(5):
+        (small / f"SML{index:03d}_5min.csv").write_text("timestamp,open,high,low,close,volume\n")
+
+    # Big root listed FIRST with a limit it could consume alone.
+    files, summaries = status_server.scan_data_file_candidates([big, small], limit=20)
+    by_root = {s["path"]: s for s in summaries}
+    small_count = sum(1 for f in files if f.parent == small)
+    big_count = sum(1 for f in files if f.parent == big)
+
+    assert len(files) <= 20
+    assert small_count == 5, "small root must keep its fair share regardless of order"
+    assert big_count >= 10, "big root may use spare budget beyond its fair share"
+    assert by_root[status_server.display_path(big)]["scan_capped"] is True
+    assert by_root[status_server.display_path(big)]["not_scanned_reason"] == "per-root share of catalog limit reached"
+    assert by_root[status_server.display_path(small)]["scan_capped"] is False
+
+    # Single root keeps the old behavior: full limit available.
+    solo_files, solo_summaries = status_server.scan_data_file_candidates([big], limit=20)
+    assert len(solo_files) == 20
+    assert solo_summaries[0]["root_scan_budget"] == 20
+
+
+def test_config_draft_rejects_metadata_only_registry_plugins(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "SPY_5min_sample.csv").write_text(
+        "timestamp,open,high,low,close,volume\n2026-01-02T14:30:00Z,100,101,99,100.5,1000\n"
+    )
+    plugins = status_server.load_config_builder_plugins(plugin_registry_paths=[])
+    plugins.append(status_server.normalize_config_plugin(
+        {"id": "signal_only", "spec": "metadata_only_package.fake:create_plugin", "runnable": False},
+        source="local_registry",
+    ))
+
+    with pytest.raises(ValueError) as exc:
+        status_server.build_config_draft(
+            {
+                "plugin_id": "signal_only",
+                "datasets": [{"symbol": "SPY", "path": str(data_root / "SPY_5min_sample.csv")}],
+            },
+            state_dir=tmp_path / "state",
+            data_roots=[data_root],
+            plugins=plugins,
+        )
+
+    assert "artifact metadata only" in str(exc.value)
+
+
+def test_config_draft_uses_detected_timestamp_column(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (data_root / "AAPL_5min_sample.csv").write_text(
+        "date,open,high,low,close,volume\n"
+        "2026-01-02T14:30:00Z,100,101,99,100.5,1000\n"
+        "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100\n"
+    )
+
+    draft = status_server.build_config_draft(
+        {
+            "plugin_id": "no_edge_template",
+            "datasets": [{"symbol": "AAPL", "path": str(data_root / "AAPL_5min_sample.csv")}],
+        },
+        state_dir=tmp_path / "state",
+        data_roots=[data_root],
+        plugins=status_server.load_config_builder_plugins(plugin_registry_paths=[]),
+    )
+
+    assert "timestamp_column: date" in draft["yaml"]

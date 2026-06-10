@@ -723,7 +723,10 @@ metadata for your own machine without publishing strategy logic. Workbench Home
 includes an Example Config Gallery that lists public examples and ignored local
 plugin availability before the full Builder form, an Action Summary and Stage
 Summary that show current workflow stage, blockers, data, alignment, draft, run,
-results, and next route, plus Workbench Evidence that labels the current
+results, and next route, plus Backend Status for schema, draft, validation, run,
+comparison, rollup, maintenance, and endpoint-map checks. If Workbench looks
+empty, use Refresh Workbench APIs before changing plugins, drafts, or selected
+data. Workbench Evidence labels the current
 workflow as data-only, draft-only, run-backed, or loaded-artifact-backed. Gallery actions only populate
 plugin/mode fields; they do not save drafts or run simulations. The Workbench
 Artifacts lens starts with Artifacts Action Summary, which routes available or

@@ -451,3 +451,119 @@ def test_runtime_bridge_prefers_authoritative_state_positions_when_fills_disagre
     assert metrics["max_gross_exposure"] == 0.0
     assert account[-1]["accounting_source"] == "state_equity"
     assert account[-1]["position_details"] == {}
+
+
+def test_runtime_bridge_emits_no_candidates_decision_for_quiet_session(tmp_path):
+    sessions = tmp_path / "stock_sessions"
+    session = sessions / "2026-01-05_session"
+    write_json(
+        session / "manifest.json",
+        {
+            "run_started_at": "2026-01-05T07:25:00",
+            "run_finished_at": "2026-01-05T08:50:00",
+        },
+    )
+    # Header-only signals file: the runner ran but accepted nothing.
+    (session / "shadow_signals.csv").write_text("date,symbol,accepted,reject_reason,side\n")
+
+    out = tmp_path / "runtime" / "stock"
+    result = build_stock_run(
+        sessions,
+        out,
+        order_log=tmp_path / "paper_orders.csv",
+        fill_log=tmp_path / "paper_fills.csv",
+        eod_flatten_log=tmp_path / "paper_eod_flatten.csv",
+        max_sessions=10,
+    )
+
+    assert result["decisions"] == 1
+    rows = read_jsonl(out / "decisions.jsonl")
+    assert rows[-1]["signal"]["reason"] == "no_candidates"
+    assert rows[-1]["timestamp"] == "2026-01-05T08:50:00+00:00"
+
+
+def test_runtime_bridge_merges_exit_monitor_fills(tmp_path):
+    sessions = tmp_path / "crypto_sessions"
+    session = sessions / "2026-01-02_150500_UTC"
+    write_csv(
+        session / "fills.csv",
+        [
+            {
+                "timestamp": "2026-01-02T15:05:01+00:00",
+                "symbol": "DOGE-USD",
+                "side": "buy",
+                "quantity": "1000",
+                "price": "0.08",
+                "commission": "1.0",
+                "tag": "entry",
+            },
+            {
+                "timestamp": "2026-01-02T15:05:02+00:00",
+                "symbol": "SOL-USD",
+                "side": "sell",
+                "quantity": "5",
+                "price": "150.0",
+                "commission": "0.5",
+                "tag": "exit",
+            },
+        ],
+    )
+    # Exits applied by the intra-hour monitor, logged at the run root.
+    write_csv(
+        tmp_path / "exit_monitor.csv",
+        [
+            {
+                # Before the earliest session fill: entry aged out of the
+                # session window, so including this would orphan a sell.
+                "timestamp": "2025-12-30T10:00:00+00:00",
+                "symbol": "NEAR-USD",
+                "reason": "exit_trailing_stop",
+                "price": "2.67",
+                "entry_price": "2.64",
+                "high_water": "2.73",
+                "quantity": "2749.61",
+                "commission": "7.3",
+                "sim_cash": "35316",
+                "sim_equity": "35316",
+            },
+            {
+                # Re-records the SOL session sell (same symbol+qty, within 12h).
+                "timestamp": "2026-01-02T16:00:00+00:00",
+                "symbol": "SOL-USD",
+                "reason": "exit_trailing_stop",
+                "price": "150.2",
+                "entry_price": "140.0",
+                "high_water": "151.0",
+                "quantity": "5",
+                "commission": "0.5",
+                "sim_cash": "35080",
+                "sim_equity": "35080",
+            },
+            {
+                # Genuine monitor-only exit.
+                "timestamp": "2026-01-02T17:30:00+00:00",
+                "symbol": "DOGE-USD",
+                "reason": "exit_trailing_stop",
+                "price": "0.085",
+                "entry_price": "0.08",
+                "high_water": "0.087",
+                "quantity": "1000",
+                "commission": "1.1",
+                "sim_cash": "35080",
+                "sim_equity": "35080",
+            },
+        ],
+    )
+    write_json(tmp_path / "crypto_state.json", {"sim_positions": {}, "sim_last_prices": {}})
+
+    out = tmp_path / "runtime" / "crypto"
+    result = build_crypto_run(tmp_path / "crypto_state.json", sessions, out, max_sessions=10)
+
+    assert result["fills"] == 3
+    rows = read_jsonl(out / "fills.jsonl")
+    assert [(r["symbol"], r["side"]) for r in rows] == [
+        ("DOGE-USD", "buy"), ("SOL-USD", "sell"), ("DOGE-USD", "sell"),
+    ]
+    assert rows[2]["tag"] == "exit"
+    assert rows[2]["price"] == 0.085
+    assert "reason" not in rows[2]

@@ -463,6 +463,20 @@ def validate_config(
         else:
             for err in validate_plugin_config(spec, strategy_cfg, full_config=config):
                 errors.append(f"metadata.strategy_plugin config: {err}")
+            try:
+                plugin_instance = create_plugin(spec, strategy_cfg if isinstance(strategy_cfg, dict) else {})
+            except Exception as exc:
+                errors.append(f"metadata.strategy_plugin could not be instantiated: {exc}")
+            else:
+                # A spec that imports fine can still be the wrong kind of
+                # plugin (e.g. a bespoke-runner signal plugin); catch that at
+                # validation instead of crashing mid-run. on_start/on_fill are
+                # optional, on_data is what the run loop requires.
+                if not callable(getattr(plugin_instance, "on_data", None)):
+                    errors.append(
+                        "metadata.strategy_plugin does not implement StrategyPlugin.on_data; "
+                        "signal plugins for the bespoke paper runners cannot run in this runner"
+                    )
     if metadata.get("status") == "example_only" and runner_cfg.get("mode") == "paper":
         errors.append("example_only configs must not default to paper mode")
 
@@ -814,11 +828,25 @@ def normalize_frame(
     symbol: str,
     timestamp_column: str = "timestamp",
 ) -> pd.DataFrame:
-    if timestamp_column in df.columns:
-        ts = pd.to_datetime(df[timestamp_column], utc=True)
-        df = df.drop(columns=[timestamp_column]).copy()
+    resolved_column = timestamp_column if timestamp_column in df.columns else None
+    if resolved_column is None:
+        # The repo's own caches use "date"; accept common aliases instead of
+        # silently falling back to the row index.
+        lowered = {str(c).lower(): c for c in df.columns}
+        for alias in ("timestamp", "date", "datetime", "time"):
+            if alias in lowered:
+                resolved_column = lowered[alias]
+                break
+    if resolved_column is not None:
+        ts = pd.to_datetime(df[resolved_column], utc=True)
+        df = df.drop(columns=[resolved_column]).copy()
         df.index = ts
     else:
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(
+                f"{symbol}: no timestamp column found (configured '{timestamp_column}', "
+                "aliases timestamp/date/datetime/time); refusing to interpret the row index as timestamps"
+            )
         df = df.copy()
         df.index = pd.to_datetime(df.index, utc=True)
     df.index.name = "timestamp"
