@@ -1,7 +1,8 @@
 # IBKR Trading Harness
 
 This is a local-first framework for pulling IBKR market data, defining strategy
-plugins, and building paper/live runners around those plugins.
+plugins, and building paper/live runners around those plugins — with a web
+dashboard that makes everything observable.
 
 <!-- After publishing, enable the CI badge by replacing OWNER/REPO:
 ![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) -->
@@ -36,9 +37,8 @@ local files.
   from public-safe config.
 - Strategy plugin contracts for generic, stock, and crypto runners.
 - Example strategies that deliberately emit no edge.
-- Example configs that show shape and operational wiring only.
-- Local service scripts for IBKR Gateway startup, the generic plugin
-  supervisor, status publishing, and the command worker.
+- A sanitized status publisher, token-authenticated receiver, and allowlisted
+  remote command worker for monitoring from anywhere.
 
 ## What This Is Not
 
@@ -48,9 +48,92 @@ local files.
 - Not a place to store broker credentials or private strategy configs.
 - Not a release of the private strategy runners or tuned signals.
 
-## Quick Start
+## What You Can Do With It
 
-Install dependencies:
+Five core workflows, each with a dashboard page built around it.
+
+### 1. Watch a strategy run
+
+Point the status publisher at your runner's artifacts and the **Overview**
+page answers "is anything running and healthy?" at a glance: equity with a
+sparkline, mode, Gateway reachability, latest signal/bar/fill, open positions,
+and alerts. Every alert is a card that explains what it means, what to do,
+and links to the page where the fix lives — alerts recompute from telemetry
+each publish and clear themselves when the condition resolves.
+
+```bash
+python3 scripts/publish_status.py --config config/cloud_status.example.yaml --json
+```
+
+### 2. Read performance honestly
+
+The **Performance** page leads with charts derived from the same data as its
+tables: an equity curve, drawdown, cumulative and per-trade realized PnL, and
+month/year return bars. A Strategy selector switches between publishing runs;
+clicking any day in the rollup table re-windows every chart, KPI, and trade
+row to exactly that day. Trade rows are paired from sanitized fills, so win
+rate and profit factor come from real round trips, not summaries.
+
+### 3. Pull and trust historical data
+
+```bash
+python3 live/fetch_history.py --host 127.0.0.1 --port 4002 --client-id 99 \
+  --symbols SPY,QQQ --bar-size 5min --duration "1 D" --rth
+
+python3 live/fetch_crypto_history.py --host 127.0.0.1 --port 4002 \
+  --client-id 199 --symbols BTC-USD,ETH-USD --exchange ZEROHASH \
+  --bar-size 1min --months 1
+```
+
+Fetches write resumable JSON manifests that the **Fetch Jobs** page renders:
+progress by symbol and chunk, rolling ETA, retries, and output paths. Failed
+or partial pulls resume with `--resume-manifest <manifest.json>`. The **Data
+Library** indexes every saved file by root with fair-share scan budgets, and
+its Symbol Visibility diagnostic explains exactly why a symbol is visible,
+capped, unparsed, or missing.
+
+### 4. Replay a strategy on saved data
+
+In the **Workbench**: select saved files, preview timestamp alignment, pick a
+plugin, generate a draft config, validate it, and run a replay — results land
+in **Performance** and **Runs** as sanitized artifacts. The same flow works
+headless:
+
+```bash
+python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --validate-only
+python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --mode replay --max-steps 3
+python3 scripts/summarize_plugin_run.py paper_logs/example_plugin_runner
+```
+
+Validation instantiates your plugin and checks the runner contract before
+anything runs. Runs write `decisions.jsonl`, `orders.jsonl`, `fills.jsonl`,
+`account.jsonl`, and `summary.json`; execution guards (allowed symbols/sides,
+max orders/quantity/notional, gross exposure, optional per-order approval)
+apply before any simulated or paper order. IBKR paper mode additionally
+requires an explicit `--confirm-paper-orders`.
+
+### 5. Monitor from anywhere, safely
+
+The receiver/dashboard runs locally by default. To check on a strategy away
+from the machine, deploy the same receiver to a small cloud host with a
+required bearer token, and point the publisher at it — the cloud host stores
+only sanitized telemetry, never broker credentials or order authority:
+
+```bash
+export TRADING_STATUS_TOKEN='replace-me'
+python3 scripts/cloud_status_server.py --config config/cloud_status_hosted.example.yaml
+python3 scripts/publish_status.py --config config/cloud_status.example.yaml \
+  --endpoint https://your-receiver/status --token-env TRADING_STATUS_TOKEN
+```
+
+An optional command worker polls the receiver outbound for a small allowlist
+of read-only commands, writes hash-chained audit rows, and refuses reserved
+high-risk actions (enabling live orders, flattening live positions) even if
+they are added to the allowlist. Deployment templates for Docker/compose,
+nginx, Caddy, Fly.io, Render, and provider firewalls are in `ops/cloud/`; the
+walkthrough is `docs/cloud_monitoring_deployment.md`.
+
+## Getting Started With Real Data
 
 ```bash
 python3 -m venv .venv
@@ -58,553 +141,71 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Fetch stock bars from IBKR:
+1. Start IB Gateway (paper) on port 4002 — `scripts/start_ibgateway_paper.sh`
+   wraps IBC, and `docs/ibkr_gateway_runbook.md` covers login and service
+   setup.
+2. Fetch some bars (use case 3 above).
+3. Serve the dashboard against your data and status:
 
 ```bash
-python3 live/fetch_history.py \
-  --host 127.0.0.1 \
-  --port 4002 \
-  --client-id 99 \
-  --symbols SPY,QQQ \
-  --bar-size 5min \
-  --duration "1 D" \
-  --rth
+scripts/install_local_monitoring_stack.sh   # user services: receiver + publisher timer
+# or run it directly:
+python3 scripts/cloud_status_server.py --config config/cloud_status.example.yaml
 ```
 
-Fetch commands write dashboard-readable JSON job manifests under
-`paper_logs/fetch_manifests` by default. The dashboard's Fetch Jobs page uses
-those manifests to show what was fetched, what failed, and which output files
-were produced. If Fetch Jobs looks empty, use Fetch Backend Status > Refresh
-Fetch APIs to check `/fetch_manifests` and `/runtime_sessions` before changing
-roots or rerunning pulls.
+4. Open `http://127.0.0.1:8765/`. The Help view recommends a next route from
+   your current setup state; the topbar "I want to" selector routes jobs like
+   "monitor today's run" or "build a simulation" to the right page.
+5. Replay a plugin on your fetched data (use case 4 above).
 
-Resume a failed or partial stock fetch from its manifest:
-
-```bash
-python3 live/fetch_history.py \
-  --resume-manifest paper_logs/fetch_manifests/example_stock_manifest.json
-```
-
-Fetch crypto bars from IBKR Zero Hash:
-
-```bash
-python3 live/fetch_crypto_history.py \
-  --host 127.0.0.1 \
-  --port 4002 \
-  --client-id 199 \
-  --symbols BTC-USD,ETH-USD \
-  --exchange ZEROHASH \
-  --bar-size 1min \
-  --months 1
-```
-
-Audit which saved CSV/parquet files are visible to the dashboard catalog:
-
-```bash
-python3 scripts/audit_data_storage.py \
-  --data-root examples/data \
-  --catalog-limit 200
-```
-
-Run the example plugin tests:
-
-```bash
-PYTHONPATH=. pytest tests/test_strategy_plugin_example.py
-```
-
-Run the generic no-edge plugin against local sample bars:
-
-```bash
-python3 live/plugin_runner.py \
-  --config config/plugin_runner.example.yaml \
-  --validate-only
-
-python3 live/plugin_runner.py \
-  --config config/plugin_runner.example.yaml \
-  --mode replay \
-  --max-steps 3
-
-python3 scripts/summarize_plugin_run.py paper_logs/example_plugin_runner
-```
-
-Run the generic supervisor once:
-
-```bash
-python3 scripts/plugin_supervisor.py \
-  --config config/plugin_supervisor.example.yaml \
-  --validate-only
-
-python3 scripts/plugin_supervisor.py \
-  --config config/plugin_supervisor.example.yaml \
-  --once
-```
-
-Run the read-only status publisher locally:
-
-```bash
-python3 scripts/publish_status.py \
-  --config config/cloud_status.example.yaml \
-  --json
-```
-
-Run the local mock receiver/dashboard:
-
-```bash
-export TRADING_STATUS_TOKEN='replace-me'
-python3 scripts/cloud_status_server.py \
-  --config config/cloud_status.example.yaml \
-  --auth-token-env TRADING_STATUS_TOKEN
-python3 scripts/publish_status.py \
-  --config config/cloud_status.example.yaml \
-  --endpoint http://127.0.0.1:8765/status \
-  --token-env TRADING_STATUS_TOKEN
-```
-
-For an unattended local receiver, install the user service from the checkout:
-
-```bash
-scripts/install_dashboard_server.sh
-systemctl --user restart algo-trade-dashboard-server.service
-```
-
-For a local receiver plus status-publisher timer, use:
-
-```bash
-scripts/install_local_monitoring_stack.sh
-```
-
-Add `--with-command-worker` only after reviewing the remote-control allowlist
-and local enable-marker rules.
-
-Open `http://127.0.0.1:8765/` for the operational dashboard.
-The Help view is the easiest first screen for a new local copy: it recommends
-one next route from current setup state, includes a Guided Tour for current
-health, performance, saved data, simulation, run evidence, and operations,
-shows a copyable Task Navigator for
-monitoring, performance, saved data, fetch recovery, simulation, run events,
-operations, and publishing boundaries, and now includes a Today's Performance
-Guide that explains the Overview -> Performance -> Runs evidence path for
-today/latest-session results. It also includes a Mode Guide that distinguishes
-replay, shadow, simulated paper, broker paper, and live order authority from
-the currently loaded telemetry/artifact source, then links to Overview,
-Performance, Data Library, Workbench, Runs, Operations, and the local runbooks.
-Use the topbar "I want to" selector when you know the job but not the page; it
-routes tasks such as monitoring today's run, finding saved data, building a
-simulation, checking runtime health, and publishing safely to the right
-page/lens. Use Quick Jump when you already know the destination. The topbar
-status strip keeps mode, equity, status freshness, Gateway/API, visible runs,
-saved-data count, and alerts visible while you move between pages. The route
-strip above each page intro shows the current page/lens, Page Home returns that
-page to its home lens, and Copy Link copies the exact dashboard URL for notes
-or another browser tab.
-Use Data Library Backend Status first when saved files or symbols are missing.
-Check Data APIs forces a fresh saved-data backend probe and shows catalog,
-symbol-directory, history-matrix, root-index, coverage, gap, minute-heatmap,
-and storage-audit endpoint rows. If those rows are missing or warn, fix that
-backend issue before changing roots. Then use Data Library Diagnostics >
-Catalog Scan Report; it summarizes root scan scope, parser/skipped-file
-evidence, catalog caps, Storage Audit visibility, and the next recovery action.
-Use Help > Boundary > Publication Review Assistant before copying the public
-repo to GitHub; it separates export manifest review, the automated publish
-gate, dashboard setup evidence, cloud boundary checks, private material that
-must never be exported, and the required manual read-through.
-
-Smoke-test dashboard assets and core endpoints:
-
-```bash
-python3 scripts/smoke_dashboard.py
-```
-
-Poll safe remote commands from the local machine:
-
-```bash
-export TRADING_STATUS_TOKEN='replace-me'
-python3 scripts/command_worker.py \
-  --config config/remote_control.example.yaml \
-  --token-env TRADING_STATUS_TOKEN \
-  --once
-```
+The full walkthrough — including supervisor scheduling, paper-mode rules, and
+troubleshooting — is `docs/public_quickstart.md`.
 
 ## Strategy Plugins
 
-Public examples are in `examples/strategies/`. They demonstrate the interface
-without publishing an edge. A private strategy should implement the same
-contract and be referenced from a local ignored config file.
-
-Example plugin spec:
+Public examples live in `examples/strategies/` and demonstrate the interface
+without publishing an edge. A private strategy implements the same contract
+and is referenced from an ignored local config:
 
 ```yaml
 metadata:
-  strategy_plugin: examples.strategies.no_edge_template:create_strategy
+  strategy_plugin: examples.strategies.no_edge_template:create_strategy   # public example
+  # strategy_plugin: your_private_package.your_strategy:create_strategy  # private plugin
 ```
 
-Private plugin spec:
-
-```yaml
-metadata:
-  strategy_plugin: your_private_package.your_strategy:create_strategy
-```
-
-The generic runner writes `decisions.jsonl`, `orders.jsonl`, `fills.jsonl`,
-`account.jsonl`, and `summary.json` under the configured output directory.
-`account.jsonl` records per-step cash, equity, positions, exposure, equity
-source, exposure percentages, and position-pricing coverage. Paper adapters that
-provide cash and positions but not equity are marked as
-`estimated_from_cash_and_prices`. `summary.json` includes account snapshot count,
-total return, max drawdown,
-elapsed account-observation time, and geometric return projections per day,
-month, and year when those values are available. Short run windows are marked
-as short-horizon projections so they are treated as context, not stable
-performance estimates. IBKR paper mode requires
-`--confirm-paper-orders`. The runner also applies config-driven execution
-guards before simulated or paper execution: allowed symbols/sides/order types,
-required current prices, max orders, max quantity/cash/notional, short-sale
-permission, and gross exposure. Configs can require per-order approval with
-`execution.require_order_approval: true`; held orders write
-`order_previews.jsonl` rows with approval IDs and can be approved locally with
-`scripts/approve_order_preview.py` before rerunning. The dashboard artifact view
-can also show a copyable helper command for held previews. Use
-`--validate-only` before runs to check config shape, plugin importability,
-static data paths, supported modes/order types, and numeric risk settings
-without creating run artifacts.
-Use `scripts/summarize_plugin_run.py` to inspect a run directory without
-opening the raw JSONL artifacts.
-
-## Generic Supervisor
-
-`scripts/plugin_supervisor.py` runs configured local job commands on simple
-interval schedules and writes `paper_logs/plugin_supervisor/status.json`. Job
-commands are argv lists rather than shell strings. Use `process_mode: blocking`
-for short one-shot jobs and `process_mode: managed` for long-running
-paper/shadow processes that should be monitored without blocking other jobs.
-Each job can reference the same `pause_marker` used by the command worker and
-generic runner, so remote pause/resume can stop scheduled launches and prevent
-order evaluation.
-
-The public systemd example
-`ops/systemd/algo-trade-plugin-supervisor.service` runs the generic supervisor
-from an ignored local config at `~/.config/algo-trade/plugin_supervisor.yaml`.
-Copy and edit `config/plugin_supervisor.example.yaml` before enabling that
-service.
-
-## Cloud Checking
-
-The public repo includes a read-only telemetry prototype. The local machine can
-publish runner summaries, supervisor status, remote-control audit summaries,
-and optional Gateway TCP health to a file or HTTP endpoint. The mock receiver
-stores the latest status and serves a small workbench dashboard from
-`web/dashboard/`. It does not execute commands or store broker credentials. The
-Operations Diagnostics view includes a Cloud Deployment Readiness report for
-remote-monitor evidence, command-audit integrity, local-only trading authority,
-auth, network boundary, retention, alerts, and manual provider hardening. The
-Help Boundary view also includes a Cloud Access Guide that separates cloud
-checking from cloud running: hosted receivers can show sanitized status and
-queue audited low-risk requests, while the local supervisor/runner keeps
-Gateway, data, credentials, private strategies, and order authority on the
-trading machine.
-The dashboard now uses separate Overview, Performance, Data Library, Fetch Jobs,
-Workbench, Runs, Operations, and Help views instead of one long status page.
-Overview surfaces current health checks, setup checklist state, open positions,
-latest bar/rejection telemetry, new-activity cues since the prior refresh, and a latest decision/order/fill
-timeline. Its Strategy Health Report gives a copyable current-state summary for
-telemetry, runtime loop, alerts/orders, execution state, account/positions,
-saved data, Workbench readiness, and next action. Performance shows latest equity,
-return, drawdown, exposure, an equity curve, a drawdown curve, and daily return
-bars plus a calendar-style daily return heatmap when account artifacts are
-available. It also shows the active source, mode, latest account timestamp,
-open position count, and decision/order/fill/reject activity before the charts.
-Its Current Strategy Report gives a copyable plain-language summary of source,
-equity/returns, risk, trades, execution issues, evidence depth, and next action.
-Performance Action Summary above it picks the first route across missing
-source evidence, empty selected periods, execution issues, drawdown/risk
-review, missing trade rows, missing rollups, benchmark context, and trade
-inspection. The Current Scoreboard then shows source, today, recent, month,
-all-available return, drawdown, and readiness for the quickest performance scan.
-Its Performance Evidence panel separates account-backed, event-backed,
-summary-only, rollup-only, and benchmarked results so users can verify what
-supports a return before trusting it.
-It also supports account-artifact period presets and a fill-derived
-trade table with open/closed rows, win/loss, average win/loss, and profit
-factor. Daily run rollups summarize archived account artifacts by UTC day so
-the dashboard can answer how saved runs performed without a live process; period
-rollups summarize those same archived rows by month and year. Performance
-Rollups also includes a Status Rollup Continuity check for live/paper history
-freshness, calendar gaps, snapshot density, node/mode mix, and execution
-caveats before you trust period statistics. It shows
-read-only workbench state for saved drafts, recorded runs, archived run
-artifacts, searchable run history, recent open-order telemetry, managed
-positions, and local disk usage. Workbench Run includes Draft Inventory Review
-for saved draft folders, tags, validation coverage, runnable drafts, selected
-draft state, latest runs, and next action before the dense draft/run tables.
-Runs Home includes a Runs Evidence panel that separates current run source,
-recent decision/order/fill events, execution issues, account boundary,
-loaded artifacts, active filters, and the next verification route. It also
-starts with an Action Summary that tells users whether to inspect open orders,
-execution issues, positions, fills/results, quiet runners, or artifacts first.
-Runs State starts with a State Action Summary that routes account/order proof
-toward open-order reconciliation, position review, event issues, Performance,
-saved artifacts, status history, or Operations setup before the lower state
-tables.
-Operations Remote starts with a Remote Action Summary that routes missing
-snapshots, stale heartbeats, Gateway/API blockers, alerts, open orders, stale
-data/account timestamps, active filters, or healthy monitoring toward the next
-detail/report/control/export step. It also includes a copyable Remote Monitor
-Report for node coverage, heartbeat freshness, Gateway/API state, alerts, open
-orders, stale data/account timestamps, and next actions.
-When a node is selected, Remote Node Health Report gives the same copyable
-evidence packet for that node: heartbeat, Gateway/API, account/data feed age,
-runs, activity, bounded artifact evidence, cloud boundary, and next action.
-Operations Home includes an Action Summary that picks the first route across
-paper readiness, Gateway/API, remote-node freshness, command audit/control
-queue, and local alerts. Its Operations Evidence panel then separates local
-runner/paper proof, Gateway/API proof, remote snapshots, command-audit state,
-control queue pressure, alerts, and the next operational drilldown before users
-open the lower tables. Operations Paper starts with a Paper Action Summary that
-routes current paper-monitor checks to Gateway diagnostics, the paper checklist,
-Runs/Orders, Performance, or the Gateway runbook.
-Operations Control includes Command Safety Review before the raw command form,
-summarizing target-node state, read-only/control/launcher action classes,
-confirmation requirements, pending/failed command pressure, audit integrity,
-retention state, selected-action boundary copy, and fail-closed high-risk
-live-control actions. It also includes Supervisor Action Summary before the
-supervisor table, summarizing local supervisor/job state, stale heartbeats,
-missed/running/due/waiting jobs, and pause/restart marker availability while
-only preparing, not queueing, `supervisor_status` or `run_supervisor_once`.
-Missed start windows should publish the reason and next expected start time.
-The dashboard can also inspect configured local
-CSV/parquet data roots, showing coverage summaries, timestamp/gap metadata,
-root-scan diagnostics, suggested unconfigured local roots, and small
-downsampled price previews. It also includes a recent date-bin coverage view
-and a storage audit that compares configured/suggested root files with
-catalog-visible rows. The symbol diagnostic answers why a ticker is visible,
-scan-limited, in an unconfigured root, malformed, fetch-failed, or absent. Data
-Home starts with a Data Action Summary that picks the next route across root
-setup, scan caps, hidden filters, replay blockers, fetch-output visibility,
-and inspect/compare/workbench handoff. It also includes a Historical Inventory
-Evidence panel and Data Visibility Report that summarize parsed catalog files,
-root-index candidates, saved history matrix groups, filters, catalog caps, root
-visibility, parser skips, replay readiness, and fetch-output visibility before
-users open dense tables, plus a Saved Data Preview Wall with summary cards,
-sparklines, and direct
-Inspect/Compare/Workbench actions for visible saved files. The Fetch Jobs view
-reads JSON manifests from configured manifest roots, summarizing historical-data
-pulls by status, symbols, chunks, rows, output paths, no-data chunks, and errors.
-Fetch Action Summary picks the first next action across active fetches,
-failed/no-data/retry recovery, output-root visibility issues, selected output
-handoff, and filtered job state. Fetch Progress Review gives a first-screen
-read on active, partial, and failed manifests, including symbol/chunk progress,
-ETA, rolling pace, retries, pacing waits, output visibility, recovery status,
-and the focus job before the dense table. Fetch Evidence separates root
-evidence, loaded-manifest evidence,
-recovery pressure, output visibility, and selected-detail evidence so missing
-or unusable outputs have a clear next verification step.
-When an output file is inside a configured data root, its row includes an Inspect
-Data action that opens the same offline Data Detail view used by the Data
-Library. Individual datasets can be
-inspected offline with date-range controls, sampled or full-in-range viewing,
-close-price paths, volume bars, null counts, gap rows, price/return stats,
-volume stats, and a compact ok/warn/bad quality summary before they are used
-in a replay config. Data Detail starts with an Action Summary that picks the
-first move across opening the typed symbol's best file, fixing catalog/root
-visibility, reloading the current range, focusing the largest gap, sending the
-file to Workbench, comparing sibling files, or exporting the range. The
-saved-data table also has a Replay column that combines
-quality, storage-contract metadata, missing intervals, timezone, and adjustment
-metadata into one per-file readiness read, with a matching Replay filter and
-Replay-first sort for large local catalogs. Fetch Detail output rows show the
-same readiness when produced files are Data Library-visible. The Data Library
-also has a Saved History Matrix that groups saved files by asset, source, bar
-size, and session with one-click Browse, Inspect, Compare, Workbench, and CSV
-export actions plus assistant cards for readiness and next action, a Symbol
-Coverage Ledger for compact per-symbol ranges/readiness/actions with direct
-Workbench handoff and CSV export, and can compare several saved datasets
-over one requested date range by plotting normalized close-return paths from
-configured local files. Compare Saved Data starts with a Compare Action Summary
-that recommends the first move across selecting shown or symbol-matched files,
-fixing overlap, running the comparison, reviewing warnings, sending the
-compared window to Workbench, or exporting loaded paths. The saved-data table
-can be filtered by search text, quality status, and bar size, and its header
-summarizes quality counts, bar-size
-counts, catalog scope status, capped-root count, total rows, local file size,
-and a broad Root Index count. The Root Index infers candidate files and symbols
-from configured-root filenames/paths without parsing every CSV/parquet file, so
-users can tell when the quality catalog is only a bounded parsed sample of a
-larger on-disk universe. Root Index Browser searches those candidate symbols
-inside the dashboard, routes them into parsed-catalog search or diagnostics,
-opens supported sample files in Data Detail, copies sample paths, and can send
-symbol/source/bar/session filters back to the server with Search Roots when the
-default root-index scan is capped. It also shows root-level
-cap/unavailable/unsupported-file coverage; Export Root Index CSV downloads the
-current broader or filtered candidate universe for offline review. Symbol
-Visibility in the
-Browse lens explains whether a typed symbol is catalog-visible, hidden by
-facets, only root-index-visible, or still needs diagnostics/fetch evidence.
-Saved-data coverage and quality
-metadata can be exported as CSV. The dashboard can generate, save, validate, replay, and
-simulated-paper-run plugin-runner config drafts from saved data. Public exports
-ship only generic no-edge example plugins, while local ignored plugin registries
-can expose private plugin metadata to the Workbench without publishing strategy
-logic. Workbench Home includes an Example Config Gallery that explains public
-examples and local plugin boundaries before opening Builder, plus an Action
-Summary and Stage Summary that show the current workflow stage, blockers, data,
-alignment, draft, run, results, and the next route. Workbench Backend Status
-checks schema, draft, validation, run, comparison, rollup, maintenance, and
-endpoint-map APIs before users debug empty builders or run tables. The
-workbench path also includes a Workbench Evidence panel that states whether the current setup is only data-backed,
-draft-backed, run-backed, or loaded-artifact-backed before users trust
-performance output. Workbench Artifacts starts with an Artifacts Action Summary
-that routes loaded or available run evidence to latest-artifact loading,
-Performance, Runs, bounded logs, JSON export, or Run Draft before the dense
-artifact tables. It
-remains limited to file-based data under configured
-data roots and non-live modes. Drafts can use
-one or more selected datasets, with duplicate symbols and duplicate paths
-rejected before YAML is written. The Selected Data Packet includes an exportable
-coverage ledger for selected files, source/bar/session mix, ranges, rows, replay
-readiness, and metadata before YAML is written. Generated drafts include a data-alignment
-summary for common timestamps, overlap coverage, cadence mismatches, and
-per-symbol timestamp counts; the same alignment summary can be previewed before
-saving a draft. Saved drafts can be reopened for YAML, validation status, data
-alignment, and copyable local command snippets when they still validate as public
-workbench examples, and the validated YAML can be downloaded from the draft
-table. The draft table includes a bulk validation summary for all saved YAML,
-so unsupported plugins, missing data paths, and non-public example configs are
-visible before a run is attempted. Risk presets in the builder only fill
-example guardrail and simulated-cost
-fields; they are editable and are not strategy recommendations.
-Saved example YAML can be deleted from the draft table
-without touching archived run artifacts. Saved draft runs can be inspected through summarized
-artifacts for decisions, orders, fills, account snapshots, return, drawdown,
-time-normalized return projections, gross/net exposure, position count, and an
-equity curve. Runs includes a copyable Event Flow Report for recent decisions,
-orders, fills, rejects, filters, latest event, and next inspection action before
-dense event rows. Runs Events also includes an Execution Quality Review for
-public-safe order/fill telemetry: missed-fill rate, order type mix, quote
-coverage, limit/cap coverage, fill price/timing coverage, and spread evidence
-are shown when runners publish those fields. Raw strategy signal payloads are
-not returned by the public artifact view. Plugins can opt into public-safe
-dashboard drilldowns by placing
-sanitized fields under `StrategyDecision.diagnostics["dashboard"]`; raw
-diagnostics remain hidden. Plugin registries can declare `result_fields`,
-`result_sections`, `result_widgets`, and non-executable `validation_rules` so
-Workbench can explain/enforce public-safe plugin constraints and Run Artifacts
-can label, group, and render public-safe card/table/bar/sparkline/line-chart
-summaries plus allowlisted declarative `custom_chart` widgets with coverage
-checks before dense result tables. For open-position cards, the generic runner also
-accepts allowlisted per-symbol `position_details` / `position_metadata` under
-that dashboard diagnostics block and writes only public-safe fields for
-currently open symbols. Successful non-validate draft runs also archive a local per-run
-artifact snapshot so a comparison row can inspect the exact run even after the
-draft output directory is overwritten. Recent saved draft runs can also be
-compared side by side by return, drawdown, exposure, elapsed time, fills,
-rejections, and short-horizon projection status; failed or timed-out runs are
-not allowed to reuse stale performance summaries from earlier successful runs.
-The comparison table can be filtered by status, action, and summary
-availability, then sorted by finish time, return, return/day, drawdown,
-exposure, or position count. Run comparison records can be exported as a CSV of
-public-safe summary fields, and selected archived run artifacts can be exported
-as public-safe JSON.
-Run log detail exposes command argv, return code, duration, and stdout/stderr
-tails for diagnosis.
-The Workbench Maintenance panel previews orphaned run archives and workbench
-output directories, reports reclaimable disk usage, and can prune only those
-orphaned directories after an explicit confirmation request. Cleanup is local
-and bounded to the workbench archive/output roots.
-The Setup Diagnostics panel checks local state-directory writability, configured
-data roots, CSV/parquet file counts, and dashboard asset availability so setup
-problems are visible before a user starts generating configs. The Endpoint Map
-panel and `/workbench_endpoints` response list the public dashboard API surface
-for scripting and troubleshooting. The Workbench State panel can export a
-public-safe JSON snapshot of diagnostics, data catalog metadata, config options,
-and recent run summaries for reproducibility notes.
-Real deployments can add `max_age_seconds` to configured runs, supervisors, and
-remote-control audit settings to alert on stale local artifacts. The receiver
-also keeps a bounded read view over `status_history.jsonl` through
-`/status_history`, and the dashboard shows recent snapshots so missed
-heartbeats, warning periods, and recovery events are easier to inspect. Run
-configs can opt into `recent_events` telemetry, which publishes bounded
-summaries of recent decisions, orders, and fills without including raw strategy
-signal payloads.
-
-The repo also includes a remote-control prototype that keeps execution local.
-The cloud side queues commands, and the local worker polls and enforces an
-allowlist. Supported example actions include `request_status`, `summarize_run`,
-`validate_config`, `supervisor_status`, `validate_supervisor_config`,
-`run_supervisor_once`, `pause_runner`, and `resume_runner`. There is no
-arbitrary shell execution and no broker action command. `run_supervisor_once`
-is opt-in through `allowed_actions` and can only run a locally configured
-supervisor ID. The mock server and worker support optional bearer-token auth via
-environment variables; never put the token value in committed config.
-Pause/resume writes a local marker file, and the generic plugin runner honors
-`control.pause_marker` by recording paused decisions without calling strategy
-logic or submitting orders. The command worker also writes a local JSONL audit
-log by default, so the trading machine retains command records even if the cloud
-endpoint is unavailable. The dashboard command form validates action-specific
-parameters before queueing commands and can cancel pending commands that have
-not yet been polled by the local worker.
-
-## Operational Runbooks
-
-The public docs include focused runbooks for common local operations:
-
-- `docs/ibkr_gateway_runbook.md`
-- `docs/paper_trading_runbook.md`
-- `docs/market_data_permissions_runbook.md`
-- `docs/service_restart_runbook.md`
-- `docs/failed_order_diagnosis_runbook.md`
-- `docs/cloud_monitoring_deployment.md`
+`pip install .` exposes the `framework` package (plugin contracts, loader,
+market calendar) and the example plugins for import from your own code.
 
 ## Config Privacy
 
-Commit only example files:
+Commit only example files (`config/*.example.yaml`, `config/*.env.example`).
+Never commit `config/*.env`, tuned configs or universes, logs, caches,
+broker credentials, or private strategy plugins.
 
-- `config/*.example.yaml`
-- `config/*.env.example`
-- `config/strategy_registry.example.yaml`
-
-Do not commit:
-
-- `config/*.env`
-- `config/*_paper.yaml`
-- tuned universes
-- logs, caches, analysis outputs
-- broker credentials
-- private strategy plugins
-
-Run this before publishing:
+Run the publish gate before sharing any copy of this repo:
 
 ```bash
 python3 scripts/public_publish_check.py
 ```
 
-Use strict audit mode directly when you want only the sensitive-file gate:
-
-```bash
-python3 scripts/public_readiness_audit.py --fail-on-review
-```
-
-Use `python3 scripts/public_publish_check.py --list --json` to inspect the
-full gate without running it. The default gate includes export-manifest review,
-strict readiness audit, public docs audit, cloud-example audit, Workbench
-contract audit, dashboard contract audit, Python compile, dashboard JavaScript
-syntax, pytest, default/empty/seeded dashboard smokes, and accessibility smoke.
-Add `--include-screenshots` for the slower dashboard layout screenshot checks.
-
-The private source tree can regenerate this public subset with
-`scripts/export_public_repo.py --force`. Repeated exports preserve the
-destination repo's `.git` directory, so history and remotes survive refreshes.
-The publish gate also runs `scripts/audit_public_docs.py`, which verifies that
-the README, quickstart, publication checklist, blog draft, privacy guide, and
-cloud runbook still contain required public/private boundary language.
+The gate bundles export-manifest review, the strict readiness audit, docs and
+cloud-example audits, dashboard/Workbench contract audits, compile and syntax
+checks, pytest, and dashboard smokes. `scripts/export_public_repo.py --force`
+regenerates this public subset from a private tree; repeated exports preserve
+the destination `.git`. See `docs/configuration_privacy.md` and
+`docs/publication_readiness.md`.
 
 ## Documentation
 
-- `docs/public_quickstart.md`
-- `docs/configuration_privacy.md`
-- `docs/publication_readiness.md`
-- `docs/public_framework_roadmap.md`
-- `docs/work_queue.md`
-- `docs/blog_public_ibkr_harness_draft.md`
+- `docs/public_quickstart.md` — full setup and operations walkthrough
+- `docs/web_ui_runbook.md` — dashboard usage, page by page
+- `docs/ui_use_cases.md` — the use cases and design rules behind the UI
+- `docs/cloud_monitoring_deployment.md` — hosted receiver deployment
+- Runbooks: `docs/ibkr_gateway_runbook.md`, `docs/paper_trading_runbook.md`,
+  `docs/market_data_permissions_runbook.md`, `docs/service_restart_runbook.md`,
+  `docs/failed_order_diagnosis_runbook.md`
+- `docs/configuration_privacy.md`, `docs/publication_readiness.md`,
+  `docs/public_framework_roadmap.md`, `docs/work_queue.md`
 
 ## License
 
