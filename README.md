@@ -3,7 +3,10 @@
 This is a local-first framework for pulling IBKR market data, defining strategy
 plugins, and building paper/live runners around those plugins.
 
-![Dashboard overview with seeded example telemetry](docs/images/dashboard_overview.png)
+<!-- After publishing, enable the CI badge by replacing OWNER/REPO:
+![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) -->
+
+![Dashboard tour with seeded example telemetry](docs/images/dashboard_demo.gif)
 
 ## Try It In 30 Seconds
 
