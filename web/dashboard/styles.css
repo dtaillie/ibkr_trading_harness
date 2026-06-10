@@ -5637,3 +5637,37 @@ footer {
   margin: 4px 0 0;
   font-size: 12px;
 }
+
+/* Meta-disclosure: demoted summary panels collapse behind one line. */
+details.meta-disclosure {
+  margin: 12px 0;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--status-neutral-bg);
+}
+
+details.meta-disclosure > summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+details.meta-disclosure[open] {
+  background: transparent;
+  border-style: solid;
+}
+
+details.meta-disclosure > .meta-disclosure-body {
+  padding: 0 14px 12px;
+}
+
+/* Collapsed page intro: keep route, title, status, and actions only. */
+.page-intro.page-intro-collapsed #page-intro-guide,
+.page-intro.page-intro-collapsed #page-intro-steps,
+.page-intro.page-intro-collapsed #page-intro-evidence,
+.page-intro.page-intro-collapsed #page-intro-next,
+.page-intro.page-intro-collapsed #page-intro-note {
+  display: none;
+}

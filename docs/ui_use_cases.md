@@ -35,17 +35,27 @@ Open Positions. Moved to Activity: Today's Command Center, Today at a
 Glance, Since Last Refresh. Moved to Diagnostics: Backend Pipeline,
 Strategy Health Report, Start Here.
 
-## Pass 2 Candidates
+## Pass 2 (2026-06-10) — Disclosures And A Collapsible Guide
 
-- **Performance Home**: Story, Review, Evidence, Action Summary, Scoreboard,
-  Report, and Periods strip all summarize the selected source. Keep the
-  scoreboard and the home band; move the prose meta-panels to Diagnostics.
-- **Workbench Home**: Simulation Plan, Readiness Review, Evidence, Stage
-  Summary, and Action Summary restate the same guide state. Keep the stepper
-  and one summary; move the rest.
-- **Page intro strips**: the per-view answers/evidence/next-move card rows and
-  numbered workflow rails are onboarding aids; consider collapsing them after
-  first use (e.g. a dismissible state) or moving them into Help.
+Introduced the `meta-disclosure` idiom: demoted summary panels collapse
+behind a single native `<details>` row instead of stacking. Unlike a lens
+move, the content stays on its page — one click away, closed by default.
+
+- **Performance Home**: kept the home band and Current Scoreboard; Action
+  Summary, Review, Evidence, Strategy Report, and Story now live in one
+  collapsed disclosure between the scoreboard and the charts.
+- **Workbench Home**: kept the Stage Summary, stepper, and example gallery;
+  Simulation Plan, Readiness Review, Evidence, and Action Summary collapsed
+  into one disclosure.
+- **Page intro strips**: a Hide Guide / Show Guide toggle (persisted in
+  localStorage) collapses the per-view guide cards, workflow rail, evidence
+  chips, and recommended-next block, keeping route, title, status, and the
+  two action buttons. New users see the full guide; daily users hide it once.
+
+## Pass 3 Candidates
+
 - **Data Home**: keep Saved Universe spotlight + Data Inventory; the
-  remaining review/report/visibility panels overlap and belong in
-  Diagnostics.
+  remaining review/report/visibility panels overlap and belong in a
+  disclosure or Diagnostics.
+- **Runs / Fetch / Operations Homes**: same assistant/evidence/action-summary
+  stacks; apply the disclosure idiom.

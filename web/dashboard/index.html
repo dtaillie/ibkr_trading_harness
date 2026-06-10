@@ -151,6 +151,7 @@
           <div class="page-route-actions">
             <button id="page-route-home" class="secondary" type="button">Page Home</button>
             <button id="page-route-copy" class="secondary" type="button">Copy Link</button>
+            <button id="page-intro-toggle" class="secondary" type="button" aria-expanded="true">Hide Guide</button>
           </div>
         </div>
         <div>
@@ -569,14 +570,6 @@
         </div>
         <div id="performance-home-tiles" class="performance-home-tiles"></div>
       </section>
-      <section class="nested-section performance-action-summary-panel">
-        <div class="section-head">
-          <h2>Performance Action Summary</h2>
-          <span id="performance-action-note" class="section-note">No performance action summary loaded</span>
-        </div>
-        <div id="performance-action-cards" class="action-card-grid"></div>
-        <div id="performance-action-actions" class="hero-actions"></div>
-      </section>
       <section class="nested-section performance-scoreboard-panel">
         <div class="section-head">
           <h2>Current Scoreboard</h2>
@@ -585,6 +578,17 @@
         <div id="performance-scoreboard-cards" class="performance-scoreboard-grid"></div>
         <div id="performance-scoreboard-actions" class="hero-actions"></div>
       </section>
+      <details class="meta-disclosure">
+        <summary>Detailed action summary, review, evidence, and report</summary>
+        <div class="meta-disclosure-body">
+      <section class="nested-section performance-action-summary-panel">
+        <div class="section-head">
+          <h2>Performance Action Summary</h2>
+          <span id="performance-action-note" class="section-note">No performance action summary loaded</span>
+        </div>
+        <div id="performance-action-cards" class="action-card-grid"></div>
+        <div id="performance-action-actions" class="hero-actions"></div>
+      </section>
       <section class="nested-section performance-review-panel">
         <div class="section-head">
           <h2>Performance Review</h2>
@@ -592,15 +596,6 @@
         </div>
         <div id="performance-review-cards" class="action-card-grid"></div>
         <div id="performance-review-actions" class="hero-actions"></div>
-      </section>
-      <section class="nested-section performance-evidence-panel">
-        <div class="section-head">
-          <h2>Performance Evidence</h2>
-          <span id="performance-evidence-note" class="section-note">No performance evidence loaded</span>
-        </div>
-        <div id="performance-evidence-cards" class="action-card-grid"></div>
-        <div id="performance-evidence-body" class="performance-report-body"></div>
-        <div id="performance-evidence-actions" class="hero-actions"></div>
       </section>
       <section class="nested-section performance-report-panel">
         <div class="section-head">
@@ -611,6 +606,24 @@
         <div id="performance-report-body" class="performance-report-body"></div>
         <div id="performance-report-actions" class="hero-actions"></div>
       </section>
+      <section class="nested-section performance-evidence-panel">
+        <div class="section-head">
+          <h2>Performance Evidence</h2>
+          <span id="performance-evidence-note" class="section-note">No performance evidence loaded</span>
+        </div>
+        <div id="performance-evidence-cards" class="action-card-grid"></div>
+        <div id="performance-evidence-body" class="performance-report-body"></div>
+        <div id="performance-evidence-actions" class="hero-actions"></div>
+      </section>
+      <section class="nested-section performance-story-section">
+        <div class="section-head">
+          <h2>Performance Story</h2>
+          <span id="performance-story-note" class="section-note">No performance story loaded</span>
+        </div>
+        <div id="performance-story-cards" class="action-card-grid"></div>
+      </section>
+        </div>
+      </details>
       <section class="nested-section performance-snapshot-panel">
         <div class="section-head">
           <h2>Performance Snapshot</h2>
@@ -631,13 +644,6 @@
       </section>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
-      <section class="nested-section performance-story-section">
-        <div class="section-head">
-          <h2>Performance Story</h2>
-          <span id="performance-story-note" class="section-note">No performance story loaded</span>
-        </div>
-        <div id="performance-story-cards" class="action-card-grid"></div>
-      </section>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="performance-layout">
@@ -2708,14 +2714,6 @@
           </table>
         </div>
       </section>
-      <section class="nested-section workbench-action-summary-panel" aria-label="Workbench action summary">
-        <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="workbench-action-note" class="section-note">No Workbench action summary loaded</span>
-        </div>
-        <div id="workbench-action-cards" class="action-card-grid"></div>
-        <div id="workbench-action-actions" class="hero-actions"></div>
-      </section>
       <section class="nested-section workbench-example-gallery-panel" aria-label="Workbench example config gallery">
         <div class="section-head">
           <h2>Example Config Gallery</h2>
@@ -2723,6 +2721,9 @@
         </div>
         <div id="workbench-example-gallery-cards" class="action-card-grid"></div>
       </section>
+      <details class="meta-disclosure">
+        <summary>Detailed plan, readiness, evidence, and action summary</summary>
+        <div class="meta-disclosure-body">
       <section class="workbench-simulation-plan" aria-label="Simulation plan">
         <div class="workbench-simulation-main">
           <span class="eyebrow">Simulation Plan</span>
@@ -2749,6 +2750,16 @@
         <div id="workbench-evidence-body" class="performance-report-body"></div>
         <div id="workbench-evidence-actions" class="hero-actions"></div>
       </section>
+      <section class="nested-section workbench-action-summary-panel" aria-label="Workbench action summary">
+        <div class="section-head">
+          <h2>Action Summary</h2>
+          <span id="workbench-action-note" class="section-note">No Workbench action summary loaded</span>
+        </div>
+        <div id="workbench-action-cards" class="action-card-grid"></div>
+        <div id="workbench-action-actions" class="hero-actions"></div>
+      </section>
+        </div>
+      </details>
       <div id="workbench-workflows" class="workbench-workflow-grid" aria-label="Workbench workflows"></div>
       <div class="section-head">
         <h2>Simulate From Saved Data</h2>

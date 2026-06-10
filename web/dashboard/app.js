@@ -33210,6 +33210,20 @@ function init() {
       navigateToViewTarget(target.dataset.viewTarget, target.dataset.viewLens || "");
     });
   }
+  const introToggle = $("page-intro-toggle");
+  if (introToggle) {
+    const applyIntroCollapsed = (collapsed) => {
+      $("page-intro").classList.toggle("page-intro-collapsed", collapsed);
+      introToggle.textContent = collapsed ? "Show Guide" : "Hide Guide";
+      introToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    };
+    applyIntroCollapsed(localStorage.getItem("pageIntroCollapsed") === "1");
+    introToggle.addEventListener("click", () => {
+      const collapsed = !$("page-intro").classList.contains("page-intro-collapsed");
+      localStorage.setItem("pageIntroCollapsed", collapsed ? "1" : "0");
+      applyIntroCollapsed(collapsed);
+    });
+  }
   $("dashboard-jump-go").addEventListener("click", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-task-go").addEventListener("click", () => startDashboardTask($("dashboard-task").value));
