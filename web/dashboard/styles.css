@@ -5625,3 +5625,15 @@ footer {
 .event-timeline-legend .legend-item > span {
   background: currentColor;
 }
+
+/* Alert cards: each alert explains itself and links to the page that fixes it. */
+.alert-card button {
+  margin-top: 8px;
+  width: auto;
+}
+
+.alert-clear-note {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  font-size: 12px;
+}

@@ -97,6 +97,9 @@ dashboard:
   # small root's data looks missing.
   data_roots:
     - examples/data
+  # Optional: raise the filename-index coverage for large local caches so the
+  # Saved Universe reflects every file on disk (cheap, filename-only, cached).
+  # symbol_index_limit: 100000
   fetch_manifest_roots:
     - paper_logs/fetch_manifests
   # Optional ignored local registry for private Workbench plugin metadata.

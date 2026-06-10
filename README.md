@@ -3,6 +3,20 @@
 This is a local-first framework for pulling IBKR market data, defining strategy
 plugins, and building paper/live runners around those plugins.
 
+![Dashboard overview with seeded example telemetry](docs/images/dashboard_overview.png)
+
+## Try It In 30 Seconds
+
+```bash
+pip install -r requirements.txt
+python3 scripts/demo_dashboard.py
+```
+
+This serves the full dashboard at `http://127.0.0.1:8765/` seeded with
+public-safe example telemetry, saved bars, and a fetch manifest — no broker
+connection, credentials, or token required. Everything you see is the same UI
+a real deployment uses; only the data is synthetic.
+
 The public version is intentionally strategy-neutral. It includes the data
 harness, broker adapter, plugin interfaces, Gateway service wrapper, and
 non-viable example strategies. Real strategies, tuned parameters, account

@@ -2288,6 +2288,7 @@ def dashboard_server_settings(
             "default_limit": DEFAULT_DATA_CATALOG_LIMIT,
             "max_limit": DEFAULT_DATA_CATALOG_MAX_LIMIT,
         },
+        "symbol_index_limit": None,
         "network_access": {"enabled": False, "allowed_client_networks": [], "trust_x_forwarded_for": False},
         "command_rate_limit": {"enabled": True, "window_seconds": 60.0, "max_per_node": 30},
         "command_scopes": normalize_command_scope_policy({}),
@@ -2310,6 +2311,11 @@ def dashboard_server_settings(
             settings["auth_token_env"] = str(dashboard["auth_token_env"])
         if dashboard.get("auth_tokens") is not None:
             settings["auth_tokens"] = normalize_auth_token_configs(dashboard["auth_tokens"])
+        if dashboard.get("symbol_index_limit") is not None:
+            symbol_index_limit = int(dashboard["symbol_index_limit"])
+            if symbol_index_limit < 1:
+                raise ValueError("dashboard.symbol_index_limit must be at least 1")
+            settings["symbol_index_limit"] = symbol_index_limit
         if dashboard.get("data_catalog") is not None:
             data_catalog = dashboard["data_catalog"]
             if not isinstance(data_catalog, dict):
@@ -12013,6 +12019,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     fetch_manifest_roots = list(DEFAULT_FETCH_MANIFEST_ROOTS)
     data_catalog_default_limit = DEFAULT_DATA_CATALOG_LIMIT
     data_catalog_max_limit = DEFAULT_DATA_CATALOG_MAX_LIMIT
+    symbol_index_limit: int | None = None
     command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     command_scopes: dict[str, Any] = normalize_command_scope_policy({})
     command_audit_signature_env: str | None = None
@@ -12626,12 +12633,17 @@ class StatusHandler(BaseHTTPRequestHandler):
             if not self.require_auth():
                 return
             try:
+                configured_index_limit = int(getattr(self, "symbol_index_limit", None) or 0)
                 limit = parse_int_param(
                     params,
                     "limit",
-                    default=DEFAULT_DATA_SYMBOL_INDEX_LIMIT,
-                    maximum=DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT,
+                    default=max(DEFAULT_DATA_SYMBOL_INDEX_LIMIT, configured_index_limit),
+                    maximum=max(DEFAULT_DATA_SYMBOL_INDEX_MAX_LIMIT, configured_index_limit),
                 )
+                if configured_index_limit:
+                    # Local deployments with large caches configure full-universe
+                    # coverage; honor it even when the client asks for less.
+                    limit = max(limit, configured_index_limit)
                 filters = parse_data_symbol_index_filters(params)
                 bypass_cache = truthy_param(params.get("refresh", [""])[0])
                 payload = cached_data_library_payload(
@@ -13667,6 +13679,7 @@ def create_server(
     plugin_registry_paths: list[Path] | None = None,
     data_catalog_default_limit: int = DEFAULT_DATA_CATALOG_LIMIT,
     data_catalog_max_limit: int = DEFAULT_DATA_CATALOG_MAX_LIMIT,
+    symbol_index_limit: int | None = None,
     command_rate_limit: dict[str, Any] | None = None,
     command_scopes: dict[str, Any] | None = None,
     command_audit_signature_env: str | None = None,
@@ -13691,6 +13704,9 @@ def create_server(
     Handler.plugin_registry_paths = parse_plugin_registry_paths(plugin_registry_paths)
     Handler.data_catalog_default_limit = data_catalog_default_limit
     Handler.data_catalog_max_limit = data_catalog_max_limit
+    if symbol_index_limit is not None and int(symbol_index_limit) < 1:
+        raise ValueError("symbol_index_limit must be at least 1")
+    Handler.symbol_index_limit = int(symbol_index_limit) if symbol_index_limit else None
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     Handler.command_scopes = normalize_command_scope_policy(command_scopes)
     Handler.command_audit_signature_env = command_audit_signature_env
@@ -13761,6 +13777,7 @@ def main() -> None:
         plugin_registry_paths=settings["plugin_registry_paths"],
         data_catalog_default_limit=settings["data_catalog"]["default_limit"],
         data_catalog_max_limit=settings["data_catalog"]["max_limit"],
+        symbol_index_limit=settings["symbol_index_limit"],
         command_rate_limit=settings["command_rate_limit"],
         command_scopes=settings["command_scopes"],
         command_audit_signature_env=settings["command_audit_signature_env"],

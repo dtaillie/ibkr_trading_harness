@@ -3,6 +3,7 @@ __pycache__/
 *~
 cache/
 *.png
+!docs/images/*.png
 *.log
 *.zip
 .claude/*

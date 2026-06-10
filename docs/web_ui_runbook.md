@@ -258,6 +258,29 @@ When comparing saved files, Compare Saved Data shows leader, laggard, return
 spread, overlap, sampling, and warning stats above the chart before the
 symbol/path table.
 
+## Read And Handle Alerts
+
+Alerts on Overview and Operations are computed by the status publisher from
+current telemetry on every publish — they are not stored events, so there is
+nothing to acknowledge or dismiss: an alert clears automatically on the next
+publish after its underlying condition resolves.
+
+Each alert renders as a card with the raw kind and message, a plain-language
+explanation of what it means, the concrete next action, and a button that
+opens the page where that action happens (Operations for gateway, supervisor,
+market-data, and remote-control alerts; Runs for stale runs, rejected orders,
+risk-limit trips, and position-state mismatches). If the same alert persists
+across refreshes after you have acted, the condition is still true — read the
+matching Operations or Runs panel rather than waiting for it to disappear.
+
+For large local caches, set `dashboard.symbol_index_limit` high enough that
+every root's fair share covers your largest root; the filename index is cheap
+and scan-cached, and full coverage is what turns the saved-universe and
+visibility panels green. The parsed catalog stays bounded by design (parsing
+tens of thousands of files takes minutes cold); use Root Index and Storage
+Audit surfaces for full-universe questions and raise the catalog limit only
+for deliberate deep scans.
+
 ## Find Current Strategy Performance
 
 Start in Overview. The hero card and Runtime Status strip answer whether a

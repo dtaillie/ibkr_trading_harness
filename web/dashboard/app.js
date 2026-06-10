@@ -8891,18 +8891,55 @@ function renderOverviewOrders() {
     : row([`<span class="muted">No current open-order telemetry. Broker-native open orders require runners to publish open-order state.</span>`, "", "", "", "", "", ""]);
 }
 
+const ALERT_GUIDANCE = [
+  { match: /^gateway_/, meaning: "The IB Gateway/API connection has a problem.", action: "Run Check Gateway in Operations; restart the gateway service or complete its login if needed.", target: "operations", targetLabel: "Open Operations" },
+  { match: /^market_data_health/, meaning: "A runner reports incomplete or stale market data for some symbols.", action: "Open the run's market-data card in Operations; refetch history for the listed symbols if the gap persists.", target: "operations", targetLabel: "Open Operations" },
+  { match: /^run_stale/, meaning: "A run has not published a fresh decision within its configured age limit.", action: "Check the supervisor schedule and the run's latest session in Runs.", target: "runs", targetLabel: "Open Runs" },
+  { match: /^rejected_orders/, meaning: "Recent orders were rejected by the broker.", action: "Filter Runs Events to rejected orders and read each broker message.", target: "runs", targetLabel: "Open Runs" },
+  { match: /^risk_limit_trip/, meaning: "A configured risk limit blocked activity.", action: "Review the triggering order in Runs and the run's risk settings before changing any limit.", target: "runs", targetLabel: "Open Runs" },
+  { match: /^remote_control_/, meaning: "The remote-control command or audit path reported a problem.", action: "Inspect command audit integrity and worker state in Operations Control.", target: "operations", targetLabel: "Open Operations" },
+  { match: /^supervisor_/, meaning: "The paper supervisor or one of its scheduled jobs has an issue.", action: "Check supervisor state in Operations and the supervisor service logs if a job missed its window.", target: "operations", targetLabel: "Open Operations" },
+  { match: /^unexpected_/, meaning: "The account's position state does not match what the strategy expects.", action: "Reconcile expected versus actual positions in Runs State before trusting automation.", target: "runs", targetLabel: "Open Runs" },
+  { match: /^run_/, meaning: "A configured run's telemetry or artifacts are missing or unreadable.", action: "Inspect the run's state and artifacts in Runs; verify the runner and status bridge are writing.", target: "runs", targetLabel: "Open Runs" },
+];
+
+function alertGuidance(kind) {
+  const entry = ALERT_GUIDANCE.find((item) => item.match.test(String(kind || "")));
+  return entry || {
+    meaning: "A published telemetry health check failed.",
+    action: "Inspect current health checks in Operations.",
+    target: "operations",
+    targetLabel: "Open Operations",
+  };
+}
+
+function alertCardsHtml(alerts, emptyMessage) {
+  if (!alerts.length) {
+    return `<div class="chart-empty">${escapeHtml(emptyMessage)}</div>`;
+  }
+  const cards = alerts.map((alert) => {
+    const guidance = alertGuidance(alert.kind);
+    const level = alert.level === "warn" ? "warn" : alert.level === "error" || alert.level === "bad" ? "bad" : text(alert.level);
+    return `
+    <div class="action-card alert-card status-${escapeHtml(level)}">
+      <span>${statusText(level)} ${escapeHtml(text(alert.kind))}</span>
+      <strong>${escapeHtml(text(alert.message))}</strong>
+      <small>${escapeHtml(guidance.meaning)} ${escapeHtml(guidance.action)}</small>
+      <button class="secondary nav-jump" type="button" data-view-target="${escapeHtml(guidance.target)}">${escapeHtml(guidance.targetLabel)}</button>
+    </div>`;
+  }).join("");
+  return `${cards}<p class="muted alert-clear-note">Alerts are recomputed from telemetry on every publish and clear automatically once the underlying condition resolves — there is nothing to dismiss manually.</p>`;
+}
+
 function renderOverviewAlerts() {
   const alerts = ((state.status && state.status.alerts) || []).slice(0, 6);
   $("overview-alerts-note").textContent = alerts.length
     ? `${numberText(alerts.length, 0)} current alert${alerts.length === 1 ? "" : "s"}`
     : "No current alerts";
-  $("overview-alerts-body").innerHTML = alerts.length
-    ? alerts.map((alert) => row([
-        statusText(alert.level === "warn" ? "warn" : alert.level),
-        escapeHtml(alert.kind),
-        escapeHtml(alert.message),
-      ])).join("")
-    : row([`<span class="muted">No stale-data, stale-account, gateway, rejection, or risk alerts are currently published.</span>`, "", ""]);
+  $("overview-alerts-body").innerHTML = alertCardsHtml(
+    alerts,
+    "No stale-data, stale-account, gateway, rejection, or risk alerts are currently published.",
+  );
 }
 
 function renderOverviewTimeline() {
@@ -28162,13 +28199,7 @@ function renderRemoteControl() {
 
 function renderAlerts() {
   const alerts = (state.status && state.status.alerts) || [];
-  $("alerts-body").innerHTML = alerts.length
-    ? alerts.map((alert) => row([
-        statusText(alert.level === "warn" ? "warn" : alert.level),
-        escapeHtml(alert.kind),
-        escapeHtml(alert.message),
-      ])).join("")
-    : row([`<span class="muted">none</span>`, "", ""]);
+  $("alerts-body").innerHTML = alertCardsHtml(alerts, "No current alerts are published.");
 }
 
 function renderGateway() {
@@ -33167,6 +33198,17 @@ function init() {
   setActiveView(window.location.hash ? viewFromHash() : storedView);
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToViewTarget(button.dataset.viewTarget, button.dataset.viewLens || ""));
+  }
+  // Alert cards render dynamically, so their open-the-fixing-page buttons
+  // need delegation rather than the static binding above.
+  for (const alertContainerId of ["overview-alerts-body", "alerts-body"]) {
+    const container = $(alertContainerId);
+    if (!container) continue;
+    container.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.dataset.viewTarget) return;
+      navigateToViewTarget(target.dataset.viewTarget, target.dataset.viewLens || "");
+    });
   }
   $("dashboard-jump-go").addEventListener("click", () => jumpToDashboardTarget($("dashboard-jump").value));
   $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
