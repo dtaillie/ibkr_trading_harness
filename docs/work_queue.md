@@ -22,6 +22,24 @@ Near-term priority order:
 6. Only after the product/data surfaces are trustworthy, resume trading
    research.
 
+## Recent (2026-06-16): public-repo onboarding pass
+
+- Regenerated the README demo GIF and the two static screenshots against the
+  current UI via a new reproducible builder (`scripts/build_dashboard_gif.py`,
+  seeded + headless, ephemeral port, Pillow assembly). The old GIF predated UI
+  passes 2-4.
+- Added a public IBKR account-setup guide (`docs/ibkr_account_setup.md`): why
+  IBKR, Lite vs Pro, market-data subscriptions, crypto enablement, API/Gateway,
+  paper account, caveats (incl. the 2026-06-04 PDT-rule change). Linked from the
+  README.
+- Added three runnable, non-viable textbook example strategies
+  (`examples/strategies/{sma_crossover,rsi_mean_reversion,opening_range_breakout}.py`)
+  with example configs, a synthetic single-session dataset
+  (`examples/data/generate_example_session.py`), a round-trip test, and an
+  examples README. Each produces one clean simulated round trip; no edge
+  claimed. Publish gate's example-boundary audit satisfied via disclaimers (no
+  audit code relaxed).
+
 ## P0: Web UI product overhaul
 
 Goal: make the dashboard feel like a modern trading app, closer to Robinhood's

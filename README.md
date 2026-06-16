@@ -36,7 +36,8 @@ local files.
 - A generic local supervisor that can schedule one or more plugin-runner jobs
   from public-safe config.
 - Strategy plugin contracts for generic, stock, and crypto runners.
-- Example strategies that deliberately emit no edge.
+- Runnable textbook example strategies (SMA crossover, RSI mean reversion,
+  opening-range breakout) plus an empty template — illustrative, no edge claimed.
 - A sanitized status publisher, token-authenticated receiver, and allowlisted
   remote command worker for monitoring from anywhere.
 
@@ -105,6 +106,15 @@ python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --mode 
 python3 scripts/summarize_plugin_run.py paper_logs/example_plugin_runner
 ```
 
+Three runnable textbook examples ship ready to go on bundled synthetic data —
+each produces one clean round trip you can open in Performance and Runs:
+
+```bash
+python3 -m live.plugin_runner --config config/sma_crossover.example.yaml
+python3 -m live.plugin_runner --config config/rsi_mean_reversion.example.yaml
+python3 -m live.plugin_runner --config config/opening_range_breakout.example.yaml
+```
+
 Validation instantiates your plugin and checks the runner contract before
 anything runs. Runs write `decisions.jsonl`, `orders.jsonl`, `fills.jsonl`,
 `account.jsonl`, and `summary.json`; execution guards (allowed symbols/sides,
@@ -141,6 +151,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+New to IBKR? `docs/ibkr_account_setup.md` covers why IBKR, picking a tier
+(Lite vs Pro), market-data subscriptions, enabling crypto, and API access.
+
 1. Start IB Gateway (paper) on port 4002 — `scripts/start_ibgateway_paper.sh`
    wraps IBC, and `docs/ibkr_gateway_runbook.md` covers login and service
    setup.
@@ -163,14 +176,17 @@ troubleshooting — is `docs/public_quickstart.md`.
 
 ## Strategy Plugins
 
-Public examples live in `examples/strategies/` and demonstrate the interface
-without publishing an edge. A private strategy implements the same contract
-and is referenced from an ignored local config:
+Public examples live in `examples/strategies/` (see its
+[README](examples/strategies/README.md)). They are non-viable demonstrations of
+well-known textbook patterns — SMA crossover, RSI mean reversion, and
+opening-range breakout, plus an empty `no_edge_template` — with no claimed edge.
+A private strategy implements the same contract and is referenced from an
+ignored local config:
 
 ```yaml
 metadata:
-  strategy_plugin: examples.strategies.no_edge_template:create_strategy   # public example
-  # strategy_plugin: your_private_package.your_strategy:create_strategy  # private plugin
+  strategy_plugin: examples.strategies.sma_crossover:create_strategy      # public example
+  # strategy_plugin: your_private_package.your_strategy:create_strategy   # private plugin
 ```
 
 `pip install .` exposes the `framework` package (plugin contracts, loader,
@@ -201,6 +217,7 @@ the destination `.git`. See `docs/configuration_privacy.md` and
 - `docs/web_ui_runbook.md` — dashboard usage, page by page
 - `docs/ui_use_cases.md` — the use cases and design rules behind the UI
 - `docs/cloud_monitoring_deployment.md` — hosted receiver deployment
+- `docs/ibkr_account_setup.md` — IBKR tiers, market data, crypto, API setup
 - Runbooks: `docs/ibkr_gateway_runbook.md`, `docs/paper_trading_runbook.md`,
   `docs/market_data_permissions_runbook.md`, `docs/service_restart_runbook.md`,
   `docs/failed_order_diagnosis_runbook.md`

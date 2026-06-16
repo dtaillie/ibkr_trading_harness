@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Three runnable, non-viable textbook example strategies — SMA crossover, RSI
+  mean reversion, opening-range breakout — with example configs and a bundled
+  synthetic session; each produces one clean simulated round trip. Illustrative
+  only, no edge claimed.
+- `docs/ibkr_account_setup.md`: why IBKR, IBKR Lite vs Pro, market-data
+  subscriptions, crypto enablement, API/Gateway, and paper-account setup, with
+  honest caveats (including the 2026-06-04 PDT-rule change).
+- Reproducible README demo GIF builder (`scripts/build_dashboard_gif.py`);
+  regenerated the demo GIF and static screenshots against the current UI.
+
 ## v0.1.0 — 2026-06-10
 
 First public cut of the local-first IBKR trading harness.

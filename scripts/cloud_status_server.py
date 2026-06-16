@@ -12020,6 +12020,7 @@ class StatusHandler(BaseHTTPRequestHandler):
     data_catalog_default_limit = DEFAULT_DATA_CATALOG_LIMIT
     data_catalog_max_limit = DEFAULT_DATA_CATALOG_MAX_LIMIT
     symbol_index_limit: int | None = None
+    runtime_status_root: Path | None = None
     command_rate_limit: dict[str, Any] = {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     command_scopes: dict[str, Any] = normalize_command_scope_policy({})
     command_audit_signature_env: str | None = None
@@ -12567,7 +12568,7 @@ class StatusHandler(BaseHTTPRequestHandler):
             try:
                 run_id = str(params.get("run_id", [""])[0] or "")
                 limit = parse_limit(params, default=500, maximum=2000)
-                payload = build_telemetry_run_artifacts(run_id, limit=limit)
+                payload = build_telemetry_run_artifacts(run_id, root=self.runtime_status_root, limit=limit)
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
                 return
@@ -13680,6 +13681,7 @@ def create_server(
     data_catalog_default_limit: int = DEFAULT_DATA_CATALOG_LIMIT,
     data_catalog_max_limit: int = DEFAULT_DATA_CATALOG_MAX_LIMIT,
     symbol_index_limit: int | None = None,
+    runtime_status_root: Path | None = None,
     command_rate_limit: dict[str, Any] | None = None,
     command_scopes: dict[str, Any] | None = None,
     command_audit_signature_env: str | None = None,
@@ -13707,6 +13709,7 @@ def create_server(
     if symbol_index_limit is not None and int(symbol_index_limit) < 1:
         raise ValueError("symbol_index_limit must be at least 1")
     Handler.symbol_index_limit = int(symbol_index_limit) if symbol_index_limit else None
+    Handler.runtime_status_root = Path(runtime_status_root).resolve() if runtime_status_root else None
     Handler.command_rate_limit = command_rate_limit or {"enabled": True, "window_seconds": 60.0, "max_per_node": 30}
     Handler.command_scopes = normalize_command_scope_policy(command_scopes)
     Handler.command_audit_signature_env = command_audit_signature_env

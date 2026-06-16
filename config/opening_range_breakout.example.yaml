@@ -1,0 +1,59 @@
+description: >
+  EXAMPLE ONLY. Runs the educational opening-range-breakout example plugin on
+  bundled SYNTHETIC sample bars in simulated-paper mode. This demonstrates
+  wiring only; it is a non-viable textbook pattern with no edge. Do not trade it.
+
+metadata:
+  strategy_plugin: examples.strategies.opening_range_breakout:create_strategy
+  status: example_only
+
+strategy:
+  symbol: SPY
+  opening_range_bars: 6        # first 30 minutes of 5-minute bars
+  target_r: 2.0                # exit target = range_high + 2.0 * (range_high - range_low)
+  cash_quantity: 10000
+
+runner:
+  mode: simulated_paper        # replay only observes; simulated_paper records fills + equity
+  starting_cash: 100000
+  history_bars: 80
+  output_dir: paper_logs/example_opening_range_breakout
+  clean_output_dir: true
+  session:
+    timezone: America/New_York
+    start: "09:30"
+    end: "16:00"
+    outside_session: idle
+
+data:
+  source: files
+  timestamp_column: timestamp
+  files:
+    SPY: examples/data/SPY_5min_session.csv
+
+execution:
+  allowed_sides: [buy, sell]
+  allowed_order_types: [market]
+  allow_short: false
+  require_current_price: true
+  require_order_approval: false
+  enable_live_orders: false
+  max_orders_per_run: 50
+  max_notional_per_order: 12000
+  max_quantity: 50
+  max_cash_quantity: 12000
+  max_gross_exposure_pct: 0.5
+  sim_slippage_bps: 1
+  sim_commission_bps: 0
+  sim_commission_per_share: 0
+
+broker:
+  adapter: ibkr
+  account_mode: paper
+  port: 4002
+  allow_live_broker_port_for_paper: false
+
+notes:
+  - Example only; do not trade this. Sample data is synthetic.
+  - Run:  python3 -m live.plugin_runner --config config/opening_range_breakout.example.yaml
+  - Switch runner.mode to replay to observe decisions without simulated fills.
