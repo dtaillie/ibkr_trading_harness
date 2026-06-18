@@ -1,8 +1,20 @@
 # IBKR Trading Harness
 
-This is a local-first framework for pulling IBKR market data, defining strategy
-plugins, and building paper/live runners around those plugins — with a web
-dashboard that makes everything observable.
+Local-first infrastructure for running strategy plugins against IBKR data with
+explicit safety boundaries. The contribution is the harness: replay, shadow,
+simulated-paper, and confirmed paper execution are separate modes, each with
+separate artifacts and observable runtime state.
+
+In 10 seconds:
+
+- **Harness:** plugin runners record decisions, orders, fills, account snapshots,
+  validations, and run artifacts.
+- **Safety model:** broker authority is opt-in; paper/live order submission is
+  gated by config, runtime flags, limits, and audit trails.
+- **Observability:** the dashboard shows run health, data quality, performance,
+  artifacts, Gateway state, and public-safe status telemetry.
+- **Public boundary:** example strategies are intentionally non-viable; tuned
+  signals, credentials, account data, and logs stay private.
 
 <!-- After publishing, enable the CI badge by replacing OWNER/REPO:
 ![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) -->
@@ -21,11 +33,12 @@ public-safe example telemetry, saved bars, and a fetch manifest — no broker
 connection, credentials, or token required. Everything you see is the same UI
 a real deployment uses; only the data is synthetic.
 
-The public version is intentionally strategy-neutral. It includes the data
-harness, broker adapter, plugin interfaces, Gateway service wrapper, and
-non-viable example strategies. Real strategies, tuned parameters, account
-config, logs, and research artifacts should live in a private repo or ignored
-local files.
+For public posting and feedback collection, see `docs/public_launch_plan.md`.
+
+The public version is intentionally strategy-neutral. It includes non-viable example strategies,
+the harness, broker adapter, plugin interfaces, and Gateway service wrapper.
+Real strategies, tuned parameters, account config, logs, and research artifacts
+should live in a private repo or ignored local files.
 
 ## What This Is
 
@@ -38,8 +51,6 @@ local files.
 - Strategy plugin contracts for generic, stock, and crypto runners.
 - Runnable textbook example strategies (SMA crossover, RSI mean reversion,
   opening-range breakout) plus an empty template — illustrative, no edge claimed.
-- A sanitized status publisher, token-authenticated receiver, and allowlisted
-  remote command worker for monitoring from anywhere.
 
 ## What This Is Not
 
@@ -48,6 +59,14 @@ local files.
 - Not a turnkey live-trading system.
 - Not a place to store broker credentials or private strategy configs.
 - Not a release of the private strategy runners or tuned signals.
+
+## Operational Extras
+
+The repo also includes a sanitized status publisher, token-authenticated
+receiver, allowlisted remote command worker, and example cloud deployment files.
+Those pieces are optional monitoring/ops infrastructure around the local
+harness; they are not required for the 30-second demo or the core plugin-runner
+workflow.
 
 ## What You Can Do With It
 

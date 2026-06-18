@@ -62,7 +62,15 @@ def build_checks(*, include_screenshots: bool = False) -> list[Check]:
         Check(
             "dashboard_javascript_syntax",
             "Check dashboard JavaScript syntax.",
-            ["node", "--check", "web/dashboard/app.js"],
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from pathlib import Path; import subprocess; "
+                    "paths=[Path('web/dashboard/app.js'), *sorted(Path('web/dashboard/app').glob('*.js'))]; "
+                    "[subprocess.run(['node', '--check', str(path)], check=True) for path in paths]"
+                ),
+            ],
         ),
         Check(
             "pytest",

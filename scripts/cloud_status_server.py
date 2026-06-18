@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from live.plugin_runner import validate_config as validate_runner_config
 from live.broker_adapters import broker_adapter_capabilities
+from scripts.cloud_status_catalog import PUBLIC_ENDPOINTS
 
 
 ALLOWED_COMMAND_ACTIONS = {
@@ -91,6 +92,21 @@ DEFAULT_COMMAND_SCOPE_POLICY = {
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASHBOARD_DIR = ROOT / "web" / "dashboard"
+DASHBOARD_ASSET_FILES = (
+    "index.html",
+    "styles.css",
+    "app.js",
+    "app/00_core.js",
+    "app/10_help.js",
+    "app/20_workbench_foundation.js",
+    "app/30_runtime_performance.js",
+    "app/40_data.js",
+    "app/50_fetch.js",
+    "app/60_workbench_builder.js",
+    "app/70_runs.js",
+    "app/80_operations.js",
+    "app/90_bootstrap.js",
+)
 DEFAULT_DATA_ROOTS = (ROOT / "examples" / "data",)
 DEFAULT_FETCH_MANIFEST_ROOTS = (ROOT / "paper_logs" / "fetch_manifests",)
 DEFAULT_PLUGIN_REGISTRY_PATHS = (ROOT / "config" / "plugin_registry_local.yaml",)
@@ -110,6 +126,7 @@ PUBLIC_DOCS = {
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
     "configuration_privacy.md": ROOT / "docs" / "configuration_privacy.md",
     "publication_readiness.md": ROOT / "docs" / "publication_readiness.md",
+    "public_launch_plan.md": ROOT / "docs" / "public_launch_plan.md",
     "blog_public_ibkr_harness_draft.md": ROOT / "docs" / "blog_public_ibkr_harness_draft.md",
     "ibkr_gateway_runbook.md": ROOT / "docs" / "ibkr_gateway_runbook.md",
     "paper_trading_runbook.md": ROOT / "docs" / "paper_trading_runbook.md",
@@ -432,584 +449,6 @@ PUBLIC_POSITION_DETAIL_FIELDS = (
     "mae_pct",
     "mfe_pct",
 )
-PUBLIC_ENDPOINTS = (
-    {
-        "method": "GET",
-        "path": "/health",
-        "category": "telemetry",
-        "description": "Return receiver liveness and latest local snapshot availability.",
-        "response": "JSON health payload",
-    },
-    {
-        "method": "GET",
-        "path": "/status",
-        "category": "telemetry",
-        "description": "Return the latest posted node status snapshot.",
-        "response": "JSON status payload",
-    },
-    {
-        "method": "GET",
-        "path": "/status_history",
-        "category": "telemetry",
-        "description": "Return summarized recent status snapshots, optionally filtered by node_id.",
-        "response": "JSON history rows",
-    },
-    {
-        "method": "GET",
-        "path": "/status_equity_rollups",
-        "category": "telemetry",
-        "description": "Summarize sanitized status-history equity snapshots by UTC day, month, and year.",
-        "response": "JSON status-history performance rollups",
-    },
-    {
-        "method": "GET",
-        "path": "/status_equity_rollups_snapshot",
-        "category": "telemetry",
-        "description": "Return the latest persisted sanitized status-history equity rollup artifact.",
-        "response": "JSON persisted rollup snapshot",
-    },
-    {
-        "method": "GET",
-        "path": "/status_equity_rollups_export",
-        "category": "telemetry",
-        "description": "Download sanitized status-history daily, monthly, and yearly equity rollups.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/runtime_sessions",
-        "category": "telemetry",
-        "description": "Return bounded paper/shadow runtime session-folder evidence from configured data roots.",
-        "response": "JSON runtime session summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/runtime_session_detail",
-        "category": "telemetry",
-        "description": "Return bounded public-safe file/category detail for one runtime session folder.",
-        "response": "JSON runtime session file detail",
-    },
-    {
-        "method": "GET",
-        "path": "/runtime_sessions_export",
-        "category": "telemetry",
-        "description": "Download bounded paper/shadow runtime session-folder evidence from configured data roots.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/telemetry_run_artifacts",
-        "category": "telemetry",
-        "description": "Return sanitized account history for one published telemetry run's bridged artifacts.",
-        "response": "JSON account artifact summary",
-    },
-    {
-        "method": "GET",
-        "path": "/remote_nodes",
-        "category": "telemetry",
-        "description": "Return sanitized latest read-only monitoring summaries by node.",
-        "response": "JSON node summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/remote_nodes_export",
-        "category": "telemetry",
-        "description": "Download sanitized latest read-only monitoring summaries by node.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/remote_node_detail",
-        "category": "telemetry",
-        "description": "Return bounded sanitized latest status detail and history for one node.",
-        "response": "JSON node detail",
-    },
-    {
-        "method": "GET",
-        "path": "/remote_node_detail_export",
-        "category": "telemetry",
-        "description": "Download bounded sanitized status detail, history, runs, alerts, and activity for one node.",
-        "response": "CSV download",
-    },
-    {
-        "method": "POST",
-        "path": "/status",
-        "category": "telemetry",
-        "description": "Receive and persist a node status snapshot.",
-        "response": "JSON receipt",
-    },
-    {
-        "method": "GET",
-        "path": "/data_catalog",
-        "category": "data",
-        "description": "Inspect CSV/parquet data files under configured public data roots.",
-        "response": "JSON catalog with quality metadata",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_index",
-        "category": "data",
-        "description": "Build a broad filename/path-inferred saved-data symbol index without parsing full data files.",
-        "response": "JSON symbol/file index",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_index_detail",
-        "category": "data",
-        "description": "List bounded filename/path-inferred candidate files for one saved-data symbol.",
-        "response": "JSON symbol candidate file detail",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_index_detail_export",
-        "category": "data",
-        "description": "Download bounded filename/path-inferred candidate files for one saved-data symbol.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_index_export",
-        "category": "data",
-        "description": "Download the broad filename/path-inferred saved-data symbol index.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/docs/{name}",
-        "category": "help",
-        "description": "Serve allowlisted public Markdown docs for in-dashboard runbooks and guidance.",
-        "response": "Markdown text",
-    },
-    {
-        "method": "GET",
-        "path": "/data_catalog_export",
-        "category": "data",
-        "description": "Download saved data catalog metadata.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_directory",
-        "category": "data",
-        "description": "Return saved-data symbol-level universe summaries.",
-        "response": "JSON symbol directory summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/data_history_matrix",
-        "category": "data",
-        "description": "Return saved-data grouped history inventory by asset/source/bar/session.",
-        "response": "JSON saved history matrix",
-    },
-    {
-        "method": "GET",
-        "path": "/data_history_matrix_export",
-        "category": "data",
-        "description": "Download saved-data grouped history inventory by asset/source/bar/session.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_directory_export",
-        "category": "data",
-        "description": "Download saved-data symbol-level universe summaries.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_catalog_scan_export",
-        "category": "data",
-        "description": "Download data-root catalog scan diagnostics and skipped-file samples.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_detail",
-        "category": "data",
-        "description": "Inspect one saved data file with range-filtered sampled or full-in-range price/volume series.",
-        "response": "JSON dataset detail and viewer series",
-    },
-    {
-        "method": "GET",
-        "path": "/data_missing_intervals_export",
-        "category": "data",
-        "description": "Download inferred missing expected timestamps for one saved data file.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_coverage",
-        "category": "data",
-        "description": "Summarize saved-data date coverage by symbol for heatmap-style views.",
-        "response": "JSON coverage bins and rows",
-    },
-    {
-        "method": "GET",
-        "path": "/data_coverage_export",
-        "category": "data",
-        "description": "Download saved-data symbol/date coverage rows.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_gap_summary",
-        "category": "data",
-        "description": "Summarize worst saved-data timestamp gaps and missing calendar days.",
-        "response": "JSON aggregate gap rows",
-    },
-    {
-        "method": "GET",
-        "path": "/data_gap_summary_export",
-        "category": "data",
-        "description": "Download worst saved-data timestamp and calendar gap rows.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_minute_heatmap",
-        "category": "data",
-        "description": "Summarize saved-data intraday interval completeness by UTC hour and worst date/hour.",
-        "response": "JSON hourly and date/hour missing-interval heatmap rows",
-    },
-    {
-        "method": "GET",
-        "path": "/data_minute_heatmap_export",
-        "category": "data",
-        "description": "Download saved-data intraday interval completeness rows.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_diagnostic",
-        "category": "data",
-        "description": "Explain whether a requested symbol is visible, skipped, unconfigured, or absent.",
-        "response": "JSON symbol visibility diagnosis",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_diagnostics",
-        "category": "data",
-        "description": "Run bounded visibility diagnostics for a pasted symbol universe.",
-        "response": "JSON batch symbol visibility diagnoses",
-    },
-    {
-        "method": "GET",
-        "path": "/data_symbol_diagnostics_export",
-        "category": "data",
-        "description": "Download bounded visibility diagnostics for a pasted symbol universe.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_detail_export",
-        "category": "data",
-        "description": "Download the current saved-data detail date range as normalized CSV.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/data_storage_audit",
-        "category": "data",
-        "description": "Compare local CSV/parquet files on disk with catalog-visible saved-data rows.",
-        "response": "JSON root-by-root storage audit",
-    },
-    {
-        "method": "GET",
-        "path": "/data_storage_audit_export",
-        "category": "data",
-        "description": "Download root-by-root saved-data storage audit metadata.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_manifests",
-        "category": "data",
-        "description": "List historical-data fetch job manifests.",
-        "response": "JSON fetch-job manifest summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_jobs",
-        "category": "data",
-        "description": "Alias for /fetch_manifests for users looking for fetch jobs.",
-        "response": "JSON fetch-job manifest summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_manifest_roots",
-        "category": "data",
-        "description": "List configured fetch manifest roots and manifest counts.",
-        "response": "JSON fetch-manifest root summaries",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_manifests_export",
-        "category": "data",
-        "description": "Download historical-data fetch job manifest summaries.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_manifest_detail",
-        "category": "data",
-        "description": "Inspect one historical-data fetch job manifest.",
-        "response": "JSON fetch-job manifest detail",
-    },
-    {
-        "method": "GET",
-        "path": "/fetch_manifest_detail_export",
-        "category": "data",
-        "description": "Download selected fetch manifest symbols, outputs, errors, and retry/pacing events.",
-        "response": "CSV download",
-    },
-    {
-        "method": "POST",
-        "path": "/data_alignment",
-        "category": "data",
-        "description": "Preview timestamp alignment for selected saved datasets.",
-        "response": "JSON alignment summary",
-    },
-    {
-        "method": "POST",
-        "path": "/data_compare",
-        "category": "data",
-        "description": "Compare normalized close paths for several saved datasets over one local time range.",
-        "response": "JSON normalized saved-data comparison series",
-    },
-    {
-        "method": "GET",
-        "path": "/config_options",
-        "category": "config",
-        "description": "Return public config-builder plugin, mode, action, preset, and default options.",
-        "response": "JSON options",
-    },
-    {
-        "method": "POST",
-        "path": "/config_draft",
-        "category": "config",
-        "description": "Generate an example public workbench config draft, optionally saving it locally.",
-        "response": "JSON draft with YAML and validation",
-    },
-    {
-        "method": "POST",
-        "path": "/config_draft_preview",
-        "category": "config",
-        "description": "Preview and validate a public workbench config draft without saving it.",
-        "response": "JSON unsaved draft with YAML and validation",
-    },
-    {
-        "method": "GET",
-        "path": "/config_drafts",
-        "category": "config",
-        "description": "List saved public workbench config drafts.",
-        "response": "JSON draft list",
-    },
-    {
-        "method": "GET",
-        "path": "/config_drafts_export",
-        "category": "config",
-        "description": "Download saved public workbench config draft inventory rows.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_validations",
-        "category": "config",
-        "description": "Validate every saved draft against public workbench guardrails.",
-        "response": "JSON validation summary",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_detail",
-        "category": "config",
-        "description": "Load one valid saved draft with YAML, commands, and alignment summary.",
-        "response": "JSON draft detail",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_yaml",
-        "category": "config",
-        "description": "Download one validated saved draft YAML file.",
-        "response": "YAML download",
-    },
-    {
-        "method": "POST",
-        "path": "/config_draft/delete",
-        "category": "config",
-        "description": "Delete one saved draft YAML after explicit confirmation.",
-        "response": "JSON deletion result",
-    },
-    {
-        "method": "POST",
-        "path": "/config_draft/run",
-        "category": "config",
-        "description": "Validate, replay, or simulated-paper-run a saved public draft with bounds.",
-        "response": "JSON run record",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_runs",
-        "category": "runs",
-        "description": "List recent saved-draft run records.",
-        "response": "JSON run list",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_run_comparison",
-        "category": "runs",
-        "description": "Return public-safe run comparison metrics and leaders.",
-        "response": "JSON comparison",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_daily_rollups",
-        "category": "runs",
-        "description": "Summarize archived account artifacts by UTC day for current-performance views.",
-        "response": "JSON daily run rollups",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_runs_export",
-        "category": "runs",
-        "description": "Download public-safe recent run comparison rows.",
-        "response": "CSV download",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_run_detail",
-        "category": "runs",
-        "description": "Return command, timing, stdout, and stderr detail for one run.",
-        "response": "JSON run detail",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_run_evidence",
-        "category": "runs",
-        "description": "Return bounded run log, artifact-file, and execution evidence for one saved-draft run.",
-        "response": "JSON run evidence",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_artifacts",
-        "category": "runs",
-        "description": "Return sanitized latest artifacts for a saved draft output directory.",
-        "response": "JSON artifact summary",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_run_artifacts",
-        "category": "runs",
-        "description": "Return sanitized archived artifacts for one saved-draft run.",
-        "response": "JSON artifact summary",
-    },
-    {
-        "method": "GET",
-        "path": "/config_draft_run_artifacts_export",
-        "category": "runs",
-        "description": "Download sanitized archived artifacts for one saved-draft run.",
-        "response": "JSON download",
-    },
-    {
-        "method": "POST",
-        "path": "/order_preview_approval",
-        "category": "runs",
-        "description": "Write one local approval file for a held order preview after validating its preview digest.",
-        "response": "JSON approval result",
-    },
-    {
-        "method": "GET",
-        "path": "/workbench_status",
-        "category": "workbench",
-        "description": "Return local draft, run, archive, and cleanup status.",
-        "response": "JSON status summary",
-    },
-    {
-        "method": "GET",
-        "path": "/workbench_cleanup_plan",
-        "category": "workbench",
-        "description": "Preview orphaned workbench archive/output cleanup.",
-        "response": "JSON cleanup plan",
-    },
-    {
-        "method": "POST",
-        "path": "/workbench_cleanup",
-        "category": "workbench",
-        "description": "Dry-run or apply orphaned workbench archive/output cleanup.",
-        "response": "JSON cleanup result",
-    },
-    {
-        "method": "GET",
-        "path": "/workbench_diagnostics",
-        "category": "workbench",
-        "description": "Probe state directory, data roots, and dashboard asset availability.",
-        "response": "JSON diagnostics",
-    },
-    {
-        "method": "GET",
-        "path": "/workbench_snapshot_export",
-        "category": "workbench",
-        "description": "Download a public-safe snapshot of workbench state and metadata.",
-        "response": "JSON download",
-    },
-    {
-        "method": "GET",
-        "path": "/workbench_endpoints",
-        "category": "workbench",
-        "description": "Return this public endpoint map.",
-        "response": "JSON endpoint list",
-    },
-    {
-        "method": "GET",
-        "path": "/commands",
-        "category": "remote",
-        "description": "List pending local remote-control commands and audit returned pending commands.",
-        "response": "JSON command list",
-    },
-    {
-        "method": "POST",
-        "path": "/commands",
-        "category": "remote",
-        "description": "Queue an allow-listed local remote-control command.",
-        "response": "JSON command record",
-    },
-    {
-        "method": "POST",
-        "path": "/commands/cancel",
-        "category": "remote",
-        "description": "Cancel a pending local remote-control command.",
-        "response": "JSON cancel result",
-    },
-    {
-        "method": "GET",
-        "path": "/command_results",
-        "category": "remote",
-        "description": "List recent command results for a node.",
-        "response": "JSON result list",
-    },
-    {
-        "method": "POST",
-        "path": "/command_results",
-        "category": "remote",
-        "description": "Receive and persist a command execution result.",
-        "response": "JSON receipt",
-    },
-    {
-        "method": "GET",
-        "path": "/command_audit",
-        "category": "remote",
-        "description": "List sanitized command queue/cancel/result/pending-return audit events.",
-        "response": "JSON audit event list",
-    },
-    {
-        "method": "GET",
-        "path": "/command_audit_export",
-        "category": "remote",
-        "description": "Download sanitized command queue/cancel/result/pending-return audit events with integrity metadata.",
-        "response": "CSV audit event export",
-    },
-)
-
-
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1944,7 +1383,7 @@ def build_status_equity_rollups(
             "history_limit": history_limit,
             "node_id": node_id,
         }
-    rows: deque[dict[str, Any]] = deque(maxlen=history_limit)
+    rows: deque[tuple[datetime, dict[str, Any]]] = deque(maxlen=history_limit)
     scanned = 0
     with path.open() as f:
         for line in f:
@@ -1959,55 +1398,20 @@ def build_status_equity_rollups(
             if node_id and str(raw.get("node_id") or "") != node_id:
                 continue
             scanned += 1
-            rows.append(raw)
+            compact = compact_status_rollup_snapshot(raw)
+            if compact is None:
+                continue
+            rows.append(compact)
 
     by_day: dict[tuple[str, str], list[tuple[datetime, dict[str, Any]]]] = {}
-    for raw in rows:
-        timestamp = parse_status_timestamp(raw.get("received_at") or raw.get("generated_at"))
-        if timestamp is None:
-            continue
-        summary = summarize_remote_node(raw)
-        equity = finite_float(summary.get("final_equity"))
-        if equity is None:
-            continue
-        node = str(summary.get("node_id") or raw.get("node_id") or "local")
-        summary["snapshot_time"] = timestamp.isoformat()
-        summary["final_equity"] = equity
+    for timestamp, summary in rows:
+        node = str(summary.get("node_id") or "local")
         by_day.setdefault((node, timestamp.date().isoformat()), []).append((timestamp, summary))
 
     rollups = []
     for (node, day), items in by_day.items():
         ordered = sorted(items, key=lambda item: item[0])
-        start = ordered[0][1]
-        end = ordered[-1][1]
-        start_equity = finite_float(start.get("final_equity"))
-        end_equity = finite_float(end.get("final_equity"))
-        daily_return_pct = (
-            ((end_equity / start_equity) - 1.0) * 100.0
-            if start_equity and end_equity is not None
-            else None
-        )
-        rollups.append({
-            "day": day,
-            "node_id": node,
-            "mode": end.get("mode"),
-            "latest_run_id": end.get("latest_run_id"),
-            "latest_run_status": end.get("latest_run_status"),
-            "status": end.get("status"),
-            "gateway_reachable": end.get("gateway_reachable"),
-            "snapshot_count": len(ordered),
-            "account_start_time": ordered[0][0].isoformat(),
-            "account_end_time": ordered[-1][0].isoformat(),
-            "start_equity": start_equity,
-            "end_equity": end_equity,
-            "daily_return_pct": finite_float(daily_return_pct),
-            "position_count": end.get("position_count"),
-            "open_order_count": end.get("open_order_count"),
-            "alert_count": max(int(item[1].get("alert_count") or 0) for item in ordered),
-            "order_count": max(int(item[1].get("order_count") or 0) for item in ordered),
-            "fill_count": max(int(item[1].get("fill_count") or 0) for item in ordered),
-            "rejection_count": max(int(item[1].get("rejection_count") or 0) for item in ordered),
-        })
+        rollups.append(rollup_row_from_daily_snapshots(day, ordered))
     rollups = sorted(
         rollups,
         key=lambda row: (str(row.get("day") or ""), str(row.get("account_end_time") or ""), str(row.get("node_id") or "")),
@@ -2061,6 +1465,133 @@ def load_status_equity_rollups_snapshot(state_dir: Path, *, node_id: str | None 
     with path.open(encoding="utf-8") as f:
         payload = json.load(f)
     return payload if isinstance(payload, dict) else {"error": "snapshot payload is invalid", "artifact_path": str(path)}
+
+
+def compact_status_rollup_snapshot(row: dict[str, Any]) -> tuple[datetime, dict[str, Any]] | None:
+    timestamp = parse_status_timestamp(row.get("received_at") or row.get("generated_at"))
+    if timestamp is None:
+        return None
+    summary = summarize_remote_node(row)
+    equity = finite_float(summary.get("final_equity"))
+    if equity is None:
+        return None
+    node = str(summary.get("node_id") or row.get("node_id") or "local")
+    return timestamp, {
+        "node_id": node,
+        "snapshot_time": timestamp.isoformat(),
+        "final_equity": equity,
+        "mode": summary.get("mode"),
+        "latest_run_id": summary.get("latest_run_id"),
+        "latest_run_status": summary.get("latest_run_status"),
+        "status": summary.get("status"),
+        "gateway_reachable": summary.get("gateway_reachable"),
+        "position_count": summary.get("position_count"),
+        "open_order_count": summary.get("open_order_count"),
+        "alert_count": summary.get("alert_count"),
+        "order_count": summary.get("order_count"),
+        "fill_count": summary.get("fill_count"),
+        "rejection_count": summary.get("rejection_count"),
+    }
+
+
+def rollup_row_from_daily_snapshots(day: str, ordered: list[tuple[datetime, dict[str, Any]]]) -> dict[str, Any]:
+    start = ordered[0][1]
+    end = ordered[-1][1]
+    start_equity = finite_float(start.get("final_equity"))
+    end_equity = finite_float(end.get("final_equity"))
+    daily_return_pct = (
+        ((end_equity / start_equity) - 1.0) * 100.0
+        if start_equity and end_equity is not None
+        else None
+    )
+    return {
+        "day": day,
+        "node_id": str(end.get("node_id") or start.get("node_id") or "local"),
+        "mode": end.get("mode"),
+        "latest_run_id": end.get("latest_run_id"),
+        "latest_run_status": end.get("latest_run_status"),
+        "status": end.get("status"),
+        "gateway_reachable": end.get("gateway_reachable"),
+        "snapshot_count": len(ordered),
+        "account_start_time": ordered[0][0].isoformat(),
+        "account_end_time": ordered[-1][0].isoformat(),
+        "start_equity": start_equity,
+        "end_equity": end_equity,
+        "daily_return_pct": finite_float(daily_return_pct),
+        "position_count": end.get("position_count"),
+        "open_order_count": end.get("open_order_count"),
+        "alert_count": max(int(item[1].get("alert_count") or 0) for item in ordered),
+        "order_count": max(int(item[1].get("order_count") or 0) for item in ordered),
+        "fill_count": max(int(item[1].get("fill_count") or 0) for item in ordered),
+        "rejection_count": max(int(item[1].get("rejection_count") or 0) for item in ordered),
+    }
+
+
+def snapshot_edge_row(
+    *,
+    node: str | None,
+    equity: Any,
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "node_id": node,
+        "final_equity": finite_float(equity),
+        "mode": source.get("mode"),
+        "latest_run_id": source.get("latest_run_id"),
+        "latest_run_status": source.get("latest_run_status"),
+        "status": source.get("status"),
+        "gateway_reachable": source.get("gateway_reachable"),
+        "position_count": source.get("position_count"),
+        "open_order_count": source.get("open_order_count"),
+        "alert_count": source.get("alert_count"),
+        "order_count": source.get("order_count"),
+        "fill_count": source.get("fill_count"),
+        "rejection_count": source.get("rejection_count"),
+    }
+
+
+def update_status_equity_rollup_snapshot(state_dir: Path, row: dict[str, Any]) -> None:
+    compact = compact_status_rollup_snapshot(row)
+    if compact is None:
+        return
+    timestamp, summary = compact
+    node = str(summary.get("node_id") or "").strip() or None
+    day = timestamp.date().isoformat()
+    existing = load_status_equity_rollups_snapshot(state_dir, node_id=node)
+    rollups = [item for item in existing.get("rollups", []) if isinstance(item, dict)]
+    prior = next((item for item in rollups if item.get("day") == day and item.get("node_id") == node), None)
+    snapshots: list[tuple[datetime, dict[str, Any]]] = [(timestamp, summary)]
+    prior_count = 0
+    if prior:
+        prior_count = int(prior.get("snapshot_count") or 0)
+        start_time = parse_status_timestamp(prior.get("account_start_time"))
+        end_time = parse_status_timestamp(prior.get("account_end_time"))
+        if start_time is not None:
+            snapshots.append((start_time, snapshot_edge_row(node=node, equity=prior.get("start_equity"), source=prior)))
+        if end_time is not None and end_time != start_time:
+            snapshots.append((end_time, snapshot_edge_row(node=node, equity=prior.get("end_equity"), source=prior)))
+        rollups = [item for item in rollups if item is not prior]
+    rollup = rollup_row_from_daily_snapshots(day, sorted(snapshots, key=lambda item: item[0]))
+    if prior_count:
+        rollup["snapshot_count"] = prior_count + 1
+    rollups.append(rollup)
+    rollups = sorted(
+        rollups,
+        key=lambda item: (str(item.get("day") or ""), str(item.get("account_end_time") or ""), str(item.get("node_id") or "")),
+        reverse=True,
+    )
+    payload = {
+        "generated_at": utc_now(),
+        "rollups": rollups[:500],
+        "period_rollups": build_period_rollups_from_daily_rows(rollups),
+        "count": min(len(rollups), 500),
+        "total": len(rollups),
+        "limit": 500,
+        "history_limit": None,
+        "history_scanned": None,
+        "node_id": node,
+    }
+    persist_status_equity_rollups_snapshot(state_dir, payload, node_id=node)
 
 
 STATUS_EQUITY_ROLLUP_EXPORT_FIELDS = (
@@ -9176,7 +8707,7 @@ def build_workbench_diagnostics(
         blockers.append("state directory parent is not writable")
 
     dashboard_assets = []
-    for name in ("index.html", "app.js", "styles.css"):
+    for name in DASHBOARD_ASSET_FILES:
         path = dashboard_dir / name
         item = {
             "name": name,
@@ -11178,12 +10709,10 @@ def save_status(state_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
         f.write("\n")
     with status_history_path(state_dir).open("a") as f:
         f.write(json.dumps(stored, sort_keys=True) + "\n")
-    for node in (None, str(stored.get("node_id") or "").strip() or None):
-        try:
-            rollups = build_status_equity_rollups(state_dir, node_id=node, limit=500, history_limit=50000)
-            persist_status_equity_rollups_snapshot(state_dir, rollups, node_id=node)
-        except Exception:
-            pass
+    try:
+        update_status_equity_rollup_snapshot(state_dir, stored)
+    except Exception:
+        pass
     return stored
 
 

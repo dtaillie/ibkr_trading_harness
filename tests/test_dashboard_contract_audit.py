@@ -15,6 +15,9 @@ AUDITED_FILES = (
     "web/dashboard/app.js",
     "web/dashboard/styles.css",
 )
+AUDITED_DIRS = (
+    "web/dashboard/app",
+)
 
 
 def copy_audited_files(dest_root: Path) -> None:
@@ -23,6 +26,10 @@ def copy_audited_files(dest_root: Path) -> None:
         dest = dest_root / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
+    for relative in AUDITED_DIRS:
+        source = ROOT / relative
+        dest = dest_root / relative
+        shutil.copytree(source, dest)
 
 
 def test_dashboard_contract_audit_passes_current_repo():

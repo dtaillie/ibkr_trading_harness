@@ -19,6 +19,7 @@ pushing this working tree.
 - Gateway service wrapper.
 - Read-only telemetry prototype:
   - `scripts/publish_status.py`
+  - `scripts/cloud_status_catalog.py`
   - `scripts/cloud_status_server.py`
   - `config/cloud_status.example.yaml`
   - `config/cloud_status_hosted.example.yaml`
@@ -61,6 +62,7 @@ pushing this working tree.
   - `docs/configuration_privacy.md`
   - `docs/web_ui_runbook.md`
   - `docs/public_framework_roadmap.md`
+  - `docs/public_launch_plan.md`
   - operational docs after private paths and strategy names are sanitized.
 - Test utilities that do not encode private strategy rules.
 

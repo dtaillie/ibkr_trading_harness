@@ -1089,7 +1089,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/", timeout=5) as resp:
             html = resp.read().decode("utf-8")
         assert "Trading Harness Workbench" in html
-        assert "/dashboard/app.js" in html
+        assert "/dashboard/app/00_core.js" in html
+        assert "/dashboard/app/90_bootstrap.js" in html
         assert "supervisors-body" in html
         assert "remote-control-body" in html
         assert "performance-home-result" in html
@@ -1696,8 +1697,23 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert ".gap-marker-legend" in css
         assert ".workbench-selected-data-item" in css
 
-        with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/dashboard/app.js", timeout=5) as resp:
-            js = resp.read().decode("utf-8")
+        js_parts = []
+        for path in (
+            "/dashboard/app.js",
+            "/dashboard/app/00_core.js",
+            "/dashboard/app/10_help.js",
+            "/dashboard/app/20_workbench_foundation.js",
+            "/dashboard/app/30_runtime_performance.js",
+            "/dashboard/app/40_data.js",
+            "/dashboard/app/50_fetch.js",
+            "/dashboard/app/60_workbench_builder.js",
+            "/dashboard/app/70_runs.js",
+            "/dashboard/app/80_operations.js",
+            "/dashboard/app/90_bootstrap.js",
+        ):
+            with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}{path}", timeout=5) as resp:
+                js_parts.append(resp.read().decode("utf-8"))
+        js = "\n".join(js_parts)
         assert "function gapMarkerLegend" in js
         assert "gap-legend-swatch" in js
         assert "function renderWorkbenchSelectedDataPacket" in js
@@ -1868,6 +1884,7 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             "service_restart_runbook.md": "Service Restart Runbook",
             "failed_order_diagnosis_runbook.md": "Failed Order Diagnosis Runbook",
             "cloud_monitoring_deployment.md": "Cloud Monitoring Deployment",
+            "public_launch_plan.md": "Public Launch Plan",
             "blog_public_ibkr_harness_draft.md": "Blog Draft: A Local-First IBKR Trading Harness",
         }.items():
             with request.urlopen(f"{base}/docs/{name}", timeout=5) as resp:
@@ -5659,7 +5676,22 @@ def test_cloud_status_server_serves_workbench_diagnostics(tmp_path):
         "timestamp,close\n2026-01-02T14:30:00Z,100\n",
         encoding="utf-8",
     )
-    for name in ("index.html", "app.js", "styles.css"):
+    for name in (
+        "index.html",
+        "app.js",
+        "styles.css",
+        "app/00_core.js",
+        "app/10_help.js",
+        "app/20_workbench_foundation.js",
+        "app/30_runtime_performance.js",
+        "app/40_data.js",
+        "app/50_fetch.js",
+        "app/60_workbench_builder.js",
+        "app/70_runs.js",
+        "app/80_operations.js",
+        "app/90_bootstrap.js",
+    ):
+        (dashboard_dir / name).parent.mkdir(parents=True, exist_ok=True)
         (dashboard_dir / name).write_text("ok\n", encoding="utf-8")
 
     server = create_server(

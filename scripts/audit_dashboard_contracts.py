@@ -34,6 +34,18 @@ EXPECTED_TASK_LABELS = (
     "Check runtime health",
     "Publish safely",
 )
+EXPECTED_SCRIPT_PATHS = (
+    "/dashboard/app/00_core.js",
+    "/dashboard/app/10_help.js",
+    "/dashboard/app/20_workbench_foundation.js",
+    "/dashboard/app/30_runtime_performance.js",
+    "/dashboard/app/40_data.js",
+    "/dashboard/app/50_fetch.js",
+    "/dashboard/app/60_workbench_builder.js",
+    "/dashboard/app/70_runs.js",
+    "/dashboard/app/80_operations.js",
+    "/dashboard/app/90_bootstrap.js",
+)
 EXPECTED_LENSES = {
     "overview": ("home", "activity", "diagnostics"),
     "performance": ("home", "trades", "rollups", "diagnostics"),
@@ -77,6 +89,7 @@ class DashboardHTMLParser(HTMLParser):
         self.nav_targets: list[str] = []
         self.data_views: set[str] = set()
         self.lens_targets: dict[str, list[str]] = {view: [] for view in EXPECTED_LENSES}
+        self.script_paths: list[str] = []
         self.select_stack: list[str] = []
         self.option_stack: list[dict[str, str]] = []
         self.options_by_select: dict[str, list[dict[str, str]]] = {}
@@ -90,6 +103,8 @@ class DashboardHTMLParser(HTMLParser):
             self.nav_targets.append(attrs.get("data-view-target", ""))
         if attrs.get("data-view"):
             self.data_views.add(attrs["data-view"])
+        if tag == "script" and attrs.get("src"):
+            self.script_paths.append(attrs["src"])
         for view in EXPECTED_LENSES:
             key = f"data-{view}-lens-target"
             if key in attrs:
@@ -137,6 +152,8 @@ def audit_html(root: Path) -> list[Finding]:
             findings.append(Finding("BLOCKER", rel, f"missing required page-intro element #{element_id}"))
     if tuple(parser.nav_targets) != EXPECTED_VIEWS:
         findings.append(Finding("BLOCKER", rel, f"nav targets must be {list(EXPECTED_VIEWS)}"))
+    if tuple(path for path in parser.script_paths if path.startswith("/dashboard/app/")) != EXPECTED_SCRIPT_PATHS:
+        findings.append(Finding("BLOCKER", rel, "dashboard script chunks do not match the expected ordered app modules"))
     missing_views = [view for view in EXPECTED_VIEWS if view not in parser.data_views]
     if missing_views:
         findings.append(Finding("BLOCKER", rel, f"missing dashboard sections for views: {', '.join(missing_views)}"))
@@ -157,9 +174,27 @@ def audit_html(root: Path) -> list[Finding]:
     return findings
 
 
-def audit_text_tokens(root: Path) -> list[Finding]:
-    checks = (("web/dashboard/app.js", REQUIRED_JS_TOKENS), ("web/dashboard/styles.css", REQUIRED_CSS_TOKENS))
+def dashboard_js_body(root: Path) -> tuple[str, list[Finding]]:
     findings: list[Finding] = []
+    paths = [root / "web/dashboard/app.js", *sorted((root / "web/dashboard/app").glob("*.js"))]
+    existing = [path for path in paths if path.exists()]
+    if not existing:
+        return "", [Finding("BLOCKER", "web/dashboard/app", "missing dashboard JavaScript chunks")]
+    body = "\n".join(path.read_text(encoding="utf-8") for path in existing)
+    for path in paths:
+        if not path.exists():
+            findings.append(Finding("BLOCKER", path.relative_to(root).as_posix(), "missing dashboard JavaScript asset"))
+    return body, findings
+
+
+def audit_text_tokens(root: Path) -> list[Finding]:
+    checks = (("web/dashboard/styles.css", REQUIRED_CSS_TOKENS),)
+    findings: list[Finding] = []
+    js_body, js_findings = dashboard_js_body(root)
+    findings.extend(js_findings)
+    for token in REQUIRED_JS_TOKENS:
+        if token not in js_body:
+            findings.append(Finding("BLOCKER", "web/dashboard/app", f"missing dashboard contract token `{token}`"))
     for rel, tokens in checks:
         path = root / rel
         if not path.exists():

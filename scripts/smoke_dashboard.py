@@ -207,6 +207,23 @@ def fetch_text(base_url: str, path: str) -> str:
         return resp.read().decode("utf-8")
 
 
+def fetch_dashboard_js(base_url: str) -> str:
+    chunks = [
+        "/dashboard/app.js",
+        "/dashboard/app/00_core.js",
+        "/dashboard/app/10_help.js",
+        "/dashboard/app/20_workbench_foundation.js",
+        "/dashboard/app/30_runtime_performance.js",
+        "/dashboard/app/40_data.js",
+        "/dashboard/app/50_fetch.js",
+        "/dashboard/app/60_workbench_builder.js",
+        "/dashboard/app/70_runs.js",
+        "/dashboard/app/80_operations.js",
+        "/dashboard/app/90_bootstrap.js",
+    ]
+    return "\n".join(fetch_text(base_url, path) for path in chunks)
+
+
 def fetch_json(base_url: str, path: str) -> dict:
     return json.loads(fetch_text(base_url, path))
 
@@ -936,7 +953,7 @@ def run_smoke(
         missing_controls = [control for control in required_controls if control not in html]
         if missing_controls:
             raise RuntimeError(f"dashboard controls missing: {', '.join(missing_controls)}")
-        js = fetch_text(base_url, "/dashboard/app.js")
+        js = fetch_dashboard_js(base_url)
         required_js_tokens = [
             "config_draft_yaml",
             "config_draft_preview",
