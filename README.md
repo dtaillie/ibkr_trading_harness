@@ -18,7 +18,7 @@ In 10 seconds:
 - **Public boundary:** example strategies are intentionally non-viable; tuned
   signals, credentials, account data, and logs stay private.
 
-![Dashboard tour with seeded example telemetry](docs/images/dashboard_demo.gif)
+![Dashboard overview with seeded example telemetry](docs/images/dashboard_overview.png)
 
 ## Try It In 30 Seconds
 

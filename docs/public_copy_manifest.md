@@ -65,6 +65,11 @@ pushing this working tree.
   - `docs/configuration_privacy.md`
   - `docs/web_ui_runbook.md`
   - `docs/workbench_backtest_walkthrough.md`
+  - `docs/images/dashboard_overview.png`
+  - `docs/images/dashboard_performance.png`
+  - `docs/images/dashboard_workbench.png`
+  - `docs/images/dashboard_workbench_generate_draft.png`
+  - `docs/images/dashboard_runs.png`
   - `docs/public_framework_roadmap.md`
   - `docs/public_launch_plan.md`
   - operational docs after private paths and strategy names are sanitized.

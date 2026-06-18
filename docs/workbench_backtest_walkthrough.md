@@ -34,6 +34,8 @@ The Workbench presents a guided sequence of steps across the top and a config
 form below. The steps are a checklist; the form is where you fill in values.
 You can move through the steps in order or jump straight to the form.
 
+![Workbench builder with seeded demo state](images/dashboard_workbench.png)
+
 ## The Seven-Step Path
 
 ### 1. Choose Data
@@ -74,6 +76,8 @@ executes, so configuration mistakes surface here rather than mid-run. Tick
 **Save draft locally** to persist the generated YAML under the local Workbench
 state directory; a saved, valid draft is required for the Run step.
 
+![Workbench Generate Draft form with selected dataset and date window](images/dashboard_workbench_generate_draft.png)
+
 ### 6. Run Simulation
 
 Run the saved draft directly from the browser. Three actions are available:
@@ -97,6 +101,10 @@ Open them on the **Performance** page (equity curve, drawdown, realized PnL,
 return bars, KPIs) and the **Runs** page (per-run `decisions`, `orders`,
 `fills`, `account`, and `summary` records). Trade rows are paired from
 sanitized fills, so win rate and profit factor reflect real round trips.
+
+![Performance page with seeded simulated-paper results](images/dashboard_performance.png)
+
+![Runs page with artifacts and event context](images/dashboard_runs.png)
 
 ## Config Form Reference
 
