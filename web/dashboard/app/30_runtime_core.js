@@ -14,6 +14,7 @@ import {
   text,
 } from "./00_core.js";
 import { latestArtifactPerformance, latestSupervisor, latestTelemetryRun } from "./20_workbench_foundation.js";
+import { csvLine } from "./40_data_catalog.js";
 import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
 import { copyText, refresh, refreshDataLibrary } from "./90_bootstrap.js";
 

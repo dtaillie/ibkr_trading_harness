@@ -40,7 +40,7 @@ import {
   timestampAgeLabel,
   timestampMillis,
 } from "./30_runtime_core.js";
-import { nonzeroPositionsFromSource, performanceFromAccountRows, performancePeriodWindow, rowsInWindow } from "./31_performance_math.js";
+import { nonzeroPositionsFromSource, performanceFromAccountRows, performancePeriodWindow, positionDetailHtml, rowsInWindow } from "./31_performance_math.js";
 import { emptyChart, equitySparkline, statusRollupReturnChart } from "./34_charts.js";
 import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
 import { eventStatus, remoteRunArtifactEvidenceRows } from "./80_operations.js";

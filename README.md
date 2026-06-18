@@ -1,5 +1,7 @@
 # IBKR Trading Harness
 
+![CI](https://github.com/dtaillie/ibkr_trading_harness/actions/workflows/ci.yml/badge.svg)
+
 Local-first infrastructure for running strategy plugins against IBKR data with
 explicit safety boundaries. The contribution is the harness: replay, shadow,
 simulated-paper, and confirmed paper execution are separate modes, each with
@@ -15,9 +17,6 @@ In 10 seconds:
   artifacts, Gateway state, and public-safe status telemetry.
 - **Public boundary:** example strategies are intentionally non-viable; tuned
   signals, credentials, account data, and logs stay private.
-
-<!-- After publishing, enable the CI badge by replacing OWNER/REPO:
-![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) -->
 
 ![Dashboard tour with seeded example telemetry](docs/images/dashboard_demo.gif)
 
@@ -232,6 +231,8 @@ the destination `.git`. See `docs/configuration_privacy.md` and
 
 ## Documentation
 
+- `docs/workbench_backtest_walkthrough.md` — run a backtest from the browser,
+  step by step
 - `docs/public_quickstart.md` — full setup and operations walkthrough
 - `docs/web_ui_runbook.md` — dashboard usage, page by page
 - `docs/ui_use_cases.md` — the use cases and design rules behind the UI

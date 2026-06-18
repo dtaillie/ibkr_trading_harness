@@ -35,7 +35,7 @@ import {
 import { alertCardsHtml, workflowHref } from "./32_overview.js";
 import { countBy, countSummary, topCountEntries } from "./40_data_catalog.js";
 import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
-import { copyText, downloadRemoteNodeDetailCsv, downloadRemoteNodesCsv, loadRemoteNodeDetail, updateCommandFields } from "./90_bootstrap.js";
+import { copyText, downloadCommandAuditCsv, downloadRemoteNodeDetailCsv, downloadRemoteNodesCsv, loadRemoteNodeDetail, updateCommandFields } from "./90_bootstrap.js";
 
 export function supervisorJobRows(supervisor) {
   return Array.isArray(supervisor && supervisor.jobs) ? supervisor.jobs.filter((job) => job && typeof job === "object") : [];
@@ -1637,7 +1637,7 @@ export function handleControlAssistantAction(action) {
     return;
   }
   if (action === "export-audit") {
-    exportCommandAuditCsv().catch((err) => {
+    downloadCommandAuditCsv().catch((err) => {
       $("last-refresh").textContent = `Command audit CSV export failed: ${err.message}`;
     });
     return;
@@ -3446,4 +3446,3 @@ export function renderCommandAuditHealth(events = [], integrity = {}, retention 
     </div>
   `).join("");
 }
-

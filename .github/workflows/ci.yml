@@ -23,5 +23,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint dashboard modules
+        run: |
+          npm ci
+          npx eslint "web/dashboard/**/*.js"
+
       - name: Public publish gate
         run: python scripts/public_publish_check.py --include-screenshots

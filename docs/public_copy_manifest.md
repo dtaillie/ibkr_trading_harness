@@ -46,6 +46,9 @@ pushing this working tree.
   - `ops/systemd/algo-trade-command-worker.service`
 - Operational dashboard:
   - `web/dashboard/`
+  - `eslint.config.mjs`
+  - `package.json`
+  - `package-lock.json`
   - `scripts/install_dashboard_server.sh`
   - `scripts/install_local_monitoring_stack.sh`
   - `ops/systemd/algo-trade-plugin-supervisor.service`

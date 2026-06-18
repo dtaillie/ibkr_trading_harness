@@ -2198,11 +2198,11 @@ export function csvCell(value) {
   return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
 
-function csvLine(values) {
+export function csvLine(values) {
   return values.map(csvCell).join(",");
 }
 
-function dirname(path) {
+export function dirname(path) {
   const raw = String(path || "");
   const normalized = raw.replace(/\/+$/, "");
   const index = normalized.lastIndexOf("/");
@@ -2267,7 +2267,7 @@ export function fetchManifestRootsYamlSnippet() {
   ].join("\n");
 }
 
-function replayStarterCommand(detail) {
+export function replayStarterCommand(detail) {
   const path = detail && detail.path;
   const symbol = detail && detail.symbol;
   if (!path) return "";

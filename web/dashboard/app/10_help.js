@@ -10,6 +10,7 @@ import {
   navigateToView,
   navigateToWorkbenchLens,
   numberText,
+  pctText,
   state,
   statusText,
   text,

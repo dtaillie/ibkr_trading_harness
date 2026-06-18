@@ -9,6 +9,7 @@ import {
   state,
   text,
 } from "./00_core.js";
+import { latestArtifactPerformance } from "./20_workbench_foundation.js";
 import { finiteNumber, latestAccountRow, timestampMillis } from "./30_runtime_core.js";
 import { renderPerformance } from "./33_performance_views.js";
 import { numericAccountRows } from "./34_charts.js";
@@ -462,10 +463,12 @@ export function applyPerformanceTradeFilter({ state = "", side = "", symbol = ""
 }
 
 export function currentTradeLedger() {
-  const source = performanceSource();
-  const window = selectedPerformanceWindow(source.accountRows || []);
-  const fills = eventsInPeriod(source.fills || [], window.start, window.end, (fill) => fill.timestamp || fill.time);
-  return tradeLedgerFromFills(fills);
+  const source = latestArtifactPerformance();
+  const accountRows = source.account || [];
+  const period = $("performance-period").value || "all";
+  const window = performancePeriodWindow(accountRows, period);
+  const fills = period === "all" ? (source.fills || []) : rowsInWindow(source.fills || [], window);
+  return buildTradeLedger(fills);
 }
 
 export function handlePerformanceTradeAssistantAction(action) {
@@ -603,4 +606,3 @@ export function positionSnapshotDrilldown(snapshot) {
     </details>
   `;
 }
-
