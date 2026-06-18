@@ -34,6 +34,7 @@ COPY_FILES = [
     ".github/workflows/ci.yml",
     "docs/configuration_privacy.md",
     "docs/web_ui_runbook.md",
+    "docs/workbench_backtest_walkthrough.md",
     "docs/public_quickstart.md",
     "docs/publication_readiness.md",
     "docs/public_launch_plan.md",

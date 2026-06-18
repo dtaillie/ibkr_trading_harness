@@ -130,6 +130,7 @@ DATA_LIBRARY_CACHE: dict[str, dict[str, Any]] = {}
 DATA_LIBRARY_CACHE_LOCK = threading.Lock()
 PUBLIC_DOCS = {
     "web_ui_runbook.md": ROOT / "docs" / "web_ui_runbook.md",
+    "workbench_backtest_walkthrough.md": ROOT / "docs" / "workbench_backtest_walkthrough.md",
     "public_quickstart.md": ROOT / "docs" / "public_quickstart.md",
     "configuration_privacy.md": ROOT / "docs" / "configuration_privacy.md",
     "publication_readiness.md": ROOT / "docs" / "publication_readiness.md",

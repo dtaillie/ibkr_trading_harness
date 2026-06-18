@@ -61,6 +61,7 @@ pushing this working tree.
 - Public documentation:
   - `docs/configuration_privacy.md`
   - `docs/web_ui_runbook.md`
+  - `docs/workbench_backtest_walkthrough.md`
   - `docs/public_framework_roadmap.md`
   - `docs/public_launch_plan.md`
   - operational docs after private paths and strategy names are sanitized.

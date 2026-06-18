@@ -1890,6 +1890,7 @@ def test_cloud_status_server_serves_allowlisted_public_docs(tmp_path):
             "service_restart_runbook.md": "Service Restart Runbook",
             "failed_order_diagnosis_runbook.md": "Failed Order Diagnosis Runbook",
             "cloud_monitoring_deployment.md": "Cloud Monitoring Deployment",
+            "workbench_backtest_walkthrough.md": "Workbench Backtest Walkthrough",
             "public_launch_plan.md": "Public Launch Plan",
             "blog_public_ibkr_harness_draft.md": "Blog Draft: A Local-First IBKR Trading Harness",
         }.items():

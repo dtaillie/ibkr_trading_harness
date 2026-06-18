@@ -51,6 +51,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "ops" / "cloud" / "aws-s3-command-audit-retention.example.tf").exists()
     assert (dest / "ops" / "cloud" / "sync-command-audit.example.sh").exists()
     assert (dest / "docs" / "public_launch_plan.md").exists()
+    assert (dest / "docs" / "workbench_backtest_walkthrough.md").exists()
 
 
 def test_export_public_repo_requires_force_for_existing_destination(tmp_path: Path):
