@@ -1,4 +1,61 @@
-function renderPerformance() {
+import {
+  $,
+  drawdownValueClass,
+  equityValueHtml,
+  escapeHtml,
+  fetchOptionalJson,
+  money,
+  navigateToDataLens,
+  navigateToOperationsLens,
+  navigateToPerformanceLens,
+  navigateToRunsLens,
+  navigateToWorkbenchLens,
+  numberText,
+  pctText,
+  row,
+  signedValueClass,
+  signedValueHtml,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { latestArtifactPerformance, renderPerformanceBenchmarkOptions, renderStrategyIdentity, selectedTelemetryRun } from "./20_workbench_foundation.js";
+import { finiteNumber, latestAccountRow, setMetricValue, shortTimestampAgeLabel, sourceMetaLabel, sourceTimestamp, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import {
+  buildTradeLedger,
+  holdDurationLabel,
+  modeMeaning,
+  nonzeroPositionsFromSource,
+  performanceFromAccountRows,
+  performancePeriodWindow,
+  projectionCaveat,
+  renderPerformanceTradeAssistant,
+  renderPerformanceTradeControls,
+  rowsInWindow,
+  sourceMeaning,
+  turnoverStats,
+} from "./31_performance_math.js";
+import { renderPerformanceLivePeriodSummary, rollupReturnClass, sortedStatusRollups, statusRollupSeriesStats, trailingStatusRollups, workflowHref } from "./32_overview.js";
+import {
+  benchmarkOverlayChart,
+  calendarReturnHeatmap,
+  dailyReturnChart,
+  drawdownChart,
+  equityChart,
+  intradayPnlChart,
+  intradayPnlStats,
+  latestSessionAccountRows,
+  periodReturnBarChart,
+  rangeLabel,
+  statusRollupEquityChart,
+  statusRollupReturnChart,
+  tradeCumulativePnlChart,
+  tradePnlBarChart,
+} from "./34_charts.js";
+import { copyText, downloadStatusRollupsCsv, renderAll } from "./90_bootstrap.js";
+
+export function renderPerformance() {
   $("performance-source-mode").value = state.performanceSourceMode || "current";
   const telemetryRunSelect = $("performance-telemetry-run");
   if (telemetryRunSelect) {
@@ -338,7 +395,7 @@ function renderPerformance() {
     : row([`<span class="muted">No saved runs yet</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function performanceRiskStatus(drawdownPct, exposurePct) {
+export function performanceRiskStatus(drawdownPct, exposurePct) {
   const drawdown = finiteNumber(drawdownPct);
   const exposure = finiteNumber(exposurePct);
   if (drawdown === null && exposure === null) return "bad";
@@ -348,7 +405,7 @@ function performanceRiskStatus(drawdownPct, exposurePct) {
   return "ok";
 }
 
-function renderPerformanceStory(context) {
+export function renderPerformanceStory(context) {
   if (!$("performance-story-cards") || !$("performance-story-note")) return;
   const {
     source,
@@ -439,7 +496,7 @@ function renderPerformanceStory(context) {
   `).join("");
 }
 
-function renderPerformanceTriage(context) {
+export function renderPerformanceTriage(context) {
   if (!$("performance-triage-cards") || !$("performance-triage-note")) return;
   const {
     source,
@@ -577,7 +634,7 @@ function renderPerformanceTriage(context) {
   `).join("");
 }
 
-function renderPerformanceHome(context) {
+export function renderPerformanceHome(context) {
   if (!$("performance-home-result") || !$("performance-home-note") || !$("performance-home-tiles")) return;
   const {
     source,
@@ -674,7 +731,7 @@ function renderPerformanceHome(context) {
   renderPerformanceWorkflowLauncher({ ...context, allAccountRows });
 }
 
-function performanceActionSummaryModel(context) {
+export function performanceActionSummaryModel(context) {
   const {
     source,
     window,
@@ -829,7 +886,7 @@ function performanceActionSummaryModel(context) {
   };
 }
 
-function renderPerformanceActionSummary(context) {
+export function renderPerformanceActionSummary(context) {
   if (!$("performance-action-note") || !$("performance-action-cards") || !$("performance-action-actions")) return;
   const model = performanceActionSummaryModel(context);
   $("performance-action-note").textContent = model.note;
@@ -848,7 +905,7 @@ function renderPerformanceActionSummary(context) {
   `).join("");
 }
 
-function handlePerformanceAction(action) {
+export function handlePerformanceAction(action) {
   if (action === "period-all") {
     $("performance-period").value = "all";
     renderPerformance();
@@ -864,7 +921,7 @@ function handlePerformanceAction(action) {
   if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function renderPerformanceScoreboard(context) {
+export function renderPerformanceScoreboard(context) {
   if (!$("performance-scoreboard-note") || !$("performance-scoreboard-cards") || !$("performance-scoreboard-actions")) return;
   const {
     source,
@@ -929,7 +986,7 @@ function renderPerformanceScoreboard(context) {
   ].join("");
 }
 
-function renderPerformanceReview(context) {
+export function renderPerformanceReview(context) {
   if (!$("performance-review-note") || !$("performance-review-cards") || !$("performance-review-actions")) return;
   const {
     source,
@@ -1065,7 +1122,7 @@ function renderPerformanceReview(context) {
   ].join("");
 }
 
-function performanceReportModel(context) {
+export function performanceReportModel(context) {
   const {
     source,
     window,
@@ -1199,7 +1256,7 @@ function performanceReportModel(context) {
   };
 }
 
-function performanceReportText(model) {
+export function performanceReportText(model) {
   const lines = [
     `Current Strategy Report: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1208,7 +1265,7 @@ function performanceReportText(model) {
   return lines.join("\n");
 }
 
-function renderPerformanceReport(context) {
+export function renderPerformanceReport(context) {
   if (!$("performance-report-note") || !$("performance-report-cards") || !$("performance-report-body") || !$("performance-report-actions")) return;
   const model = performanceReportModel(context);
   state.performanceReportText = performanceReportText(model);
@@ -1234,7 +1291,7 @@ function renderPerformanceReport(context) {
   ].join("");
 }
 
-function handlePerformanceReportAction(action) {
+export function handlePerformanceReportAction(action) {
   if (action === "copy") {
     copyText(state.performanceReportText || "No current strategy report loaded").then(() => {
       $("last-refresh").textContent = "Current strategy report copied";
@@ -1254,7 +1311,7 @@ function handlePerformanceReportAction(action) {
   navigateToOperationsLens("paper");
 }
 
-function performanceEvidenceModel(context) {
+export function performanceEvidenceModel(context) {
   const {
     source,
     window,
@@ -1419,7 +1476,7 @@ function performanceEvidenceModel(context) {
   };
 }
 
-function performanceEvidenceText(model) {
+export function performanceEvidenceText(model) {
   return [
     `Performance Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1427,7 +1484,7 @@ function performanceEvidenceText(model) {
   ].join("\n");
 }
 
-function renderPerformanceEvidence(context) {
+export function renderPerformanceEvidence(context) {
   if (!$("performance-evidence-note") || !$("performance-evidence-cards") || !$("performance-evidence-body") || !$("performance-evidence-actions")) return;
   const model = performanceEvidenceModel(context);
   state.performanceEvidenceText = performanceEvidenceText(model);
@@ -1453,7 +1510,7 @@ function renderPerformanceEvidence(context) {
   ].join("");
 }
 
-function handlePerformanceEvidenceAction(action) {
+export function handlePerformanceEvidenceAction(action) {
   if (action !== "copy") return;
   copyText(state.performanceEvidenceText || "No performance evidence loaded").then(() => {
     $("last-refresh").textContent = "Performance evidence copied";
@@ -1462,7 +1519,7 @@ function handlePerformanceEvidenceAction(action) {
   });
 }
 
-function performanceSnapshotReturnCard({ label, value, detail, source }) {
+export function performanceSnapshotReturnCard({ label, value, detail, source }) {
   const numeric = finiteNumber(value);
   return {
     status: numeric === null ? "warn" : numeric >= 0 ? "ok" : "bad",
@@ -1473,7 +1530,7 @@ function performanceSnapshotReturnCard({ label, value, detail, source }) {
   };
 }
 
-function performanceSnapshotModel(context) {
+export function performanceSnapshotModel(context) {
   const {
     source,
     allAccountRows,
@@ -1605,7 +1662,7 @@ function performanceSnapshotModel(context) {
   };
 }
 
-function renderPerformanceSnapshot(context) {
+export function renderPerformanceSnapshot(context) {
   if (!$("performance-snapshot-note") || !$("performance-snapshot-cards") || !$("performance-snapshot-actions")) return;
   const model = performanceSnapshotModel(context);
   $("performance-snapshot-note").textContent = model.note;
@@ -1624,7 +1681,7 @@ function renderPerformanceSnapshot(context) {
   ].join("");
 }
 
-function handlePerformanceSnapshotAction(action) {
+export function handlePerformanceSnapshotAction(action) {
   if (action === "rollups") {
     navigateToPerformanceLens("rollups");
     return;
@@ -1640,7 +1697,7 @@ function handlePerformanceSnapshotAction(action) {
   if ($("performance-load-benchmark")) $("performance-load-benchmark").click();
 }
 
-function performanceWorkflowCards(context) {
+export function performanceWorkflowCards(context) {
   const {
     source,
     window,
@@ -1741,7 +1798,7 @@ function performanceWorkflowCards(context) {
   ];
 }
 
-function renderPerformanceWorkflowLauncher(context) {
+export function renderPerformanceWorkflowLauncher(context) {
   const container = $("performance-workflows");
   if (!container) return;
   const cards = performanceWorkflowCards(context);
@@ -1758,7 +1815,7 @@ function renderPerformanceWorkflowLauncher(context) {
   `).join("");
 }
 
-function renderPerformanceRollups() {
+export function renderPerformanceRollups() {
   const payload = state.performanceRollups || {};
   const rollups = payload.rollups || [];
   renderPerformanceRollupAssistant();
@@ -1785,7 +1842,7 @@ function renderPerformanceRollups() {
     : row([`<span class="muted">No archived account artifacts have daily equity snapshots yet.</span>`, "", "", "", "", "", "", "", "", "", ""]);
 }
 
-function performancePeriodRows(payload = {}) {
+export function performancePeriodRows(payload = {}) {
   const periodRollups = payload.period_rollups || {};
   return [
     ...(periodRollups.month || []).map((item) => ({ ...item, periodLabel: `Month ${item.label}`, periodType: "month" })),
@@ -1793,25 +1850,25 @@ function performancePeriodRows(payload = {}) {
   ];
 }
 
-function bestRollupRow(rows, key) {
+export function bestRollupRow(rows, key) {
   return (rows || [])
     .filter((item) => finiteNumber(item[key]) !== null)
     .sort((left, right) => Number(right[key]) - Number(left[key]))[0] || null;
 }
 
-function worstRollupRow(rows, key) {
+export function worstRollupRow(rows, key) {
   return (rows || [])
     .filter((item) => finiteNumber(item[key]) !== null)
     .sort((left, right) => Number(left[key]) - Number(right[key]))[0] || null;
 }
 
-function latestRollupRow(rows) {
+export function latestRollupRow(rows) {
   const copy = (rows || []).slice();
   copy.sort((left, right) => String(right.day || right.last_day || "").localeCompare(String(left.day || left.last_day || "")));
   return copy[0] || null;
 }
 
-function renderPerformanceRollupAssistant() {
+export function renderPerformanceRollupAssistant() {
   if (!$("performance-rollup-assistant-title") || !$("performance-rollup-assistant-cards") || !$("performance-rollup-assistant-actions")) return;
   const statusPayload = state.statusEquityRollups || {};
   const statusRows = statusPayload.rollups || [];
@@ -1926,19 +1983,19 @@ function renderPerformanceRollupAssistant() {
   `).join("");
 }
 
-function dayMillis(day) {
+export function dayMillis(day) {
   if (!day) return null;
   return timestampMillis(`${day}T00:00:00Z`);
 }
 
-function calendarDayCount(firstDay, lastDay) {
+export function calendarDayCount(firstDay, lastDay) {
   const firstMillis = dayMillis(firstDay);
   const lastMillis = dayMillis(lastDay);
   if (firstMillis === null || lastMillis === null || lastMillis < firstMillis) return null;
   return Math.floor((lastMillis - firstMillis) / 86400000) + 1;
 }
 
-function statusRollupContinuityModel() {
+export function statusRollupContinuityModel() {
   const statusPayload = state.statusEquityRollups || {};
   const statusRows = sortedStatusRollups();
   const archivedPayload = state.performanceRollups || {};
@@ -2076,7 +2133,7 @@ function statusRollupContinuityModel() {
   };
 }
 
-function performanceRollupContinuityText(model) {
+export function performanceRollupContinuityText(model) {
   return [
     `Status Rollup Continuity: ${model.headline}`,
     `Context: ${model.note}`,
@@ -2085,7 +2142,7 @@ function performanceRollupContinuityText(model) {
   ].join("\n");
 }
 
-function renderPerformanceRollupContinuity() {
+export function renderPerformanceRollupContinuity() {
   if (
     !$("performance-rollup-continuity-note")
     || !$("performance-rollup-continuity-cards")
@@ -2118,7 +2175,7 @@ function renderPerformanceRollupContinuity() {
   ].join("");
 }
 
-function handlePerformanceRollupContinuityAction(action) {
+export function handlePerformanceRollupContinuityAction(action) {
   if (action === "copy") {
     copyText(state.performanceRollupContinuityText || "No rollup continuity report loaded").then(() => {
       $("last-refresh").textContent = "Rollup continuity report copied";
@@ -2153,7 +2210,7 @@ function handlePerformanceRollupContinuityAction(action) {
   });
 }
 
-function handlePerformanceRollupAssistantAction(action) {
+export function handlePerformanceRollupAssistantAction(action) {
   if (action === "status") {
     $("performance-status-rollups-body").scrollIntoView({ block: "start", behavior: "smooth" });
     $("last-refresh").textContent = "Reviewing live/paper status day rollups";
@@ -2176,7 +2233,7 @@ function handlePerformanceRollupAssistantAction(action) {
   });
 }
 
-async function reloadTelemetryArtifacts() {
+export async function reloadTelemetryArtifacts() {
   const run = selectedTelemetryRun();
   const runId = run && run.id ? String(run.id) : "";
   if (!runId) {
@@ -2201,7 +2258,7 @@ async function reloadTelemetryArtifacts() {
   renderAll();
 }
 
-function focusPerformanceDay(day) {
+export function focusPerformanceDay(day) {
   const select = $("performance-period");
   if (!select || !day) return;
   const value = `day:${day}`;
@@ -2217,7 +2274,7 @@ function focusPerformanceDay(day) {
   renderPerformance();
 }
 
-function renderStatusEquityRollups() {
+export function renderStatusEquityRollups() {
   if (
     !$("performance-status-rollups-body")
     || !$("performance-status-rollups-note")
@@ -2283,7 +2340,7 @@ function renderStatusEquityRollups() {
     : row([`<span class="muted">No status-history month/year summaries yet.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderPerformancePeriodRollups() {
+export function renderPerformancePeriodRollups() {
   const payload = state.performanceRollups || {};
   const periodRollups = payload.period_rollups || {};
   const rows = [

@@ -1,15 +1,18 @@
-function rangeLabel(start, end) {
+import { $, escapeHtml, interval, money, numberText, pctText, row, text } from "./00_core.js";
+import { eventStatusIsBad, finiteNumber, timestampMillis } from "./30_runtime_core.js";
+
+export function rangeLabel(start, end) {
   if (!start && !end) return "n/a";
   return `${text(start)} -> ${text(end)}`;
 }
 
-function timezoneLabel(mode) {
+export function timezoneLabel(mode) {
   if (mode === "local") return "Local";
   if (mode === "eastern") return "Eastern";
   return "UTC";
 }
 
-function formatTimestampForMode(value, mode = "utc") {
+export function formatTimestampForMode(value, mode = "utc") {
   const millis = timestampMillis(value);
   if (millis === null) return text(value);
   const options = {
@@ -27,12 +30,12 @@ function formatTimestampForMode(value, mode = "utc") {
   return new Intl.DateTimeFormat("en-US", options).format(new Date(millis));
 }
 
-function timeRangeLabel(start, end, mode = "utc") {
+export function timeRangeLabel(start, end, mode = "utc") {
   if (!start && !end) return "n/a";
   return `${formatTimestampForMode(start, mode)} -> ${formatTimestampForMode(end, mode)}`;
 }
 
-function miniChart(points) {
+export function miniChart(points) {
   if (!points || points.length < 2) return `<span class="muted">n/a</span>`;
   const closes = points.map((point) => Number(point.close)).filter((value) => Number.isFinite(value));
   if (closes.length < 2) return `<span class="muted">n/a</span>`;
@@ -52,13 +55,13 @@ function miniChart(points) {
   return `<svg class="sparkline ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="close preview"><polyline points="${coords}"></polyline></svg>`;
 }
 
-function closedTradesByExit(tradeRows) {
+export function closedTradesByExit(tradeRows) {
   return (tradeRows || [])
     .filter((trade) => trade.state === "closed" && finiteNumber(trade.pnl) !== null && trade.exit_time)
     .sort((a, b) => String(a.exit_time).localeCompare(String(b.exit_time)));
 }
 
-function tradeCumulativePnlChart(tradeRows) {
+export function tradeCumulativePnlChart(tradeRows) {
   const ordered = closedTradesByExit(tradeRows);
   if (ordered.length < 2) return emptyChart("Need two or more closed trades for a realized PnL curve");
   let running = 0;
@@ -74,7 +77,7 @@ function tradeCumulativePnlChart(tradeRows) {
   });
 }
 
-function tradePnlBarChart(tradeRows) {
+export function tradePnlBarChart(tradeRows) {
   const ordered = closedTradesByExit(tradeRows);
   if (!ordered.length) return emptyChart("No closed trades in the selected window");
   const width = 720;
@@ -99,7 +102,7 @@ function tradePnlBarChart(tradeRows) {
   return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="per-trade realized PnL bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function equitySparkline(accountRows) {
+export function equitySparkline(accountRows) {
   const values = (accountRows || []).map((row) => Number(row.equity)).filter((value) => Number.isFinite(value));
   if (values.length < 2) return "";
   const min = Math.min(...values);
@@ -116,11 +119,11 @@ function equitySparkline(accountRows) {
   return `<svg class="sparkline hero-spark ${cls}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="selected-source equity history"><polyline points="${coords}"></polyline></svg>`;
 }
 
-function emptyChart(message) {
+export function emptyChart(message) {
   return `<div class="chart-empty">${escapeHtml(message)}</div>`;
 }
 
-function compactDataPreviewChart(dataset) {
+export function compactDataPreviewChart(dataset) {
   const points = (dataset && dataset.preview) || [];
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
@@ -181,7 +184,7 @@ function compactDataPreviewChart(dataset) {
   `;
 }
 
-function gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode = "utc") {
+export function gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode = "utc") {
   const timeSpan = maxTime - minTime || 1;
   return visibleGapRows(gaps, minTime, maxTime).map((gap) => {
     const start = timestampMillis(gap.from_timestamp);
@@ -194,7 +197,7 @@ function gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode
   }).join("");
 }
 
-function visibleGapRows(gaps, minTime, maxTime) {
+export function visibleGapRows(gaps, minTime, maxTime) {
   return (gaps || []).filter((gap) => {
     const start = timestampMillis(gap.from_timestamp);
     const end = timestampMillis(gap.to_timestamp);
@@ -202,7 +205,7 @@ function visibleGapRows(gaps, minTime, maxTime) {
   });
 }
 
-function gapMarkerLegend(gaps, minTime, maxTime, timezoneMode = "utc") {
+export function gapMarkerLegend(gaps, minTime, maxTime, timezoneMode = "utc") {
   const rows = gaps || [];
   if (!rows.length) return "";
   const visible = visibleGapRows(rows, minTime, maxTime);
@@ -217,7 +220,7 @@ function gapMarkerLegend(gaps, minTime, maxTime, timezoneMode = "utc") {
   return `<div class="chart-legend gap-marker-legend"><span class="legend-item"><span class="gap-legend-swatch"></span>${escapeHtml(visibleText)}</span><span class="muted">${escapeHtml(detailText)}</span></div>`;
 }
 
-function detailChart(points, timezoneMode = "utc", gaps = []) {
+export function detailChart(points, timezoneMode = "utc", gaps = []) {
   if (!points || points.length < 2) return emptyChart("No price preview available");
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
@@ -267,7 +270,7 @@ function detailChart(points, timezoneMode = "utc", gaps = []) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price, gaps, and volume">${gapMarkers}<polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function candlestickChart(points, timezoneMode = "utc", gaps = []) {
+export function candlestickChart(points, timezoneMode = "utc", gaps = []) {
   if (!points || points.length < 2) return detailChart(points, timezoneMode, gaps);
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
@@ -336,7 +339,7 @@ function candlestickChart(points, timezoneMode = "utc", gaps = []) {
   return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data candlestick, gaps, and volume">${gapMarkers}${candles}${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function compareChart(series, timezoneMode = "utc") {
+export function compareChart(series, timezoneMode = "utc") {
   const rows = (series || []).map((item) => ({
     symbol: item.symbol,
     points: (item.points || []).map((point) => ({
@@ -379,7 +382,7 @@ function compareChart(series, timezoneMode = "utc") {
   return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data comparison">${zeroLine}${polylines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function equityChart(points, markers = []) {
+export function equityChart(points, markers = []) {
   if (!points || points.length < 2) return emptyChart("No equity curve available");
   const rows = (points || []).map((point, index) => ({
     index,
@@ -439,7 +442,7 @@ function equityChart(points, markers = []) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="equity curve"><polyline points="${coords}"></polyline>${markerElements}</svg>${markerLegend}`;
 }
 
-function normalizedReturnPoints(rows, valueKey) {
+export function normalizedReturnPoints(rows, valueKey) {
   const ordered = (rows || []).map((point) => ({
     timestamp: point.timestamp,
     millis: timestampMillis(point.timestamp),
@@ -455,7 +458,7 @@ function normalizedReturnPoints(rows, valueKey) {
   })).filter((point) => Number.isFinite(point.value));
 }
 
-function benchmarkOverlayChart(accountRows, benchmarkDetail) {
+export function benchmarkOverlayChart(accountRows, benchmarkDetail) {
   const accountPoints = normalizedReturnPoints(accountRows, "equity");
   const benchmarkPoints = normalizedReturnPoints((benchmarkDetail && benchmarkDetail.preview) || [], "close");
   if (accountPoints.length < 2) {
@@ -499,21 +502,21 @@ function benchmarkOverlayChart(accountRows, benchmarkDetail) {
   return `<svg class="detail-chart benchmark-overlay" viewBox="0 0 ${width} ${height}" role="img" aria-label="strategy and benchmark normalized return overlay"><line class="axis-line" x1="0" y1="${zeroY}" x2="${width}" y2="${zeroY}"></line>${series.map(lineFor).join("")}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function numericAccountRows(points) {
+export function numericAccountRows(points) {
   return (points || []).map((point) => ({
     timestamp: point.timestamp,
     equity: Number(point.equity),
   })).filter((point) => point.timestamp && Number.isFinite(point.equity));
 }
 
-function latestSessionAccountRows(points) {
+export function latestSessionAccountRows(points) {
   const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
   if (!rows.length) return [];
   const latestDay = String(rows[rows.length - 1].timestamp).slice(0, 10);
   return rows.filter((point) => String(point.timestamp).slice(0, 10) === latestDay);
 }
 
-function intradayPnlStats(points) {
+export function intradayPnlStats(points) {
   const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
   if (!rows.length) return null;
   const first = rows[0];
@@ -532,7 +535,7 @@ function intradayPnlStats(points) {
   };
 }
 
-function intradayPnlChart(points) {
+export function intradayPnlChart(points) {
   const rows = numericAccountRows(points).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
   if (rows.length < 2) return emptyChart("No intraday PnL curve available");
   const base = rows[0].equity;
@@ -556,7 +559,7 @@ function intradayPnlChart(points) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="intraday profit and loss curve"><line class="axis-line" x1="0" y1="${zeroY}" x2="${width}" y2="${zeroY}"></line><polyline points="${coords}"></polyline></svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function drawdownChart(points) {
+export function drawdownChart(points) {
   const rows = numericAccountRows(points);
   if (rows.length < 2) return emptyChart("No drawdown curve available");
   let peak = rows[0].equity;
@@ -573,7 +576,7 @@ function drawdownChart(points) {
   });
 }
 
-function dailyReturns(points) {
+export function dailyReturns(points) {
   const rows = numericAccountRows(points);
   const byDay = new Map();
   for (const point of rows) {
@@ -590,7 +593,7 @@ function dailyReturns(points) {
   }).filter((item) => Number.isFinite(item.value));
 }
 
-function dailyReturnChart(points) {
+export function dailyReturnChart(points) {
   const rows = dailyReturns(points);
   if (!rows.length) return emptyChart("No daily return bars available");
   const width = 720;
@@ -611,7 +614,7 @@ function dailyReturnChart(points) {
   return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="daily return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(labels)}</span>`;
 }
 
-function eventTimelineChart(events) {
+export function eventTimelineChart(events) {
   const rows = (events || [])
     .map((event) => ({ ...event, millis: timestampMillis(event.timestamp) }))
     .filter((event) => event.millis !== null);
@@ -666,7 +669,7 @@ function eventTimelineChart(events) {
   return `<svg class="detail-chart event-timeline" viewBox="0 0 ${width} ${height}" role="img" aria-label="event density over time">${bars}</svg>${legend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function periodReturnBarChart(periodRows) {
+export function periodReturnBarChart(periodRows) {
   const rows = (periodRows || [])
     .map((item) => ({ label: text(item.periodLabel || item.label), value: Number(item.total_return_pct) }))
     .filter((item) => Number.isFinite(item.value));
@@ -691,7 +694,7 @@ function periodReturnBarChart(periodRows) {
   return `<svg class="detail-chart return-bars" viewBox="0 0 ${width} ${height}" role="img" aria-label="period return bars"><line class="axis-line" x1="0" y1="${axisY}" x2="${width}" y2="${axisY}"></line>${bars}</svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function calendarReturnHeatmap(points) {
+export function calendarReturnHeatmap(points) {
   const rows = dailyReturns(points).sort((a, b) => String(a.day).localeCompare(String(b.day)));
   if (!rows.length) return emptyChart("No daily returns available for calendar view");
   const byDay = new Map(rows.map((item) => [item.day, item.value]));
@@ -716,7 +719,7 @@ function calendarReturnHeatmap(points) {
   return `<div class="calendar-scroll"><div class="calendar-heatmap" role="img" aria-label="daily return calendar heatmap">${cells.join("")}</div></div><span class="chart-caption">${escapeHtml(latest)}</span>`;
 }
 
-function scalarLineChart(points, { label, empty, className, valueFormatter }) {
+export function scalarLineChart(points, { label, empty, className, valueFormatter }) {
   if (!points || points.length < 2) return emptyChart(empty);
   const values = points.map((point) => Number(point.value)).filter((value) => Number.isFinite(value));
   if (values.length < 2) return emptyChart(empty);
@@ -735,7 +738,7 @@ function scalarLineChart(points, { label, empty, className, valueFormatter }) {
   return `<svg class="detail-chart ${className || ""}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)}"><polyline points="${coords}"></polyline></svg><span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-function statusRollupChartRows(rollups, valueKey) {
+export function statusRollupChartRows(rollups, valueKey) {
   return (rollups || []).map((item) => ({
     day: item.day,
     node_id: text(item.node_id),
@@ -745,7 +748,7 @@ function statusRollupChartRows(rollups, valueKey) {
     .sort((left, right) => (left.millis - right.millis) || left.node_id.localeCompare(right.node_id));
 }
 
-function statusRollupEquityChart(rollups) {
+export function statusRollupEquityChart(rollups) {
   const rows = statusRollupChartRows(rollups, "end_equity");
   if (rows.length < 2) return emptyChart("No status-history equity curve available");
   const byNode = new Map();
@@ -781,7 +784,7 @@ function statusRollupEquityChart(rollups) {
   return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="status-history equity by node">${lines}</svg><div class="chart-legend">${legend}</div><span class="chart-caption">${caption}</span>`;
 }
 
-function statusRollupReturnChart(rollups) {
+export function statusRollupReturnChart(rollups) {
   const rows = statusRollupChartRows(rollups, "daily_return_pct").slice(-60);
   if (!rows.length) return emptyChart("No status-history daily returns available");
   const width = 720;

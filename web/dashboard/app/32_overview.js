@@ -1,4 +1,46 @@
-function overviewHealthChecks() {
+import {
+  $,
+  age,
+  escapeHtml,
+  money,
+  normalizeView,
+  numberText,
+  pctText,
+  renderTopbarStatusStrip,
+  row,
+  signedValueClass,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { latestArtifactPerformance, latestTelemetryRun, renderStrategyIdentity } from "./20_workbench_foundation.js";
+import {
+  eventStatusIsBad,
+  finiteNumber,
+  firstPresent,
+  latestAccountRow,
+  metricLatestRejection,
+  metricTimestamp,
+  normalizedRunMetrics,
+  renderBackendPipeline,
+  runtimeActivityModel,
+  runtimeMarketDataModel,
+  runtimeStatusItems,
+  savedDataMetricModel,
+  setMetricValue,
+  shortTimestampAgeLabel,
+  sourceMetaLabel,
+  symbolInventoryModel,
+  timestampAgeLabel,
+  timestampMillis,
+} from "./30_runtime_core.js";
+import { nonzeroPositionsFromSource, performanceFromAccountRows, performancePeriodWindow, rowsInWindow } from "./31_performance_math.js";
+import { emptyChart, equitySparkline, statusRollupReturnChart } from "./34_charts.js";
+import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
+import { eventStatus, remoteRunArtifactEvidenceRows } from "./80_operations.js";
+
+export function overviewHealthChecks() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const runs = payload.runs || [];
@@ -69,7 +111,7 @@ function overviewHealthChecks() {
   ];
 }
 
-function sortedStatusRollups() {
+export function sortedStatusRollups() {
   const rollups = ((state.statusEquityRollups && state.statusEquityRollups.rollups) || []).slice();
   return rollups.sort((left, right) => {
     const leftKey = String(left.account_end_time || left.day || "");
@@ -78,7 +120,7 @@ function sortedStatusRollups() {
   });
 }
 
-function statusRollupSeriesStats(rollups) {
+export function statusRollupSeriesStats(rollups) {
   const rows = (rollups || []).filter((item) => finiteNumber(item.end_equity) !== null);
   if (!rows.length) {
     return {
@@ -114,7 +156,7 @@ function statusRollupSeriesStats(rollups) {
   };
 }
 
-function trailingStatusRollups(rollups, days) {
+export function trailingStatusRollups(rollups, days) {
   const rows = (rollups || []).filter((item) => item.day && timestampMillis(`${item.day}T00:00:00Z`) !== null);
   if (!rows.length) return [];
   const latestMillis = Math.max(...rows.map((item) => timestampMillis(`${item.day}T00:00:00Z`)));
@@ -125,13 +167,13 @@ function trailingStatusRollups(rollups, days) {
   }).sort((left, right) => String(left.day || "").localeCompare(String(right.day || "")));
 }
 
-function rollupReturnClass(value) {
+export function rollupReturnClass(value) {
   const number = finiteNumber(value);
   if (number === null) return statusClass("warn");
   return statusClass(number >= 0 ? "ok" : "bad");
 }
 
-function drawdownClass(value) {
+export function drawdownClass(value) {
   const number = finiteNumber(value);
   if (number === null) return statusClass("warn");
   if (number <= -10) return statusClass("bad");
@@ -139,7 +181,7 @@ function drawdownClass(value) {
   return statusClass("ok");
 }
 
-function livePeriodTile(label, value, detail, className) {
+export function livePeriodTile(label, value, detail, className) {
   return `
     <div class="status-tile">
       <span>${escapeHtml(label)}</span>
@@ -149,7 +191,7 @@ function livePeriodTile(label, value, detail, className) {
   `;
 }
 
-function renderPerformanceLivePeriodSummary() {
+export function renderPerformanceLivePeriodSummary() {
   if (!$("performance-live-period-note") || !$("performance-live-period-cards")) return;
   const payload = state.statusEquityRollups || {};
   const rollups = sortedStatusRollups();
@@ -219,7 +261,7 @@ function renderPerformanceLivePeriodSummary() {
   $("performance-live-period-cards").innerHTML = tiles.join("");
 }
 
-function renderOverviewPerformanceSnapshot() {
+export function renderOverviewPerformanceSnapshot() {
   if (
     !$("overview-performance-result")
     || !$("overview-performance-summary")
@@ -319,7 +361,7 @@ function renderOverviewPerformanceSnapshot() {
   $("overview-performance-chart").innerHTML = statusRollupReturnChart(rollups);
 }
 
-function renderOverview() {
+export function renderOverview() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
@@ -451,7 +493,7 @@ function renderOverview() {
   renderOverviewTimeline();
 }
 
-function renderOverviewCommandCenter() {
+export function renderOverviewCommandCenter() {
   if (!$("overview-command-title") || !$("overview-command-cards")) return;
   const payload = state.status || {};
   const runs = payload.runs || [];
@@ -554,7 +596,7 @@ function renderOverviewCommandCenter() {
   `).join("");
 }
 
-function overviewGlanceModel() {
+export function overviewGlanceModel() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const runs = payload.runs || [];
@@ -703,7 +745,7 @@ function overviewGlanceModel() {
   return { status, title, summary, primary, secondary, cards };
 }
 
-function renderOverviewGlance() {
+export function renderOverviewGlance() {
   if (!$("overview-glance-title") || !$("overview-glance-cards")) return;
   const model = overviewGlanceModel();
   $("overview-glance-note").textContent = model.status === "ok"
@@ -733,7 +775,7 @@ function renderOverviewGlance() {
   `).join("");
 }
 
-function worstStatusFrom(items = []) {
+export function worstStatusFrom(items = []) {
   // "idle" means empty-by-design (nothing started yet); it never raises a rollup.
   const ranks = { bad: 3, warn: 2, unknown: 1, ok: 0, idle: 0 };
   return (items || []).reduce((worst, item) => {
@@ -742,7 +784,7 @@ function worstStatusFrom(items = []) {
   }, "ok");
 }
 
-function overviewHealthReportModel() {
+export function overviewHealthReportModel() {
   const payload = state.status || {};
   const runs = payload.runs || [];
   const alerts = payload.alerts || [];
@@ -932,14 +974,14 @@ function overviewHealthReportModel() {
   return { status, headline, nextAction, cards, lines };
 }
 
-function overviewHealthReportText(model) {
+export function overviewHealthReportText(model) {
   return [
     `Strategy Health Report: ${model.headline}`,
     ...model.lines.map((line) => `${line.title}: ${line.detail}`),
   ].join("\n");
 }
 
-function renderOverviewHealthReport() {
+export function renderOverviewHealthReport() {
   if (!$("overview-health-report-note") || !$("overview-health-report-cards") || !$("overview-health-report-body") || !$("overview-health-report-actions")) return;
   const model = overviewHealthReportModel();
   state.overviewHealthReportText = overviewHealthReportText(model);
@@ -967,7 +1009,7 @@ function renderOverviewHealthReport() {
   ].join("");
 }
 
-function handleOverviewHealthReportAction(action) {
+export function handleOverviewHealthReportAction(action) {
   if (action === "copy") {
     copyText(state.overviewHealthReportText || "No strategy health report loaded").then(() => {
       $("last-refresh").textContent = "Strategy health report copied";
@@ -983,12 +1025,12 @@ function handleOverviewHealthReportAction(action) {
   if (action === "workbench") return navigateToWorkbenchLens("home");
 }
 
-function workflowHref(target, lens = "") {
+export function workflowHref(target, lens = "") {
   const view = normalizeView(target || "overview");
   return lens ? `#${view}/${encodeURIComponent(lens)}` : `#${view}`;
 }
 
-function overviewWorkflowCards() {
+export function overviewWorkflowCards() {
   const payload = state.status || {};
   const runs = payload.runs || [];
   const events = runEventRows();
@@ -1088,7 +1130,7 @@ function overviewWorkflowCards() {
   ];
 }
 
-function renderOverviewWorkflowLauncher() {
+export function renderOverviewWorkflowLauncher() {
   if (!$("overview-workflow-grid") || !$("overview-workflow-note")) return;
   const cards = overviewWorkflowCards();
   const badCount = cards.filter((card) => card.status === "bad").length;
@@ -1111,13 +1153,13 @@ function renderOverviewWorkflowLauncher() {
   `).join("");
 }
 
-function utcDayKey(value) {
+export function utcDayKey(value) {
   const millis = timestampMillis(value);
   if (millis === null) return "";
   return new Date(millis).toISOString().slice(0, 10);
 }
 
-function overviewReferenceTime(events, payload) {
+export function overviewReferenceTime(events, payload) {
   const candidates = [
     payload && payload.generated_at,
     ...events.map((event) => event.timestamp),
@@ -1125,7 +1167,7 @@ function overviewReferenceTime(events, payload) {
   return candidates.length ? new Date(Math.max(...candidates)).toISOString() : null;
 }
 
-function eventSummary(events, type) {
+export function eventSummary(events, type) {
   const rows = (events || []).filter((event) => event.type === type);
   return {
     count: rows.length,
@@ -1133,7 +1175,7 @@ function eventSummary(events, type) {
   };
 }
 
-function renderOverviewSessionState() {
+export function renderOverviewSessionState() {
   if (!$("overview-session-state-cards") || !$("overview-session-state-note")) return;
   const payload = state.status || {};
   const runs = payload.runs || [];
@@ -1213,7 +1255,7 @@ function renderOverviewSessionState() {
   `).join("");
 }
 
-function renderRuntimeStatus() {
+export function renderRuntimeStatus() {
   const items = runtimeStatusItems();
   const badCount = items.filter((item) => item.status === "bad").length;
   const warnCount = items.filter((item) => item.status === "warn").length;
@@ -1231,7 +1273,7 @@ function renderRuntimeStatus() {
   `).join("");
 }
 
-function renderOverviewHealth() {
+export function renderOverviewHealth() {
   const checks = overviewHealthChecks();
   const badCount = checks.filter((item) => item.status === "bad").length;
   const warnCount = checks.filter((item) => item.status === "warn").length;
@@ -1259,7 +1301,7 @@ function renderOverviewHealth() {
   `).join("");
 }
 
-function renderOverviewPositions() {
+export function renderOverviewPositions() {
   const source = latestArtifactPerformance();
   const accountRow = latestAccountRow(source.account || []);
   const positions = nonzeroPositionsFromSource(source);
@@ -1277,7 +1319,7 @@ function renderOverviewPositions() {
     : `<div class="empty-card"><strong>No open positions</strong><span>The latest selected or published run is flat, or no account snapshot has been loaded.</span></div>`;
 }
 
-function renderOverviewOrders() {
+export function renderOverviewOrders() {
   const orders = currentOpenOrderRows().slice(0, 5);
   $("overview-orders-note").textContent = orders.length
     ? `${numberText(orders.length, 0)} current non-terminal order event${orders.length === 1 ? "" : "s"}`
@@ -1295,7 +1337,7 @@ function renderOverviewOrders() {
     : row([`<span class="muted">No current open-order telemetry. Broker-native open orders require runners to publish open-order state.</span>`, "", "", "", "", "", ""]);
 }
 
-const ALERT_GUIDANCE = [
+export const ALERT_GUIDANCE = [
   { match: /^gateway_/, meaning: "The IB Gateway/API connection has a problem.", action: "Run Check Gateway in Operations; restart the gateway service or complete its login if needed.", target: "operations", targetLabel: "Open Operations" },
   { match: /^market_data_health/, meaning: "A runner reports incomplete or stale market data for some symbols.", action: "Open the run's market-data card in Operations; refetch history for the listed symbols if the gap persists.", target: "operations", targetLabel: "Open Operations" },
   { match: /^run_stale/, meaning: "A run has not published a fresh decision within its configured age limit.", action: "Check the supervisor schedule and the run's latest session in Runs.", target: "runs", targetLabel: "Open Runs" },
@@ -1307,7 +1349,7 @@ const ALERT_GUIDANCE = [
   { match: /^run_/, meaning: "A configured run's telemetry or artifacts are missing or unreadable.", action: "Inspect the run's state and artifacts in Runs; verify the runner and status bridge are writing.", target: "runs", targetLabel: "Open Runs" },
 ];
 
-function alertGuidance(kind) {
+export function alertGuidance(kind) {
   const entry = ALERT_GUIDANCE.find((item) => item.match.test(String(kind || "")));
   return entry || {
     meaning: "A published telemetry health check failed.",
@@ -1317,7 +1359,7 @@ function alertGuidance(kind) {
   };
 }
 
-function alertCardsHtml(alerts, emptyMessage) {
+export function alertCardsHtml(alerts, emptyMessage) {
   if (!alerts.length) {
     return `<div class="chart-empty">${escapeHtml(emptyMessage)}</div>`;
   }
@@ -1335,7 +1377,7 @@ function alertCardsHtml(alerts, emptyMessage) {
   return `${cards}<p class="muted alert-clear-note">Alerts are recomputed from telemetry on every publish and clear automatically once the underlying condition resolves — there is nothing to dismiss manually.</p>`;
 }
 
-function renderOverviewAlerts() {
+export function renderOverviewAlerts() {
   const alerts = ((state.status && state.status.alerts) || []).slice(0, 6);
   $("overview-alerts-note").textContent = alerts.length
     ? `${numberText(alerts.length, 0)} current alert${alerts.length === 1 ? "" : "s"}`
@@ -1346,7 +1388,7 @@ function renderOverviewAlerts() {
   );
 }
 
-function renderOverviewTimeline() {
+export function renderOverviewTimeline() {
   const allEvents = runEventRows();
   const reference = overviewReferenceTime(allEvents, state.status || {});
   const day = utcDayKey(reference);
@@ -1369,7 +1411,7 @@ function renderOverviewTimeline() {
     : row([`<span class="muted">No signals, orders, or fills have been published for the current telemetry day.</span>`, "", "", "", "", ""]);
 }
 
-function renderMetrics() {
+export function renderMetrics() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const runs = payload.runs || [];
@@ -1406,4 +1448,3 @@ function renderMetrics() {
     $("command-supervisor").value = supervisors[0].id || "";
   }
 }
-

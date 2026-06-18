@@ -1,4 +1,19 @@
-function performancePeriodWindow(accountRows, period) {
+import {
+  $,
+  age,
+  escapeHtml,
+  money,
+  navigateToRunsLens,
+  numberText,
+  pctText,
+  state,
+  text,
+} from "./00_core.js";
+import { finiteNumber, latestAccountRow, timestampMillis } from "./30_runtime_core.js";
+import { renderPerformance } from "./33_performance_views.js";
+import { numericAccountRows } from "./34_charts.js";
+
+export function performancePeriodWindow(accountRows, period) {
   if (typeof period === "string" && period.startsWith("day:")) {
     const day = period.slice(4);
     const start = timestampMillis(`${day}T00:00:00Z`);
@@ -23,7 +38,7 @@ function performancePeriodWindow(accountRows, period) {
   return { start: end - days * 24 * 60 * 60 * 1000, end, label: period === "3m" ? "3 months" : period };
 }
 
-function rowsInWindow(rows, window) {
+export function rowsInWindow(rows, window) {
   if (!window || (window.start === null && window.end === null)) return rows || [];
   return (rows || []).filter((item) => {
     const millis = timestampMillis(item.timestamp);
@@ -34,7 +49,7 @@ function rowsInWindow(rows, window) {
   });
 }
 
-function performanceFromAccountRows(accountRows) {
+export function performanceFromAccountRows(accountRows) {
   const rows = numericAccountRows(accountRows);
   if (rows.length < 2) return {};
   const initialEquity = rows[0].equity;
@@ -74,7 +89,7 @@ function performanceFromAccountRows(accountRows) {
   };
 }
 
-function modeMeaning(mode) {
+export function modeMeaning(mode) {
   const value = String(mode || "").replace("-", "_").toLowerCase();
   if (value === "replay") return "Historical replay from saved files; no broker account is touched.";
   if (value === "simulated_paper") return "Local simulated-paper run using saved or streamed prices and simulated fills.";
@@ -84,14 +99,14 @@ function modeMeaning(mode) {
   return "Mode unavailable; inspect the source run or telemetry before interpreting results.";
 }
 
-function sourceMeaning(source) {
+export function sourceMeaning(source) {
   if (source.source_type === "archived_artifact") return "Full archived run artifacts are loaded, including account snapshots when available.";
   if (source.source_type === "run_summary") return "Using a saved run summary; detailed curves need the run artifacts.";
   if (source.source_type === "live_telemetry") return "Using latest published telemetry; persistence depends on the runner output.";
   return "No performance source is loaded yet.";
 }
 
-function projectionCaveat(perf, summary, elapsedDays) {
+export function projectionCaveat(perf, summary, elapsedDays) {
   const projected = Boolean(perf.short_horizon_projection ?? summary.short_horizon_projection);
   if (projected || (elapsedDays !== null && elapsedDays < 30)) {
     const horizon = elapsedDays !== null ? `${numberText(elapsedDays, 2)} elapsed days` : "a short elapsed window";
@@ -103,14 +118,14 @@ function projectionCaveat(perf, summary, elapsedDays) {
   return "No elapsed account window is available; prefer total return and drawdown over annualized figures.";
 }
 
-function fillNotional(fill) {
+export function fillNotional(fill) {
   const quantity = Math.abs(finiteNumber(fill.quantity) || 0);
   const price = finiteNumber(fill.price);
   if (!quantity || price === null) return 0;
   return quantity * price;
 }
 
-function turnoverStats(fills, initialEquity) {
+export function turnoverStats(fills, initialEquity) {
   const notional = (fills || []).reduce((sum, fill) => sum + fillNotional(fill), 0);
   const equity = finiteNumber(initialEquity);
   return {
@@ -119,14 +134,14 @@ function turnoverStats(fills, initialEquity) {
   };
 }
 
-function normalizedFillSide(value) {
+export function normalizedFillSide(value) {
   const side = String(value || "").trim().toLowerCase();
   if (side === "buy" || side === "bot" || side === "b") return "buy";
   if (side === "sell" || side === "sld" || side === "s") return "sell";
   return side;
 }
 
-function holdDurationLabel(start, end) {
+export function holdDurationLabel(start, end) {
   const startMs = timestampMillis(start);
   const endMs = timestampMillis(end);
   if (startMs === null || endMs === null || endMs < startMs) return "n/a";
@@ -137,7 +152,7 @@ function holdDurationLabel(start, end) {
   return `${(hours / 24).toLocaleString("en-US", { maximumFractionDigits: 1 })}d`;
 }
 
-function buildTradeLedger(fills) {
+export function buildTradeLedger(fills) {
   const lotsBySymbol = new Map();
   const closed = [];
   const sortedFills = (fills || []).slice().sort((a, b) => String(a.timestamp || "").localeCompare(String(b.timestamp || "")));
@@ -240,7 +255,7 @@ function buildTradeLedger(fills) {
   };
 }
 
-function renderPerformanceTradeControls(ledger) {
+export function renderPerformanceTradeControls(ledger) {
   if (!$("performance-trade-summary")) return ledger.rows || [];
   const stateFilter = (($("performance-trade-filter-state") || {}).value || "").toLowerCase();
   const sideFilter = (($("performance-trade-filter-side") || {}).value || "").toLowerCase();
@@ -304,7 +319,7 @@ function renderPerformanceTradeControls(ledger) {
   return rows;
 }
 
-function performanceTradeFilters() {
+export function performanceTradeFilters() {
   return {
     state: (($("performance-trade-filter-state") || {}).value || "").toLowerCase(),
     side: (($("performance-trade-filter-side") || {}).value || "").toLowerCase(),
@@ -312,29 +327,29 @@ function performanceTradeFilters() {
   };
 }
 
-function performanceTradeFilterCount() {
+export function performanceTradeFilterCount() {
   const filters = performanceTradeFilters();
   return [filters.state, filters.side, filters.symbol].filter(Boolean).length;
 }
 
-function tradeLedgerRealizedPnl(ledger) {
+export function tradeLedgerRealizedPnl(ledger) {
   return (ledger.closed || []).reduce((sum, trade) => sum + (finiteNumber(trade.pnl) || 0), 0);
 }
 
-function tradeLedgerWorstLoss(ledger) {
+export function tradeLedgerWorstLoss(ledger) {
   const losses = (ledger.closed || [])
     .filter((trade) => finiteNumber(trade.pnl) !== null && Number(trade.pnl) < 0)
     .sort((left, right) => Number(left.pnl || 0) - Number(right.pnl || 0));
   return losses[0] || null;
 }
 
-function tradeLedgerNewestOpen(ledger) {
+export function tradeLedgerNewestOpen(ledger) {
   const open = (ledger.open || []).slice();
   open.sort((left, right) => String(right.entry_time || "").localeCompare(String(left.entry_time || "")));
   return open[0] || null;
 }
 
-function renderPerformanceTradeAssistant(ledger, shownRows = [], fills = []) {
+export function renderPerformanceTradeAssistant(ledger, shownRows = [], fills = []) {
   if (!$("performance-trade-assistant-title") || !$("performance-trade-assistant-cards") || !$("performance-trade-assistant-actions")) return;
   const realizedPnl = tradeLedgerRealizedPnl(ledger);
   const winRate = ledger.stats.closed_count
@@ -439,21 +454,21 @@ function renderPerformanceTradeAssistant(ledger, shownRows = [], fills = []) {
   `).join("");
 }
 
-function applyPerformanceTradeFilter({ state = "", side = "", symbol = "" } = {}) {
+export function applyPerformanceTradeFilter({ state = "", side = "", symbol = "" } = {}) {
   $("performance-trade-filter-state").value = state;
   $("performance-trade-filter-side").value = side;
   $("performance-trade-filter-symbol").value = symbol;
   renderPerformance();
 }
 
-function currentTradeLedger() {
+export function currentTradeLedger() {
   const source = performanceSource();
   const window = selectedPerformanceWindow(source.accountRows || []);
   const fills = eventsInPeriod(source.fills || [], window.start, window.end, (fill) => fill.timestamp || fill.time);
   return tradeLedgerFromFills(fills);
 }
 
-function handlePerformanceTradeAssistantAction(action) {
+export function handlePerformanceTradeAssistantAction(action) {
   const ledger = currentTradeLedger();
   if (action === "open") {
     applyPerformanceTradeFilter({ state: "open" });
@@ -486,7 +501,7 @@ function handlePerformanceTradeAssistantAction(action) {
   navigateToRunsLens("runs");
 }
 
-function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
+export function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
   const positions = accountRow.positions || summary.final_positions || {};
   const values = accountRow.position_values || {};
   const averageCosts = accountRow.average_costs || {};
@@ -527,13 +542,13 @@ function nonzeroPositionsFromAccountRow(accountRow = {}, summary = {}) {
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 }
 
-function nonzeroPositionsFromSource(source) {
+export function nonzeroPositionsFromSource(source) {
   const summary = (source && source.summary) || {};
   const accountRow = latestAccountRow((source && source.account) || []);
   return nonzeroPositionsFromAccountRow(accountRow, summary);
 }
 
-function positionDetailHtml(position, { includeQuantity = true } = {}) {
+export function positionDetailHtml(position, { includeQuantity = true } = {}) {
   const exitState = position.exit_state || position.stop_state;
   const entryMillis = timestampMillis(position.entry_time);
   const ageText = entryMillis === null ? "" : `Age ${age(Math.max(0, (Date.now() - entryMillis) / 1000))}`;
@@ -559,7 +574,7 @@ function positionDetailHtml(position, { includeQuantity = true } = {}) {
   return detailLines.map((line) => `<small>${escapeHtml(line)}</small>`).join("");
 }
 
-function positionSnapshotDrilldown(snapshot) {
+export function positionSnapshotDrilldown(snapshot) {
   const positions = nonzeroPositionsFromAccountRow(snapshot);
   if (!positions.length) return `<span class="muted">flat</span>`;
   const detailCount = positions.filter((position) => (

@@ -1,4 +1,29 @@
-function latestTelemetryRun() {
+import {
+  $,
+  MAX_DATA_COMPARE_DATASETS,
+  applyWorkbenchLens,
+  escapeHtml,
+  navigateToDataLens,
+  navigateToHelpLens,
+  navigateToView,
+  numberText,
+  pctText,
+  qualityBadge,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { firstPresent, normalizedRunMetrics, renderWorkbenchBackendStatus, shortTimestampAgeLabel, sourceTimestamp, timestampAgeLabel, timestampMillis, workbenchBackendStatusModel } from "./30_runtime_core.js";
+import { workflowHref } from "./32_overview.js";
+import { rangeLabel, timeRangeLabel } from "./34_charts.js";
+import { countSummary, dataReplayReadinessModel } from "./40_data_catalog.js";
+import { renderDataCompare, renderDataCompareControls } from "./43_data_detail_compare.js";
+import { draftValidationById, normalizeConfigDraftErrors, renderConfigLivePanels, replaceOptions, selectedRunDraft } from "./60_workbench_builder.js";
+import { copyText, loadDataCompare, loadDataDetail } from "./90_bootstrap.js";
+
+export function latestTelemetryRun() {
   const runs = (state.status && state.status.runs) || [];
   if (!runs.length) return null;
   return runs.slice().sort((a, b) => {
@@ -10,7 +35,7 @@ function latestTelemetryRun() {
   })[0];
 }
 
-function selectedTelemetryRun() {
+export function selectedTelemetryRun() {
   const runs = (state.status && state.status.runs) || [];
   const wanted = state.performanceTelemetryRunId;
   if (wanted) {
@@ -20,7 +45,7 @@ function selectedTelemetryRun() {
   return latestTelemetryRun();
 }
 
-function latestSupervisor() {
+export function latestSupervisor() {
   const supervisors = (state.status && state.status.supervisors) || [];
   if (!supervisors.length) return null;
   return supervisors.slice().sort((a, b) => {
@@ -30,12 +55,12 @@ function latestSupervisor() {
   })[0];
 }
 
-function latestSummarizedComparisonRun() {
+export function latestSummarizedComparisonRun() {
   const runs = (state.runComparison && state.runComparison.runs) || [];
   return runs.find((runItem) => runItem.summary_available) || null;
 }
 
-function emptyPerformanceSource(label = "No run data", sourceType = "none") {
+export function emptyPerformanceSource(label = "No run data", sourceType = "none") {
   return {
     label,
     summary: {},
@@ -49,7 +74,7 @@ function emptyPerformanceSource(label = "No run data", sourceType = "none") {
   };
 }
 
-function artifactPerformanceSource() {
+export function artifactPerformanceSource() {
   const artifacts = state.configArtifacts || {};
   if (artifacts.run_id || artifacts.draft_id) {
     return {
@@ -69,7 +94,7 @@ function artifactPerformanceSource() {
   return emptyPerformanceSource("No artifact loaded", "archived_artifact");
 }
 
-function summaryPerformanceSource() {
+export function summaryPerformanceSource() {
   const comparison = latestSummarizedComparisonRun();
   if (comparison) {
     return {
@@ -87,7 +112,7 @@ function summaryPerformanceSource() {
   return emptyPerformanceSource("No saved run summary", "run_summary");
 }
 
-function telemetryPerformanceSource() {
+export function telemetryPerformanceSource() {
   const telemetryRun = selectedTelemetryRun();
   if (telemetryRun) {
     const metrics = telemetryRun.metrics || {};
@@ -109,7 +134,7 @@ function telemetryPerformanceSource() {
   return emptyPerformanceSource("No current telemetry", "live_telemetry");
 }
 
-function currentPerformanceSource() {
+export function currentPerformanceSource() {
   const telemetry = telemetryPerformanceSource();
   if (telemetry.source_type === "live_telemetry" && telemetry.label !== "No current telemetry") return telemetry;
   const summary = summaryPerformanceSource();
@@ -117,13 +142,13 @@ function currentPerformanceSource() {
   return emptyPerformanceSource("No current run data", "current");
 }
 
-function latestArtifactPerformance() {
+export function latestArtifactPerformance() {
   if (state.performanceSourceMode === "artifact") return artifactPerformanceSource();
   if (state.performanceSourceMode === "latest_run") return summaryPerformanceSource();
   return currentPerformanceSource();
 }
 
-function strategyIdentityModel(source = latestArtifactPerformance()) {
+export function strategyIdentityModel(source = latestArtifactPerformance()) {
   const telemetryRun = latestTelemetryRun() || {};
   const metrics = telemetryRun.metrics || {};
   const summary = (source && source.summary) || {};
@@ -183,7 +208,7 @@ function strategyIdentityModel(source = latestArtifactPerformance()) {
   };
 }
 
-function renderStrategyIdentity(targetId, source = latestArtifactPerformance()) {
+export function renderStrategyIdentity(targetId, source = latestArtifactPerformance()) {
   const container = $(targetId);
   if (!container) return;
   const identity = strategyIdentityModel(source);
@@ -203,7 +228,7 @@ function renderStrategyIdentity(targetId, source = latestArtifactPerformance()) 
   `).join("");
 }
 
-function benchmarkDatasets() {
+export function benchmarkDatasets() {
   return (state.dataCatalog.datasets || [])
     .filter((dataset) => dataset.path)
     .sort((a, b) => {
@@ -213,7 +238,7 @@ function benchmarkDatasets() {
     });
 }
 
-function renderPerformanceBenchmarkOptions() {
+export function renderPerformanceBenchmarkOptions() {
   const select = $("performance-benchmark");
   if (!select) return;
   const options = [
@@ -233,7 +258,7 @@ function renderPerformanceBenchmarkOptions() {
   }
 }
 
-function selectedConfigDatasets() {
+export function selectedConfigDatasets() {
   const select = $("config-dataset");
   if (!select) return [];
   const catalogByPath = new Map(workbenchDatasetRows().map((item) => [item.path, item]));
@@ -242,7 +267,7 @@ function selectedConfigDatasets() {
     .filter((dataset) => dataset && dataset.path);
 }
 
-function workbenchDatasetRows() {
+export function workbenchDatasetRows() {
   const catalogRows = (state.dataCatalog.datasets || []).filter((dataset) => dataset && dataset.path);
   const rowsByPath = new Map(catalogRows.map((dataset) => [dataset.path, dataset]));
   for (const dataset of Object.values(state.workbenchExtraDatasets || {})) {
@@ -253,7 +278,7 @@ function workbenchDatasetRows() {
   return Array.from(rowsByPath.values());
 }
 
-function rememberWorkbenchDataset(dataset = {}) {
+export function rememberWorkbenchDataset(dataset = {}) {
   if (!dataset || !dataset.path) return dataset;
   const normalized = {
     ...dataset,
@@ -277,7 +302,7 @@ function rememberWorkbenchDataset(dataset = {}) {
   return normalized;
 }
 
-function datasetFromConfigOption(option) {
+export function datasetFromConfigOption(option) {
   if (!option || !option.value) return null;
   return {
     path: option.value,
@@ -303,7 +328,7 @@ function datasetFromConfigOption(option) {
   };
 }
 
-function attachDatasetOptionMetadata(option, dataset = {}) {
+export function attachDatasetOptionMetadata(option, dataset = {}) {
   if (!option || !dataset) return option;
   const set = (key, value) => {
     if (value !== undefined && value !== null && value !== "") option.dataset[key] = String(value);
@@ -330,7 +355,7 @@ function attachDatasetOptionMetadata(option, dataset = {}) {
   return option;
 }
 
-function selectedDataReadiness(selected = selectedConfigDatasets()) {
+export function selectedDataReadiness(selected = selectedConfigDatasets()) {
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const badContract = contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad");
@@ -346,14 +371,14 @@ function selectedDataReadiness(selected = selectedConfigDatasets()) {
   };
 }
 
-function configDateRangePayload() {
+export function configDateRangePayload() {
   return {
     start: $("config-start-date") ? $("config-start-date").value : "",
     end: $("config-end-date") ? $("config-end-date").value : "",
   };
 }
 
-function renderConfigDataQuality() {
+export function renderConfigDataQuality() {
   const selected = selectedConfigDatasets();
   if (!$("config-data-quality-note") || !$("config-data-quality-body")) return;
   renderConfigDataActions(selected);
@@ -390,7 +415,7 @@ function renderConfigDataQuality() {
   ])).join("");
 }
 
-function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues) {
+export function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIssues) {
   if (!selected.length) return { status: "idle", title: "Choose Data", note: "Select saved files from Data Library before building a draft." };
   if (qualityIssues.length && contractIssues.length) return { status: "warn", title: "Review Data", note: `${numberText(qualityIssues.length, 0)} quality and ${numberText(contractIssues.length, 0)} metadata issue${contractIssues.length === 1 ? "" : "s"} need review.` };
   if (qualityIssues.length) return { status: "warn", title: "Review Quality", note: `${numberText(qualityIssues.length, 0)} selected file${qualityIssues.length === 1 ? "" : "s"} need review before replay.` };
@@ -401,7 +426,7 @@ function selectedDataPacketStatus(selected, alignment, qualityIssues, contractIs
   return { status: "ok", title: "Ready", note: "Selected files have quality and timestamp overlap evidence." };
 }
 
-function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) {
+export function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) {
   if (!$("workbench-selected-data-note") || !$("workbench-selected-data-cards") || !$("workbench-selected-data-list")) return;
   renderWorkbenchSelectedDataCoverage(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
@@ -497,7 +522,7 @@ function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatasets()) 
     `;
 }
 
-function selectedDataCoverageRows(selected = selectedConfigDatasets()) {
+export function selectedDataCoverageRows(selected = selectedConfigDatasets()) {
   return (selected || []).map((dataset, index) => {
     const replay = dataReplayReadinessModel(dataset);
     const quality = text(dataset.quality_status).toLowerCase();
@@ -526,7 +551,7 @@ function selectedDataCoverageRows(selected = selectedConfigDatasets()) {
   });
 }
 
-function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDatasets()) {
+export function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDatasets()) {
   if (
     !$("workbench-selected-coverage-note")
     || !$("workbench-selected-coverage-cards")
@@ -607,7 +632,7 @@ function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDatasets()
       ]);
 }
 
-function renderConfigDataActions(selected = selectedConfigDatasets()) {
+export function renderConfigDataActions(selected = selectedConfigDatasets()) {
   if (!$("config-data-actions-note") || !$("config-data-actions-cards")) return;
   const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
@@ -662,7 +687,7 @@ function renderConfigDataActions(selected = selectedConfigDatasets()) {
   `).join("");
 }
 
-async function openFirstConfigDatasetDetail() {
+export async function openFirstConfigDatasetDetail() {
   const selected = selectedConfigDatasets();
   if (!selected.length) {
     $("config-data-actions-note").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
@@ -674,7 +699,7 @@ async function openFirstConfigDatasetDetail() {
   $("last-refresh").textContent = `Opened ${text(selected[0].symbol)} from Workbench selected data`;
 }
 
-async function compareConfigDatasets() {
+export async function compareConfigDatasets() {
   const selected = selectedConfigDatasets().slice(0, MAX_DATA_COMPARE_DATASETS);
   if (selected.length < 2) {
     $("config-data-actions-note").innerHTML = `<span class="status-bad">Select at least two saved datasets to compare</span>`;
@@ -693,7 +718,7 @@ async function compareConfigDatasets() {
   $("last-refresh").textContent = `Compared ${numberText(selected.length, 0)} Workbench selected dataset${selected.length === 1 ? "" : "s"}`;
 }
 
-async function inspectWorkbenchSelectedDataset(path) {
+export async function inspectWorkbenchSelectedDataset(path) {
   if (!path) throw new Error("selected dataset path is missing");
   await loadDataDetail(path, { resetControls: true });
   navigateToDataLens("inspect");
@@ -701,7 +726,7 @@ async function inspectWorkbenchSelectedDataset(path) {
   $("last-refresh").textContent = "Opened Workbench selected dataset";
 }
 
-async function compareWorkbenchSelectedDataset(path) {
+export async function compareWorkbenchSelectedDataset(path) {
   const selected = selectedConfigDatasets();
   const paths = selected.map((dataset) => dataset.path);
   const comparePaths = paths.includes(path) ? paths : [path, ...paths];
@@ -721,7 +746,7 @@ async function compareWorkbenchSelectedDataset(path) {
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function removeWorkbenchSelectedDataset(path) {
+export function removeWorkbenchSelectedDataset(path) {
   const select = $("config-dataset");
   if (!select || !path) return;
   for (const option of select.options) {
@@ -734,7 +759,7 @@ function removeWorkbenchSelectedDataset(path) {
   $("workbench-selected-data-note").textContent = "Removed selected dataset; preview alignment again before generating.";
 }
 
-function handleWorkbenchSelectedDataAction(button) {
+export function handleWorkbenchSelectedDataAction(button) {
   const action = button.dataset.workbenchSelectedDataAction || "";
   const path = button.dataset.path || "";
   if (action === "library") {
@@ -758,12 +783,12 @@ function handleWorkbenchSelectedDataAction(button) {
   }
 }
 
-function latestWorkbenchRunForDraft(draftId) {
+export function latestWorkbenchRunForDraft(draftId) {
   const runs = (state.configRuns && state.configRuns.runs) || [];
   return runs.find((run) => !draftId || run.draft_id === draftId) || null;
 }
 
-function configGuideStepMetadata() {
+export function configGuideStepMetadata() {
   const steps = (state.configOptions && state.configOptions.guide_steps) || [];
   return steps.slice().sort((left, right) => {
     const leftOrder = Number(left.order);
@@ -774,7 +799,7 @@ function configGuideStepMetadata() {
   });
 }
 
-function workbenchGuideAction(step) {
+export function workbenchGuideAction(step) {
   const id = String((step && step.id) || "");
   const actions = {
     data: { label: "Select Data", target: "config-dataset" },
@@ -788,7 +813,7 @@ function workbenchGuideAction(step) {
   return actions[id] || { label: "Open Step", target: "config-form" };
 }
 
-function renderWorkbenchGuide() {
+export function renderWorkbenchGuide() {
   if (!$("workbench-guide") || !$("workbench-guide-note")) return;
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
@@ -912,7 +937,7 @@ function renderWorkbenchGuide() {
   }).join("");
 }
 
-function renderWorkbenchStepper(steps = []) {
+export function renderWorkbenchStepper(steps = []) {
   if (!$("workbench-stepper")) return;
   $("workbench-stepper").innerHTML = steps.length
     ? steps.map((step, index) => {
@@ -933,7 +958,7 @@ function renderWorkbenchStepper(steps = []) {
     : `<div class="empty-card"><strong>No workflow metadata</strong><span>Refresh config options to load the Workbench guide schema.</span></div>`;
 }
 
-function workbenchHomeState() {
+export function workbenchHomeState() {
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
@@ -1028,7 +1053,7 @@ function workbenchHomeState() {
   return { result, note, nextAction, tiles };
 }
 
-function renderWorkbenchHome() {
+export function renderWorkbenchHome() {
   if (!$("workbench-home-result") || !$("workbench-home-note") || !$("workbench-home-tiles")) return;
   const stateModel = workbenchHomeState();
   $("workbench-home-result").textContent = stateModel.result;
@@ -1055,7 +1080,7 @@ function renderWorkbenchHome() {
   renderWorkbenchWorkflowLauncher();
 }
 
-function workbenchNextActionHref(action) {
+export function workbenchNextActionHref(action) {
   if (action === "data") return "#data/browse";
   if (action === "quality" || action === "alignment" || action === "generate") return "#workbench/builder";
   if (action === "run") return "#workbench/run";
@@ -1063,7 +1088,7 @@ function workbenchNextActionHref(action) {
   return "#workbench";
 }
 
-function workbenchNextActionLabel(action) {
+export function workbenchNextActionLabel(action) {
   if (action === "data") return "Select Data";
   if (action === "quality") return "Review Data";
   if (action === "alignment") return "Preview Alignment";
@@ -1073,7 +1098,7 @@ function workbenchNextActionLabel(action) {
   return "Open Workbench";
 }
 
-function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
+export function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
   if (!$("workbench-stage-note") || !$("workbench-stage-cards") || !$("workbench-stage-actions")) return;
   const tiles = stateModel.tiles || [];
   const okCount = tiles.filter((tile) => tile.status === "ok").length;
@@ -1148,7 +1173,7 @@ function renderWorkbenchStageSummary(stateModel = workbenchHomeState()) {
   ].join("");
 }
 
-function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
+export function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
@@ -1250,7 +1275,7 @@ function workbenchActionSummaryModel(stateModel = workbenchHomeState()) {
   return { note: `${stateModel.result}: ${stateModel.note}`, cards, actions };
 }
 
-function renderWorkbenchActionSummary(stateModel = workbenchHomeState()) {
+export function renderWorkbenchActionSummary(stateModel = workbenchHomeState()) {
   if (!$("workbench-action-note") || !$("workbench-action-cards") || !$("workbench-action-actions")) return;
   const model = workbenchActionSummaryModel(stateModel);
   $("workbench-action-note").textContent = model.note;
@@ -1266,7 +1291,7 @@ function renderWorkbenchActionSummary(stateModel = workbenchHomeState()) {
   )).join("");
 }
 
-function workbenchExampleGalleryModel() {
+export function workbenchExampleGalleryModel() {
   const options = state.configOptions || {};
   const plugins = options.plugins || [];
   const publicExamples = plugins.filter((plugin) => pluginBoundaryStatus(plugin) === "warn");
@@ -1339,7 +1364,7 @@ function workbenchExampleGalleryModel() {
   };
 }
 
-function renderWorkbenchExampleGallery() {
+export function renderWorkbenchExampleGallery() {
   if (!$("workbench-example-gallery-note") || !$("workbench-example-gallery-cards")) return;
   const model = workbenchExampleGalleryModel();
   $("workbench-example-gallery-note").textContent = model.count
@@ -1356,7 +1381,7 @@ function renderWorkbenchExampleGallery() {
   `).join("");
 }
 
-function handleWorkbenchExampleGalleryAction(target) {
+export function handleWorkbenchExampleGalleryAction(target) {
   const action = target.dataset.workbenchExampleAction || "";
   if (action === "registry-docs") {
     window.open("/docs/public_quickstart.md#workbench-config-builder", "_blank", "noreferrer");
@@ -1383,7 +1408,7 @@ function handleWorkbenchExampleGalleryAction(target) {
     : `Workbench builder opened: ${new Date().toLocaleString()}`;
 }
 
-function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
+export function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
   if (!$("workbench-simulation-title") || !$("workbench-simulation-cards") || !$("workbench-simulation-actions")) return;
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
@@ -1467,7 +1492,7 @@ function renderWorkbenchSimulationPlan(stateModel = workbenchHomeState()) {
   ].join("");
 }
 
-function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
+export function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
   if (!$("workbench-readiness-note") || !$("workbench-readiness-cards") || !$("workbench-readiness-actions")) return;
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
@@ -1603,7 +1628,7 @@ function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()) {
   ].join("");
 }
 
-function workbenchEvidenceModel() {
+export function workbenchEvidenceModel() {
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
@@ -1787,7 +1812,7 @@ function workbenchEvidenceModel() {
   };
 }
 
-function workbenchEvidenceText(model) {
+export function workbenchEvidenceText(model) {
   return [
     `Workbench Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1795,7 +1820,7 @@ function workbenchEvidenceText(model) {
   ].join("\n");
 }
 
-function renderWorkbenchEvidence() {
+export function renderWorkbenchEvidence() {
   if (!$("workbench-evidence-note") || !$("workbench-evidence-cards") || !$("workbench-evidence-body") || !$("workbench-evidence-actions")) return;
   const model = workbenchEvidenceModel();
   state.workbenchEvidenceText = workbenchEvidenceText(model);
@@ -1821,7 +1846,7 @@ function renderWorkbenchEvidence() {
   ].join("");
 }
 
-function handleWorkbenchEvidenceAction(action) {
+export function handleWorkbenchEvidenceAction(action) {
   if (action !== "copy") return;
   copyText(state.workbenchEvidenceText || "No workbench evidence loaded").then(() => {
     $("last-refresh").textContent = "Workbench evidence copied";
@@ -1830,7 +1855,7 @@ function handleWorkbenchEvidenceAction(action) {
   });
 }
 
-function workbenchWorkflowCards() {
+export function workbenchWorkflowCards() {
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
@@ -1922,7 +1947,7 @@ function workbenchWorkflowCards() {
   ];
 }
 
-function renderWorkbenchWorkflowLauncher() {
+export function renderWorkbenchWorkflowLauncher() {
   const container = $("workbench-workflows");
   if (!container) return;
   const cards = workbenchWorkflowCards();
@@ -1939,7 +1964,7 @@ function renderWorkbenchWorkflowLauncher() {
   `).join("");
 }
 
-function handleWorkbenchHomeAction(action) {
+export function handleWorkbenchHomeAction(action) {
   const targets = {
     data: "config-dataset",
     quality: "config-data-quality-body",
@@ -1973,7 +1998,7 @@ function handleWorkbenchHomeAction(action) {
   }
 }
 
-function activateWorkbenchGuideAction(target) {
+export function activateWorkbenchGuideAction(target) {
   const targetId = String(target.dataset.guideTarget || "");
   const clickId = String(target.dataset.guideClick || "");
   const lens = targetId.includes("config-run") || targetId.includes("config-runs") ? "run" : "builder";
@@ -1991,25 +2016,25 @@ function activateWorkbenchGuideAction(target) {
   }
 }
 
-function selectedConfigPlugin() {
+export function selectedConfigPlugin() {
   const pluginId = $("config-plugin") ? $("config-plugin").value : "";
   return ((state.configOptions && state.configOptions.plugins) || []).find((plugin) => plugin.id === pluginId) || {};
 }
 
-function pluginBoundaryStatus(plugin) {
+export function pluginBoundaryStatus(plugin) {
   if (!plugin || !plugin.id) return "bad";
   const visibility = text(plugin.visibility || plugin.status).toLowerCase();
   return visibility === "public_example" || visibility === "example_only" ? "warn" : "ok";
 }
 
-function pluginVisibilityBucket(plugin) {
+export function pluginVisibilityBucket(plugin) {
   const visibility = text((plugin || {}).visibility || (plugin || {}).status).toLowerCase();
   if (visibility === "public_example" || visibility === "example_only") return "public";
   if (visibility === "private_local" || visibility.includes("private") || visibility.includes("local")) return "private";
   return "other";
 }
 
-function pluginRegistryPathSummary(paths) {
+export function pluginRegistryPathSummary(paths) {
   const visible = (paths || []).map((path) => text(path)).filter((path) => path !== "n/a");
   const localCount = visible.filter((path) => /(^|\/)plugin_registry_local\.ya?ml$|(^|\/)local/i.test(path)).length;
   return {
@@ -2019,7 +2044,7 @@ function pluginRegistryPathSummary(paths) {
   };
 }
 
-function renderWorkbenchPluginBoundary() {
+export function renderWorkbenchPluginBoundary() {
   if (!$("workbench-plugin-boundary-title") || !$("workbench-plugin-boundary-cards") || !$("workbench-plugin-boundary-actions")) return;
   const options = state.configOptions || {};
   const plugins = options.plugins || [];
@@ -2141,7 +2166,7 @@ function renderWorkbenchPluginBoundary() {
   `).join("");
 }
 
-function handleWorkbenchPluginBoundaryAction(action) {
+export function handleWorkbenchPluginBoundaryAction(action) {
   if (action === "help-boundary") {
     navigateToHelpLens("boundary");
     return;
@@ -2157,7 +2182,7 @@ function handleWorkbenchPluginBoundaryAction(action) {
   if (typeof element.focus === "function") element.focus({ preventScroll: true });
 }
 
-function renderConfigPluginBoundary() {
+export function renderConfigPluginBoundary() {
   if (!$("config-plugin-boundary") || !$("config-plugin-boundary-note")) return;
   const plugin = selectedConfigPlugin();
   const visibility = plugin.visibility || plugin.status || "unknown";
@@ -2179,7 +2204,7 @@ function renderConfigPluginBoundary() {
   )).join("");
 }
 
-function pluginFieldMetaLine(field) {
+export function pluginFieldMetaLine(field) {
   const parts = [
     field.kind ? `kind ${text(field.kind)}` : "",
     field.required ? "required" : "",
@@ -2200,7 +2225,7 @@ function pluginFieldMetaLine(field) {
   return parts.length ? parts.join("; ") : "No extra display metadata declared.";
 }
 
-function renderPluginFieldHelpCard(field, groupLabel) {
+export function renderPluginFieldHelpCard(field, groupLabel) {
   const title = text(field.label || field.name);
   const help = text(field.help || field.description || field.placeholder || "No public-safe help text declared.");
   const status = field.required ? "warn" : field.advanced ? "waiting" : "ok";
@@ -2215,7 +2240,7 @@ function renderPluginFieldHelpCard(field, groupLabel) {
   `;
 }
 
-function renderPluginResultSectionHelpCard(section, resultFields) {
+export function renderPluginResultSectionHelpCard(section, resultFields) {
   const resultByName = new Map((resultFields || []).map((field) => [text(field.name), field]));
   const fields = (section.fields || [])
     .map((name) => resultByName.get(text(name)) || { name, label: name })
@@ -2239,7 +2264,7 @@ function renderPluginResultSectionHelpCard(section, resultFields) {
   `;
 }
 
-function renderPluginResultWidgetHelpCard(widget, resultFields) {
+export function renderPluginResultWidgetHelpCard(widget, resultFields) {
   const resultByName = new Map((resultFields || []).map((field) => [text(field.name), field]));
   const fields = (widget.fields || [])
     .map((name) => resultByName.get(text(name)) || { name, label: name })
@@ -2266,7 +2291,7 @@ function renderPluginResultWidgetHelpCard(widget, resultFields) {
   `;
 }
 
-function pluginValidationRuleDetail(rule) {
+export function pluginValidationRuleDetail(rule) {
   const type = text(rule.type);
   if (type === "required") return `strategy.${text(rule.field)} is required.`;
   if (type === "require_any") {
@@ -2280,7 +2305,7 @@ function pluginValidationRuleDetail(rule) {
   return "Public-safe plugin validation rule.";
 }
 
-function renderPluginValidationRuleHelpCard(rule) {
+export function renderPluginValidationRuleHelpCard(rule) {
   const help = text(rule.help || rule.description || rule.error || "Public-safe plugin-authored validation metadata.");
   return `
     <article class="plugin-field-help-card status-warn">
@@ -2293,7 +2318,7 @@ function renderPluginValidationRuleHelpCard(rule) {
   `;
 }
 
-function renderConfigPluginFieldHelp() {
+export function renderConfigPluginFieldHelp() {
   if (!$("config-plugin-field-help") || !$("config-plugin-field-help-note")) return;
   const plugin = selectedConfigPlugin();
   const strategyFields = (plugin.strategy_fields || []).filter((field) => field && field.name);
@@ -2316,7 +2341,7 @@ function renderConfigPluginFieldHelp() {
     : `<div class="empty-card"><strong>No plugin field metadata</strong><span>Declare public-safe strategy_fields, result_fields, result_sections, and result_widgets in the plugin registry to explain configuration inputs and artifact diagnostics.</span></div>`;
 }
 
-function renderConfigBrokerBoundary() {
+export function renderConfigBrokerBoundary() {
   if (!$("config-broker-boundary") || !$("config-broker-boundary-note")) return;
   const adapters = (state.configOptions && state.configOptions.broker_adapters) || [];
   const paperReady = adapters.filter((adapter) => (adapter.account_modes || []).includes("paper")).length;
@@ -2350,14 +2375,14 @@ function renderConfigBrokerBoundary() {
     : `<div class="empty-card"><strong>No adapter metadata</strong><span>Refresh config options or check the dashboard server logs.</span></div>`;
 }
 
-function selectedCompareDatasets() {
+export function selectedCompareDatasets() {
   const selectedPaths = state.dataCompareSelectedPaths.length
     ? state.dataCompareSelectedPaths
     : Array.from($("data-compare-datasets").selectedOptions).map((option) => option.value);
   return (state.dataCatalog.datasets || []).filter((item) => selectedPaths.includes(item.path));
 }
 
-function updateCompareSelectionFromSelect(announce = false) {
+export function updateCompareSelectionFromSelect(announce = false) {
   const select = $("data-compare-datasets");
   const previousSelection = state.dataCompareSelectedPaths.join("\u0000");
   const selected = Array.from(select.selectedOptions).map((option) => option.value);
@@ -2378,7 +2403,7 @@ function updateCompareSelectionFromSelect(announce = false) {
   }
 }
 
-function selectedCompareRangeBounds() {
+export function selectedCompareRangeBounds() {
   const selected = selectedCompareDatasets();
   const starts = selected.map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
   const ends = selected.map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
@@ -2394,7 +2419,7 @@ function selectedCompareRangeBounds() {
   };
 }
 
-async function applyDataCompareRangePreset() {
+export async function applyDataCompareRangePreset() {
   const preset = $("data-compare-range-preset").value || "custom";
   if (preset === "custom") return;
   const bounds = selectedCompareRangeBounds();

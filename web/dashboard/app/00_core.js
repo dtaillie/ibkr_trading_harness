@@ -1,6 +1,17 @@
-const AUTO_REFRESH_INTERVAL_MS = 60000;
+import { helpModeBoundaryText, helpPerformanceGuideText } from "./10_help.js";
+import { latestArtifactPerformance, latestTelemetryRun, workbenchEvidenceText } from "./20_workbench_foundation.js";
+import { finiteNumber, firstPresent, latestAccountRow, normalizedRunMetrics, shortTimestampAgeLabel, symbolInventoryModel, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { performanceRollupContinuityText } from "./33_performance_views.js";
+import { dataInventoryEvidenceText } from "./41_data_explorer.js";
+import { symbolBatchDiagnosticReportText } from "./42_data_symbols.js";
+import { fetchEvidenceText } from "./50_fetch.js";
+import { activityChanges, runsEvidenceText } from "./70_runs.js";
+import { operationsEvidenceText, remoteNodeHealthReportText } from "./80_operations.js";
+import { refresh, refreshDataLibrary } from "./90_bootstrap.js";
 
-const state = {
+export const AUTO_REFRESH_INTERVAL_MS = 60000;
+
+export const state = {
   status: null,
   history: [],
   dataCatalog: { datasets: [], errors: [] },
@@ -84,7 +95,7 @@ const state = {
   activityChanges: { items: [], initial: true },
 };
 
-const commandFields = {
+export const commandFields = {
   flatten_simulated_positions: ["config"],
   pause_runner: [],
   request_status: [],
@@ -97,14 +108,14 @@ const commandFields = {
   validate_supervisor_config: ["supervisor"],
 };
 
-const commandParamNames = {
+export const commandParamNames = {
   config: "config_id",
   job: "job_id",
   run: "run_id",
   supervisor: "supervisor_id",
 };
 
-const commandBoundaries = {
+export const commandBoundaries = {
   flatten_simulated_positions: {
     klass: "control",
     title: "Flatten simulated file-broker positions",
@@ -167,26 +178,26 @@ const commandBoundaries = {
   },
 };
 
-const $ = (id) => document.getElementById(id);
-const MAX_DATA_COMPARE_DATASETS = 8;
+export const $ = (id) => document.getElementById(id);
+export const MAX_DATA_COMPARE_DATASETS = 8;
 
-function onOptional(id, eventName, handler) {
+export function onOptional(id, eventName, handler) {
   const element = $(id);
   if (element) element.addEventListener(eventName, handler);
 }
 
-function token() {
+export function token() {
   return sessionStorage.getItem("statusToken") || "";
 }
 
-function headers() {
+export function headers() {
   const out = { "Content-Type": "application/json" };
   const value = token();
   if (value) out.Authorization = `Bearer ${value}`;
   return out;
 }
 
-async function fetchJson(url, options = {}) {
+export async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: { ...headers(), ...(options.headers || {}) },
@@ -204,7 +215,7 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
-async function fetchOptionalJson(label, url, fallback) {
+export async function fetchOptionalJson(label, url, fallback) {
   try {
     return { label, payload: await fetchJson(url), error: "" };
   } catch (err) {
@@ -216,7 +227,7 @@ async function fetchOptionalJson(label, url, fallback) {
   }
 }
 
-function dataEndpointPayloadSummary(payload = {}) {
+export function dataEndpointPayloadSummary(payload = {}) {
   if (!payload || typeof payload !== "object") return "no payload";
   const pieces = [];
   if (Array.isArray(payload.datasets)) pieces.push(`${numberText(payload.datasets.length, 0)} dataset${payload.datasets.length === 1 ? "" : "s"}`);
@@ -241,7 +252,7 @@ function dataEndpointPayloadSummary(payload = {}) {
   return pieces.length ? pieces.join("; ") : "loaded payload";
 }
 
-function dataEndpointContract(label, url, payload, { durationMs = null, error = "", fallback = "" } = {}) {
+export function dataEndpointContract(label, url, payload, { durationMs = null, error = "", fallback = "" } = {}) {
   const warningCount = payload && Array.isArray(payload.errors) ? payload.errors.length : 0;
   const payloadWarningCount = payload && Array.isArray(payload.warnings) ? payload.warnings.length : 0;
   const status = error ? "warn" : warningCount || payloadWarningCount ? "warn" : "ok";
@@ -258,7 +269,7 @@ function dataEndpointContract(label, url, payload, { durationMs = null, error = 
   };
 }
 
-async function fetchText(url, options = {}) {
+export async function fetchText(url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: { ...headers(), ...(options.headers || {}) },
@@ -269,12 +280,12 @@ async function fetchText(url, options = {}) {
   return response.text();
 }
 
-function text(value) {
+export function text(value) {
   if (value === null || value === undefined || value === "") return "n/a";
   return String(value);
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return text(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
@@ -284,57 +295,57 @@ function escapeHtml(value) {
   }[char]));
 }
 
-function money(value) {
+export function money(value) {
   if (value === null || value === undefined || value === "") return "n/a";
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(number);
 }
 
-function numberText(value, digits = 4) {
+export function numberText(value, digits = 4) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return number.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
-function pctText(value) {
+export function pctText(value) {
   if (value === null || value === undefined || value === "") return "n/a";
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return `${number.toLocaleString("en-US", { maximumFractionDigits: 3 })}%`;
 }
 
-function signedValueClass(value) {
+export function signedValueClass(value) {
   if (value === null || value === undefined || value === "") return "value-neutral";
   const number = Number(value);
   if (!Number.isFinite(number) || number === 0) return "value-neutral";
   return number > 0 ? "value-gain" : "value-loss";
 }
 
-function drawdownValueClass(value) {
+export function drawdownValueClass(value) {
   if (value === null || value === undefined || value === "") return "value-neutral";
   const number = Number(value);
   if (!Number.isFinite(number) || number === 0) return "value-neutral";
   return "value-loss";
 }
 
-function valueHtml(value, formatter, className) {
+export function valueHtml(value, formatter, className) {
   return `<span class="${escapeHtml(className)}">${escapeHtml(formatter(value))}</span>`;
 }
 
-function signedValueHtml(value, formatter = numberText) {
+export function signedValueHtml(value, formatter = numberText) {
   return valueHtml(value, formatter, signedValueClass(value));
 }
 
-function cashValueHtml(value) {
+export function cashValueHtml(value) {
   return valueHtml(value, money, "value-cash");
 }
 
-function equityValueHtml(value) {
+export function equityValueHtml(value) {
   return valueHtml(value, money, "value-equity");
 }
 
-function bytes(value) {
+export function bytes(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   if (number < 1024) return `${number} B`;
@@ -343,7 +354,7 @@ function bytes(value) {
   return `${(number / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-function age(value) {
+export function age(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   if (number < 120) return `${Math.round(number)}s`;
@@ -352,7 +363,7 @@ function age(value) {
   return `${Math.round(number / 86400)}d`;
 }
 
-function interval(value) {
+export function interval(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   if (number < 120) return `${Math.round(number)}s`;
@@ -361,14 +372,14 @@ function interval(value) {
   return `${Math.round(number / 86400)}d`;
 }
 
-function durationMsText(value) {
+export function durationMsText(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   if (number < 1000) return `${numberText(number, 1)}ms`;
   return interval(number / 1000);
 }
 
-function statusClass(value) {
+export function statusClass(value) {
   if (value === "ok" || value === true || value === "completed" || value === "running" || value === "waiting") return "status-ok";
   if (value === "warn" || value === "pending" || value === "paused" || value === "canceled") return "status-warn";
   if (value === "bad" || value === "failed" || value === "rejected" || value === "timeout" || value === "unknown" || value === false) return "status-bad";
@@ -376,17 +387,17 @@ function statusClass(value) {
   return "";
 }
 
-function statusBadge(value, label = null) {
+export function statusBadge(value, label = null) {
   const raw = label === null ? text(value) : text(label);
   const classes = ["status-badge", statusClass(value)].filter(Boolean).join(" ");
   return `<span class="${escapeHtml(classes)}">${escapeHtml(raw)}</span>`;
 }
 
-function row(cells) {
+export function row(cells) {
   return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
 }
 
-function kvRows(pairs, { mono = false } = {}) {
+export function kvRows(pairs, { mono = false } = {}) {
   return pairs.map(([key, value, isHtml]) => {
     const body = isHtml
       ? value
@@ -397,11 +408,11 @@ function kvRows(pairs, { mono = false } = {}) {
   }).join("");
 }
 
-function statusText(value) {
+export function statusText(value) {
   return statusBadge(value);
 }
 
-function objectSummary(value) {
+export function objectSummary(value) {
   if (value === null || value === undefined || value === "") return "none";
   if (typeof value === "string") return value.length > 80 ? `${value.slice(0, 77)}...` : value;
   if (Array.isArray(value)) return value.length ? `${numberText(value.length, 0)} item${value.length === 1 ? "" : "s"}` : "none";
@@ -413,7 +424,7 @@ function objectSummary(value) {
   return text(value);
 }
 
-function jsonDrilldown(value, summary = null) {
+export function jsonDrilldown(value, summary = null) {
   const payload = value === undefined ? null : value;
   const serialized = typeof payload === "string" ? payload : JSON.stringify(payload ?? {}, null, 2);
   const label = summary || objectSummary(payload);
@@ -423,14 +434,14 @@ function jsonDrilldown(value, summary = null) {
   return `<details class="json-drilldown"><summary>${escapeHtml(label || "details")}</summary><pre class="mono">${escapeHtml(serialized)}</pre></details>`;
 }
 
-function qualityBadge(status, warnings = []) {
+export function qualityBadge(status, warnings = []) {
   const warningList = Array.isArray(warnings) ? warnings : [];
   const suffix = warningList.length ? ` (${warningList.length})` : "";
   const title = warningList.length ? ` title="${escapeHtml(warningList.join("; "))}"` : "";
   return `<span class="status-badge ${escapeHtml(statusClass(status))}"${title}>${escapeHtml(text(status))}${escapeHtml(suffix)}</span>`;
 }
 
-function dataCatalogSettings() {
+export function dataCatalogSettings() {
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
   const settings = diagnostics.data_catalog || catalog || {};
@@ -442,7 +453,7 @@ function dataCatalogSettings() {
   };
 }
 
-function syncDataCatalogLimitControl() {
+export function syncDataCatalogLimitControl() {
   const select = $("data-catalog-limit");
   if (!select) return;
   const settings = dataCatalogSettings();
@@ -462,26 +473,26 @@ function syncDataCatalogLimitControl() {
   $("data-catalog-limit-note").textContent = `Configured default ${numberText(settings.defaultLimit, 0)}, max ${numberText(maxLimit, 0)}`;
 }
 
-function selectedDataCatalogLimit() {
+export function selectedDataCatalogLimit() {
   syncDataCatalogLimitControl();
   return $("data-catalog-limit").value || String(dataCatalogSettings().defaultLimit);
 }
 
-function selectedDataCatalogOffset() {
+export function selectedDataCatalogOffset() {
   const offset = Number(dataLibraryLoadState().catalogOffset || 0);
   return Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
 }
 
-function setDataCatalogOffset(value) {
+export function setDataCatalogOffset(value) {
   const offset = Number(value || 0);
   dataLibraryLoadState().catalogOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
 }
 
-function dataCatalogPreviewPoints() {
+export function dataCatalogPreviewPoints() {
   return 8;
 }
 
-function dataLibraryLoadState() {
+export function dataLibraryLoadState() {
   if (!state.dataLibrary) {
     state.dataLibrary = {
       catalogLoading: false,
@@ -506,7 +517,7 @@ function dataLibraryLoadState() {
   return state.dataLibrary;
 }
 
-function setDataDiagnosticsLoadingNote(message, status = "warn") {
+export function setDataDiagnosticsLoadingNote(message, status = "warn") {
   const formatted = `<span class="${statusClass(status)}">${escapeHtml(message)}</span>`;
   for (const id of [
     "data-storage-audit-note",
@@ -518,13 +529,13 @@ function setDataDiagnosticsLoadingNote(message, status = "warn") {
   }
 }
 
-function availableViews() {
+export function availableViews() {
   return Array.from(document.querySelectorAll(".dashboard-section"))
     .map((section) => section.dataset.view)
     .filter(Boolean);
 }
 
-function dashboardHashParts(value) {
+export function dashboardHashParts(value) {
   const cleaned = String(value || "")
     .replace(/^#/, "")
     .replace(/^\//, "")
@@ -539,101 +550,101 @@ function dashboardHashParts(value) {
   };
 }
 
-function normalizeView(view) {
+export function normalizeView(view) {
   const cleaned = dashboardHashParts(view).view;
   const views = new Set(availableViews());
   return views.has(cleaned) ? cleaned : "overview";
 }
 
-function normalizeOverviewLens(lens) {
+export function normalizeOverviewLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "activity", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizePerformanceLens(lens) {
+export function normalizePerformanceLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "trades", "rollups", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeDataLens(lens) {
+export function normalizeDataLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "browse", "inspect", "compare", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeFetchLens(lens) {
+export function normalizeFetchLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "jobs", "detail"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeWorkbenchLens(lens) {
+export function normalizeWorkbenchLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "builder", "run", "artifacts"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeRunsLens(lens) {
+export function normalizeRunsLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "state", "runs", "events"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeOperationsLens(lens) {
+export function normalizeOperationsLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "paper", "remote", "control", "diagnostics"]).has(cleaned) ? cleaned : "home";
 }
 
-function normalizeHelpLens(lens) {
+export function normalizeHelpLens(lens) {
   const cleaned = String(lens || "").replace(/^#/, "").trim().toLowerCase();
   return new Set(["home", "pages", "workflows", "data", "boundary", "docs"]).has(cleaned) ? cleaned : "home";
 }
 
-function overviewLensFromHash(value) {
+export function overviewLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "overview") return "";
   return parts.hasExplicitLens ? normalizeOverviewLens(parts.lens) : "";
 }
 
-function performanceLensFromHash(value) {
+export function performanceLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "performance") return "";
   return parts.hasExplicitLens ? normalizePerformanceLens(parts.lens) : "";
 }
 
-function dataLensFromHash(value) {
+export function dataLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "data") return "";
   return parts.hasExplicitLens ? normalizeDataLens(parts.lens) : "";
 }
 
-function fetchLensFromHash(value) {
+export function fetchLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "fetch") return "";
   return parts.hasExplicitLens ? normalizeFetchLens(parts.lens) : "";
 }
 
-function workbenchLensFromHash(value) {
+export function workbenchLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "workbench") return "";
   return parts.hasExplicitLens ? normalizeWorkbenchLens(parts.lens) : "";
 }
 
-function runsLensFromHash(value) {
+export function runsLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "runs") return "";
   return parts.hasExplicitLens ? normalizeRunsLens(parts.lens) : "";
 }
 
-function operationsLensFromHash(value) {
+export function operationsLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "operations") return "";
   return parts.hasExplicitLens ? normalizeOperationsLens(parts.lens) : "";
 }
 
-function helpLensFromHash(value) {
+export function helpLensFromHash(value) {
   const parts = dashboardHashParts(value);
   if (normalizeView(parts.view) !== "help") return "";
   return parts.hasExplicitLens ? normalizeHelpLens(parts.lens) : "";
 }
 
-function selectedOverviewLens() {
+export function selectedOverviewLens() {
   const hashLens = overviewLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -644,7 +655,7 @@ function selectedOverviewLens() {
   return normalizeOverviewLens(sessionStorage.getItem("dashboardOverviewLens") || "home");
 }
 
-function selectedPerformanceLens() {
+export function selectedPerformanceLens() {
   const hashLens = performanceLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -655,7 +666,7 @@ function selectedPerformanceLens() {
   return normalizePerformanceLens(sessionStorage.getItem("dashboardPerformanceLens") || "home");
 }
 
-function selectedDataLens() {
+export function selectedDataLens() {
   const hashLens = dataLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -666,7 +677,7 @@ function selectedDataLens() {
   return normalizeDataLens(sessionStorage.getItem("dashboardDataLens") || "home");
 }
 
-function selectedFetchLens() {
+export function selectedFetchLens() {
   const hashLens = fetchLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -677,7 +688,7 @@ function selectedFetchLens() {
   return normalizeFetchLens(sessionStorage.getItem("dashboardFetchLens") || "home");
 }
 
-function selectedWorkbenchLens() {
+export function selectedWorkbenchLens() {
   const hashLens = workbenchLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -688,7 +699,7 @@ function selectedWorkbenchLens() {
   return normalizeWorkbenchLens(sessionStorage.getItem("dashboardWorkbenchLens") || "home");
 }
 
-function selectedRunsLens() {
+export function selectedRunsLens() {
   const hashLens = runsLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -699,7 +710,7 @@ function selectedRunsLens() {
   return normalizeRunsLens(sessionStorage.getItem("dashboardRunsLens") || "home");
 }
 
-function selectedOperationsLens() {
+export function selectedOperationsLens() {
   const hashLens = operationsLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -710,7 +721,7 @@ function selectedOperationsLens() {
   return normalizeOperationsLens(sessionStorage.getItem("dashboardOperationsLens") || "home");
 }
 
-function selectedHelpLens() {
+export function selectedHelpLens() {
   const hashLens = helpLensFromHash(window.location.hash);
   if (hashLens) return hashLens;
   const parts = dashboardHashParts(window.location.hash);
@@ -721,11 +732,11 @@ function selectedHelpLens() {
   return normalizeHelpLens(sessionStorage.getItem("dashboardHelpLens") || "home");
 }
 
-function viewFromHash() {
+export function viewFromHash() {
   return normalizeView(decodeURIComponent(window.location.hash || ""));
 }
 
-function setActiveView(view) {
+export function setActiveView(view) {
   const targetView = normalizeView(view || "overview");
   for (const section of document.querySelectorAll(".dashboard-section")) {
     section.hidden = section.dataset.view !== targetView;
@@ -770,7 +781,7 @@ function setActiveView(view) {
   }
 }
 
-function navigateToView(view) {
+export function navigateToView(view) {
   const targetView = normalizeView(view);
   const nextHash = `#${targetView}`;
   if (window.location.hash !== nextHash) {
@@ -780,11 +791,11 @@ function navigateToView(view) {
   setActiveView(targetView);
 }
 
-function activeView() {
+export function activeView() {
   return normalizeView(sessionStorage.getItem("dashboardView") || window.location.hash || "overview");
 }
 
-function overviewLensContent(lens) {
+export function overviewLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -802,7 +813,7 @@ function overviewLensContent(lens) {
   return content[normalizeOverviewLens(lens)] || content.home;
 }
 
-function applyOverviewLens(lens) {
+export function applyOverviewLens(lens) {
   const selected = normalizeOverviewLens(lens);
   sessionStorage.setItem("dashboardOverviewLens", selected);
   for (const section of document.querySelectorAll('.dashboard-section[data-view="overview"]')) {
@@ -824,7 +835,7 @@ function applyOverviewLens(lens) {
   if (activeView() === "overview") renderRouteBreadcrumb("overview");
 }
 
-function navigateToOverviewLens(lens) {
+export function navigateToOverviewLens(lens) {
   const selected = normalizeOverviewLens(lens);
   const nextHash = selected === "home" ? "#overview" : `#overview/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -834,7 +845,7 @@ function navigateToOverviewLens(lens) {
   setActiveView("overview");
 }
 
-function performanceLensContent(lens) {
+export function performanceLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -856,7 +867,7 @@ function performanceLensContent(lens) {
   return content[normalizePerformanceLens(lens)] || content.home;
 }
 
-function applyPerformanceLens(lens) {
+export function applyPerformanceLens(lens) {
   const selected = normalizePerformanceLens(lens);
   sessionStorage.setItem("dashboardPerformanceLens", selected);
   for (const section of document.querySelectorAll('.dashboard-section[data-view="performance"]')) {
@@ -879,7 +890,7 @@ function applyPerformanceLens(lens) {
   if (activeView() === "performance") renderRouteBreadcrumb("performance");
 }
 
-function navigateToPerformanceLens(lens) {
+export function navigateToPerformanceLens(lens) {
   const selected = normalizePerformanceLens(lens);
   const nextHash = selected === "home" ? "#performance" : `#performance/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -889,7 +900,7 @@ function navigateToPerformanceLens(lens) {
   setActiveView("performance");
 }
 
-function dataLensContent(lens) {
+export function dataLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -915,7 +926,7 @@ function dataLensContent(lens) {
   return content[normalizeDataLens(lens)] || content.home;
 }
 
-function applyDataLens(lens) {
+export function applyDataLens(lens) {
   const selected = normalizeDataLens(lens);
   sessionStorage.setItem("dashboardDataLens", selected);
   for (const element of document.querySelectorAll('[data-view="data"], [data-data-lens]')) {
@@ -945,7 +956,7 @@ function applyDataLens(lens) {
   }
 }
 
-function navigateToDataLens(lens) {
+export function navigateToDataLens(lens) {
   const selected = normalizeDataLens(lens);
   const nextHash = selected === "home" ? "#data" : `#data/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -955,7 +966,7 @@ function navigateToDataLens(lens) {
   setActiveView("data");
 }
 
-function fetchLensContent(lens) {
+export function fetchLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -973,7 +984,7 @@ function fetchLensContent(lens) {
   return content[normalizeFetchLens(lens)] || content.home;
 }
 
-function applyFetchLens(lens) {
+export function applyFetchLens(lens) {
   const selected = normalizeFetchLens(lens);
   sessionStorage.setItem("dashboardFetchLens", selected);
   for (const element of document.querySelectorAll('[data-view="fetch"], [data-fetch-lens]')) {
@@ -998,7 +1009,7 @@ function applyFetchLens(lens) {
   if (activeView() === "fetch") renderRouteBreadcrumb("fetch");
 }
 
-function navigateToFetchLens(lens) {
+export function navigateToFetchLens(lens) {
   const selected = normalizeFetchLens(lens);
   const nextHash = selected === "home" ? "#fetch" : `#fetch/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -1008,7 +1019,7 @@ function navigateToFetchLens(lens) {
   setActiveView("fetch");
 }
 
-function workbenchLensContent(lens) {
+export function workbenchLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -1030,7 +1041,7 @@ function workbenchLensContent(lens) {
   return content[normalizeWorkbenchLens(lens)] || content.home;
 }
 
-function applyWorkbenchLens(lens) {
+export function applyWorkbenchLens(lens) {
   const selected = normalizeWorkbenchLens(lens);
   sessionStorage.setItem("dashboardWorkbenchLens", selected);
   for (const element of document.querySelectorAll("[data-workbench-lens]")) {
@@ -1048,7 +1059,7 @@ function applyWorkbenchLens(lens) {
   if (activeView() === "workbench") renderRouteBreadcrumb("workbench");
 }
 
-function navigateToWorkbenchLens(lens) {
+export function navigateToWorkbenchLens(lens) {
   const selected = normalizeWorkbenchLens(lens);
   const nextHash = selected === "home" ? "#workbench" : `#workbench/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -1058,7 +1069,7 @@ function navigateToWorkbenchLens(lens) {
   setActiveView("workbench");
 }
 
-function runsLensContent(lens) {
+export function runsLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -1080,7 +1091,7 @@ function runsLensContent(lens) {
   return content[normalizeRunsLens(lens)] || content.home;
 }
 
-function applyRunsLens(lens) {
+export function applyRunsLens(lens) {
   const selected = normalizeRunsLens(lens);
   sessionStorage.setItem("dashboardRunsLens", selected);
   for (const element of document.querySelectorAll("[data-runs-lens]")) {
@@ -1098,7 +1109,7 @@ function applyRunsLens(lens) {
   if (activeView() === "runs") renderRouteBreadcrumb("runs");
 }
 
-function navigateToRunsLens(lens) {
+export function navigateToRunsLens(lens) {
   const selected = normalizeRunsLens(lens);
   const nextHash = selected === "home" ? "#runs" : `#runs/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -1108,7 +1119,7 @@ function navigateToRunsLens(lens) {
   setActiveView("runs");
 }
 
-function operationsLensContent(lens) {
+export function operationsLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -1134,7 +1145,7 @@ function operationsLensContent(lens) {
   return content[normalizeOperationsLens(lens)] || content.home;
 }
 
-function applyOperationsLens(lens) {
+export function applyOperationsLens(lens) {
   const selected = normalizeOperationsLens(lens);
   sessionStorage.setItem("dashboardOperationsLens", selected);
   for (const element of document.querySelectorAll("[data-operations-lens]")) {
@@ -1152,7 +1163,7 @@ function applyOperationsLens(lens) {
   if (activeView() === "operations") renderRouteBreadcrumb("operations");
 }
 
-function navigateToOperationsLens(lens) {
+export function navigateToOperationsLens(lens) {
   const selected = normalizeOperationsLens(lens);
   const nextHash = selected === "home" ? "#operations" : `#operations/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -1162,7 +1173,7 @@ function navigateToOperationsLens(lens) {
   setActiveView("operations");
 }
 
-function helpLensContent(lens) {
+export function helpLensContent(lens) {
   const content = {
     home: {
       title: "Home",
@@ -1192,7 +1203,7 @@ function helpLensContent(lens) {
   return content[normalizeHelpLens(lens)] || content.home;
 }
 
-function applyHelpLens(lens) {
+export function applyHelpLens(lens) {
   const selected = normalizeHelpLens(lens);
   sessionStorage.setItem("dashboardHelpLens", selected);
   for (const element of document.querySelectorAll("[data-help-lens]")) {
@@ -1210,7 +1221,7 @@ function applyHelpLens(lens) {
   if (activeView() === "help") renderRouteBreadcrumb("help");
 }
 
-function navigateToHelpLens(lens) {
+export function navigateToHelpLens(lens) {
   const selected = normalizeHelpLens(lens);
   const nextHash = selected === "home" ? "#help" : `#help/${selected}`;
   if (window.location.hash !== nextHash) {
@@ -1220,7 +1231,7 @@ function navigateToHelpLens(lens) {
   setActiveView("help");
 }
 
-function navigateToViewTarget(view, lens = "") {
+export function navigateToViewTarget(view, lens = "") {
   const targetView = normalizeView(view);
   if (targetView === "overview" && lens) return navigateToOverviewLens(lens);
   if (targetView === "performance" && lens) return navigateToPerformanceLens(lens);
@@ -1233,7 +1244,7 @@ function navigateToViewTarget(view, lens = "") {
   return navigateToView(targetView);
 }
 
-function currentRouteLens(view = activeView()) {
+export function currentRouteLens(view = activeView()) {
   const targetView = normalizeView(view);
   const lensByView = {
     overview: selectedOverviewLens,
@@ -1249,7 +1260,7 @@ function currentRouteLens(view = activeView()) {
   return getter ? getter() : "home";
 }
 
-function routeLensContent(view, lens) {
+export function routeLensContent(view, lens) {
   const targetView = normalizeView(view);
   const contentByView = {
     overview: overviewLensContent,
@@ -1265,22 +1276,22 @@ function routeLensContent(view, lens) {
   return getter ? getter(lens) : { title: "Home", note: "" };
 }
 
-function routeHash(view = activeView(), lens = currentRouteLens(view)) {
+export function routeHash(view = activeView(), lens = currentRouteLens(view)) {
   const targetView = normalizeView(view);
   const selectedLens = String(lens || "home");
   return selectedLens === "home" ? `#${targetView}` : `#${targetView}/${selectedLens}`;
 }
 
-function routeTargetValue(view = activeView(), lens = currentRouteLens(view)) {
+export function routeTargetValue(view = activeView(), lens = currentRouteLens(view)) {
   return routeHash(view, lens).replace(/^#/, "");
 }
 
-function routeUrl(view = activeView(), lens = currentRouteLens(view)) {
+export function routeUrl(view = activeView(), lens = currentRouteLens(view)) {
   const base = `${window.location.origin}${window.location.pathname}`;
   return `${base}${routeHash(view, lens)}`;
 }
 
-function syncDashboardJump(view = activeView()) {
+export function syncDashboardJump(view = activeView()) {
   const select = $("dashboard-jump");
   if (!select) return;
   const value = routeTargetValue(view, currentRouteLens(view));
@@ -1291,14 +1302,14 @@ function syncDashboardJump(view = activeView()) {
   }
 }
 
-function jumpToDashboardTarget(value) {
+export function jumpToDashboardTarget(value) {
   const parts = dashboardHashParts(value);
   const targetView = normalizeView(parts.view);
   const lens = parts.hasExplicitLens ? parts.lens : "";
   navigateToViewTarget(targetView, lens);
 }
 
-function routeTaskValue(view = activeView(), lens = currentRouteLens(view)) {
+export function routeTaskValue(view = activeView(), lens = currentRouteLens(view)) {
   const targetView = normalizeView(view);
   const selectedLens = String(lens || "home");
   if (targetView === "performance") return "performance";
@@ -1311,7 +1322,7 @@ function routeTaskValue(view = activeView(), lens = currentRouteLens(view)) {
   return "monitor";
 }
 
-function syncDashboardTask(view = activeView()) {
+export function syncDashboardTask(view = activeView()) {
   const select = $("dashboard-task");
   if (!select) return;
   const value = routeTaskValue(view, currentRouteLens(view));
@@ -1320,7 +1331,7 @@ function syncDashboardTask(view = activeView()) {
   }
 }
 
-function dashboardTaskTarget(value) {
+export function dashboardTaskTarget(value) {
   const payload = state.status || {};
   const runs = payload.runs || [];
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
@@ -1340,12 +1351,12 @@ function dashboardTaskTarget(value) {
   return targets[task] || targets.monitor;
 }
 
-function startDashboardTask(value) {
+export function startDashboardTask(value) {
   const [targetView, lens] = dashboardTaskTarget(value);
   navigateToViewTarget(targetView, lens);
 }
 
-function renderRouteBreadcrumb(view = activeView()) {
+export function renderRouteBreadcrumb(view = activeView()) {
   const targetView = normalizeView(view);
   const lens = currentRouteLens(targetView);
   const page = pageIntroContent(targetView);
@@ -1373,7 +1384,7 @@ function renderRouteBreadcrumb(view = activeView()) {
   syncDashboardTask(targetView);
 }
 
-function handleRouteAction(action) {
+export function handleRouteAction(action) {
   if (action === "overview") {
     navigateToView("overview");
     return;
@@ -1383,7 +1394,7 @@ function handleRouteAction(action) {
   }
 }
 
-function pageIntroAction(id, action) {
+export function pageIntroAction(id, action) {
   const button = $(id);
   if (!button) return;
   if (!action) {
@@ -1399,7 +1410,7 @@ function pageIntroAction(id, action) {
   else button.removeAttribute("data-view-lens");
 }
 
-function pageIntroEvidence(view) {
+export function pageIntroEvidence(view) {
   const payload = state.status || {};
   const statusGenerated = payload.generated_at || "";
   const dataCatalog = state.dataCatalog || {};
@@ -1474,7 +1485,7 @@ function pageIntroEvidence(view) {
   return evidence[normalizeView(view)] || evidence.overview;
 }
 
-function renderPageIntroEvidence(view) {
+export function renderPageIntroEvidence(view) {
   const container = $("page-intro-evidence");
   if (!container) return;
   container.innerHTML = pageIntroEvidence(view).map((item) => `
@@ -1485,7 +1496,7 @@ function renderPageIntroEvidence(view) {
   `).join("");
 }
 
-function topbarStatusModel() {
+export function topbarStatusModel() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const source = latestArtifactPerformance();
@@ -1548,7 +1559,7 @@ function topbarStatusModel() {
   ];
 }
 
-function renderTopbarStatusStrip() {
+export function renderTopbarStatusStrip() {
   const container = $("topbar-status-strip");
   if (!container) return;
   container.innerHTML = topbarStatusModel().map((item) => `
@@ -1559,7 +1570,7 @@ function renderTopbarStatusStrip() {
   `).join("");
 }
 
-function pageIntroContent(view) {
+export function pageIntroContent(view) {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
@@ -1770,7 +1781,7 @@ function pageIntroContent(view) {
   return viewMap[view] || viewMap.overview;
 }
 
-function renderPageIntro(view = activeView()) {
+export function renderPageIntro(view = activeView()) {
   if (!$("page-intro-title")) return;
   const content = pageIntroContent(normalizeView(view));
   renderRouteBreadcrumb(normalizeView(view));

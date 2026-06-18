@@ -1,4 +1,23 @@
-function latestAccountRow(accountRows) {
+import {
+  $,
+  age,
+  dataLibraryLoadState,
+  escapeHtml,
+  navigateToOperationsLens,
+  navigateToRunsLens,
+  navigateToWorkbenchLens,
+  numberText,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { latestArtifactPerformance, latestSupervisor, latestTelemetryRun } from "./20_workbench_foundation.js";
+import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
+import { copyText, refresh, refreshDataLibrary } from "./90_bootstrap.js";
+
+export function latestAccountRow(accountRows) {
   const rows = accountRows || [];
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const rowItem = rows[index] || {};
@@ -9,31 +28,31 @@ function latestAccountRow(accountRows) {
   return {};
 }
 
-function finiteNumber(value) {
+export function finiteNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
-function timestampMillis(value) {
+export function timestampMillis(value) {
   const parsed = Date.parse(value || "");
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function timestampAgeLabel(value) {
+export function timestampAgeLabel(value) {
   const millis = timestampMillis(value);
   if (millis === null) return "not published";
   const ageSeconds = Math.max(0, (Date.now() - millis) / 1000);
   return `${text(value)} (${age(ageSeconds)} ago)`;
 }
 
-function shortTimestampAgeLabel(value) {
+export function shortTimestampAgeLabel(value) {
   const millis = timestampMillis(value);
   if (millis === null) return "not published";
   const ageSeconds = Math.max(0, (Date.now() - millis) / 1000);
   return `${age(ageSeconds)} ago`;
 }
 
-function setMetricValue(id, value, { className = "", meta = "" } = {}) {
+export function setMetricValue(id, value, { className = "", meta = "" } = {}) {
   const element = $(id);
   if (!element) return;
   element.textContent = value;
@@ -49,7 +68,7 @@ function setMetricValue(id, value, { className = "", meta = "" } = {}) {
   metaElement.textContent = meta;
 }
 
-function sourceTimestamp(source, accountRow = {}) {
+export function sourceTimestamp(source, accountRow = {}) {
   const summary = (source && source.summary) || {};
   const perf = (source && source.performance) || {};
   return firstPresent(
@@ -66,13 +85,13 @@ function sourceTimestamp(source, accountRow = {}) {
   );
 }
 
-function sourceMetaLabel(source, accountRow = {}) {
+export function sourceMetaLabel(source, accountRow = {}) {
   const timestamp = sourceTimestamp(source, accountRow);
   const sourceLabel = text((source && source.label) || "No source");
   return timestamp ? `${sourceLabel} / updated ${shortTimestampAgeLabel(timestamp)}` : sourceLabel;
 }
 
-function openOverviewSourceDetail() {
+export function openOverviewSourceDetail() {
   const source = latestArtifactPerformance();
   if (source.source_type === "archived_artifact" && source.has_data) {
     navigateToWorkbenchLens("artifacts");
@@ -89,14 +108,15 @@ function openOverviewSourceDetail() {
   navigateToOperationsLens("diagnostics");
 }
 
-function firstPresent(...values) {
+export function firstPresent(...values) {
   for (const value of values) {
     if (value !== null && value !== undefined && value !== "") return value;
   }
   return null;
 }
 
-function normalizedRunMetrics(run = {}) {
+export function normalizedRunMetrics(run = {}) {
+  run = run || {};
   const metrics = { ...((run && run.metrics) || {}) };
   const copyIfPresent = (target, ...values) => {
     const value = firstPresent(metrics[target], ...values);
@@ -158,7 +178,7 @@ function normalizedRunMetrics(run = {}) {
   return metrics;
 }
 
-function metricTimestamp(metrics, keys) {
+export function metricTimestamp(metrics, keys) {
   for (const key of keys) {
     const value = metrics ? metrics[key] : null;
     if (value !== null && value !== undefined && value !== "") return value;
@@ -166,7 +186,7 @@ function metricTimestamp(metrics, keys) {
   return null;
 }
 
-function runtimeMarketDataModel(metrics = {}, latestRun = null) {
+export function runtimeMarketDataModel(metrics = {}, latestRun = null) {
   const timestamp = metricTimestamp(metrics, [
     "latest_bar_time",
     "latest_data_time",
@@ -226,7 +246,7 @@ function runtimeMarketDataModel(metrics = {}, latestRun = null) {
   };
 }
 
-function remoteNodeMarketDataModel(node = {}) {
+export function remoteNodeMarketDataModel(node = {}) {
   const statusValue = text(node.market_data_status || "").toLowerCase();
   const reason = text(node.market_data_reason || "");
   const requested = Number(node.market_data_requested_symbol_count || 0);
@@ -277,7 +297,7 @@ function remoteNodeMarketDataModel(node = {}) {
   };
 }
 
-function symbolInventoryModel() {
+export function symbolInventoryModel() {
   const index = state.dataSymbolIndex || {};
   const inventory = index.symbol_inventory || {};
   const symbolCount = Number(inventory.symbol_count ?? index.symbol_count ?? ((index.symbols || []).length) ?? 0);
@@ -302,7 +322,7 @@ function symbolInventoryModel() {
   };
 }
 
-function savedDataMetricModel() {
+export function savedDataMetricModel() {
   const inventory = symbolInventoryModel();
   const index = state.dataSymbolIndex || {};
   const catalog = state.dataCatalog || {};
@@ -325,7 +345,7 @@ function savedDataMetricModel() {
   };
 }
 
-function backendPipelineModel() {
+export function backendPipelineModel() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const runs = payload.runs || [];
@@ -458,7 +478,7 @@ function backendPipelineModel() {
   return { status, note, cards, alerts };
 }
 
-function renderBackendPipeline() {
+export function renderBackendPipeline() {
   if (!$("backend-pipeline-note") || !$("backend-pipeline-grid")) return;
   const model = backendPipelineModel();
   $("backend-pipeline-note").textContent = model.note;
@@ -472,7 +492,7 @@ function renderBackendPipeline() {
   `).join("");
 }
 
-function dashboardApiHealthModel() {
+export function dashboardApiHealthModel() {
   const contracts = state.refreshContracts || [];
   const dataContracts = state.dataEndpointContracts || [];
   const errors = state.refreshErrors || [];
@@ -529,7 +549,7 @@ function dashboardApiHealthModel() {
   return { status, title, note, cards, rows };
 }
 
-function renderDashboardApiHealth() {
+export function renderDashboardApiHealth() {
   if (!$("dashboard-api-health-note") || !$("dashboard-api-health-cards") || !$("dashboard-api-health-body")) return;
   const model = dashboardApiHealthModel();
   const loadState = dataLibraryLoadState();
@@ -557,7 +577,7 @@ function renderDashboardApiHealth() {
   renderWorkbenchBackendStatus();
 }
 
-function fetchBackendStatusModel() {
+export function fetchBackendStatusModel() {
   const contracts = state.refreshContracts || [];
   const fetchLabels = new Set(["fetch manifests", "runtime sessions"]);
   const rows = contracts.filter((item) => fetchLabels.has(item.label));
@@ -617,7 +637,7 @@ function fetchBackendStatusModel() {
   return { status, title, note, rows: tableRows, cards, unprobed: statusLoaded && !rows.length, issues };
 }
 
-function renderFetchBackendStatus() {
+export function renderFetchBackendStatus() {
   if (!$("fetch-backend-status-note") || !$("fetch-backend-status-cards") || !$("fetch-backend-status-body") || !$("fetch-backend-status-actions")) return;
   const model = fetchBackendStatusModel();
   $("fetch-backend-status-note").textContent = model.note;
@@ -644,7 +664,7 @@ function renderFetchBackendStatus() {
     : row([`<span class="muted">No Fetch Jobs backend endpoint checks have been recorded yet.</span>`, "", ""]);
 }
 
-async function checkFetchBackendApis() {
+export async function checkFetchBackendApis() {
   $("last-refresh").textContent = "Refreshing Fetch Jobs backend APIs...";
   try {
     await refresh();
@@ -657,7 +677,7 @@ async function checkFetchBackendApis() {
   }
 }
 
-function handleFetchBackendStatusAction(action) {
+export function handleFetchBackendStatusAction(action) {
   if (action === "check") {
     checkFetchBackendApis();
     return;
@@ -675,7 +695,7 @@ function handleFetchBackendStatusAction(action) {
   }
 }
 
-function workbenchBackendStatusModel() {
+export function workbenchBackendStatusModel() {
   const contracts = state.refreshContracts || [];
   const workbenchLabels = new Set([
     "workbench diagnostics",
@@ -753,7 +773,7 @@ function workbenchBackendStatusModel() {
   return { status, title, note, rows: tableRows, cards, unprobed: statusLoaded && !rows.length, issues };
 }
 
-function renderWorkbenchBackendStatus() {
+export function renderWorkbenchBackendStatus() {
   if (!$("workbench-backend-status-note") || !$("workbench-backend-status-cards") || !$("workbench-backend-status-body") || !$("workbench-backend-status-actions")) return;
   const model = workbenchBackendStatusModel();
   $("workbench-backend-status-note").textContent = model.note;
@@ -780,7 +800,7 @@ function renderWorkbenchBackendStatus() {
     : row([`<span class="muted">No Workbench backend endpoint checks have been recorded yet.</span>`, "", ""]);
 }
 
-async function checkWorkbenchBackendApis() {
+export async function checkWorkbenchBackendApis() {
   $("last-refresh").textContent = "Refreshing Workbench backend APIs...";
   try {
     await refresh();
@@ -793,7 +813,7 @@ async function checkWorkbenchBackendApis() {
   }
 }
 
-function handleWorkbenchBackendStatusAction(action) {
+export function handleWorkbenchBackendStatusAction(action) {
   if (action === "check") {
     checkWorkbenchBackendApis();
     return;
@@ -811,7 +831,7 @@ function handleWorkbenchBackendStatusAction(action) {
   }
 }
 
-function dataBackendStatusModel() {
+export function dataBackendStatusModel() {
   const rows = (state.dataEndpointContracts || []);
   const ok = rows.filter((item) => item.status === "ok").length;
   const issues = rows.filter((item) => item.status !== "ok");
@@ -853,7 +873,7 @@ function dataBackendStatusModel() {
   return { status, title, note, rows, cards };
 }
 
-function renderDataBackendStatus() {
+export function renderDataBackendStatus() {
   if (!$("data-backend-status-note") || !$("data-backend-status-cards") || !$("data-backend-status-body") || !$("data-backend-status-actions")) return;
   const model = dataBackendStatusModel();
   $("data-backend-status-note").textContent = model.note;
@@ -880,7 +900,7 @@ function renderDataBackendStatus() {
     : row([`<span class="muted">No Data Library backend endpoint checks have been recorded yet.</span>`, "", ""]);
 }
 
-function handleDataBackendStatusAction(action) {
+export function handleDataBackendStatusAction(action) {
   if (action === "check") {
     checkDashboardDataApis().catch((err) => {
       $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
@@ -900,7 +920,7 @@ function handleDataBackendStatusAction(action) {
   }
 }
 
-function dashboardApiHealthReportText() {
+export function dashboardApiHealthReportText() {
   const model = dashboardApiHealthModel();
   const lines = [
     "Dashboard API Health",
@@ -916,7 +936,7 @@ function dashboardApiHealthReportText() {
   return lines.join("\n");
 }
 
-function copyDashboardApiHealthReport() {
+export function copyDashboardApiHealthReport() {
   copyText(dashboardApiHealthReportText()).then(() => {
     $("last-refresh").textContent = "Dashboard API health report copied";
   }).catch((err) => {
@@ -924,7 +944,7 @@ function copyDashboardApiHealthReport() {
   });
 }
 
-function downloadDashboardApiHealthCsv() {
+export function downloadDashboardApiHealthCsv() {
   const model = dashboardApiHealthModel();
   const lines = [
     csvLine(["label", "status", "detail"]),
@@ -942,7 +962,7 @@ function downloadDashboardApiHealthCsv() {
   $("last-refresh").textContent = `Dashboard API health CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function checkDashboardDataApis() {
+export async function checkDashboardDataApis() {
   $("last-refresh").textContent = "Checking Data Library backend APIs...";
   if ($("check-dashboard-data-apis")) $("check-dashboard-data-apis").disabled = true;
   try {
@@ -955,7 +975,7 @@ async function checkDashboardDataApis() {
   }
 }
 
-function runtimeActivityModel() {
+export function runtimeActivityModel() {
   const activity = (state.status && state.status.runtime_activity) || {};
   const status = String(activity.status || "").toLowerCase();
   const mappedStatus = status === "running" || status === "publishing" || status === "due"
@@ -985,7 +1005,7 @@ function runtimeActivityModel() {
   };
 }
 
-function metricLatestRejection(metrics) {
+export function metricLatestRejection(metrics) {
   if (!metrics || !metrics.latest_rejection_time) return null;
   return {
     type: "order",
@@ -996,12 +1016,12 @@ function metricLatestRejection(metrics) {
   };
 }
 
-function eventStatusIsBad(event) {
+export function eventStatusIsBad(event) {
   const status = String((event && event.status) || "").toLowerCase();
   return status.includes("reject") || status.includes("cancel") || status.includes("fail") || status.includes("error");
 }
 
-function runtimeStatusItems() {
+export function runtimeStatusItems() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
@@ -1112,7 +1132,7 @@ function runtimeStatusItems() {
   ];
 }
 
-function paperMonitorItems() {
+export function paperMonitorItems() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
@@ -1204,4 +1224,3 @@ function paperMonitorItems() {
     },
   ];
 }
-

@@ -1,4 +1,280 @@
-function renderAll() {
+import {
+  $,
+  AUTO_REFRESH_INTERVAL_MS,
+  activeView,
+  applyDataLens,
+  applyFetchLens,
+  applyWorkbenchLens,
+  commandBoundaries,
+  commandFields,
+  commandParamNames,
+  dataEndpointContract,
+  dataLibraryLoadState,
+  durationMsText,
+  escapeHtml,
+  fetchJson,
+  fetchOptionalJson,
+  fetchText,
+  handleRouteAction,
+  interval,
+  jumpToDashboardTarget,
+  money,
+  navigateToDataLens,
+  navigateToFetchLens,
+  navigateToHelpLens,
+  navigateToOperationsLens,
+  navigateToOverviewLens,
+  navigateToPerformanceLens,
+  navigateToRunsLens,
+  navigateToView,
+  navigateToViewTarget,
+  navigateToWorkbenchLens,
+  numberText,
+  onOptional,
+  renderPageIntro,
+  routeHash,
+  routeUrl,
+  row,
+  selectedDataCatalogLimit,
+  selectedDataCatalogOffset,
+  selectedDataLens,
+  setActiveView,
+  setDataCatalogOffset,
+  setDataDiagnosticsLoadingNote,
+  startDashboardTask,
+  state,
+  statusText,
+  syncDataCatalogLimitControl,
+  text,
+  token,
+  viewFromHash,
+} from "./00_core.js";
+import { handleHelpCloudAccessAction, handleHelpModeBoundaryAction, handleHelpPerformanceGuideAction, handleHelpTaskNavigatorAction, handlePublicationReviewAction, renderHelpSetupGaps, renderHelpWorkbenchQuickstart } from "./10_help.js";
+import {
+  activateWorkbenchGuideAction,
+  applyDataCompareRangePreset,
+  compareConfigDatasets,
+  configDateRangePayload,
+  handleWorkbenchEvidenceAction,
+  handleWorkbenchExampleGalleryAction,
+  handleWorkbenchHomeAction,
+  handleWorkbenchPluginBoundaryAction,
+  handleWorkbenchSelectedDataAction,
+  openFirstConfigDatasetDetail,
+  renderWorkbenchGuide,
+  renderWorkbenchHome,
+  selectedCompareDatasets,
+  selectedConfigDatasets,
+  selectedDataCoverageRows,
+  selectedTelemetryRun,
+  updateCompareSelectionFromSelect,
+} from "./20_workbench_foundation.js";
+import {
+  checkDashboardDataApis,
+  copyDashboardApiHealthReport,
+  downloadDashboardApiHealthCsv,
+  finiteNumber,
+  handleDataBackendStatusAction,
+  handleFetchBackendStatusAction,
+  handleWorkbenchBackendStatusAction,
+  openOverviewSourceDetail,
+  renderDashboardApiHealth,
+  timestampMillis,
+} from "./30_runtime_core.js";
+import { handlePerformanceTradeAssistantAction } from "./31_performance_math.js";
+import { handleOverviewHealthReportAction, renderMetrics, renderOverview } from "./32_overview.js";
+import {
+  focusPerformanceDay,
+  handlePerformanceAction,
+  handlePerformanceEvidenceAction,
+  handlePerformanceReportAction,
+  handlePerformanceRollupAssistantAction,
+  handlePerformanceRollupContinuityAction,
+  handlePerformanceSnapshotAction,
+  reloadTelemetryArtifacts,
+  renderPerformance,
+  renderPerformancePeriodRollups,
+  renderPerformanceRollups,
+  renderStatusEquityRollups,
+} from "./33_performance_views.js";
+import {
+  activeSymbolTypeaheadSuggestion,
+  approvalPreviewCanApprove,
+  bestCatalogDatasetForSymbol,
+  countSummary,
+  dataCatalogServerQueryParams,
+  dataHistoryMatrixBackendScopeApplied,
+  dataHistoryMatrixServerQueryParams,
+  dataSymbolDirectoryServerQueryParams,
+  filteredDataCatalog,
+  handleRootIndexBrowserAction,
+  handleRootIndexDetailAction,
+  handleSymbolVisibilityAction,
+  moveSymbolTypeaheadSelection,
+  refreshRootIndexFromServerFilters,
+  renderRootIndexBrowser,
+  renderSymbolBrowser,
+  renderSymbolDirectory,
+  renderSymbolProfile,
+  renderSymbolVisibilityExplainer,
+  rootIndexDetailServerQueryParams,
+  rootIndexServerQueryParams,
+  selectSymbolBrowserSymbol,
+  selectedSymbolBrowserDatasets,
+  selectedSymbolBrowserSymbol,
+  shellQuote,
+  symbolDirectoryRows,
+  topSymbolBrowserSuggestion,
+} from "./40_data_catalog.js";
+import {
+  clearDataCatalogFilters,
+  dataFilterSummary,
+  dataHistoryMatrixRows,
+  handleDataExplorerAction,
+  handleDataHistoryMatrixAction,
+  handleDataInventoryEvidenceAction,
+  handleDataScopeAssistantAction,
+  handleDataServerFilterControlChange,
+  handleDataVisibilityReportAction,
+  handleRootIndexSpotlightAction,
+  previewDataCatalogServerFilters,
+  renderDataCatalog,
+  runDataCatalogServerSearch,
+} from "./41_data_explorer.js";
+import {
+  compareSelectedSymbolDatasets,
+  copySymbolDiagnosticReport,
+  diagnoseSelectedSymbol,
+  handleDataCatalogScanReportAction,
+  handleDataCoverageAssistantAction,
+  handleDataHomeShortlistAction,
+  handleDataSourceMapAction,
+  handleDataStorageAssistantAction,
+  handleSymbolDirectoryAction,
+  handleSymbolDirectoryAssistantAction,
+  handleSymbolProfileAction,
+  handleSymbolSelectionAction,
+  inspectSelectedSymbol,
+  renderCleanupPlan,
+  renderDataCoverage,
+  renderDataGapSummary,
+  renderDataLibrarySummary,
+  renderDataMinuteHeatmap,
+  renderDataStorageAudit,
+  renderDiagnostics,
+  renderEndpointMap,
+  renderSymbolBatchDiagnostic,
+  renderSymbolDiagnostic,
+  renderSymbolSelectionPanel,
+  renderWorkbenchStatus,
+  selectCatalogDatasetInWorkbench,
+} from "./42_data_symbols.js";
+import {
+  clearCompareSelection,
+  dateInputValueFromTimestamp,
+  handleDataCompareAction,
+  handleDataCompareAssistantAction,
+  handleDataDetailAction,
+  handleDataDetailAssistantAction,
+  openAdjacentDataDetail,
+  renderDataCompare,
+  renderDataCompareControls,
+  renderDataDetail,
+  renderDataDetailActionSummary,
+  selectShownCompareDatasets,
+  selectSymbolCompareDatasets,
+  useDataCompareInWorkbench,
+  useDataDetailInWorkbench,
+} from "./43_data_detail_compare.js";
+import {
+  applyFetchOutputDataFilter,
+  compareFetchOutputs,
+  copyDataRootsYaml,
+  copyFetchManifestRootsYaml,
+  copyFetchVisibleOutputPaths,
+  fetchResumeCommand,
+  handleFetchEvidenceAction,
+  handleFetchProgressAction,
+  handleFetchSearchAction,
+  renderFetchJobs,
+  renderFetchManifestDetail,
+  useFetchOutputsInWorkbench,
+} from "./50_fetch.js";
+import {
+  applyRiskPreset,
+  configFieldValue,
+  configPluginStrategyPayload,
+  handleConfigDraftError,
+  handleWorkbenchArtifactsActionSummary,
+  handleWorkbenchArtifactsAssistantAction,
+  handleWorkbenchBuilderAssistantAction,
+  handleWorkbenchDraftInventoryAction,
+  handleWorkbenchRunReadinessAction,
+  renderConfigAlignment,
+  renderConfigBuilder,
+  renderConfigBuilderReadiness,
+  renderConfigCompatibility,
+  renderConfigLivePanels,
+  renderDraftValidations,
+  renderRunComparison,
+  renderRunDetail,
+  renderWorkbenchArtifacts,
+  renderWorkbenchArtifactsActionSummary,
+  renderWorkbenchBuilderAssistant,
+  renderWorkbenchDraftInventory,
+  renderWorkbenchRunCommands,
+  renderWorkbenchRunReadiness,
+  renderWorkbenchRunResult,
+  renderWorkbenchRuns,
+  renderWorkbenchTriage,
+  workbenchResultModel,
+} from "./60_workbench_builder.js";
+import {
+  activityChanges,
+  activitySnapshot,
+  applyRunsEventsAssistantAction,
+  handleExecutionQualityAction,
+  handleRunsEventFlowAction,
+  handleRunsEvidenceAction,
+  handleRunsSearchAction,
+  handleRunsStateAction,
+  renderOverviewChanges,
+  renderRunEvents,
+  renderRuns,
+  renderRuntimeSessionDetail,
+} from "./70_runs.js";
+import {
+  handleCloudReadinessAction,
+  handleCommandSafetyAction,
+  handleControlAssistantAction,
+  handleOperationsEvidenceAction,
+  handleOperationsHomeAction,
+  handlePaperAction,
+  handleRemoteAction,
+  handleRemoteDetailAssistantAction,
+  handleRemoteNodeHealthReportAction,
+  handleRemoteNodesAssistantAction,
+  handleRemoteReportAction,
+  handleSupervisorAction,
+  prepareRequestStatusCommand,
+  renderAlerts,
+  renderCloudDeploymentReadiness,
+  renderCommandAudit,
+  renderCommandSafetyReview,
+  renderCommands,
+  renderControlAssistant,
+  renderGateway,
+  renderHistory,
+  renderOperationsHome,
+  renderPaperMonitor,
+  renderRemoteControl,
+  renderRemoteNodeDetail,
+  renderRemoteNodes,
+  renderResults,
+  renderSupervisors,
+} from "./80_operations.js";
+
+export function renderAll() {
   renderOverview();
   renderOverviewChanges();
   renderMetrics();
@@ -50,11 +326,11 @@ function renderAll() {
   $("last-refresh").textContent = `Last refresh: ${new Date().toLocaleString()}`;
 }
 
-function shouldLoadDataDiagnostics() {
+export function shouldLoadDataDiagnostics() {
   return activeView() === "data" && selectedDataLens() === "diagnostics";
 }
 
-async function refreshDataDiagnostics({ force = false } = {}) {
+export async function refreshDataDiagnostics({ force = false } = {}) {
   const loadState = dataLibraryLoadState();
   if (loadState.diagnosticsLoading && !force) return;
   if (loadState.diagnosticsLoaded && !force) return;
@@ -174,7 +450,7 @@ async function refreshDataDiagnostics({ force = false } = {}) {
   }
 }
 
-async function refreshDataLibrary({ includeDiagnostics = false, force = false } = {}) {
+export async function refreshDataLibrary({ includeDiagnostics = false, force = false } = {}) {
   const loadState = dataLibraryLoadState();
   if (includeDiagnostics) loadState.diagnosticsRequested = true;
   if (loadState.catalogLoading && !force) return;
@@ -351,7 +627,7 @@ async function refreshDataLibrary({ includeDiagnostics = false, force = false } 
   }
 }
 
-async function refresh(options = {}) {
+export async function refresh(options = {}) {
   if (state.refreshInFlight) return;
   state.refreshInFlight = true;
   try {
@@ -361,7 +637,7 @@ async function refresh(options = {}) {
   }
 }
 
-async function refreshOnce(options = {}) {
+export async function refreshOnce(options = {}) {
   const node = $("command-node").value || (state.status && state.status.node_id) || "";
   const beforeActivity = state.refreshLoaded ? activitySnapshot() : null;
   // Keep last-known telemetry when /status fails so a transient error does
@@ -471,7 +747,7 @@ async function refreshOnce(options = {}) {
   });
 }
 
-function configDraftRequestPayload({ saveOverride = null } = {}) {
+export function configDraftRequestPayload({ saveOverride = null } = {}) {
   const selected = selectedConfigDatasets();
   if (!selected.length) {
     throw new Error("Select at least one saved dataset first");
@@ -505,7 +781,7 @@ function configDraftRequestPayload({ saveOverride = null } = {}) {
   };
 }
 
-async function submitConfigDraft({ previewOnly = false } = {}) {
+export async function submitConfigDraft({ previewOnly = false } = {}) {
   const payload = configDraftRequestPayload({ saveOverride: previewOnly ? false : null });
   const response = await fetchJson(previewOnly ? "/config_draft_preview" : "/config_draft", {
     method: "POST",
@@ -530,12 +806,12 @@ async function submitConfigDraft({ previewOnly = false } = {}) {
     : `Config draft generated: ${new Date().toLocaleString()}`;
 }
 
-async function generateConfigDraft(event) {
+export async function generateConfigDraft(event) {
   event.preventDefault();
   await submitConfigDraft({ previewOnly: false });
 }
 
-async function previewConfigAlignment() {
+export async function previewConfigAlignment() {
   const selected = selectedConfigDatasets();
   if (!selected.length) {
     $("config-alignment-note").innerHTML = `<span class="status-bad">Select at least one saved dataset first</span>`;
@@ -558,7 +834,7 @@ async function previewConfigAlignment() {
   $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
 }
 
-function dataDetailQuery(path) {
+export function dataDetailQuery(path) {
   const params = new URLSearchParams();
   params.set("path", path);
   params.set("preview_points", $("data-detail-points").value || "600");
@@ -572,7 +848,7 @@ function dataDetailQuery(path) {
   return params.toString();
 }
 
-function dataDetailCoverageRange(detail = state.dataDetail || {}) {
+export function dataDetailCoverageRange(detail = state.dataDetail || {}) {
   const coverage = detail.coverage || {};
   const viewer = detail.viewer || {};
   const start = timestampMillis(coverage.first_timestamp || viewer.first_timestamp);
@@ -580,7 +856,7 @@ function dataDetailCoverageRange(detail = state.dataDetail || {}) {
   return { start, end };
 }
 
-function largestDataDetailGap(detail = state.dataDetail || {}) {
+export function largestDataDetailGap(detail = state.dataDetail || {}) {
   const gaps = (detail && detail.gaps) || [];
   const valid = gaps.filter((gap) => gap && gap.from_timestamp && gap.to_timestamp);
   if (!valid.length) return null;
@@ -591,7 +867,7 @@ function largestDataDetailGap(detail = state.dataDetail || {}) {
   })[0];
 }
 
-async function focusDataDetailLargestGap() {
+export async function focusDataDetailLargestGap() {
   const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
   if (!path) {
     $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Open a saved dataset before focusing a gap</span>`;
@@ -615,7 +891,7 @@ async function focusDataDetailLargestGap() {
   $("last-refresh").textContent = `Focused largest gap: ${start} to ${end}`;
 }
 
-async function applyDataDetailRangePreset() {
+export async function applyDataDetailRangePreset() {
   const preset = $("data-detail-range-preset").value || "custom";
   if (preset === "custom") return;
   const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
@@ -648,7 +924,7 @@ async function applyDataDetailRangePreset() {
   $("last-refresh").textContent = `Data detail range preset applied: ${preset}`;
 }
 
-async function loadDataDetail(path, { resetControls = false } = {}) {
+export async function loadDataDetail(path, { resetControls = false } = {}) {
   if (!path) throw new Error("dataset path is required");
   state.dataDetailPath = path;
   if (resetControls) {
@@ -665,7 +941,7 @@ async function loadDataDetail(path, { resetControls = false } = {}) {
   $("last-refresh").textContent = `Data detail loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadPerformanceBenchmark() {
+export async function loadPerformanceBenchmark() {
   const path = $("performance-benchmark").value || "";
   state.performanceBenchmarkPath = path;
   if (!path) {
@@ -685,7 +961,7 @@ async function loadPerformanceBenchmark() {
   $("last-refresh").textContent = `Benchmark loaded: ${new Date().toLocaleString()}`;
 }
 
-async function reloadDataDetail(event) {
+export async function reloadDataDetail(event) {
   event.preventDefault();
   const path = state.dataDetailPath || (state.dataDetail && state.dataDetail.path) || "";
   if (!path) {
@@ -695,7 +971,7 @@ async function reloadDataDetail(event) {
   await loadDataDetail(path);
 }
 
-async function loadDataDetailForSymbol() {
+export async function loadDataDetailForSymbol() {
   const symbol = ($("data-detail-symbol").value || "").trim().toUpperCase();
   if (!symbol) {
     $("data-detail-viewer-note").innerHTML = `<span class="status-bad">Enter a scanned symbol first</span>`;
@@ -710,7 +986,7 @@ async function loadDataDetailForSymbol() {
   $("data-detail-viewer-note").textContent = `Opened ${text(dataset.symbol)} ${text(dataset.bar_size)} from ${text(dataset.source)}.`;
 }
 
-function dataComparePayload() {
+export function dataComparePayload() {
   const selected = selectedCompareDatasets();
   if (selected.length < 2) {
     throw new Error("Select at least two saved datasets first");
@@ -724,7 +1000,7 @@ function dataComparePayload() {
   };
 }
 
-async function loadDataCompare(event) {
+export async function loadDataCompare(event) {
   if (event) event.preventDefault();
   let payload;
   try {
@@ -743,7 +1019,7 @@ async function loadDataCompare(event) {
   $("last-refresh").textContent = `Data comparison loaded: ${new Date().toLocaleString()}`;
 }
 
-function copyDataCompareJson() {
+export function copyDataCompareJson() {
   let payload;
   try {
     payload = dataComparePayload();
@@ -758,7 +1034,7 @@ function copyDataCompareJson() {
   });
 }
 
-async function diagnoseDataSymbol(event) {
+export async function diagnoseDataSymbol(event) {
   event.preventDefault();
   const symbol = $("data-symbol-input").value.trim();
   if (!symbol) {
@@ -774,7 +1050,7 @@ async function diagnoseDataSymbol(event) {
   $("last-refresh").textContent = `Symbol diagnostic loaded: ${new Date().toLocaleString()}`;
 }
 
-async function diagnoseSymbolUniverse(event) {
+export async function diagnoseSymbolUniverse(event) {
   event.preventDefault();
   const symbols = $("data-symbol-batch-input").value.trim();
   if (!symbols) {
@@ -789,7 +1065,7 @@ async function diagnoseSymbolUniverse(event) {
   $("last-refresh").textContent = `Universe visibility check loaded: ${new Date().toLocaleString()}`;
 }
 
-async function diagnoseBatchSymbol(symbol) {
+export async function diagnoseBatchSymbol(symbol) {
   const cleaned = text(symbol).trim();
   if (!cleaned) return;
   $("data-symbol-input").value = cleaned;
@@ -802,7 +1078,7 @@ async function diagnoseBatchSymbol(symbol) {
   $("last-refresh").textContent = `Symbol diagnostic loaded from batch: ${cleaned}`;
 }
 
-function batchSymbolDataset(symbol, path) {
+export function batchSymbolDataset(symbol, path) {
   const cleaned = text(symbol).trim().toUpperCase();
   const bestPath = text(path).trim();
   const rows = ((state.symbolBatchDiagnostic || {}).rows || []);
@@ -826,20 +1102,20 @@ function batchSymbolDataset(symbol, path) {
   };
 }
 
-async function inspectBatchSymbolBestFile(symbol, path) {
+export async function inspectBatchSymbolBestFile(symbol, path) {
   const dataset = batchSymbolDataset(symbol, path);
   if (!dataset || !dataset.path) throw new Error(`No best file is available for ${text(symbol) || "selected symbol"}`);
   await loadDataDetail(dataset.path, { resetControls: true });
   $("last-refresh").textContent = `Loaded ${text(dataset.symbol)} best file from universe check`;
 }
 
-function useBatchSymbolInWorkbench(symbol, path) {
+export function useBatchSymbolInWorkbench(symbol, path) {
   const dataset = batchSymbolDataset(symbol, path);
   if (!dataset || !dataset.path) throw new Error(`No Workbench-ready best file is available for ${text(symbol) || "selected symbol"}`);
   selectCatalogDatasetInWorkbench(dataset);
 }
 
-async function downloadSymbolBatchDiagnosticsCsv() {
+export async function downloadSymbolBatchDiagnosticsCsv() {
   const payloadSymbols = ((state.symbolBatchDiagnostic || {}).symbols || []).join(",");
   const symbols = payloadSymbols || $("data-symbol-batch-input").value.trim();
   if (!symbols) {
@@ -860,7 +1136,7 @@ async function downloadSymbolBatchDiagnosticsCsv() {
   $("last-refresh").textContent = `Universe visibility CSV exported: ${new Date().toLocaleString()}`;
 }
 
-function copySymbolBatchDiagnosticReport() {
+export function copySymbolBatchDiagnosticReport() {
   copyText(state.symbolBatchDiagnosticReportText || "No universe visibility check loaded.").then(() => {
     $("last-refresh").textContent = "Universe visibility report copied";
   }).catch((err) => {
@@ -868,7 +1144,7 @@ function copySymbolBatchDiagnosticReport() {
   });
 }
 
-async function loadFetchManifestDetail(jobId) {
+export async function loadFetchManifestDetail(jobId) {
   const response = await fetchJson(`/fetch_manifest_detail?job_id=${encodeURIComponent(jobId)}&limit=500`);
   state.fetchManifestDetail = response;
   renderFetchManifestDetail();
@@ -876,7 +1152,7 @@ async function loadFetchManifestDetail(jobId) {
   $("last-refresh").textContent = `Fetch manifest loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadRemoteNodeDetail(nodeId) {
+export async function loadRemoteNodeDetail(nodeId) {
   if (!nodeId) throw new Error("node_id is required");
   const response = await fetchJson(`/remote_node_detail?node_id=${encodeURIComponent(nodeId)}&limit=20`);
   state.remoteNodeDetail = response;
@@ -884,7 +1160,7 @@ async function loadRemoteNodeDetail(nodeId) {
   $("last-refresh").textContent = `Remote node detail loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadConfigArtifacts(draftId, options = {}) {
+export async function loadConfigArtifacts(draftId, options = {}) {
   const response = await fetchJson(`/config_draft_artifacts?draft_id=${encodeURIComponent(draftId)}&limit=100`);
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
@@ -902,7 +1178,7 @@ async function loadConfigArtifacts(draftId, options = {}) {
     : `Artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
-async function loadConfigDraftDetail(draftId) {
+export async function loadConfigDraftDetail(draftId) {
   const response = await fetchJson(`/config_draft_detail?draft_id=${encodeURIComponent(draftId)}`);
   const draft = response.draft || {};
   state.configDraft = {
@@ -918,7 +1194,7 @@ async function loadConfigDraftDetail(draftId) {
   $("last-refresh").textContent = `Draft detail loaded: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDraftYaml(draftId) {
+export async function downloadDraftYaml(draftId) {
   if (!draftId) return;
   const body = await fetchText(`/config_draft_yaml?draft_id=${encodeURIComponent(draftId)}`);
   const blob = new Blob([body], { type: "application/x-yaml;charset=utf-8" });
@@ -933,7 +1209,7 @@ async function downloadDraftYaml(draftId) {
   $("last-refresh").textContent = `Draft YAML downloaded: ${new Date().toLocaleString()}`;
 }
 
-async function deleteConfigDraft(draftId) {
+export async function deleteConfigDraft(draftId) {
   if (!draftId) return;
   if (!window.confirm(`Delete saved draft ${draftId}?`)) {
     return;
@@ -964,7 +1240,7 @@ async function deleteConfigDraft(draftId) {
   $("last-refresh").textContent = `Draft deleted: ${new Date().toLocaleString()}`;
 }
 
-async function validateDrafts() {
+export async function validateDrafts() {
   state.draftValidations = await fetchJson("/config_draft_validations");
   renderDraftValidations();
   renderWorkbenchRuns();
@@ -972,7 +1248,7 @@ async function validateDrafts() {
   $("last-refresh").textContent = `Draft validations refreshed: ${new Date().toLocaleString()}`;
 }
 
-async function loadRunArtifacts(runId, options = {}) {
+export async function loadRunArtifacts(runId, options = {}) {
   const response = await fetchJson(`/config_draft_run_artifacts?run_id=${encodeURIComponent(runId)}&limit=100`);
   state.configArtifacts = response;
   state.performanceSourceMode = "artifact";
@@ -991,7 +1267,7 @@ async function loadRunArtifacts(runId, options = {}) {
     : `Run artifacts loaded: ${new Date().toLocaleString()}`;
 }
 
-async function approveOrderPreview(approvalId) {
+export async function approveOrderPreview(approvalId) {
   const artifacts = state.configArtifacts || {};
   if (!artifacts.order_preview_file) throw new Error("No order preview file is loaded");
   const preview = (artifacts.order_previews || []).find((item) => text(item.approval_id) === text(approvalId));
@@ -1017,7 +1293,7 @@ async function approveOrderPreview(approvalId) {
   $("last-refresh").textContent = `Approval file written: ${text((response.approval || {}).approval_file)}`;
 }
 
-async function loadCompletedRunOutput(run, draftId, options = {}) {
+export async function loadCompletedRunOutput(run, draftId, options = {}) {
   const action = text(run && run.action);
   const status = text(run && run.status);
   if (!run || action === "validate" || status !== "completed") {
@@ -1031,7 +1307,7 @@ async function loadCompletedRunOutput(run, draftId, options = {}) {
   return true;
 }
 
-async function loadRunDetail(runId, options = {}) {
+export async function loadRunDetail(runId, options = {}) {
   const response = await fetchJson(`/config_draft_run_evidence?run_id=${encodeURIComponent(runId)}`);
   state.runDetail = response;
   state.runEvidence = response;
@@ -1044,7 +1320,7 @@ async function loadRunDetail(runId, options = {}) {
   $("last-refresh").textContent = `Run log loaded: ${new Date().toLocaleString()}`;
 }
 
-async function runConfigDraft(event = null, options = {}) {
+export async function runConfigDraft(event = null, options = {}) {
   if (event && typeof event.preventDefault === "function") event.preventDefault();
   const draftId = $("config-run-draft").value;
   if (!draftId) {
@@ -1083,7 +1359,7 @@ async function runConfigDraft(event = null, options = {}) {
     : `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
-async function openWorkbenchResultPerformance() {
+export async function openWorkbenchResultPerformance() {
   const model = workbenchResultModel();
   if (!model.selectedDraftId || !model.latestRun || model.latestRun.action === "validate") {
     $("config-run-status").innerHTML = `<span class="status-warn">Run replay or simulated paper before opening performance.</span>`;
@@ -1096,7 +1372,7 @@ async function openWorkbenchResultPerformance() {
   await loadConfigArtifacts(model.selectedDraftId, { openPerformance: true });
 }
 
-async function openWorkbenchResultLog() {
+export async function openWorkbenchResultLog() {
   const model = workbenchResultModel();
   if (!model.latestRun) {
     $("config-run-status").innerHTML = `<span class="status-warn">Run the selected draft before opening a log.</span>`;
@@ -1105,7 +1381,7 @@ async function openWorkbenchResultLog() {
   await loadRunDetail(model.latestRun.run_id);
 }
 
-async function refreshCleanupPlan() {
+export async function refreshCleanupPlan() {
   state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   state.workbenchStatus = await fetchJson("/workbench_status");
   renderWorkbenchStatus();
@@ -1113,7 +1389,7 @@ async function refreshCleanupPlan() {
   $("last-refresh").textContent = `Cleanup plan refreshed: ${new Date().toLocaleString()}`;
 }
 
-async function runWorkbenchCleanup(dryRun) {
+export async function runWorkbenchCleanup(dryRun) {
   if (!dryRun && !window.confirm("Delete orphaned workbench archive/output directories?")) {
     return;
   }
@@ -1131,7 +1407,7 @@ async function runWorkbenchCleanup(dryRun) {
   $("last-refresh").textContent = `${action}: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRunsCsv() {
+export async function downloadRunsCsv() {
   const body = await fetchText("/config_draft_runs_export?limit=200");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1145,7 +1421,7 @@ async function downloadRunsCsv() {
   $("last-refresh").textContent = `Run CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRuntimeSessionsCsv() {
+export async function downloadRuntimeSessionsCsv() {
   const body = await fetchText("/runtime_sessions_export?limit=1000");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1159,7 +1435,7 @@ async function downloadRuntimeSessionsCsv() {
   $("last-refresh").textContent = `Runtime sessions CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function loadRuntimeSessionDetail(path) {
+export async function loadRuntimeSessionDetail(path) {
   if (!path) throw new Error("No runtime session path selected");
   const response = await fetchJson(`/runtime_session_detail?path=${encodeURIComponent(path)}`);
   state.runtimeSessionDetail = response;
@@ -1167,7 +1443,7 @@ async function loadRuntimeSessionDetail(path) {
   $("last-refresh").textContent = `Runtime session detail loaded: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDraftsCsv() {
+export async function downloadDraftsCsv() {
   const body = await fetchText("/config_drafts_export");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1181,7 +1457,7 @@ async function downloadDraftsCsv() {
   $("last-refresh").textContent = `Draft CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRunArtifactsJson() {
+export async function downloadRunArtifactsJson() {
   const runId = state.configArtifacts && state.configArtifacts.run_id;
   if (!runId) {
     $("last-refresh").textContent = "Select archived run artifacts before exporting JSON";
@@ -1200,7 +1476,7 @@ async function downloadRunArtifactsJson() {
   $("last-refresh").textContent = `Run artifacts JSON exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRemoteNodesCsv() {
+export async function downloadRemoteNodesCsv() {
   const body = await fetchText("/remote_nodes_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1214,7 +1490,7 @@ async function downloadRemoteNodesCsv() {
   $("last-refresh").textContent = `Remote nodes CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRemoteNodeDetailCsv() {
+export async function downloadRemoteNodeDetailCsv() {
   const detail = state.remoteNodeDetail || {};
   const nodeId = String(detail.node_id || "").trim();
   if (!nodeId) {
@@ -1235,7 +1511,7 @@ async function downloadRemoteNodeDetailCsv() {
   $("last-refresh").textContent = `Remote node detail CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadStatusRollupsCsv() {
+export async function downloadStatusRollupsCsv() {
   const body = await fetchText("/status_equity_rollups_export?limit=500&history_limit=50000");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1249,7 +1525,7 @@ async function downloadStatusRollupsCsv() {
   $("last-refresh").textContent = `Status rollups CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadCommandAuditCsv() {
+export async function downloadCommandAuditCsv() {
   const node = $("command-node").value || (state.status && state.status.node_id) || "";
   const nodeParam = node ? `node_id=${encodeURIComponent(node)}&` : "";
   const body = await fetchText(`/command_audit_export?${nodeParam}limit=500`);
@@ -1265,7 +1541,7 @@ async function downloadCommandAuditCsv() {
   $("last-refresh").textContent = `Command audit CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataCatalogCsv() {
+export async function downloadDataCatalogCsv() {
   const catalogParams = dataCatalogServerQueryParams();
   catalogParams.delete("preview_points");
   const body = await fetchText(`/data_catalog_export?${catalogParams.toString()}`);
@@ -1281,7 +1557,7 @@ async function downloadDataCatalogCsv() {
   $("last-refresh").textContent = `Data catalog CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataSymbolDirectoryCsv() {
+export async function downloadDataSymbolDirectoryCsv() {
   const params = dataSymbolDirectoryServerQueryParams();
   const body = await fetchText(`/data_symbol_directory_export?${params.toString()}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1296,7 +1572,7 @@ async function downloadDataSymbolDirectoryCsv() {
   $("last-refresh").textContent = `Symbol directory CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataSymbolIndexCsv() {
+export async function downloadDataSymbolIndexCsv() {
   const params = rootIndexServerQueryParams();
   const body = await fetchText(`/data_symbol_index_export?${params.toString()}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1311,7 +1587,7 @@ async function downloadDataSymbolIndexCsv() {
   $("last-refresh").textContent = `Root index CSV exported: ${new Date().toLocaleString()}`;
 }
 
-function downloadSymbolCoverageLedgerCsv() {
+export function downloadSymbolCoverageLedgerCsv() {
   const directory = symbolDirectoryRows();
   const header = [
     "symbol",
@@ -1360,7 +1636,7 @@ function downloadSymbolCoverageLedgerCsv() {
   $("last-refresh").textContent = `Symbol coverage ledger CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataHistoryMatrixCsv() {
+export async function downloadDataHistoryMatrixCsv() {
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
   try {
@@ -1430,7 +1706,7 @@ async function downloadDataHistoryMatrixCsv() {
   $("last-refresh").textContent = `Saved history matrix CSV exported from browser rows: ${new Date().toLocaleString()}`;
 }
 
-function downloadWorkbenchSelectedDataCsv() {
+export function downloadWorkbenchSelectedDataCsv() {
   const rows = selectedDataCoverageRows();
   const range = configDateRangePayload();
   const header = [
@@ -1488,7 +1764,7 @@ function downloadWorkbenchSelectedDataCsv() {
   $("last-refresh").textContent = `Workbench selected data CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadFetchManifestsCsv() {
+export async function downloadFetchManifestsCsv() {
   const body = await fetchText("/fetch_manifests_export?limit=500");
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1502,7 +1778,7 @@ async function downloadFetchManifestsCsv() {
   $("last-refresh").textContent = `Fetch jobs CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadFetchDetailCsv() {
+export async function downloadFetchDetailCsv() {
   const detail = state.fetchManifestDetail || {};
   if (!detail.job_id) {
     $("last-refresh").textContent = "Select a fetch manifest before exporting detail CSV";
@@ -1522,7 +1798,7 @@ async function downloadFetchDetailCsv() {
   $("last-refresh").textContent = `Fetch detail CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataCatalogScanCsv() {
+export async function downloadDataCatalogScanCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_catalog_scan_export?limit=${catalogLimit}`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1537,7 +1813,7 @@ async function downloadDataCatalogScanCsv() {
   $("last-refresh").textContent = `Catalog scan CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadRootIndexDetailCsv() {
+export async function downloadRootIndexDetailCsv() {
   const detail = state.dataSymbolIndexDetail || {};
   const symbol = text(detail.symbol || "");
   if (!symbol || symbol === "n/a" || !(detail.files || []).length) {
@@ -1558,7 +1834,7 @@ async function downloadRootIndexDetailCsv() {
   $("last-refresh").textContent = `Root Index candidate files CSV exported for ${symbol}: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataStorageAuditCsv() {
+export async function downloadDataStorageAuditCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const storageScanLimit = encodeURIComponent($("data-storage-scan-limit").value || "5000");
   const body = await fetchText(`/data_storage_audit_export?catalog_limit=${catalogLimit}&scan_limit=${storageScanLimit}`);
@@ -1574,7 +1850,7 @@ async function downloadDataStorageAuditCsv() {
   $("last-refresh").textContent = `Storage audit CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataCoverageCsv() {
+export async function downloadDataCoverageCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_coverage_export?limit=${catalogLimit}&max_symbols=500&max_dates=366`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1589,7 +1865,7 @@ async function downloadDataCoverageCsv() {
   $("last-refresh").textContent = `Coverage CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataGapSummaryCsv() {
+export async function downloadDataGapSummaryCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_gap_summary_export?catalog_limit=${catalogLimit}&top_limit=100`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1604,7 +1880,7 @@ async function downloadDataGapSummaryCsv() {
   $("last-refresh").textContent = `Gap summary CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataMinuteHeatmapCsv() {
+export async function downloadDataMinuteHeatmapCsv() {
   const catalogLimit = encodeURIComponent(selectedDataCatalogLimit());
   const body = await fetchText(`/data_minute_heatmap_export?catalog_limit=${catalogLimit}&top_limit=100`);
   const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
@@ -1619,7 +1895,7 @@ async function downloadDataMinuteHeatmapCsv() {
   $("last-refresh").textContent = `Minute heatmap CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataDetailRangeCsv() {
+export async function downloadDataDetailRangeCsv() {
   const detail = state.dataDetail || {};
   const path = detail.path || state.dataDetailPath || "";
   if (!path) {
@@ -1646,7 +1922,7 @@ async function downloadDataDetailRangeCsv() {
   $("last-refresh").textContent = `Data Detail range CSV exported: ${new Date().toLocaleString()}`;
 }
 
-function downloadDataCompareCsv() {
+export function downloadDataCompareCsv() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
   if (!series.length) {
@@ -1690,7 +1966,7 @@ function downloadDataCompareCsv() {
   $("last-refresh").textContent = `Comparison CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadDataMissingIntervalsCsv() {
+export async function downloadDataMissingIntervalsCsv() {
   const path = (state.dataDetail || {}).path || "";
   if (!path) {
     $("last-refresh").textContent = "Select a saved dataset before exporting missing intervals";
@@ -1711,7 +1987,7 @@ async function downloadDataMissingIntervalsCsv() {
   $("last-refresh").textContent = `Missing interval CSV exported: ${new Date().toLocaleString()}`;
 }
 
-async function downloadWorkbenchSnapshot() {
+export async function downloadWorkbenchSnapshot() {
   const body = await fetchText("/workbench_snapshot_export");
   const blob = new Blob([body], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -1725,7 +2001,7 @@ async function downloadWorkbenchSnapshot() {
   $("last-refresh").textContent = `Workbench snapshot exported: ${new Date().toLocaleString()}`;
 }
 
-async function copyText(value) {
+export async function copyText(value) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(value);
     return;
@@ -1741,7 +2017,7 @@ async function copyText(value) {
   textarea.remove();
 }
 
-async function queueCommand(event) {
+export async function queueCommand(event) {
   event.preventDefault();
   const action = $("command-action").value;
   const boundary = commandBoundaries[action] || {};
@@ -1771,7 +2047,7 @@ async function queueCommand(event) {
   await refresh();
 }
 
-async function cancelCommand(commandId, nodeId) {
+export async function cancelCommand(commandId, nodeId) {
   await fetchJson("/commands/cancel", {
     method: "POST",
     body: JSON.stringify({
@@ -1782,7 +2058,7 @@ async function cancelCommand(commandId, nodeId) {
   await refresh();
 }
 
-function updateCommandFields() {
+export function updateCommandFields() {
   const action = $("command-action").value;
   const visible = new Set(commandFields[action] || []);
   for (const field of ["run", "config", "supervisor", "job"]) {
@@ -1808,7 +2084,7 @@ function updateCommandFields() {
   renderCommandSafetyReview();
 }
 
-function initToken() {
+export function initToken() {
   $("auth-token").value = token();
   $("save-token").addEventListener("click", () => {
     sessionStorage.setItem("statusToken", $("auth-token").value);
@@ -1818,7 +2094,7 @@ function initToken() {
   });
 }
 
-function init() {
+export function init() {
   const storedView = sessionStorage.getItem("dashboardView") || "overview";
   setActiveView(window.location.hash ? viewFromHash() : storedView);
   for (const button of document.querySelectorAll("[data-view-target]")) {
@@ -3183,4 +3459,6 @@ function init() {
   }, AUTO_REFRESH_INTERVAL_MS);
 }
 
-document.addEventListener("DOMContentLoaded", init);
+export function initializeDashboard() {
+  document.addEventListener("DOMContentLoaded", init);
+}

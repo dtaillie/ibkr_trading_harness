@@ -1,4 +1,32 @@
-function renderFetchJobs() {
+import {
+  $,
+  MAX_DATA_COMPARE_DATASETS,
+  age,
+  escapeHtml,
+  interval,
+  jsonDrilldown,
+  kvRows,
+  navigateToDataLens,
+  navigateToFetchLens,
+  navigateToWorkbenchLens,
+  numberText,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset } from "./20_workbench_foundation.js";
+import { fetchBackendStatusModel, renderFetchBackendStatus, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { workflowHref } from "./32_overview.js";
+import { rangeLabel } from "./34_charts.js";
+import { countBy, countSummary, dataRootConfigPaths, dataRootsYamlSnippet, fetchManifestRootConfigPaths, fetchManifestRootsYamlSnippet, fetchVisibleOutputPaths, shellQuote } from "./40_data_catalog.js";
+import { dataReplayReadiness, renderDataCatalog } from "./41_data_explorer.js";
+import { dateInputValueFromTimestamp, renderDataCompareControls } from "./43_data_detail_compare.js";
+import { renderConfigLivePanels } from "./60_workbench_builder.js";
+import { copyText, downloadFetchManifestsCsv, loadDataCompare, loadFetchManifestDetail } from "./90_bootstrap.js";
+
+export function renderFetchJobs() {
   const payload = state.fetchManifests || {};
   const manifests = payload.manifests || [];
   const filteredManifests = filteredFetchManifests(manifests);
@@ -108,7 +136,7 @@ function renderFetchJobs() {
     : row([`<span class="muted">No fetch manifests match the current filters.</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderFetchHealthPanel(context = {}) {
+export function renderFetchHealthPanel(context = {}) {
   if (!$("fetch-health-title") || !$("fetch-health-cards") || !$("fetch-health-actions")) return;
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
@@ -221,7 +249,7 @@ function renderFetchHealthPanel(context = {}) {
   ].join("");
 }
 
-function fetchActionSummaryModel(context = {}) {
+export function fetchActionSummaryModel(context = {}) {
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
   const roots = context.roots || [];
@@ -362,7 +390,7 @@ function fetchActionSummaryModel(context = {}) {
   return { title, note, cards, actions };
 }
 
-function renderFetchActionSummary(context = {}) {
+export function renderFetchActionSummary(context = {}) {
   if (!$("fetch-action-note") || !$("fetch-action-cards") || !$("fetch-action-actions")) return;
   const model = fetchActionSummaryModel(context);
   $("fetch-action-note").textContent = `${model.title}: ${model.note}`;
@@ -378,7 +406,7 @@ function renderFetchActionSummary(context = {}) {
   `).join("");
 }
 
-function fetchManifestOutputIssueCount(item) {
+export function fetchManifestOutputIssueCount(item) {
   return (
     Number(item.output_missing_file_count || 0) +
     Number(item.output_outside_data_roots_count || 0) +
@@ -387,11 +415,11 @@ function fetchManifestOutputIssueCount(item) {
   );
 }
 
-function fetchManifestLabel(item) {
+export function fetchManifestLabel(item) {
   return text(item.job_id || item.path || "fetch job");
 }
 
-function fetchEvidenceModel(context = {}) {
+export function fetchEvidenceModel(context = {}) {
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
   const roots = context.roots || [];
@@ -531,7 +559,7 @@ function fetchEvidenceModel(context = {}) {
   return { headline, note: `${headline} / next: ${next.label}`, cards, lines, next };
 }
 
-function fetchEvidenceText(model) {
+export function fetchEvidenceText(model) {
   return [
     `Fetch Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -539,7 +567,7 @@ function fetchEvidenceText(model) {
   ].join("\n");
 }
 
-function renderFetchEvidence(context = {}) {
+export function renderFetchEvidence(context = {}) {
   if (!$("fetch-evidence-note") || !$("fetch-evidence-cards") || !$("fetch-evidence-body") || !$("fetch-evidence-actions")) return;
   const model = fetchEvidenceModel(context);
   state.fetchEvidenceText = fetchEvidenceText(model);
@@ -566,7 +594,7 @@ function renderFetchEvidence(context = {}) {
   ].join("");
 }
 
-function handleFetchEvidenceAction(action, target = null) {
+export function handleFetchEvidenceAction(action, target = null) {
   if (action === "copy") {
     copyText(state.fetchEvidenceText || "No fetch evidence loaded").then(() => {
       $("last-refresh").textContent = "Fetch evidence copied";
@@ -592,7 +620,7 @@ function handleFetchEvidenceAction(action, target = null) {
   if (action === "data") return navigateToDataLens("browse");
 }
 
-function fetchProgressJob(manifests = []) {
+export function fetchProgressJob(manifests = []) {
   const sorted = (manifests || []).slice().sort((left, right) => {
     const leftActive = !fetchJobTerminal(left.status);
     const rightActive = !fetchJobTerminal(right.status);
@@ -607,14 +635,14 @@ function fetchProgressJob(manifests = []) {
   return sorted[0] || null;
 }
 
-function fetchProgressPair(done, total) {
+export function fetchProgressPair(done, total) {
   const doneValue = Number(done || 0);
   const totalValue = Number(total || 0);
   if (!totalValue) return doneValue ? numberText(doneValue, 0) : "n/a";
   return `${numberText(doneValue, 0)} / ${numberText(totalValue, 0)}`;
 }
 
-function fetchProgressReviewModel(context = {}) {
+export function fetchProgressReviewModel(context = {}) {
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
   const roots = context.roots || [];
@@ -749,7 +777,7 @@ function fetchProgressReviewModel(context = {}) {
   return { headline, note, cards, lines, selectedJob };
 }
 
-function fetchProgressReviewText(model) {
+export function fetchProgressReviewText(model) {
   return [
     `Fetch Progress Review: ${model.headline}`,
     `Next action: ${model.note}`,
@@ -758,7 +786,7 @@ function fetchProgressReviewText(model) {
   ].join("\n");
 }
 
-function renderFetchProgressReview(context = {}) {
+export function renderFetchProgressReview(context = {}) {
   if (
     !$("fetch-progress-review-title")
     || !$("fetch-progress-review-note")
@@ -793,7 +821,7 @@ function renderFetchProgressReview(context = {}) {
   $("fetch-progress-review-actions").dataset.focusJobId = model.selectedJob ? text(model.selectedJob.job_id) : "";
 }
 
-function handleFetchProgressAction(action) {
+export function handleFetchProgressAction(action) {
   if (action === "copy") {
     copyText(state.fetchProgressReviewText || "No fetch progress review loaded").then(() => {
       $("last-refresh").textContent = "Fetch progress review copied";
@@ -823,7 +851,7 @@ function handleFetchProgressAction(action) {
   if (action === "roots") return copyFetchManifestRootsYaml();
 }
 
-function recommendedFetchManifests(filteredManifests = []) {
+export function recommendedFetchManifests(filteredManifests = []) {
   return (filteredManifests || [])
     .slice()
     .sort((left, right) => {
@@ -840,7 +868,7 @@ function recommendedFetchManifests(filteredManifests = []) {
     .slice(0, 5);
 }
 
-function renderFetchSearchAssistant(manifests = [], filteredManifests = []) {
+export function renderFetchSearchAssistant(manifests = [], filteredManifests = []) {
   if (!$("fetch-search-title") || !$("fetch-search-cards") || !$("fetch-search-actions")) return;
   const filters = fetchJobFilters();
   const activeLabels = [
@@ -933,7 +961,7 @@ function renderFetchSearchAssistant(manifests = [], filteredManifests = []) {
     : `<div class="empty-card"><strong>No recommended fetch jobs</strong><span>Clear filters or configure manifest roots to load fetch jobs.</span></div>`;
 }
 
-function handleFetchSearchAction(target) {
+export function handleFetchSearchAction(target) {
   const action = String(target.dataset.fetchSearchAction || "");
   if (action === "inspect") {
     loadFetchManifestDetail(target.dataset.jobId || "").catch((err) => {
@@ -952,7 +980,7 @@ function handleFetchSearchAction(target) {
   }
 }
 
-function fetchOutputVisibilityHtml(item) {
+export function fetchOutputVisibilityHtml(item) {
   const visible = Number(item.output_visible_count || 0);
   const missing = Number(item.output_missing_file_count || 0);
   const outside = Number(item.output_outside_data_roots_count || 0);
@@ -970,11 +998,11 @@ function fetchOutputVisibilityHtml(item) {
   return `<span class="${statusClass(status)}">${escapeHtml(detail)}</span>`;
 }
 
-function fetchJobTerminal(status) {
+export function fetchJobTerminal(status) {
   return ["completed", "failed", "partial", "cancelled", "canceled"].includes(text(status).toLowerCase());
 }
 
-function fetchManifestIssueCount(manifest) {
+export function fetchManifestIssueCount(manifest) {
   return [
     manifest.errors,
     manifest.failed_symbols,
@@ -985,7 +1013,7 @@ function fetchManifestIssueCount(manifest) {
   ].reduce((sum, value) => sum + Number(value || 0), 0);
 }
 
-function renderFetchTriageCards(context = {}) {
+export function renderFetchTriageCards(context = {}) {
   if (!$("fetch-triage-cards") || !$("fetch-triage-note")) return;
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
@@ -1066,7 +1094,7 @@ function renderFetchTriageCards(context = {}) {
   `).join("");
 }
 
-function fetchWorkflowCards(context = {}) {
+export function fetchWorkflowCards(context = {}) {
   const manifests = context.manifests || [];
   const filteredManifests = context.filteredManifests || manifests;
   const roots = context.roots || [];
@@ -1160,7 +1188,7 @@ function fetchWorkflowCards(context = {}) {
   ];
 }
 
-function renderFetchWorkflowLauncher(context = {}) {
+export function renderFetchWorkflowLauncher(context = {}) {
   const container = $("fetch-workflows");
   if (!container) return;
   const cards = fetchWorkflowCards(context);
@@ -1177,7 +1205,7 @@ function renderFetchWorkflowLauncher(context = {}) {
   `).join("");
 }
 
-function renderFetchJobsGuide(context = {}) {
+export function renderFetchJobsGuide(context = {}) {
   if (!$("fetch-jobs-guide") || !$("fetch-jobs-guide-note")) return;
   const payload = state.fetchManifests || {};
   const manifests = context.manifests || payload.manifests || [];
@@ -1274,7 +1302,7 @@ function renderFetchJobsGuide(context = {}) {
   )).join("");
 }
 
-function renderFetchManifestDetail() {
+export function renderFetchManifestDetail() {
   const detail = state.fetchManifestDetail || {};
   const resumeCommand = fetchResumeCommand(detail);
   const visibleOutputPaths = fetchVisibleOutputPaths(detail);
@@ -1384,7 +1412,7 @@ function renderFetchManifestDetail() {
   renderFetchJobsGuide();
 }
 
-function applyFetchOutputDataFilter() {
+export function applyFetchOutputDataFilter() {
   const detail = state.fetchManifestDetail || {};
   const paths = fetchVisibleOutputPaths(detail);
   if (!paths.length) {
@@ -1409,7 +1437,7 @@ function applyFetchOutputDataFilter() {
   $("last-refresh").textContent = `Data Library locally filtered to ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
 
-function useFetchOutputsInWorkbench() {
+export function useFetchOutputsInWorkbench() {
   const detail = state.fetchManifestDetail || {};
   const paths = fetchVisibleOutputPaths(detail);
   if (!paths.length) {
@@ -1449,7 +1477,7 @@ function useFetchOutputsInWorkbench() {
   $("last-refresh").textContent = `Selected ${numberText(paths.length, 0)} fetch output${paths.length === 1 ? "" : "s"} for Workbench simulation`;
 }
 
-async function compareFetchOutputs() {
+export async function compareFetchOutputs() {
   const detail = state.fetchManifestDetail || {};
   const paths = fetchVisibleOutputPaths(detail).slice(0, MAX_DATA_COMPARE_DATASETS);
   if (paths.length < 2) {
@@ -1477,7 +1505,7 @@ async function compareFetchOutputs() {
   $("last-refresh").textContent = `Compared ${numberText(paths.length, 0)} visible output${paths.length === 1 ? "" : "s"} from ${text(detail.job_id || "selected fetch")}`;
 }
 
-function copyFetchVisibleOutputPaths() {
+export function copyFetchVisibleOutputPaths() {
   const detail = state.fetchManifestDetail || {};
   const paths = fetchVisibleOutputPaths(detail);
   if (!paths.length) {
@@ -1491,7 +1519,7 @@ function copyFetchVisibleOutputPaths() {
   });
 }
 
-function copyDataRootsYaml() {
+export function copyDataRootsYaml() {
   const snippet = dataRootsYamlSnippet();
   const count = dataRootConfigPaths().length;
   if (!snippet) {
@@ -1505,7 +1533,7 @@ function copyDataRootsYaml() {
   });
 }
 
-function copyFetchManifestRootsYaml() {
+export function copyFetchManifestRootsYaml() {
   const snippet = fetchManifestRootsYamlSnippet();
   const count = fetchManifestRootConfigPaths().length;
   if (!snippet) {
@@ -1519,7 +1547,7 @@ function copyFetchManifestRootsYaml() {
   });
 }
 
-function fetchOutputVisibilityLabel(item) {
+export function fetchOutputVisibilityLabel(item) {
   if (!item || item.data_detail_available) return "visible";
   if (item.data_detail_status === "missing_file") return "missing file";
   if (item.data_detail_status === "outside_data_roots") return "outside data roots";
@@ -1528,13 +1556,13 @@ function fetchOutputVisibilityLabel(item) {
   return text(item.data_detail_reason || item.data_detail_status || "not inspectable");
 }
 
-function dataCatalogDatasetByPath(path) {
+export function dataCatalogDatasetByPath(path) {
   const target = text(path);
   if (!target || target === "n/a") return null;
   return (state.dataCatalog.datasets || []).find((dataset) => text(dataset.path) === target) || null;
 }
 
-function fetchOutputReplayReadiness(item) {
+export function fetchOutputReplayReadiness(item) {
   if (!item || !item.data_detail_available) {
     const label = fetchOutputVisibilityLabel(item);
     const status = item && item.data_detail_status === "missing_file" ? "bad" : "warn";
@@ -1557,7 +1585,7 @@ function fetchOutputReplayReadiness(item) {
   `;
 }
 
-function renderFetchResumePanel(detail, resumeCommand = "") {
+export function renderFetchResumePanel(detail, resumeCommand = "") {
   if (!$("fetch-resume-note") || !$("fetch-resume-cards") || !$("fetch-resume-command")) return;
   const resumePlan = (detail && detail.resume_plan) || {};
   const resumeState = (detail && detail.resume_state) || {};
@@ -1666,7 +1694,7 @@ function renderFetchResumePanel(detail, resumeCommand = "") {
     : `<span class="muted">${hasJob ? "No built-in resume command for this manifest kind." : "Inspect a stock or crypto history manifest first."}</span>`;
 }
 
-function fetchRecoveryCards(detail, resumeCommand = "") {
+export function fetchRecoveryCards(detail, resumeCommand = "") {
   if (!detail || !detail.job_id) {
     return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Fetch</strong><small>Inspect a fetch job to see retry and recovery guidance.</small></div>`;
   }
@@ -1770,7 +1798,7 @@ function fetchRecoveryCards(detail, resumeCommand = "") {
   `).join("");
 }
 
-function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) {
+export function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) {
   if (!detail || !detail.job_id) {
     return `
       <div class="check-item status-warn">
@@ -1849,7 +1877,7 @@ function fetchRecoveryPlan(detail, resumeCommand = "", visibleOutputPaths = []) 
   `).join("");
 }
 
-function fetchResumeCommand(detail) {
+export function fetchResumeCommand(detail) {
   if (!detail || !detail.path) return "";
   if (detail.resume_command) return text(detail.resume_command);
   if (detail.kind === "crypto_history") {
@@ -1861,7 +1889,7 @@ function fetchResumeCommand(detail) {
   return "";
 }
 
-function fetchJobFilters() {
+export function fetchJobFilters() {
   return {
     text: ($("fetch-filter-text").value || "").trim().toLowerCase(),
     status: $("fetch-filter-status").value || "",
@@ -1870,7 +1898,7 @@ function fetchJobFilters() {
   };
 }
 
-function renderFetchFilterOptions(manifests) {
+export function renderFetchFilterOptions(manifests) {
   const makeOptions = (id, values) => {
     const current = $(id).value || "";
     const unique = Array.from(new Set((values || []).map(text).filter((value) => value && value !== "n/a"))).sort();
@@ -1881,7 +1909,7 @@ function renderFetchFilterOptions(manifests) {
   makeOptions("fetch-filter-kind", (manifests || []).map((item) => item.kind));
 }
 
-function fetchManifestSortValue(item, key) {
+export function fetchManifestSortValue(item, key) {
   if (key === "started") return timestampMillis(item.started_at) || 0;
   if (key === "finished") return timestampMillis(item.finished_at) || 0;
   if (key === "errors") return Number(item.errors || 0);
@@ -1890,7 +1918,7 @@ function fetchManifestSortValue(item, key) {
   return String(item.kind || item.job_id || "").toLowerCase();
 }
 
-function filteredFetchManifests(manifests) {
+export function filteredFetchManifests(manifests) {
   const filters = fetchJobFilters();
   const filtered = (manifests || []).filter((item) => {
     if (filters.status && text(item.status) !== filters.status) return false;
@@ -1926,4 +1954,3 @@ function filteredFetchManifests(manifests) {
     return String(left.job_id || "").localeCompare(String(right.job_id || ""));
   });
 }
-

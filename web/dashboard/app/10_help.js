@@ -1,4 +1,28 @@
-function helpSetupGapItems() {
+import {
+  $,
+  escapeHtml,
+  navigateToDataLens,
+  navigateToHelpLens,
+  navigateToOperationsLens,
+  navigateToRunsLens,
+  navigateToView,
+  navigateToWorkbenchLens,
+  numberText,
+  state,
+  statusText,
+  text,
+} from "./00_core.js";
+import { latestArtifactPerformance, latestTelemetryRun, latestWorkbenchRunForDraft, selectedConfigDatasets, selectedDataReadiness } from "./20_workbench_foundation.js";
+import { eventStatusIsBad, firstPresent, latestAccountRow, normalizedRunMetrics, shortTimestampAgeLabel } from "./30_runtime_core.js";
+import { buildTradeLedger, performanceFromAccountRows, performancePeriodWindow, rowsInWindow } from "./31_performance_math.js";
+import { sortedStatusRollups, workflowHref, worstStatusFrom } from "./32_overview.js";
+import { performanceEvidenceModel, performanceSnapshotModel, performanceWorkflowCards } from "./33_performance_views.js";
+import { selectedRunDraft } from "./60_workbench_builder.js";
+import { accountBoundaryAuthority, currentOpenOrderRows, runEventRows } from "./70_runs.js";
+import { staleRemoteNodes } from "./80_operations.js";
+import { copyText } from "./90_bootstrap.js";
+
+export function helpSetupGapItems() {
   const status = state.status || {};
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
@@ -80,7 +104,7 @@ function helpSetupGapItems() {
   ];
 }
 
-function renderHelpSetupGaps() {
+export function renderHelpSetupGaps() {
   if (!$("help-setup-gaps") || !$("help-setup-note")) return;
   const items = helpSetupGapItems();
   const badCount = items.filter((item) => item.status === "bad").length;
@@ -108,7 +132,7 @@ function renderHelpSetupGaps() {
   renderHelpWorkbenchQuickstart();
 }
 
-function helpWorkflowCards(setupItems = helpSetupGapItems()) {
+export function helpWorkflowCards(setupItems = helpSetupGapItems()) {
   const runs = (state.status && state.status.runs) || [];
   const events = runEventRows();
   const openOrders = currentOpenOrderRows();
@@ -195,7 +219,7 @@ function helpWorkflowCards(setupItems = helpSetupGapItems()) {
   ];
 }
 
-function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
+export function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
   const workflows = helpWorkflowCards(setupItems);
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
@@ -267,7 +291,7 @@ function helpNextAssistantModel(setupItems = helpSetupGapItems()) {
   return { title, note, primary, supportCards, actions };
 }
 
-function helpGuidedTourModel(setupItems = helpSetupGapItems()) {
+export function helpGuidedTourModel(setupItems = helpSetupGapItems()) {
   const runs = (state.status && state.status.runs) || [];
   const events = runEventRows();
   const openOrders = currentOpenOrderRows();
@@ -364,7 +388,7 @@ function helpGuidedTourModel(setupItems = helpSetupGapItems()) {
   return { headline, note, readyCount, next, tour };
 }
 
-function renderHelpGuidedTour(setupItems = helpSetupGapItems()) {
+export function renderHelpGuidedTour(setupItems = helpSetupGapItems()) {
   if (!$("help-tour-title") || !$("help-tour-note") || !$("help-tour-cards") || !$("help-tour-actions")) return;
   const model = helpGuidedTourModel(setupItems);
   $("help-tour-title").textContent = model.headline;
@@ -405,7 +429,7 @@ function renderHelpGuidedTour(setupItems = helpSetupGapItems()) {
   ].join("");
 }
 
-function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {
+export function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {
   if (!$("help-next-title") || !$("help-next-cards") || !$("help-next-actions")) return;
   const model = helpNextAssistantModel(setupItems);
   $("help-next-title").textContent = model.title;
@@ -428,7 +452,7 @@ function renderHelpNextAssistant(setupItems = helpSetupGapItems()) {
   `).join("");
 }
 
-function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
+export function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
   const workflows = helpWorkflowCards(setupItems);
   const next = helpNextAssistantModel(setupItems);
   const runs = (state.status && state.status.runs) || [];
@@ -559,7 +583,7 @@ function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
   return { headline, next, cards, tasks };
 }
 
-function helpTaskNavigatorText(model) {
+export function helpTaskNavigatorText(model) {
   return [
     `Help Task Navigator: ${model.headline}`,
     `Recommended: ${model.next.title} - ${model.next.note}`,
@@ -567,7 +591,7 @@ function helpTaskNavigatorText(model) {
   ].join("\n");
 }
 
-function renderHelpTaskNavigator(setupItems = helpSetupGapItems()) {
+export function renderHelpTaskNavigator(setupItems = helpSetupGapItems()) {
   if (
     !$("help-task-navigator-title")
     || !$("help-task-navigator-note")
@@ -600,7 +624,7 @@ function renderHelpTaskNavigator(setupItems = helpSetupGapItems()) {
   ].join("");
 }
 
-function handleHelpTaskNavigatorAction(action) {
+export function handleHelpTaskNavigatorAction(action) {
   if (action === "copy") {
     copyText(state.helpTaskNavigatorText || "No Help task navigator guide loaded").then(() => {
       $("last-refresh").textContent = "Help task navigator guide copied";
@@ -619,7 +643,7 @@ function handleHelpTaskNavigatorAction(action) {
   if (action === "boundary") return navigateToHelpLens("boundary");
 }
 
-function performanceGuideContext() {
+export function performanceGuideContext() {
   const source = latestArtifactPerformance();
   const perf = source.performance || {};
   const summary = source.summary || {};
@@ -652,7 +676,7 @@ function performanceGuideContext() {
   };
 }
 
-function helpPerformanceGuideModel() {
+export function helpPerformanceGuideModel() {
   const context = performanceGuideContext();
   const snapshot = performanceSnapshotModel(context);
   const evidence = performanceEvidenceModel(context);
@@ -770,7 +794,7 @@ function helpPerformanceGuideModel() {
   return { status, headline, note, cards, lines, evidence };
 }
 
-function helpPerformanceGuideText(model) {
+export function helpPerformanceGuideText(model) {
   return [
     `Today's Performance Guide: ${model.headline}`,
     `Context: ${model.note}`,
@@ -778,7 +802,7 @@ function helpPerformanceGuideText(model) {
   ].join("\n");
 }
 
-function renderHelpPerformanceGuide() {
+export function renderHelpPerformanceGuide() {
   if (
     !$("help-performance-guide-title")
     || !$("help-performance-guide-note")
@@ -814,7 +838,7 @@ function renderHelpPerformanceGuide() {
   ].join("");
 }
 
-function handleHelpPerformanceGuideAction(action) {
+export function handleHelpPerformanceGuideAction(action) {
   if (action === "copy") {
     copyText(state.helpPerformanceGuideText || "No performance guide loaded").then(() => {
       $("last-refresh").textContent = "Performance guide copied";
@@ -831,7 +855,7 @@ function handleHelpPerformanceGuideAction(action) {
   if (action === "operations") return navigateToOperationsLens("paper");
 }
 
-function normalizedModeName(value) {
+export function normalizedModeName(value) {
   const mode = String(value || "").replace("-", "_").toLowerCase();
   // Bespoke-runner vocabulary -> plugin-runner mode names.
   if (mode === "simulate_fills") return "simulated_paper";
@@ -839,7 +863,7 @@ function normalizedModeName(value) {
   return mode;
 }
 
-function helpModeDefinitionRows() {
+export function helpModeDefinitionRows() {
   return [
     {
       mode: "replay",
@@ -879,7 +903,7 @@ function helpModeDefinitionRows() {
   ];
 }
 
-function helpModeBoundaryModel() {
+export function helpModeBoundaryModel() {
   const source = latestArtifactPerformance();
   const summary = source.summary || {};
   const perf = source.performance || {};
@@ -1008,7 +1032,7 @@ function helpModeBoundaryModel() {
   return { headline, note, cards, definitions, verification };
 }
 
-function helpModeBoundaryText(model) {
+export function helpModeBoundaryText(model) {
   return [
     `Mode And Order Authority Guide: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1017,7 +1041,7 @@ function helpModeBoundaryText(model) {
   ].join("\n");
 }
 
-function renderHelpModeBoundary() {
+export function renderHelpModeBoundary() {
   if (
     !$("help-mode-boundary-title")
     || !$("help-mode-boundary-note")
@@ -1061,7 +1085,7 @@ function renderHelpModeBoundary() {
   ].join("");
 }
 
-function handleHelpModeBoundaryAction(action) {
+export function handleHelpModeBoundaryAction(action) {
   if (action === "copy") {
     copyText(state.helpModeBoundaryText || "No mode boundary guide loaded").then(() => {
       $("last-refresh").textContent = "Mode boundary guide copied";
@@ -1078,7 +1102,7 @@ function handleHelpModeBoundaryAction(action) {
   if (action === "boundary") return navigateToHelpLens("boundary");
 }
 
-function helpCloudAccessGuideModel() {
+export function helpCloudAccessGuideModel() {
   const status = state.status || {};
   const gateway = status.gateway || {};
   const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
@@ -1199,7 +1223,7 @@ function helpCloudAccessGuideModel() {
   return { headline, note, cards, lines };
 }
 
-function helpCloudAccessGuideText(model) {
+export function helpCloudAccessGuideText(model) {
   return [
     `Cloud Access Guide: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1208,7 +1232,7 @@ function helpCloudAccessGuideText(model) {
   ].join("\n");
 }
 
-function renderHelpCloudAccessGuide() {
+export function renderHelpCloudAccessGuide() {
   if (
     !$("help-cloud-access-title")
     || !$("help-cloud-access-note")
@@ -1243,7 +1267,7 @@ function renderHelpCloudAccessGuide() {
   ].join("");
 }
 
-function handleHelpCloudAccessAction(action) {
+export function handleHelpCloudAccessAction(action) {
   if (action === "copy") {
     copyText(state.helpCloudAccessGuideText || "No cloud access guide loaded").then(() => {
       $("last-refresh").textContent = "Cloud access guide copied";
@@ -1257,7 +1281,7 @@ function handleHelpCloudAccessAction(action) {
   if (action === "diagnostics") return navigateToOperationsLens("diagnostics");
 }
 
-function publicationReviewModel(setupItems = helpSetupGapItems()) {
+export function publicationReviewModel(setupItems = helpSetupGapItems()) {
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
@@ -1345,7 +1369,7 @@ function publicationReviewModel(setupItems = helpSetupGapItems()) {
   return { headline, nextAction, cards, lines };
 }
 
-function publicationReviewText(model) {
+export function publicationReviewText(model) {
   return [
     `Publication Review Assistant: ${model.headline}`,
     `Next action: ${model.nextAction}`,
@@ -1354,7 +1378,7 @@ function publicationReviewText(model) {
   ].join("\n");
 }
 
-function renderPublicationReviewAssistant(setupItems = helpSetupGapItems()) {
+export function renderPublicationReviewAssistant(setupItems = helpSetupGapItems()) {
   if (
     !$("help-publication-review-title")
     || !$("help-publication-review-note")
@@ -1388,7 +1412,7 @@ function renderPublicationReviewAssistant(setupItems = helpSetupGapItems()) {
   ].join("");
 }
 
-function handlePublicationReviewAction(action) {
+export function handlePublicationReviewAction(action) {
   if (action === "copy") {
     copyText(state.publicationReviewText || "No publication review loaded").then(() => {
       $("last-refresh").textContent = "Publication review copied";
@@ -1417,7 +1441,7 @@ function handlePublicationReviewAction(action) {
   if (action === "operations") return navigateToOperationsLens("diagnostics");
 }
 
-function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
+export function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
   const container = $("help-workflows");
   if (!container) return;
   const cards = helpWorkflowCards(setupItems);
@@ -1434,7 +1458,7 @@ function renderHelpWorkflowLauncher(setupItems = helpSetupGapItems()) {
   `).join("");
 }
 
-function helpWorkbenchQuickstartModel() {
+export function helpWorkbenchQuickstartModel() {
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
@@ -1529,7 +1553,7 @@ function helpWorkbenchQuickstartModel() {
   return { note, cards, actions };
 }
 
-function renderHelpWorkbenchQuickstart() {
+export function renderHelpWorkbenchQuickstart() {
   if (!$("help-workbench-quickstart-note") || !$("help-workbench-quickstart-cards") || !$("help-workbench-quickstart-actions")) return;
   const model = helpWorkbenchQuickstartModel();
   $("help-workbench-quickstart-note").textContent = model.note;
@@ -1544,4 +1568,3 @@ function renderHelpWorkbenchQuickstart() {
     <a class="${index === 0 ? "" : "secondary"}" href="${escapeHtml(action.href)}">${escapeHtml(index === 0 ? `Next: ${action.cta}` : action.cta)}</a>
   `).join("");
 }
-

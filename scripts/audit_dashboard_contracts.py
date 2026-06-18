@@ -34,25 +34,7 @@ EXPECTED_TASK_LABELS = (
     "Check runtime health",
     "Publish safely",
 )
-EXPECTED_SCRIPT_PATHS = (
-    "/dashboard/app/00_core.js",
-    "/dashboard/app/10_help.js",
-    "/dashboard/app/20_workbench_foundation.js",
-    "/dashboard/app/30_runtime_core.js",
-    "/dashboard/app/31_performance_math.js",
-    "/dashboard/app/32_overview.js",
-    "/dashboard/app/33_performance_views.js",
-    "/dashboard/app/34_charts.js",
-    "/dashboard/app/40_data_catalog.js",
-    "/dashboard/app/41_data_explorer.js",
-    "/dashboard/app/42_data_symbols.js",
-    "/dashboard/app/43_data_detail_compare.js",
-    "/dashboard/app/50_fetch.js",
-    "/dashboard/app/60_workbench_builder.js",
-    "/dashboard/app/70_runs.js",
-    "/dashboard/app/80_operations.js",
-    "/dashboard/app/90_bootstrap.js",
-)
+EXPECTED_SCRIPT_PATHS = ("/dashboard/app.js",)
 EXPECTED_LENSES = {
     "overview": ("home", "activity", "diagnostics"),
     "performance": ("home", "trades", "rollups", "diagnostics"),
@@ -96,7 +78,7 @@ class DashboardHTMLParser(HTMLParser):
         self.nav_targets: list[str] = []
         self.data_views: set[str] = set()
         self.lens_targets: dict[str, list[str]] = {view: [] for view in EXPECTED_LENSES}
-        self.script_paths: list[str] = []
+        self.scripts: list[dict[str, str]] = []
         self.select_stack: list[str] = []
         self.option_stack: list[dict[str, str]] = []
         self.options_by_select: dict[str, list[dict[str, str]]] = {}
@@ -111,7 +93,7 @@ class DashboardHTMLParser(HTMLParser):
         if attrs.get("data-view"):
             self.data_views.add(attrs["data-view"])
         if tag == "script" and attrs.get("src"):
-            self.script_paths.append(attrs["src"])
+            self.scripts.append({"src": attrs["src"], "type": attrs.get("type", "")})
         for view in EXPECTED_LENSES:
             key = f"data-{view}-lens-target"
             if key in attrs:
@@ -159,8 +141,11 @@ def audit_html(root: Path) -> list[Finding]:
             findings.append(Finding("BLOCKER", rel, f"missing required page-intro element #{element_id}"))
     if tuple(parser.nav_targets) != EXPECTED_VIEWS:
         findings.append(Finding("BLOCKER", rel, f"nav targets must be {list(EXPECTED_VIEWS)}"))
-    if tuple(path for path in parser.script_paths if path.startswith("/dashboard/app/")) != EXPECTED_SCRIPT_PATHS:
-        findings.append(Finding("BLOCKER", rel, "dashboard script chunks do not match the expected ordered app modules"))
+    dashboard_scripts = [script for script in parser.scripts if script["src"].startswith("/dashboard/app")]
+    if tuple(script["src"] for script in dashboard_scripts) != EXPECTED_SCRIPT_PATHS:
+        findings.append(Finding("BLOCKER", rel, "dashboard must load the single ES module entrypoint /dashboard/app.js"))
+    if any(script["type"] != "module" for script in dashboard_scripts):
+        findings.append(Finding("BLOCKER", rel, "dashboard app entrypoint must use type=\"module\""))
     missing_views = [view for view in EXPECTED_VIEWS if view not in parser.data_views]
     if missing_views:
         findings.append(Finding("BLOCKER", rel, f"missing dashboard sections for views: {', '.join(missing_views)}"))

@@ -1,8 +1,41 @@
-function selectedSymbolBrowserPath() {
+import {
+  $,
+  MAX_DATA_COMPARE_DATASETS,
+  bytes,
+  dataLibraryLoadState,
+  escapeHtml,
+  interval,
+  jsonDrilldown,
+  kvRows,
+  navigateToDataLens,
+  navigateToView,
+  navigateToWorkbenchLens,
+  numberText,
+  pctText,
+  qualityBadge,
+  row,
+  selectedDataCatalogLimit,
+  state,
+  statusClass,
+  statusText,
+  syncDataCatalogLimitControl,
+  text,
+} from "./00_core.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets } from "./20_workbench_foundation.js";
+import { finiteNumber, renderDataBackendStatus, timestampAgeLabel } from "./30_runtime_core.js";
+import { rangeLabel } from "./34_charts.js";
+import { bestCatalogDatasetForSymbol, countSummary, dataRootConfigPaths, renderSymbolBrowser, renderSymbolDirectory, selectedSymbolBrowserDatasets, selectedSymbolBrowserSymbol, symbolProfileModel, timestampRangeFromDatasets } from "./40_data_catalog.js";
+import { previewDataCatalogServerFilters, renderDataSourceMap, setDataCatalogLimitToMax } from "./41_data_explorer.js";
+import { dateInputValueFromTimestamp, renderDataCompareControls } from "./43_data_detail_compare.js";
+import { copyDataRootsYaml } from "./50_fetch.js";
+import { renderConfigLivePanels } from "./60_workbench_builder.js";
+import { copyText, diagnoseDataSymbol, downloadDataCatalogScanCsv, loadDataCompare, loadDataDetail, refresh, refreshDataDiagnostics, refreshDataLibrary } from "./90_bootstrap.js";
+
+export function selectedSymbolBrowserPath() {
   return $("data-symbol-browser-dataset").value || (selectedSymbolBrowserDatasets()[0] || {}).path || "";
 }
 
-function selectedSymbolBrowserDataset() {
+export function selectedSymbolBrowserDataset() {
   const selectedPath = selectedSymbolBrowserPath();
   if (!selectedPath) return selectedSymbolBrowserDatasets()[0] || null;
   return selectedSymbolBrowserDatasets().find((dataset) => dataset.path === selectedPath)
@@ -10,7 +43,7 @@ function selectedSymbolBrowserDataset() {
     || null;
 }
 
-function renderSymbolSelectionPanel(symbol) {
+export function renderSymbolSelectionPanel(symbol) {
   if (!$("data-symbol-selection-title")) return;
   const model = symbolProfileModel(symbol);
   const selectedDataset = selectedSymbolBrowserDataset() || model.best;
@@ -90,7 +123,7 @@ function renderSymbolSelectionPanel(symbol) {
   `).join("");
 }
 
-function selectCatalogDatasetInWorkbench(dataset) {
+export function selectCatalogDatasetInWorkbench(dataset) {
   if (!dataset || !dataset.path) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
     return;
@@ -125,7 +158,7 @@ function selectCatalogDatasetInWorkbench(dataset) {
   $("last-refresh").textContent = `Selected ${text(dataset.symbol)} for Workbench simulation`;
 }
 
-async function inspectSelectedSymbol() {
+export async function inspectSelectedSymbol() {
   const path = selectedSymbolBrowserPath();
   if (!path) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Select a catalog dataset first</span>`;
@@ -134,7 +167,7 @@ async function inspectSelectedSymbol() {
   await loadDataDetail(path, { resetControls: true });
 }
 
-async function diagnoseSelectedSymbol() {
+export async function diagnoseSelectedSymbol() {
   const symbol = selectedSymbolBrowserSymbol();
   if (!symbol) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Enter a symbol first</span>`;
@@ -144,7 +177,7 @@ async function diagnoseSelectedSymbol() {
   await diagnoseDataSymbol(new Event("submit"));
 }
 
-async function compareSelectedSymbolDatasets() {
+export async function compareSelectedSymbolDatasets() {
   const symbol = selectedSymbolBrowserSymbol();
   if (!symbol) {
     $("data-symbol-browser-note").innerHTML = `<span class="status-bad">Enter a symbol first</span>`;
@@ -167,7 +200,7 @@ async function compareSelectedSymbolDatasets() {
   if ($("data-compare-form")) $("data-compare-form").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-async function handleSymbolDirectoryAction(target) {
+export async function handleSymbolDirectoryAction(target) {
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (!symbol) return;
   $("data-symbol-browser-input").value = symbol;
@@ -208,7 +241,7 @@ async function handleSymbolDirectoryAction(target) {
   }
 }
 
-async function handleSymbolDirectoryAssistantAction(target) {
+export async function handleSymbolDirectoryAssistantAction(target) {
   const action = String(target.dataset.directoryAction || "");
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   const path = target.dataset.path || (bestCatalogDatasetForSymbol(symbol) || {}).path || "";
@@ -240,7 +273,7 @@ async function handleSymbolDirectoryAssistantAction(target) {
   $("last-refresh").textContent = `Loaded ${symbol} data detail`;
 }
 
-async function handleDataHomeShortlistAction(target) {
+export async function handleDataHomeShortlistAction(target) {
   const action = String(target.dataset.homeAction || "");
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (symbol) {
@@ -284,7 +317,7 @@ async function handleDataHomeShortlistAction(target) {
   }
 }
 
-async function handleSymbolProfileAction(target) {
+export async function handleSymbolProfileAction(target) {
   const action = String(target.dataset.symbolProfileAction || "");
   const symbol = selectedSymbolBrowserSymbol();
   const dataset = bestCatalogDatasetForSymbol(symbol);
@@ -316,7 +349,7 @@ async function handleSymbolProfileAction(target) {
   }
 }
 
-async function handleSymbolSelectionAction(action) {
+export async function handleSymbolSelectionAction(action) {
   const symbol = selectedSymbolBrowserSymbol();
   const dataset = selectedSymbolBrowserDataset();
   if (action === "filter") {
@@ -347,7 +380,7 @@ async function handleSymbolSelectionAction(action) {
   }
 }
 
-function renderDataLibrarySummary() {
+export function renderDataLibrarySummary() {
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
@@ -463,7 +496,7 @@ function renderDataLibrarySummary() {
   renderDataCatalogHealth();
 }
 
-function handleDataSourceMapAction(target) {
+export function handleDataSourceMapAction(target) {
   const action = String(target.dataset.sourceMapAction || "");
   const rootQuery = String(target.dataset.rootQuery || "").trim();
   if (action === "filter") {
@@ -490,7 +523,7 @@ function handleDataSourceMapAction(target) {
   if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function renderDataLibraryGuide(context = {}) {
+export function renderDataLibraryGuide(context = {}) {
   if (!$("data-library-guide") || !$("data-library-guide-note")) return;
   const catalog = context.catalog || state.dataCatalog || {};
   const datasets = context.datasets || catalog.datasets || [];
@@ -575,7 +608,7 @@ function renderDataLibraryGuide(context = {}) {
   )).join("");
 }
 
-function renderDataCatalogScanDiagnostics() {
+export function renderDataCatalogScanDiagnostics() {
   const catalog = state.dataCatalog || {};
   const rows = catalog.root_summaries || [];
   const totalCandidates = rows.reduce((sum, item) => sum + Number(item.candidate_count || 0), 0);
@@ -616,7 +649,7 @@ function renderDataCatalogScanDiagnostics() {
   renderDataCatalogScanReport();
 }
 
-function catalogScanReportModel() {
+export function catalogScanReportModel() {
   const catalog = state.dataCatalog || {};
   const audit = state.dataStorageAudit || {};
   const auditSummary = audit.visibility_summary || {};
@@ -762,14 +795,14 @@ function catalogScanReportModel() {
   return { status, headline, nextAction, cards, lines };
 }
 
-function catalogScanReportText(model) {
+export function catalogScanReportText(model) {
   return [
     `Catalog Scan Report: ${model.headline}`,
     ...model.lines.map((line) => `${line.title}: ${line.detail}`),
   ].join("\n");
 }
 
-function renderDataCatalogScanReport() {
+export function renderDataCatalogScanReport() {
   if (
     !$("data-catalog-scan-report-note")
     || !$("data-catalog-scan-report-cards")
@@ -801,7 +834,7 @@ function renderDataCatalogScanReport() {
   ].join("");
 }
 
-function handleDataCatalogScanReportAction(action) {
+export function handleDataCatalogScanReportAction(action) {
   if (action === "copy") {
     copyText(state.catalogScanReportText || "No catalog scan report loaded").then(() => {
       $("last-refresh").textContent = "Catalog scan report copied";
@@ -834,7 +867,7 @@ function handleDataCatalogScanReportAction(action) {
   }
 }
 
-function renderDataCatalogHealth() {
+export function renderDataCatalogHealth() {
   if (!$("data-catalog-health-cards") || !$("data-catalog-health-note")) return;
   const catalog = state.dataCatalog || {};
   const audit = state.dataStorageAudit || {};
@@ -929,7 +962,7 @@ function renderDataCatalogHealth() {
   `).join("");
 }
 
-function renderDataStorageAudit() {
+export function renderDataStorageAudit() {
   const audit = state.dataStorageAudit || {};
   const configuredRows = audit.configured_roots || [];
   const suggestedRows = audit.suggested_roots || [];
@@ -991,7 +1024,7 @@ function renderDataStorageAudit() {
     : row([`<span class="muted">No data roots with saved files were found</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
-function dataStorageAuditModel(audit = {}) {
+export function dataStorageAuditModel(audit = {}) {
   const summary = audit.visibility_summary || {};
   const configuredRows = audit.configured_roots || [];
   const suggestedRows = audit.suggested_roots || [];
@@ -1024,7 +1057,7 @@ function dataStorageAuditModel(audit = {}) {
   };
 }
 
-function renderDataStorageAssistant(audit = state.dataStorageAudit || {}) {
+export function renderDataStorageAssistant(audit = state.dataStorageAudit || {}) {
   if (!$("data-storage-assistant-title") || !$("data-storage-assistant-cards") || !$("data-storage-assistant-actions")) return;
   const model = dataStorageAuditModel(audit);
   const status = !model.generated
@@ -1161,7 +1194,7 @@ function renderDataStorageAssistant(audit = state.dataStorageAudit || {}) {
   `).join("");
 }
 
-function handleDataStorageAssistantAction(action) {
+export function handleDataStorageAssistantAction(action) {
   if (action === "copy-roots") {
     copyDataRootsYaml();
     return;
@@ -1194,7 +1227,7 @@ function handleDataStorageAssistantAction(action) {
   }
 }
 
-function dataStorageVisibilitySummaryCards(audit = {}) {
+export function dataStorageVisibilitySummaryCards(audit = {}) {
   if (!audit.generated_at) {
     return `
       <div class="empty-card">
@@ -1253,7 +1286,7 @@ function dataStorageVisibilitySummaryCards(audit = {}) {
   `).join("");
 }
 
-function dataStorageAuditActions(audit = {}) {
+export function dataStorageAuditActions(audit = {}) {
   const configuredRows = audit.configured_roots || [];
   const suggestedRows = audit.suggested_roots || [];
   const rows = [...configuredRows, ...suggestedRows];
@@ -1341,7 +1374,7 @@ function dataStorageAuditActions(audit = {}) {
   `).join("");
 }
 
-function renderDataCoverage() {
+export function renderDataCoverage() {
   const coverage = state.dataCoverage || {};
   const symbols = coverage.symbols || [];
   const dateBins = coverage.date_bins || [];
@@ -1370,7 +1403,7 @@ function renderDataCoverage() {
   renderDataCoverageAssistant();
 }
 
-function renderDataGapSummary() {
+export function renderDataGapSummary() {
   const summary = state.dataGapSummary || {};
   const gapRows = summary.gap_rows || [];
   const calendarRows = summary.calendar_rows || [];
@@ -1412,7 +1445,7 @@ function renderDataGapSummary() {
   renderDataCoverageAssistant();
 }
 
-function heatmapCellClass(hour) {
+export function heatmapCellClass(hour) {
   const expected = Number(hour.expected_intervals || 0);
   if (!expected) return "empty";
   const completeness = Number(hour.completeness_pct);
@@ -1423,7 +1456,7 @@ function heatmapCellClass(hour) {
   return "bad";
 }
 
-function renderDataMinuteHeatmap() {
+export function renderDataMinuteHeatmap() {
   const summary = state.dataMinuteHeatmap || {};
   const rows = summary.rows || [];
   $("data-minute-heatmap-note").innerHTML = summary.generated_at
@@ -1507,7 +1540,7 @@ function renderDataMinuteHeatmap() {
   renderDataCoverageAssistant();
 }
 
-function dataCoverageStats() {
+export function dataCoverageStats() {
   const coverage = state.dataCoverage || {};
   const gapSummary = state.dataGapSummary || {};
   const minuteSummary = state.dataMinuteHeatmap || {};
@@ -1557,7 +1590,7 @@ function dataCoverageStats() {
   };
 }
 
-function dataCoverageCardStatus(value, warnAt, badAt) {
+export function dataCoverageCardStatus(value, warnAt, badAt) {
   if (value === null || value === undefined || value === "") return "neutral";
   const number = Number(value);
   if (!Number.isFinite(number)) return "neutral";
@@ -1566,7 +1599,7 @@ function dataCoverageCardStatus(value, warnAt, badAt) {
   return "ok";
 }
 
-function renderDataCoverageAssistant() {
+export function renderDataCoverageAssistant() {
   if (!$("data-coverage-assistant-title") || !$("data-coverage-assistant-cards") || !$("data-coverage-assistant-actions")) return;
   const stats = dataCoverageStats();
   if (!stats.hasCoverage) {
@@ -1628,7 +1661,7 @@ function renderDataCoverageAssistant() {
   ]);
 }
 
-function dataCoverageAssistantCardHtml(card) {
+export function dataCoverageAssistantCardHtml(card) {
   return `
     <div class="action-card status-${escapeHtml(card.status)}">
       <span>${escapeHtml(card.title)}</span>
@@ -1638,7 +1671,7 @@ function dataCoverageAssistantCardHtml(card) {
   `;
 }
 
-function dataCoverageAssistantActionsHtml(actions) {
+export function dataCoverageAssistantActionsHtml(actions) {
   return actions.map((item) => `
     <button class="data-coverage-assistant-action status-${escapeHtml(item.status)}" data-data-coverage-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
       <span>
@@ -1650,7 +1683,7 @@ function dataCoverageAssistantActionsHtml(actions) {
   `).join("");
 }
 
-function handleDataCoverageAssistantAction(action) {
+export function handleDataCoverageAssistantAction(action) {
   const scrollTo = (id) => {
     const target = $(id);
     if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -1675,7 +1708,7 @@ function handleDataCoverageAssistantAction(action) {
   }
 }
 
-function renderSymbolDiagnostic() {
+export function renderSymbolDiagnostic() {
   const diagnostic = state.symbolDiagnostic || {};
   const summary = diagnostic.diagnostic_summary || {};
   state.symbolDiagnosticReportText = symbolDiagnosticReportText(diagnostic);
@@ -1737,7 +1770,7 @@ function renderSymbolDiagnostic() {
     : row([`<span class="muted">No fetch manifest clues for this symbol</span>`, "", "", "", ""]);
 }
 
-function renderSymbolBatchDiagnostic() {
+export function renderSymbolBatchDiagnostic() {
   if (!$("data-symbol-batch-note") || !$("data-symbol-batch-cards") || !$("data-symbol-batch-body")) return;
   const payload = state.symbolBatchDiagnostic || {};
   const rows = payload.rows || [];
@@ -1799,7 +1832,7 @@ function renderSymbolBatchDiagnostic() {
     : row([`<span class="muted">No universe diagnostic loaded.</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function symbolBatchDiagnosticReportText(payload = {}) {
+export function symbolBatchDiagnosticReportText(payload = {}) {
   const rows = payload.rows || [];
   if (!rows.length) return "No universe visibility check loaded.";
   const lines = [
@@ -1825,7 +1858,7 @@ function symbolBatchDiagnosticReportText(payload = {}) {
   return lines.join("\n");
 }
 
-function symbolDiagnosticReportText(diagnostic = {}) {
+export function symbolDiagnosticReportText(diagnostic = {}) {
   if (!diagnostic || !diagnostic.symbol) return "No symbol diagnostic loaded.";
   const summary = diagnostic.diagnostic_summary || {};
   const rootInventory = diagnostic.root_inventory || {};
@@ -1870,7 +1903,7 @@ function symbolDiagnosticReportText(diagnostic = {}) {
   ].join("\n");
 }
 
-function copySymbolDiagnosticReport() {
+export function copySymbolDiagnosticReport() {
   copyText(state.symbolDiagnosticReportText || "No symbol diagnostic loaded.").then(() => {
     $("last-refresh").textContent = "Symbol diagnostic report copied";
   }).catch((err) => {
@@ -1878,7 +1911,7 @@ function copySymbolDiagnosticReport() {
   });
 }
 
-function renderWorkbenchStatus() {
+export function renderWorkbenchStatus() {
   const status = state.workbenchStatus || {};
   const latest = status.latest_run || {};
   $("workbench-status-note").textContent = status.run_count === undefined
@@ -1906,7 +1939,7 @@ function renderWorkbenchStatus() {
   $("workbench-status-list").innerHTML = kvRows(pairs);
 }
 
-function pathList(items) {
+export function pathList(items) {
   const rows = (items || []).slice(0, 8).map((item) => (
     `${item.path} (${bytes(item.size_bytes)})`
   ));
@@ -1916,7 +1949,7 @@ function pathList(items) {
   return rows.length ? rows.join("\n") : "none";
 }
 
-function renderCleanupPlan() {
+export function renderCleanupPlan() {
   const plan = state.cleanupPlan || {};
   $("cleanup-note").textContent = plan.generated_at
     ? `${numberText(plan.reclaimable_dir_count, 0)} directories / ${bytes(plan.reclaimable_bytes)}`
@@ -1934,7 +1967,7 @@ function renderCleanupPlan() {
   )).join("");
 }
 
-function renderDiagnostics() {
+export function renderDiagnostics() {
   const diagnostics = state.diagnostics || {};
   const stateDir = diagnostics.state_dir || {};
   const dataRoots = diagnostics.data_roots || [];
@@ -1969,7 +2002,7 @@ function renderDiagnostics() {
   )).join("");
 }
 
-function renderEndpointMap() {
+export function renderEndpointMap() {
   const endpointMap = state.endpointMap || {};
   const endpoints = endpointMap.endpoints || [];
   $("endpoint-map-note").textContent = endpointMap.generated_at
@@ -1985,4 +2018,3 @@ function renderEndpointMap() {
       ])).join("")
     : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }
-

@@ -1,8 +1,47 @@
-function supervisorJobRows(supervisor) {
+import {
+  $,
+  age,
+  applyOperationsLens,
+  bytes,
+  commandBoundaries,
+  escapeHtml,
+  jsonDrilldown,
+  money,
+  navigateToOperationsLens,
+  navigateToPerformanceLens,
+  navigateToRunsLens,
+  numberText,
+  objectSummary,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { latestSupervisor, latestTelemetryRun } from "./20_workbench_foundation.js";
+import {
+  eventStatusIsBad,
+  finiteNumber,
+  firstPresent,
+  metricTimestamp,
+  normalizedRunMetrics,
+  paperMonitorItems,
+  remoteNodeMarketDataModel,
+  runtimeActivityModel,
+  runtimeMarketDataModel,
+  timestampAgeLabel,
+  timestampMillis,
+} from "./30_runtime_core.js";
+import { alertCardsHtml, workflowHref } from "./32_overview.js";
+import { countBy, countSummary, topCountEntries } from "./40_data_catalog.js";
+import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
+import { copyText, downloadRemoteNodeDetailCsv, downloadRemoteNodesCsv, loadRemoteNodeDetail, updateCommandFields } from "./90_bootstrap.js";
+
+export function supervisorJobRows(supervisor) {
   return Array.isArray(supervisor && supervisor.jobs) ? supervisor.jobs.filter((job) => job && typeof job === "object") : [];
 }
 
-function supervisorJobSummary(supervisor) {
+export function supervisorJobSummary(supervisor) {
   const jobs = supervisorJobRows(supervisor);
   if (!jobs.length) return { status: "warn", text: "0", detail: "No jobs published" };
   const missed = jobs.filter((job) => job.missed_window === true || String(job.status || "").toLowerCase() === "missed");
@@ -26,7 +65,7 @@ function supervisorJobSummary(supervisor) {
   return { status, text: textValue, detail };
 }
 
-function supervisorActionStatus(value) {
+export function supervisorActionStatus(value) {
   const status = String(value || "").toLowerCase();
   if (!status) return "unknown";
   if (["ok", "running", "waiting", "not_due", "due", "completed", "completed_or_exited", "success", "idle"].includes(status)) return "ok";
@@ -35,12 +74,12 @@ function supervisorActionStatus(value) {
   return status.includes("fail") || status.includes("error") || status.includes("crash") ? "bad" : "warn";
 }
 
-function firstSupervisorId(supervisors) {
+export function firstSupervisorId(supervisors) {
   const match = (supervisors || []).find((supervisor) => text(supervisor.id) !== "n/a");
   return match ? text(match.id) : "";
 }
 
-function supervisorActionSummaryModel() {
+export function supervisorActionSummaryModel() {
   const supervisors = (state.status && state.status.supervisors) || [];
   const jobs = supervisors.flatMap(supervisorJobRows);
   const staleSupervisors = supervisors.filter((supervisor) => Boolean((supervisor.freshness || {}).stale));
@@ -138,7 +177,7 @@ function supervisorActionSummaryModel() {
   return { headline, note, cards, actions, selectedSupervisor };
 }
 
-function renderSupervisorActionSummary() {
+export function renderSupervisorActionSummary() {
   if (!$("supervisor-action-note") || !$("supervisor-action-cards") || !$("supervisor-action-actions")) return;
   const model = supervisorActionSummaryModel();
   $("supervisor-action-note").textContent = model.note;
@@ -160,7 +199,7 @@ function renderSupervisorActionSummary() {
   `).join("");
 }
 
-function handleSupervisorAction(action) {
+export function handleSupervisorAction(action) {
   const supervisors = (state.status && state.status.supervisors) || [];
   const supervisorId = firstSupervisorId(supervisors);
   if (action === "prepare-status") {
@@ -190,7 +229,7 @@ function handleSupervisorAction(action) {
   $("supervisors-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function renderSupervisors() {
+export function renderSupervisors() {
   const supervisors = (state.status && state.status.supervisors) || [];
   renderSupervisorActionSummary();
   $("supervisors-body").innerHTML = supervisors.length
@@ -208,7 +247,7 @@ function renderSupervisors() {
     : row([`<span class="muted">none</span>`, "", "", "", "", ""]);
 }
 
-function renderRemoteControl() {
+export function renderRemoteControl() {
   const remote = (state.status && state.status.remote_control) || {};
   const latest = remote.latest_event || {};
   const latestResult = latest.result || {};
@@ -232,12 +271,12 @@ function renderRemoteControl() {
   ]);
 }
 
-function renderAlerts() {
+export function renderAlerts() {
   const alerts = (state.status && state.status.alerts) || [];
   $("alerts-body").innerHTML = alertCardsHtml(alerts, "No current alerts are published.");
 }
 
-function renderGateway() {
+export function renderGateway() {
   const gateway = (state.status && state.status.gateway) || {};
   const pairs = [
     ["Enabled", text(gateway.enabled)],
@@ -250,7 +289,7 @@ function renderGateway() {
   $("gateway-list").innerHTML = pairs.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
 }
 
-function cloudDeploymentReadinessModel() {
+export function cloudDeploymentReadinessModel() {
   const status = state.status || {};
   const remoteNodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
   const staleRemote = staleRemoteNodes(remoteNodes);
@@ -360,7 +399,7 @@ function cloudDeploymentReadinessModel() {
   };
 }
 
-function cloudDeploymentReadinessText(model) {
+export function cloudDeploymentReadinessText(model) {
   return [
     `Cloud Deployment Readiness: ${model.headline}`,
     `Context: ${model.note}`,
@@ -368,7 +407,7 @@ function cloudDeploymentReadinessText(model) {
   ].join("\n");
 }
 
-function renderCloudDeploymentReadiness() {
+export function renderCloudDeploymentReadiness() {
   if (!$("cloud-readiness-note") || !$("cloud-readiness-cards") || !$("cloud-readiness-body") || !$("cloud-readiness-actions")) return;
   const model = cloudDeploymentReadinessModel();
   state.cloudDeploymentReadinessText = cloudDeploymentReadinessText(model);
@@ -395,7 +434,7 @@ function renderCloudDeploymentReadiness() {
   ].join("");
 }
 
-function handleCloudReadinessAction(action) {
+export function handleCloudReadinessAction(action) {
   if (action !== "copy") return;
   copyText(state.cloudDeploymentReadinessText || "No cloud deployment readiness loaded").then(() => {
     $("last-refresh").textContent = "Cloud deployment readiness copied";
@@ -404,7 +443,7 @@ function handleCloudReadinessAction(action) {
   });
 }
 
-function renderPaperMonitor() {
+export function renderPaperMonitor() {
   if (!$("paper-monitor-guide") || !$("paper-monitor-note")) return;
   const items = paperMonitorItems();
   const okCount = items.filter((item) => item.status === "ok").length;
@@ -423,7 +462,7 @@ function renderPaperMonitor() {
   )).join("");
 }
 
-function paperActionSummaryModel(items = paperMonitorItems()) {
+export function paperActionSummaryModel(items = paperMonitorItems()) {
   const observation = paperObservationPacketModel();
   const blockers = items.filter((item) => item.status === "bad");
   const warnings = items.filter((item) => item.status === "warn");
@@ -529,7 +568,7 @@ function paperActionSummaryModel(items = paperMonitorItems()) {
   return { status, title, note, cards, actions, observingItem };
 }
 
-function renderPaperActionSummary(items = paperMonitorItems()) {
+export function renderPaperActionSummary(items = paperMonitorItems()) {
   if (!$("paper-action-note") || !$("paper-action-cards") || !$("paper-action-actions")) return;
   const model = paperActionSummaryModel(items);
   $("paper-action-note").textContent = `${model.title}: ${model.note}`;
@@ -548,7 +587,7 @@ function renderPaperActionSummary(items = paperMonitorItems()) {
   `).join("");
 }
 
-function handlePaperAction(action) {
+export function handlePaperAction(action) {
   if (action === "gateway") {
     navigateToOperationsLens("diagnostics");
     window.setTimeout(() => {
@@ -567,7 +606,7 @@ function handlePaperAction(action) {
   if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function paperObservationPacketModel() {
+export function paperObservationPacketModel() {
   const payload = state.status || {};
   const gateway = payload.gateway || {};
   const latestRun = latestTelemetryRun();
@@ -709,7 +748,7 @@ function paperObservationPacketModel() {
   return { status, title, note, cards, detail };
 }
 
-function renderPaperObservationPacket() {
+export function renderPaperObservationPacket() {
   if (!$("paper-observation-note") || !$("paper-observation-cards") || !$("paper-observation-detail")) return;
   const model = paperObservationPacketModel();
   $("paper-observation-note").innerHTML = `<span class="${escapeHtml(statusClass(model.status))}">${escapeHtml(model.title)}</span> - ${escapeHtml(model.note)}`;
@@ -725,7 +764,7 @@ function renderPaperObservationPacket() {
   )).join("");
 }
 
-function paperMonitorActionFor(item) {
+export function paperMonitorActionFor(item) {
   const label = String((item && item.label) || "").toLowerCase();
   if (label.includes("gateway")) return { target: "gateway-list", label: "Review Gateway" };
   if (label.includes("account")) return { target: "performance-home-result", label: "Open Performance" };
@@ -734,7 +773,7 @@ function paperMonitorActionFor(item) {
   return { target: "paper-monitor-guide", label: "Review Check" };
 }
 
-function renderPaperMonitorHealth(items = []) {
+export function renderPaperMonitorHealth(items = []) {
   if (!$("paper-monitor-health")) return;
   const blockers = items.filter((item) => item.status === "bad");
   const warnings = items.filter((item) => item.status === "warn");
@@ -776,7 +815,7 @@ function renderPaperMonitorHealth(items = []) {
   `).join("");
 }
 
-function operationsHomeState() {
+export function operationsHomeState() {
   const status = state.status || {};
   const gateway = status.gateway || {};
   const alerts = status.alerts || [];
@@ -879,7 +918,7 @@ function operationsHomeState() {
   return { result, note, nextAction, tiles };
 }
 
-function renderOperationsHome() {
+export function renderOperationsHome() {
   if (!$("operations-home-result") || !$("operations-home-note") || !$("operations-home-tiles")) return;
   const model = operationsHomeState();
   $("operations-home-result").textContent = model.result;
@@ -902,7 +941,7 @@ function renderOperationsHome() {
   renderOperationsWorkflowLauncher();
 }
 
-function renderOperationsReadinessPanel(model = operationsHomeState()) {
+export function renderOperationsReadinessPanel(model = operationsHomeState()) {
   if (!$("operations-readiness-title") || !$("operations-readiness-cards") || !$("operations-readiness-actions")) return;
   const status = state.status || {};
   const gateway = status.gateway || {};
@@ -995,7 +1034,7 @@ function renderOperationsReadinessPanel(model = operationsHomeState()) {
   ].join("");
 }
 
-function operationsActionSummaryModel(model = operationsHomeState()) {
+export function operationsActionSummaryModel(model = operationsHomeState()) {
   const status = state.status || {};
   const gateway = status.gateway || {};
   const alerts = status.alerts || [];
@@ -1074,7 +1113,7 @@ function operationsActionSummaryModel(model = operationsHomeState()) {
   return { title: model.result, note: model.note, cards, actions };
 }
 
-function renderOperationsActionSummary(model = operationsHomeState()) {
+export function renderOperationsActionSummary(model = operationsHomeState()) {
   if (!$("operations-action-note") || !$("operations-action-cards") || !$("operations-action-actions")) return;
   const summary = operationsActionSummaryModel(model);
   $("operations-action-note").textContent = `${summary.title}: ${summary.note}`;
@@ -1090,7 +1129,7 @@ function renderOperationsActionSummary(model = operationsHomeState()) {
   `).join("");
 }
 
-function operationsEvidenceModel(model = operationsHomeState()) {
+export function operationsEvidenceModel(model = operationsHomeState()) {
   const status = state.status || {};
   const gateway = status.gateway || {};
   const alerts = status.alerts || [];
@@ -1233,7 +1272,7 @@ function operationsEvidenceModel(model = operationsHomeState()) {
   };
 }
 
-function operationsEvidenceText(model) {
+export function operationsEvidenceText(model) {
   return [
     `Operations Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1241,7 +1280,7 @@ function operationsEvidenceText(model) {
   ].join("\n");
 }
 
-function renderOperationsEvidence(model = operationsHomeState()) {
+export function renderOperationsEvidence(model = operationsHomeState()) {
   if (!$("operations-evidence-note") || !$("operations-evidence-cards") || !$("operations-evidence-body") || !$("operations-evidence-actions")) return;
   const evidence = operationsEvidenceModel(model);
   state.operationsEvidenceText = operationsEvidenceText(evidence);
@@ -1269,7 +1308,7 @@ function renderOperationsEvidence(model = operationsHomeState()) {
   ].join("");
 }
 
-function handleOperationsEvidenceAction(action) {
+export function handleOperationsEvidenceAction(action) {
   if (action === "copy") {
     copyText(state.operationsEvidenceText || "No operations evidence loaded").then(() => {
       $("last-refresh").textContent = "Operations evidence copied";
@@ -1281,7 +1320,7 @@ function handleOperationsEvidenceAction(action) {
   handleOperationsHomeAction(action || "paper");
 }
 
-function operationsWorkflowCards() {
+export function operationsWorkflowCards() {
   const status = state.status || {};
   const gateway = status.gateway || {};
   const alerts = status.alerts || [];
@@ -1405,7 +1444,7 @@ function operationsWorkflowCards() {
   ];
 }
 
-function renderOperationsWorkflowLauncher() {
+export function renderOperationsWorkflowLauncher() {
   const container = $("operations-workflows");
   if (!container) return;
   const cards = operationsWorkflowCards();
@@ -1422,7 +1461,7 @@ function renderOperationsWorkflowLauncher() {
   `).join("");
 }
 
-function handleOperationsHomeAction(action) {
+export function handleOperationsHomeAction(action) {
   const targets = {
     paper: "paper-monitor-guide",
     remote: "remote-nodes-body",
@@ -1440,12 +1479,12 @@ function handleOperationsHomeAction(action) {
   if (element) element.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function commandStatusIsFailed(status) {
+export function commandStatusIsFailed(status) {
   const value = String(status || "").toLowerCase();
   return ["failed", "error", "rejected", "cancelled", "canceled"].includes(value);
 }
 
-function newestRemoteNodeId() {
+export function newestRemoteNodeId() {
   const nodes = ((state.remoteNodes && state.remoteNodes.nodes) || []).slice();
   nodes.sort((left, right) => (
     (timestampMillis(right.received_at || right.generated_at) || 0)
@@ -1454,7 +1493,7 @@ function newestRemoteNodeId() {
   return nodes.length ? text(nodes[0].node_id) : "";
 }
 
-function controlAssistantModel() {
+export function controlAssistantModel() {
   const commands = state.commands || [];
   const results = state.results || [];
   const pendingCommands = commands.filter((command) => String(command.status || "").toLowerCase() === "pending");
@@ -1547,7 +1586,7 @@ function controlAssistantModel() {
   return { title, summary, cards, actions };
 }
 
-function renderControlAssistant() {
+export function renderControlAssistant() {
   if (!$("control-assistant-title") || !$("control-assistant-cards") || !$("control-assistant-actions")) return;
   const model = controlAssistantModel();
   $("control-assistant-title").textContent = model.title;
@@ -1571,7 +1610,7 @@ function renderControlAssistant() {
   `).join("");
 }
 
-function handleControlAssistantAction(action) {
+export function handleControlAssistantAction(action) {
   const node = newestRemoteNodeId() || ($("command-node") && $("command-node").value.trim()) || "";
   if (action === "use-node") {
     if (node) $("command-node").value = node;
@@ -1606,7 +1645,7 @@ function handleControlAssistantAction(action) {
   $("command-audit-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function commandSafetyReviewModel() {
+export function commandSafetyReviewModel() {
   const commands = state.commands || [];
   const results = state.results || [];
   const audit = state.commandAudit || {};
@@ -1726,7 +1765,7 @@ function commandSafetyReviewModel() {
   return { headline, nextAction, cards, lines };
 }
 
-function commandSafetyReviewText(model) {
+export function commandSafetyReviewText(model) {
   return [
     `Command Safety Review: ${model.headline}`,
     `Next action: ${model.nextAction}`,
@@ -1735,7 +1774,7 @@ function commandSafetyReviewText(model) {
   ].join("\n");
 }
 
-function renderCommandSafetyReview() {
+export function renderCommandSafetyReview() {
   if (
     !$("command-safety-review-title")
     || !$("command-safety-review-note")
@@ -1769,7 +1808,7 @@ function renderCommandSafetyReview() {
   ].join("");
 }
 
-function handleCommandSafetyAction(action) {
+export function handleCommandSafetyAction(action) {
   if (action === "copy") {
     copyText(state.commandSafetyReviewText || "No command safety review loaded").then(() => {
       $("last-refresh").textContent = "Command safety review copied";
@@ -1790,7 +1829,7 @@ function handleCommandSafetyAction(action) {
   if (action === "cloud") return applyOperationsLens("diagnostics");
 }
 
-function prepareRequestStatusCommand(nodeId = "") {
+export function prepareRequestStatusCommand(nodeId = "") {
   const cleanNode = text(nodeId);
   if (cleanNode && cleanNode !== "n/a") $("command-node").value = cleanNode;
   $("command-action").value = "request_status";
@@ -1803,7 +1842,7 @@ function prepareRequestStatusCommand(nodeId = "") {
   renderControlAssistant();
 }
 
-function remoteNodeFilters() {
+export function remoteNodeFilters() {
   return {
     text: ($("remote-filter-text").value || "").trim().toLowerCase(),
     status: $("remote-filter-status").value || "",
@@ -1812,7 +1851,7 @@ function remoteNodeFilters() {
   };
 }
 
-function renderRemoteNodeFilterOptions(nodes) {
+export function renderRemoteNodeFilterOptions(nodes) {
   const makeOptions = (id, values) => {
     const current = $(id).value || "";
     const unique = Array.from(new Set((values || []).map(text).filter((value) => value && value !== "n/a"))).sort();
@@ -1823,7 +1862,7 @@ function renderRemoteNodeFilterOptions(nodes) {
   makeOptions("remote-filter-mode", (nodes || []).map((node) => node.mode));
 }
 
-function remoteNodeSortValue(node, key) {
+export function remoteNodeSortValue(node, key) {
   if (key === "heartbeat") return timestampMillis(node.received_at || node.generated_at) || 0;
   if (key === "alerts") return Number(node.alert_count || 0);
   if (key === "orders") return Number(node.open_order_count || 0);
@@ -1831,7 +1870,7 @@ function remoteNodeSortValue(node, key) {
   return String(node.node_id || "").toLowerCase();
 }
 
-function filteredRemoteNodes(nodes) {
+export function filteredRemoteNodes(nodes) {
   const filters = remoteNodeFilters();
   const filtered = (nodes || []).filter((node) => {
     if (filters.status && text(node.status) !== filters.status) return false;
@@ -1862,11 +1901,11 @@ function filteredRemoteNodes(nodes) {
   });
 }
 
-function remoteDetailActivityFilter() {
+export function remoteDetailActivityFilter() {
   return $("remote-detail-activity-filter") ? $("remote-detail-activity-filter").value || "" : "";
 }
 
-function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, context = {}) {
+export function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, context = {}) {
   if (!$("remote-detail-assistant-title") || !$("remote-detail-assistant-cards") || !$("remote-detail-assistant-actions")) return;
   const summary = detail.summary || {};
   const runs = detail.runs || [];
@@ -1991,7 +2030,7 @@ function renderRemoteDetailAssistant(detail = state.remoteNodeDetail || {}, cont
   `).join("");
 }
 
-function handleRemoteDetailAssistantAction(action) {
+export function handleRemoteDetailAssistantAction(action) {
   if (action === "decisions" || action === "orders" || action === "fills") {
     $("remote-detail-activity-filter").value = action.slice(0, -1);
     renderRemoteNodeDetail();
@@ -2016,7 +2055,7 @@ function handleRemoteDetailAssistantAction(action) {
   }
 }
 
-function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, context = {}) {
+export function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, context = {}) {
   const summary = detail.summary || {};
   const runs = detail.runs || [];
   const alerts = detail.alerts || [];
@@ -2150,7 +2189,7 @@ function remoteNodeHealthReportModel(detail = state.remoteNodeDetail || {}, cont
   return { status, headline, note, cards, lines };
 }
 
-function remoteNodeHealthReportText(model) {
+export function remoteNodeHealthReportText(model) {
   return [
     `Remote Node Health Report: ${model.headline}`,
     `Context: ${model.note}`,
@@ -2159,7 +2198,7 @@ function remoteNodeHealthReportText(model) {
   ].join("\n");
 }
 
-function renderRemoteNodeHealthReport(detail = state.remoteNodeDetail || {}, context = {}) {
+export function renderRemoteNodeHealthReport(detail = state.remoteNodeDetail || {}, context = {}) {
   if (
     !$("remote-node-health-report-note")
     || !$("remote-node-health-report-cards")
@@ -2192,7 +2231,7 @@ function renderRemoteNodeHealthReport(detail = state.remoteNodeDetail || {}, con
   ].join("");
 }
 
-function handleRemoteNodeHealthReportAction(action) {
+export function handleRemoteNodeHealthReportAction(action) {
   if (action === "copy") {
     copyText(state.remoteNodeHealthReportText || "No remote node health report loaded").then(() => {
       $("last-refresh").textContent = "Remote node health report copied";
@@ -2223,7 +2262,7 @@ function handleRemoteNodeHealthReportAction(action) {
   $("cloud-readiness-note").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function eventTimestamp(event) {
+export function eventTimestamp(event) {
   return event.timestamp
     || event.time
     || event.submitted_at
@@ -2234,15 +2273,15 @@ function eventTimestamp(event) {
     || "";
 }
 
-function eventSymbol(event) {
+export function eventSymbol(event) {
   return event.symbol || event.ticker || event.contract || event.instrument || "";
 }
 
-function eventStatus(event, type) {
+export function eventStatus(event, type) {
   return event.status || event.action || event.side || type || "";
 }
 
-function eventDetail(event) {
+export function eventDetail(event) {
   const keys = ["reason", "tag", "side", "quantity", "price", "cash_quantity", "signal", "threshold"];
   const parts = [];
   for (const key of keys) {
@@ -2253,7 +2292,7 @@ function eventDetail(event) {
   return parts.length ? parts.join(" ") : objectSummary(event);
 }
 
-function remoteNodeActivityEvents(runs) {
+export function remoteNodeActivityEvents(runs) {
   const events = [];
   for (const runItem of runs || []) {
     for (const event of runItem.recent_decisions || []) {
@@ -2269,13 +2308,13 @@ function remoteNodeActivityEvents(runs) {
   return events.sort((left, right) => (timestampMillis(eventTimestamp(right)) || 0) - (timestampMillis(eventTimestamp(left)) || 0));
 }
 
-function remoteRunArtifactEvidenceRows(runs) {
+export function remoteRunArtifactEvidenceRows(runs) {
   return (runs || [])
     .map((runItem) => ({ run: runItem, evidence: runItem.artifact_evidence || null }))
     .filter((item) => item.evidence);
 }
 
-function remoteArtifactMissingNames(evidence) {
+export function remoteArtifactMissingNames(evidence) {
   const missing = Array.isArray(evidence.missing_files)
     ? evidence.missing_files.filter(Boolean)
     : (evidence.files || [])
@@ -2285,7 +2324,7 @@ function remoteArtifactMissingNames(evidence) {
   return missing.length ? missing.slice(0, 4).join(", ") : "none";
 }
 
-function remoteArtifactCategorySummary(evidence) {
+export function remoteArtifactCategorySummary(evidence) {
   const categories = evidence.category_counts || {};
   const top = topCountEntries(categories, 3).map(([key, value]) => `${key} ${numberText(value, 0)}`).join(", ");
   const metadata = Number(evidence.metadata_file_count || 0);
@@ -2293,7 +2332,7 @@ function remoteArtifactCategorySummary(evidence) {
   return top || `${numberText(metadata, 0)} metadata / ${numberText(streams, 0)} streams`;
 }
 
-function staleRemoteNodes(nodes = [], maxAgeSeconds = 900) {
+export function staleRemoteNodes(nodes = [], maxAgeSeconds = 900) {
   return (nodes || []).filter((node) => {
     const millis = timestampMillis(node.received_at || node.generated_at);
     if (millis === null) return true;
@@ -2301,14 +2340,14 @@ function staleRemoteNodes(nodes = [], maxAgeSeconds = 900) {
   });
 }
 
-function newestRemoteNode(nodes = []) {
+export function newestRemoteNode(nodes = []) {
   return (nodes || []).slice().sort((left, right) => (
     (timestampMillis(right.received_at || right.generated_at) || 0)
     - (timestampMillis(left.received_at || left.generated_at) || 0)
   ))[0] || null;
 }
 
-function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
+export function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
   if (!$("remote-nodes-assistant-title") || !$("remote-nodes-assistant-cards") || !$("remote-nodes-assistant-actions")) return;
   const staleNodes = staleRemoteNodes(nodes);
   const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
@@ -2443,7 +2482,7 @@ function renderRemoteNodesAssistant(nodes = [], filteredNodes = []) {
   `).join("");
 }
 
-function handleRemoteNodesAssistantAction(action) {
+export function handleRemoteNodesAssistantAction(action) {
   const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
   const newest = newestRemoteNode(nodes);
   if (action === "alerts") {
@@ -2499,7 +2538,7 @@ function handleRemoteNodesAssistantAction(action) {
   }
 }
 
-function remoteNodesReportModel(nodes = [], filteredNodes = []) {
+export function remoteNodesReportModel(nodes = [], filteredNodes = []) {
   const staleNodes = staleRemoteNodes(nodes);
   const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
   const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
@@ -2605,7 +2644,7 @@ function remoteNodesReportModel(nodes = [], filteredNodes = []) {
   return { status, headline, note, cards, lines, newest };
 }
 
-function remoteNodesReportText(model) {
+export function remoteNodesReportText(model) {
   return [
     `Remote Monitor Report: ${model.headline}`,
     `Context: ${model.note}`,
@@ -2613,7 +2652,7 @@ function remoteNodesReportText(model) {
   ].join("\n");
 }
 
-function renderRemoteNodesReport(nodes = [], filteredNodes = []) {
+export function renderRemoteNodesReport(nodes = [], filteredNodes = []) {
   if (!$("remote-report-note") || !$("remote-report-cards") || !$("remote-report-body") || !$("remote-report-actions")) return;
   const model = remoteNodesReportModel(nodes, filteredNodes);
   state.remoteNodesReportText = remoteNodesReportText(model);
@@ -2639,7 +2678,7 @@ function renderRemoteNodesReport(nodes = [], filteredNodes = []) {
   ].join("");
 }
 
-function handleRemoteReportAction(action) {
+export function handleRemoteReportAction(action) {
   const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
   const newest = newestRemoteNode(nodes);
   if (action === "copy") {
@@ -2665,7 +2704,7 @@ function handleRemoteReportAction(action) {
   });
 }
 
-function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
+export function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
   const staleNodes = staleRemoteNodes(nodes);
   const alertNodes = (nodes || []).filter((node) => Number(node.alert_count || 0) > 0);
   const orderNodes = (nodes || []).filter((node) => Number(node.open_order_count || 0) > 0);
@@ -2809,7 +2848,7 @@ function remoteActionSummaryModel(nodes = [], filteredNodes = []) {
   return { status, title, note, cards, actions, newest };
 }
 
-function renderRemoteActionSummary(nodes = [], filteredNodes = []) {
+export function renderRemoteActionSummary(nodes = [], filteredNodes = []) {
   if (!$("remote-action-note") || !$("remote-action-cards") || !$("remote-action-actions")) return;
   const model = remoteActionSummaryModel(nodes, filteredNodes);
   $("remote-action-note").textContent = `${model.title}: ${model.note}`;
@@ -2828,7 +2867,7 @@ function renderRemoteActionSummary(nodes = [], filteredNodes = []) {
   `).join("");
 }
 
-function handleRemoteAction(action) {
+export function handleRemoteAction(action) {
   const nodes = (state.remoteNodes && state.remoteNodes.nodes) || [];
   const newest = newestRemoteNode(nodes);
   if (action === "stale" || action === "alerts" || action === "orders" || action === "clear") {
@@ -2879,7 +2918,7 @@ function handleRemoteAction(action) {
   }, 50);
 }
 
-function renderRemoteNodes() {
+export function renderRemoteNodes() {
   if (!$("remote-nodes-body") || !$("remote-nodes-note")) return;
   const payload = state.remoteNodes || {};
   const nodes = payload.nodes || [];
@@ -2930,7 +2969,7 @@ function renderRemoteNodes() {
     : row([`<span class="muted">${nodes.length ? "No remote nodes match the current filters." : "No cloud monitoring snapshots yet. Post status with scripts/publish_status.py to this receiver or another authenticated endpoint."}</span>`, "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
+export function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
   if (!$("remote-nodes-health")) return;
   const staleNodes = nodes.filter((node) => {
     const millis = timestampMillis(node.received_at || node.generated_at);
@@ -3002,7 +3041,7 @@ function renderRemoteNodesHealth(nodes = [], filteredNodes = []) {
   `).join("");
 }
 
-function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
+export function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
   if (!$("remote-node-run-health")) return;
   const selected = Boolean(detail.node_id);
   const artifactRows = remoteRunArtifactEvidenceRows(runs);
@@ -3081,7 +3120,7 @@ function renderRemoteNodeRunHealth(detail = {}, runs = [], activity = []) {
   `).join("");
 }
 
-function renderRemoteNodeBoundaryPolicy(detail = {}) {
+export function renderRemoteNodeBoundaryPolicy(detail = {}) {
   if (!$("remote-node-boundary-note") || !$("remote-node-boundary-cards")) return;
   const policy = detail.boundary_policy || {};
   const hasPolicy = Boolean(policy.name);
@@ -3131,7 +3170,7 @@ function renderRemoteNodeBoundaryPolicy(detail = {}) {
   `).join("");
 }
 
-function renderRemoteNodeDetail() {
+export function renderRemoteNodeDetail() {
   if (!$("remote-node-detail-summary") || !$("remote-node-detail-note")) return;
   const detail = state.remoteNodeDetail || {};
   const summary = detail.summary || {};
@@ -3270,7 +3309,7 @@ function renderRemoteNodeDetail() {
     : row([`<span class="muted">No bounded history loaded for this node.</span>`, "", "", "", "", ""]);
 }
 
-function renderHistory() {
+export function renderHistory() {
   $("history-body").innerHTML = state.history.length
     ? state.history.map((snapshot) => {
         const remoteLabel = snapshot.remote_latest_event
@@ -3290,7 +3329,7 @@ function renderHistory() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", ""]);
 }
 
-function renderCommands() {
+export function renderCommands() {
   $("commands-body").innerHTML = state.commands.length
     ? state.commands.map((command) => row([
         escapeHtml(command.command_id),
@@ -3306,7 +3345,7 @@ function renderCommands() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", ""]);
 }
 
-function renderResults() {
+export function renderResults() {
   $("results-body").innerHTML = state.results.length
     ? state.results.slice(-20).reverse().map((result) => row([
         escapeHtml(result.command_id),
@@ -3318,7 +3357,7 @@ function renderResults() {
     : row([`<span class="muted">none</span>`, "", "", "", ""]);
 }
 
-function renderCommandAudit() {
+export function renderCommandAudit() {
   const events = (state.commandAudit && state.commandAudit.events) || [];
   const integrity = (state.commandAudit && state.commandAudit.integrity) || {};
   const retention = (state.commandAudit && state.commandAudit.retention_policy) || {};
@@ -3350,7 +3389,7 @@ function renderCommandAudit() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function renderCommandAuditHealth(events = [], integrity = {}, retention = {}) {
+export function renderCommandAuditHealth(events = [], integrity = {}, retention = {}) {
   if (!$("command-audit-health")) return;
   const latest = events.slice().reverse()[0] || events[0] || null;
   const status = text(integrity.status || "unknown");

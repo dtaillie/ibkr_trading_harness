@@ -1,4 +1,31 @@
-function renderRuns() {
+import {
+  $,
+  age,
+  bytes,
+  escapeHtml,
+  money,
+  navigateToOperationsLens,
+  navigateToPerformanceLens,
+  navigateToRunsLens,
+  navigateToWorkbenchLens,
+  numberText,
+  pctText,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+  token,
+} from "./00_core.js";
+import { latestArtifactPerformance } from "./20_workbench_foundation.js";
+import { eventStatusIsBad, finiteNumber, latestAccountRow, normalizedRunMetrics, shortTimestampAgeLabel } from "./30_runtime_core.js";
+import { nonzeroPositionsFromSource, positionDetailHtml, sourceMeaning } from "./31_performance_math.js";
+import { workflowHref } from "./32_overview.js";
+import { eventTimelineChart } from "./34_charts.js";
+import { countBy, countSummary, topCountEntries } from "./40_data_catalog.js";
+import { copyText, refresh } from "./90_bootstrap.js";
+
+export function renderRuns() {
   const runs = (state.status && state.status.runs) || [];
   renderRunsFilterOptions(runs);
   const visibleRuns = sortedRuns(filteredRuns(runs));
@@ -31,13 +58,13 @@ function renderRuns() {
     : row([`<span class="muted">No published runs match the current filters.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
-function runtimeSessionRows() {
+export function runtimeSessionRows() {
   return ((state.runtimeSessions && state.runtimeSessions.sessions) || [])
     .slice()
     .sort((left, right) => text(right.latest_modified_at || right.modified_at).localeCompare(text(left.latest_modified_at || left.modified_at)));
 }
 
-function renderRuntimeSessions() {
+export function renderRuntimeSessions() {
   if (!$("runtime-sessions-note") || !$("runtime-sessions-cards") || !$("runtime-sessions-body")) return;
   const payload = state.runtimeSessions || {};
   const sessions = runtimeSessionRows();
@@ -98,7 +125,7 @@ function renderRuntimeSessions() {
   renderRuntimeSessionDetail();
 }
 
-function renderRuntimeSessionDetail() {
+export function renderRuntimeSessionDetail() {
   if (!$("runtime-session-detail-note") || !$("runtime-session-detail-cards") || !$("runtime-session-detail-body")) return;
   const detail = state.runtimeSessionDetail || {};
   const summary = detail.summary || {};
@@ -156,7 +183,7 @@ function renderRuntimeSessionDetail() {
     : row([`<span class="muted">No files are visible for this selected session.</span>`, "", "", "", "", ""]);
 }
 
-function runsFilterState() {
+export function runsFilterState() {
   return {
     text: ($("runs-filter-text").value || "").trim().toLowerCase(),
     status: $("runs-filter-status").value || "",
@@ -165,11 +192,11 @@ function runsFilterState() {
   };
 }
 
-function runMetricsNumber(run, key) {
+export function runMetricsNumber(run, key) {
   return Number(normalizedRunMetrics(run)[key] || 0);
 }
 
-function runsNestedCount(rows, getter) {
+export function runsNestedCount(rows, getter) {
   const counts = {};
   for (const item of rows || []) {
     const value = text(getter(item));
@@ -179,7 +206,7 @@ function runsNestedCount(rows, getter) {
   return counts;
 }
 
-function recommendedRuns(filtered = []) {
+export function recommendedRuns(filtered = []) {
   return (filtered || [])
     .slice()
     .sort((left, right) => {
@@ -200,7 +227,7 @@ function recommendedRuns(filtered = []) {
     .slice(0, 5);
 }
 
-function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
+export function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
   if (!$("runs-search-title") || !$("runs-search-cards") || !$("runs-search-actions")) return;
   const filters = runsFilterState();
   const activeLabels = [
@@ -291,7 +318,7 @@ function renderRunsSearchAssistant(runs = [], visibleRuns = []) {
     : `<div class="empty-card"><strong>No recommended runs</strong><span>Clear filters or wait for published run telemetry.</span></div>`;
 }
 
-function handleRunsSearchAction(target) {
+export function handleRunsSearchAction(target) {
   const action = String(target.dataset.runsSearchAction || "");
   if (action === "events") {
     $("run-events-filter-text").value = target.dataset.runId || "";
@@ -310,7 +337,7 @@ function handleRunsSearchAction(target) {
   }
 }
 
-function renderRunsFilterOptions(runs) {
+export function renderRunsFilterOptions(runs) {
   const makeOptions = (id, values) => {
     const select = $(id);
     if (!select) return;
@@ -326,7 +353,7 @@ function renderRunsFilterOptions(runs) {
   makeOptions("runs-filter-mode", runs.map((run) => normalizedRunMetrics(run).mode));
 }
 
-function filteredRuns(runs) {
+export function filteredRuns(runs) {
   const query = ($("runs-filter-text").value || "").trim().toLowerCase();
   const status = $("runs-filter-status").value || "";
   const mode = $("runs-filter-mode").value || "";
@@ -350,7 +377,7 @@ function filteredRuns(runs) {
   });
 }
 
-function runSortMetric(run, sortMode) {
+export function runSortMetric(run, sortMode) {
   const metrics = normalizedRunMetrics(run);
   if (sortMode === "age_asc" || sortMode === "age_desc") return Number((run.freshness || {}).age_seconds);
   if (sortMode === "decisions_desc") return Number(metrics.decisions);
@@ -360,7 +387,7 @@ function runSortMetric(run, sortMode) {
   return text(run.id);
 }
 
-function sortedRuns(runs) {
+export function sortedRuns(runs) {
   const sortMode = $("runs-filter-sort").value || "age_asc";
   const ascending = sortMode === "age_asc" || sortMode === "id_asc";
   return (runs || []).map((run, index) => ({
@@ -382,7 +409,7 @@ function sortedRuns(runs) {
   }).map((item) => item.run);
 }
 
-function renderRunsTriage() {
+export function renderRunsTriage() {
   if (!$("runs-triage-cards") || !$("runs-triage-note")) return;
   const runs = (state.status && state.status.runs) || [];
   const history = state.history || [];
@@ -496,7 +523,7 @@ function renderRunsTriage() {
   `).join("");
 }
 
-function renderRunsReviewPanel() {
+export function renderRunsReviewPanel() {
   if (!$("runs-review-title") || !$("runs-review-cards") || !$("runs-review-actions")) return;
   const runs = (state.status && state.status.runs) || [];
   const history = state.history || [];
@@ -623,7 +650,7 @@ function renderRunsReviewPanel() {
   ].join("");
 }
 
-function runsActionSummaryModel() {
+export function runsActionSummaryModel() {
   const runs = (state.status && state.status.runs) || [];
   const history = state.history || [];
   const orders = currentOpenOrderRows();
@@ -747,7 +774,7 @@ function runsActionSummaryModel() {
   return { status, title, note, cards, actions };
 }
 
-function renderRunsActionSummary() {
+export function renderRunsActionSummary() {
   if (!$("runs-action-note") || !$("runs-action-cards") || !$("runs-action-actions")) return;
   const model = runsActionSummaryModel();
   $("runs-action-note").textContent = `${model.title}: ${model.note}`;
@@ -763,7 +790,7 @@ function renderRunsActionSummary() {
   `).join("");
 }
 
-function runsEvidenceModel() {
+export function runsEvidenceModel() {
   const status = state.status || {};
   const runs = status.runs || [];
   const history = state.history || [];
@@ -950,7 +977,7 @@ function runsEvidenceModel() {
   return { status: statusValue, headline, note, next, cards, lines, visibleBadEvents, badEvents, fills, orderEvents, decisions, artifactLoaded };
 }
 
-function runsEvidenceText(model) {
+export function runsEvidenceText(model) {
   return [
     `Runs Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -958,7 +985,7 @@ function runsEvidenceText(model) {
   ].join("\n");
 }
 
-function renderRunsEvidence() {
+export function renderRunsEvidence() {
   if (!$("runs-evidence-note") || !$("runs-evidence-cards") || !$("runs-evidence-body") || !$("runs-evidence-actions")) return;
   const model = runsEvidenceModel();
   state.runsEvidenceText = runsEvidenceText(model);
@@ -987,7 +1014,7 @@ function renderRunsEvidence() {
   ].join("");
 }
 
-function handleRunsEvidenceAction(action) {
+export function handleRunsEvidenceAction(action) {
   if (action === "copy") {
     copyText(state.runsEvidenceText || "No runs evidence loaded").then(() => {
       $("last-refresh").textContent = "Runs evidence copied";
@@ -1007,7 +1034,7 @@ function handleRunsEvidenceAction(action) {
   navigateToRunsLens("state");
 }
 
-function runsWorkflowCards() {
+export function runsWorkflowCards() {
   const runs = (state.status && state.status.runs) || [];
   const history = state.history || [];
   const orders = currentOpenOrderRows();
@@ -1093,7 +1120,7 @@ function runsWorkflowCards() {
   ];
 }
 
-function renderRunsWorkflowLauncher() {
+export function renderRunsWorkflowLauncher() {
   const container = $("runs-workflows");
   if (!container) return;
   const cards = runsWorkflowCards();
@@ -1110,7 +1137,7 @@ function renderRunsWorkflowLauncher() {
   `).join("");
 }
 
-function accountBoundaryAuthority(mode, source) {
+export function accountBoundaryAuthority(mode, source) {
   const value = String(mode || "").replace("-", "_").toLowerCase();
   if (value === "live") return ["bad", "Live Orders", "Live account mode; do not treat dashboard controls or results as harmless."];
   if (value === "paper") return ["warn", "Broker Paper", "Broker paper account mode; orders may be submitted to a paper account."];
@@ -1121,7 +1148,7 @@ function accountBoundaryAuthority(mode, source) {
   return ["bad", "Unknown", "Mode is unavailable; verify the runner source before interpreting account state."];
 }
 
-function runsStateActionSummaryModel() {
+export function runsStateActionSummaryModel() {
   const source = latestArtifactPerformance();
   const summary = source.summary || {};
   const perf = source.performance || {};
@@ -1273,7 +1300,7 @@ function runsStateActionSummaryModel() {
   return { status, title, note, cards, actions };
 }
 
-function renderRunsStateActionSummary() {
+export function renderRunsStateActionSummary() {
   if (!$("runs-state-action-note") || !$("runs-state-action-cards") || !$("runs-state-action-actions")) return;
   const model = runsStateActionSummaryModel();
   $("runs-state-action-note").textContent = `${model.title}: ${model.note}`;
@@ -1292,7 +1319,7 @@ function renderRunsStateActionSummary() {
   `).join("");
 }
 
-function handleRunsStateAction(action) {
+export function handleRunsStateAction(action) {
   if (action === "orders") {
     const target = $("current-orders-body") || $("current-orders-note");
     if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -1315,7 +1342,7 @@ function handleRunsStateAction(action) {
   navigateToOperationsLens("paper");
 }
 
-function renderRunsAccountBoundary() {
+export function renderRunsAccountBoundary() {
   if (!$("runs-account-boundary-cards") || !$("runs-account-boundary-note")) return;
   const source = latestArtifactPerformance();
   const summary = source.summary || {};
@@ -1414,7 +1441,7 @@ function renderRunsAccountBoundary() {
   renderRunsStateActionSummary();
 }
 
-function terminalOrderStatus(status) {
+export function terminalOrderStatus(status) {
   const value = String(status || "").toLowerCase();
   return [
     "filled",
@@ -1427,7 +1454,7 @@ function terminalOrderStatus(status) {
   ].includes(value);
 }
 
-function currentOpenOrderRows() {
+export function currentOpenOrderRows() {
   const runs = (state.status && state.status.runs) || [];
   const orders = [];
   for (const run of runs) {
@@ -1453,7 +1480,7 @@ function currentOpenOrderRows() {
     .slice(0, 20);
 }
 
-function renderCurrentOrdersAndPositions() {
+export function renderCurrentOrdersAndPositions() {
   const orders = currentOpenOrderRows();
   $("current-orders-note").textContent = orders.length
     ? `${numberText(orders.length, 0)} recent non-terminal order event${orders.length === 1 ? "" : "s"}`
@@ -1488,7 +1515,7 @@ function renderCurrentOrdersAndPositions() {
     : `<div class="empty-card"><strong>No managed positions</strong><span>The latest selected or published account state is flat, or no account snapshot has been loaded.</span></div>`;
 }
 
-function runEventRows() {
+export function runEventRows() {
   const runs = (state.status && state.status.runs) || [];
   const events = [];
   for (const run of runs) {
@@ -1541,7 +1568,7 @@ function runEventRows() {
     .slice(0, 30);
 }
 
-function eventActivityKey(event) {
+export function eventActivityKey(event) {
   return [
     event.type,
     event.run_id,
@@ -1552,15 +1579,15 @@ function eventActivityKey(event) {
   ].map(text).join("|");
 }
 
-function fetchActivityKey(item) {
+export function fetchActivityKey(item) {
   return text(item.job_id || item.path || `${item.started_at}-${item.kind}-${item.bar_size}`);
 }
 
-function alertActivityKey(item) {
+export function alertActivityKey(item) {
   return [item.status, item.severity, item.category, item.message, item.detail].map(text).join("|");
 }
 
-function terminalFetchStatus(status) {
+export function terminalFetchStatus(status) {
   const value = String(status || "").toLowerCase();
   return [
     "complete",
@@ -1574,7 +1601,7 @@ function terminalFetchStatus(status) {
   ].includes(value);
 }
 
-function activitySnapshot() {
+export function activitySnapshot() {
   const events = runEventRows();
   const fetches = (state.fetchManifests && state.fetchManifests.manifests) || [];
   const alerts = (state.status && state.status.alerts) || [];
@@ -1590,7 +1617,7 @@ function activitySnapshot() {
   };
 }
 
-function eventChangeCard(event) {
+export function eventChangeCard(event) {
   const status = event.type === "fill"
     ? "ok"
     : String(event.status || "").toLowerCase().includes("reject") || String(event.status || "").toLowerCase().includes("cancel")
@@ -1608,7 +1635,7 @@ function eventChangeCard(event) {
   };
 }
 
-function activityChanges(before, after) {
+export function activityChanges(before, after) {
   if (!before) {
     return {
       initial: true,
@@ -1655,7 +1682,7 @@ function activityChanges(before, after) {
   return { initial: false, items: items.slice(0, 12) };
 }
 
-function overviewChangeCardsHtml(items, emptyText) {
+export function overviewChangeCardsHtml(items, emptyText) {
   return items.length
     ? items.map((item) => `
         <div class="change-card">
@@ -1667,7 +1694,7 @@ function overviewChangeCardsHtml(items, emptyText) {
     : `<div class="empty-card"><strong>No new activity</strong><span>${escapeHtml(emptyText)}</span></div>`;
 }
 
-function renderOverviewChanges() {
+export function renderOverviewChanges() {
   const changes = state.activityChanges || { items: [], initial: true };
   const items = changes.items || [];
   const detailNote = changes.initial
@@ -1694,7 +1721,7 @@ function renderOverviewChanges() {
   }
 }
 
-function renderRunEvents() {
+export function renderRunEvents() {
   const allEvents = runEventRows();
   renderRunEventFilterOptions(allEvents);
   const events = sortedRunEvents(filteredRunEvents(allEvents));
@@ -1717,7 +1744,7 @@ function renderRunEvents() {
     : row([`<span class="muted">No recent run events match the current filters.</span>`, "", "", "", "", ""]);
 }
 
-function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
+export function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
   if (!$("runs-events-assistant-title") || !$("runs-events-assistant-cards") || !$("runs-events-assistant-actions")) return;
   const filters = {
     text: ($("run-events-filter-text").value || "").trim(),
@@ -1852,7 +1879,7 @@ function renderRunsEventsAssistant(allEvents = [], visibleEvents = []) {
   `).join("");
 }
 
-function runsEventFlowModel(allEvents = [], visibleEvents = []) {
+export function runsEventFlowModel(allEvents = [], visibleEvents = []) {
   const filters = {
     text: ($("run-events-filter-text").value || "").trim(),
     type: $("run-events-filter-type").value || "",
@@ -1989,14 +2016,14 @@ function runsEventFlowModel(allEvents = [], visibleEvents = []) {
   return { status, headline, nextAction, cards, lines, latestRunId: latest ? text(latest.run_id) : "", activeFilters, allBadEvents, allEvents };
 }
 
-function runsEventFlowReportText(model) {
+export function runsEventFlowReportText(model) {
   return [
     `Runs Event Flow Report: ${model.headline}`,
     ...model.lines.map((line) => `${line.title}: ${line.detail}`),
   ].join("\n");
 }
 
-function renderRunsEventFlowReport(allEvents = [], visibleEvents = []) {
+export function renderRunsEventFlowReport(allEvents = [], visibleEvents = []) {
   if (!$("runs-event-flow-note") || !$("runs-event-flow-cards") || !$("runs-event-flow-body") || !$("runs-event-flow-actions")) return;
   const model = runsEventFlowModel(allEvents, visibleEvents);
   state.runsEventFlowReportText = runsEventFlowReportText(model);
@@ -2025,7 +2052,7 @@ function renderRunsEventFlowReport(allEvents = [], visibleEvents = []) {
   ].join("");
 }
 
-function executionField(row, keys) {
+export function executionField(row, keys) {
   for (const key of keys) {
     const value = row ? row[key] : null;
     if (value !== null && value !== undefined && value !== "") return value;
@@ -2033,25 +2060,25 @@ function executionField(row, keys) {
   return null;
 }
 
-function executionNumber(row, keys) {
+export function executionNumber(row, keys) {
   const value = executionField(row, keys);
   const number = finiteNumber(value);
   return number === null ? null : number;
 }
 
-function executionStatusIsMissed(row) {
+export function executionStatusIsMissed(row) {
   const status = String(executionField(row, ["status", "order_status"]) || "").toLowerCase();
   const reason = String(executionField(row, ["reason", "message", "error"]) || "").toLowerCase();
   const combined = `${status} ${reason}`;
   return ["reject", "cancel", "fail", "error", "expired", "inactive", "approval_required", "held"].some((token) => combined.includes(token));
 }
 
-function executionStatusIsFilled(row) {
+export function executionStatusIsFilled(row) {
   const status = String(executionField(row, ["status", "order_status"]) || "").toLowerCase();
   return status.includes("fill");
 }
 
-function executionReviewRows(allEvents = [], visibleEvents = []) {
+export function executionReviewRows(allEvents = [], visibleEvents = []) {
   const artifacts = state.configArtifacts || {};
   const rows = [];
   for (const event of visibleEvents || []) {
@@ -2107,13 +2134,13 @@ function executionReviewRows(allEvents = [], visibleEvents = []) {
   });
 }
 
-function executionQuote(row, prefix) {
+export function executionQuote(row, prefix) {
   const bid = executionNumber(row, [`${prefix}_bid`, `${prefix}_bid_price`, `${prefix}Bid`, `${prefix}BidPrice`]);
   const ask = executionNumber(row, [`${prefix}_ask`, `${prefix}_ask_price`, `${prefix}Ask`, `${prefix}AskPrice`]);
   return { bid, ask, spread: bid !== null && ask !== null ? ask - bid : null };
 }
 
-function executionSpreadBps(row) {
+export function executionSpreadBps(row) {
   const explicit = executionNumber(row, ["effective_spread_bps", "spread_capture_bps", "spread_bps", "fill_spread_bps"]);
   if (explicit !== null) return explicit;
   const fill = executionNumber(row, ["avg_fill_price", "average_fill_price", "price", "fill_price", "avg_price"]);
@@ -2125,7 +2152,7 @@ function executionSpreadBps(row) {
   return (2 * Math.abs(fill - mid) / mid) * 10000;
 }
 
-function executionQualityReviewModel(allEvents = [], visibleEvents = []) {
+export function executionQualityReviewModel(allEvents = [], visibleEvents = []) {
   const rows = executionReviewRows(allEvents, visibleEvents);
   const orders = rows.filter((item) => item.event_type === "order");
   const fills = rows.filter((item) => item.event_type === "fill");
@@ -2257,14 +2284,14 @@ function executionQualityReviewModel(allEvents = [], visibleEvents = []) {
   return { status, title, note, cards, lines, missed, orders, fills, missing };
 }
 
-function executionQualityReviewText(model) {
+export function executionQualityReviewText(model) {
   return [
     `Execution Quality Review: ${model.title}`,
     ...model.lines.map((line) => `${line.title}: ${line.detail}`),
   ].join("\n");
 }
 
-function renderExecutionQualityReview(allEvents = [], visibleEvents = []) {
+export function renderExecutionQualityReview(allEvents = [], visibleEvents = []) {
   if (!$("execution-quality-review-title") || !$("execution-quality-review-note") || !$("execution-quality-review-cards") || !$("execution-quality-review-body") || !$("execution-quality-review-actions")) return;
   const model = executionQualityReviewModel(allEvents, visibleEvents);
   state.executionQualityReviewText = executionQualityReviewText(model);
@@ -2293,7 +2320,7 @@ function renderExecutionQualityReview(allEvents = [], visibleEvents = []) {
   ].join("");
 }
 
-function handleExecutionQualityAction(action) {
+export function handleExecutionQualityAction(action) {
   if (action === "copy") {
     copyText(state.executionQualityReviewText || "No execution quality review loaded").then(() => {
       $("last-refresh").textContent = "Execution quality review copied";
@@ -2323,7 +2350,7 @@ function handleExecutionQualityAction(action) {
   navigateToRunsLens("events");
 }
 
-function handleRunsEventFlowAction(target) {
+export function handleRunsEventFlowAction(target) {
   const action = target.dataset.runsEventFlowAction || "";
   if (action === "copy") {
     copyText(state.runsEventFlowReportText || "No runs event flow report loaded").then(() => {
@@ -2337,7 +2364,7 @@ function handleRunsEventFlowAction(target) {
   navigateToRunsLens("events");
 }
 
-function applyRunsEventsAssistantAction(action, runId = "") {
+export function applyRunsEventsAssistantAction(action, runId = "") {
   if (action === "issues") {
     $("run-events-filter-text").value = "reject cancel fail error";
     $("run-events-filter-type").value = "";
@@ -2366,7 +2393,7 @@ function applyRunsEventsAssistantAction(action, runId = "") {
   renderRunEvents();
 }
 
-function renderRunEventFilterOptions(events) {
+export function renderRunEventFilterOptions(events) {
   const select = $("run-events-filter-status");
   if (!select) return;
   const current = select.value;
@@ -2378,7 +2405,7 @@ function renderRunEventFilterOptions(events) {
   if (options.includes(current)) select.value = current;
 }
 
-function filteredRunEvents(events) {
+export function filteredRunEvents(events) {
   const query = ($("run-events-filter-text").value || "").trim().toLowerCase();
   const type = $("run-events-filter-type").value || "";
   const status = $("run-events-filter-status").value || "";
@@ -2399,7 +2426,7 @@ function filteredRunEvents(events) {
   });
 }
 
-function sortedRunEvents(events) {
+export function sortedRunEvents(events) {
   const sortMode = $("run-events-filter-sort").value || "time_desc";
   return (events || []).slice().sort((left, right) => {
     if (sortMode === "time_asc") return String(left.timestamp || "").localeCompare(String(right.timestamp || ""));

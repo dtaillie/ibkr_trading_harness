@@ -1,4 +1,61 @@
-function dataReplayReadiness(dataset) {
+import {
+  $,
+  MAX_DATA_COMPARE_DATASETS,
+  bytes,
+  dataCatalogSettings,
+  dataLibraryLoadState,
+  durationMsText,
+  escapeHtml,
+  interval,
+  navigateToDataLens,
+  navigateToView,
+  navigateToWorkbenchLens,
+  numberText,
+  pctText,
+  qualityBadge,
+  row,
+  selectedDataCatalogOffset,
+  setDataCatalogOffset,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets } from "./20_workbench_foundation.js";
+import { dataBackendStatusModel, shortTimestampAgeLabel, symbolInventoryModel, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { workflowHref } from "./32_overview.js";
+import { miniChart, rangeLabel } from "./34_charts.js";
+import {
+  breakdownChips,
+  countBy,
+  countSummary,
+  dataRootConfigPaths,
+  dataCatalogFilters,
+  dataCatalogServerFilterLabels,
+  dataCatalogServerScopeModel,
+  dataHistoryMatrixBackendScopeApplied,
+  dataReplayReadinessModel,
+  filteredDataCatalog,
+  recommendedDataRows,
+  renderDataFilterOptions,
+  renderDataSearchAssistant,
+  renderDataUniversePanel,
+  renderRootIndexBrowser,
+  renderSymbolBrowser,
+  renderSymbolDirectory,
+  rootIndexArray,
+  rootIndexScanStats,
+  symbolBrowserGroups,
+  timestampRangeFromDatasets,
+  topCountEntries,
+} from "./40_data_catalog.js";
+import { renderDataLibrarySummary } from "./42_data_symbols.js";
+import { previewCloseReturn, renderDataCompareControls } from "./43_data_detail_compare.js";
+import { copyDataRootsYaml, fetchManifestOutputIssueCount } from "./50_fetch.js";
+import { renderConfigLivePanels } from "./60_workbench_builder.js";
+import { copyText, loadDataCompare, loadDataDetail, refresh, refreshDataDiagnostics, refreshDataLibrary, shouldLoadDataDiagnostics } from "./90_bootstrap.js";
+
+export function dataReplayReadiness(dataset) {
   const model = dataReplayReadinessModel(dataset);
   return `
     <div class="data-readiness-cell ${escapeHtml(statusClass(model.status))}">
@@ -9,7 +66,7 @@ function dataReplayReadiness(dataset) {
   `;
 }
 
-function renderDataCatalog() {
+export function renderDataCatalog() {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
   const filtered = filteredDataCatalog(datasets);
@@ -115,7 +172,7 @@ function renderDataCatalog() {
   }
 }
 
-function dataFilterSummary() {
+export function dataFilterSummary() {
   const filters = dataCatalogFilters();
   const labels = [];
   if (filters.text) labels.push(`search "${filters.text}"`);
@@ -133,7 +190,7 @@ function dataFilterSummary() {
   return labels;
 }
 
-function renderDataFacetSummary(datasets = [], filteredRows = []) {
+export function renderDataFacetSummary(datasets = [], filteredRows = []) {
   if (!$("data-facet-summary-title") || !$("data-facet-summary-cards") || !$("data-facet-clear")) return;
   const filters = dataCatalogFilters();
   const labels = dataFilterSummary();
@@ -212,7 +269,7 @@ function renderDataFacetSummary(datasets = [], filteredRows = []) {
   `).join("");
 }
 
-function dataExplorerDimensions() {
+export function dataExplorerDimensions() {
   return [
     { key: "asset_class", label: "Asset", filter: "asset", control: "data-filter-asset" },
     { key: "source", label: "Source", filter: "source", control: "data-filter-source" },
@@ -224,7 +281,7 @@ function dataExplorerDimensions() {
   ];
 }
 
-function dataExplorerGroupRows(datasets, dimension) {
+export function dataExplorerGroupRows(datasets, dimension) {
   const groups = new Map();
   for (const dataset of datasets || []) {
     const value = text(dimension.value ? dimension.value(dataset) : dataset[dimension.key]);
@@ -264,7 +321,7 @@ function dataExplorerGroupRows(datasets, dimension) {
     .sort((left, right) => Number(right.file_count || 0) - Number(left.file_count || 0) || String(left.value).localeCompare(String(right.value)));
 }
 
-function renderDataExplorer(datasets = [], filteredRows = []) {
+export function renderDataExplorer(datasets = [], filteredRows = []) {
   if (!$("data-explorer-note") || !$("data-explorer-cards") || !$("data-explorer-groups")) return;
   const symbolIndex = state.dataSymbolIndex || {};
   const indexFileCount = Number(symbolIndex.file_count || 0);
@@ -348,7 +405,7 @@ function renderDataExplorer(datasets = [], filteredRows = []) {
     : `<div class="empty-card"><strong>No saved-data groups</strong><span>Refresh Data Library after configuring data roots or running fetch jobs.</span></div>`;
 }
 
-function setDataCatalogFacetFilter(filter, value) {
+export function setDataCatalogFacetFilter(filter, value) {
   clearDataCatalogFilters();
   const mapping = {
     asset: "data-filter-asset",
@@ -367,14 +424,14 @@ function setDataCatalogFacetFilter(filter, value) {
   if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function handleDataExplorerAction(target) {
+export function handleDataExplorerAction(target) {
   const action = String(target.dataset.dataExplorerAction || "");
   if (action === "filter") {
     setDataCatalogFacetFilter(target.dataset.explorerFilter || "", target.dataset.explorerValue || "");
   }
 }
 
-function clearDataCatalogFilters() {
+export function clearDataCatalogFilters() {
   $("data-filter-text").value = "";
   $("data-filter-quality").value = "";
   $("data-filter-bar").value = "";
@@ -387,18 +444,18 @@ function clearDataCatalogFilters() {
   state.manifestPathFilter = null;
 }
 
-function handleDataServerFilterControlChange() {
+export function handleDataServerFilterControlChange() {
   setDataCatalogOffset(0);
   renderDataCatalog();
 }
 
-function previewDataCatalogServerFilters(message) {
+export function previewDataCatalogServerFilters(message) {
   setDataCatalogOffset(0);
   renderDataCatalog();
   $("last-refresh").textContent = `${message}; local preview only. Use Search Scan to apply this scope to backend catalog, Symbol Directory, and History Matrix.`;
 }
 
-async function runDataCatalogServerSearch(statusPrefix = "Catalog scan filtered") {
+export async function runDataCatalogServerSearch(statusPrefix = "Catalog scan filtered") {
   setDataCatalogOffset(0);
   await refreshDataLibrary({ includeDiagnostics: shouldLoadDataDiagnostics(), force: true });
   const serverFilters = dataCatalogServerFilterLabels();
@@ -407,7 +464,7 @@ async function runDataCatalogServerSearch(statusPrefix = "Catalog scan filtered"
     : "Catalog scan refreshed without server filters";
 }
 
-function catalogScopeIsCapped(catalog = {}) {
+export function catalogScopeIsCapped(catalog = {}) {
   const limit = Number(catalog.limit || $("data-catalog-limit").value || 0);
   const count = Number(catalog.count || (catalog.datasets || []).length || 0);
   const rootSummaries = catalog.root_summaries || [];
@@ -419,7 +476,7 @@ function catalogScopeIsCapped(catalog = {}) {
   );
 }
 
-function setDataCatalogLimitToMax() {
+export function setDataCatalogLimitToMax() {
   const limit = $("data-catalog-limit");
   const values = Array.from(limit.options || []).map((option) => Number(option.value)).filter(Boolean);
   const next = Math.max(...values, Number(limit.value || 0), Number((state.dataCatalog || {}).limit || 0));
@@ -427,7 +484,7 @@ function setDataCatalogLimitToMax() {
   dataLibraryLoadState().catalogLimitTouched = true;
 }
 
-function renderDataScopeAssistant(filteredRows = []) {
+export function renderDataScopeAssistant(filteredRows = []) {
   if (!$("data-scope-assistant-title") || !$("data-scope-assistant-cards") || !$("data-scope-assistant-actions")) return;
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
@@ -581,7 +638,7 @@ function renderDataScopeAssistant(filteredRows = []) {
   `).join("");
 }
 
-function handleDataScopeAssistantAction(action) {
+export function handleDataScopeAssistantAction(action) {
   if (action === "raise-limit") {
     setDataCatalogLimitToMax();
     refreshDataLibrary({ force: true, includeDiagnostics: shouldLoadDataDiagnostics() }).catch((err) => {
@@ -618,7 +675,7 @@ function handleDataScopeAssistantAction(action) {
   }
 }
 
-function fetchManifestVisibilityTotals(manifests = []) {
+export function fetchManifestVisibilityTotals(manifests = []) {
   return (manifests || []).reduce((totals, manifest) => {
     totals.visible += Number(manifest.output_visible_count || manifest.visible_output_count || 0);
     totals.missing += Number(manifest.output_missing_file_count || 0);
@@ -632,7 +689,7 @@ function fetchManifestVisibilityTotals(manifests = []) {
   }, { visible: 0, missing: 0, outside: 0, unsupported: 0, noPath: 0, issues: 0, rows: 0, errors: 0 });
 }
 
-function dataVisibilityReportModel(filteredRows = []) {
+export function dataVisibilityReportModel(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
   const audit = state.dataStorageAudit || {};
@@ -763,7 +820,7 @@ function dataVisibilityReportModel(filteredRows = []) {
   return { status, headline, note, cards, lines };
 }
 
-function dataVisibilityReportText(model) {
+export function dataVisibilityReportText(model) {
   return [
     `Data Visibility Report: ${model.headline}`,
     `Context: ${model.note}`,
@@ -771,7 +828,7 @@ function dataVisibilityReportText(model) {
   ].join("\n");
 }
 
-function dataActionSummaryModel(filteredRows = []) {
+export function dataActionSummaryModel(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
   const datasets = catalog.datasets || [];
@@ -948,7 +1005,7 @@ function dataActionSummaryModel(filteredRows = []) {
   return { status, headline, note, cards, actions };
 }
 
-function renderDataActionSummary(filteredRows = []) {
+export function renderDataActionSummary(filteredRows = []) {
   if (!$("data-action-note") || !$("data-action-cards") || !$("data-action-actions")) return;
   const model = dataActionSummaryModel(filteredRows);
   $("data-action-note").textContent = model.note;
@@ -964,7 +1021,7 @@ function renderDataActionSummary(filteredRows = []) {
   )).join("");
 }
 
-function rootIndexSpotlightModel(filteredRows = []) {
+export function rootIndexSpotlightModel(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
   const inventory = symbolInventoryModel();
@@ -1044,7 +1101,7 @@ function rootIndexSpotlightModel(filteredRows = []) {
   return { status, headline, note, cards, topSymbols };
 }
 
-function renderRootIndexSpotlight(filteredRows = []) {
+export function renderRootIndexSpotlight(filteredRows = []) {
   if (!$("data-root-index-spotlight-note") || !$("data-root-index-spotlight-cards") || !$("data-root-index-spotlight-symbols")) return;
   const model = rootIndexSpotlightModel(filteredRows);
   $("data-root-index-spotlight-note").textContent = model.note;
@@ -1077,7 +1134,7 @@ function renderRootIndexSpotlight(filteredRows = []) {
   }
 }
 
-function handleRootIndexSpotlightAction(target) {
+export function handleRootIndexSpotlightAction(target) {
   const action = String(target.dataset.rootSpotlightAction || "");
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (action === "root-filter") {
@@ -1123,7 +1180,7 @@ function handleRootIndexSpotlightAction(target) {
   }
 }
 
-function renderDataVisibilityReport(filteredRows = []) {
+export function renderDataVisibilityReport(filteredRows = []) {
   if (!$("data-visibility-report-note") || !$("data-visibility-report-cards") || !$("data-visibility-report-body") || !$("data-visibility-report-actions")) return;
   const model = dataVisibilityReportModel(filteredRows);
   state.dataVisibilityReportText = dataVisibilityReportText(model);
@@ -1150,7 +1207,7 @@ function renderDataVisibilityReport(filteredRows = []) {
   ].join("");
 }
 
-function handleDataVisibilityReportAction(action) {
+export function handleDataVisibilityReportAction(action) {
   if (action === "copy") {
     copyText(state.dataVisibilityReportText || "No data visibility report loaded").then(() => {
       $("last-refresh").textContent = "Data visibility report copied";
@@ -1179,7 +1236,7 @@ function handleDataVisibilityReportAction(action) {
   copyDataRootsYaml();
 }
 
-function dataInventoryEvidenceModel(filteredRows = []) {
+export function dataInventoryEvidenceModel(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
   const diagnostics = state.diagnostics || {};
@@ -1347,7 +1404,7 @@ function dataInventoryEvidenceModel(filteredRows = []) {
   return { status, headline, note, cards, lines };
 }
 
-function dataInventoryEvidenceText(model) {
+export function dataInventoryEvidenceText(model) {
   return [
     `Historical Inventory Evidence: ${model.headline}`,
     `Context: ${model.note}`,
@@ -1355,7 +1412,7 @@ function dataInventoryEvidenceText(model) {
   ].join("\n");
 }
 
-function renderDataInventoryEvidence(filteredRows = []) {
+export function renderDataInventoryEvidence(filteredRows = []) {
   if (!$("data-inventory-evidence-note") || !$("data-inventory-evidence-cards") || !$("data-inventory-evidence-body") || !$("data-inventory-evidence-actions")) return;
   const model = dataInventoryEvidenceModel(filteredRows);
   state.dataInventoryEvidenceText = dataInventoryEvidenceText(model);
@@ -1385,7 +1442,7 @@ function renderDataInventoryEvidence(filteredRows = []) {
   ].join("");
 }
 
-function handleDataInventoryEvidenceAction(action) {
+export function handleDataInventoryEvidenceAction(action) {
   if (action === "copy") {
     copyText(state.dataInventoryEvidenceText || "No historical inventory evidence loaded").then(() => {
       $("last-refresh").textContent = "Historical inventory evidence copied";
@@ -1430,7 +1487,7 @@ function handleDataInventoryEvidenceAction(action) {
   navigateToWorkbenchLens("builder");
 }
 
-function renderDataHome(filteredRows = []) {
+export function renderDataHome(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const datasets = catalog.datasets || [];
   const diagnostics = state.diagnostics || {};
@@ -1525,7 +1582,7 @@ function renderDataHome(filteredRows = []) {
   renderDataHomeShortlist(filteredRows);
 }
 
-function renderDataInventoryPanel(filteredRows = []) {
+export function renderDataInventoryPanel(filteredRows = []) {
   if (!$("data-inventory-title") || !$("data-inventory-cards") || !$("data-inventory-actions")) return;
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
@@ -1655,7 +1712,7 @@ function renderDataInventoryPanel(filteredRows = []) {
   ].join("");
 }
 
-function renderDataHistoryReview(filteredRows = []) {
+export function renderDataHistoryReview(filteredRows = []) {
   if (!$("data-history-note") || !$("data-history-cards") || !$("data-history-actions")) return;
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
@@ -1776,7 +1833,7 @@ function renderDataHistoryReview(filteredRows = []) {
   ].join("");
 }
 
-function dataHistoryMatrixRows(rows = []) {
+export function dataHistoryMatrixRows(rows = []) {
   const backendRows = ((state.dataHistoryMatrix || {}).rows || (state.dataHistoryMatrix || {}).groups || []);
   if ((!rows || !rows.length) && backendRows.length) {
     return backendRows.map((group) => ({
@@ -1855,7 +1912,7 @@ function dataHistoryMatrixRows(rows = []) {
   ));
 }
 
-function renderDataHistoryMatrix(filteredRows = []) {
+export function renderDataHistoryMatrix(filteredRows = []) {
   if (!$("data-history-matrix-note") || !$("data-history-matrix-body")) return;
   const catalogRows = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const activeFilters = dataFilterSummary();
@@ -1898,7 +1955,7 @@ function renderDataHistoryMatrix(filteredRows = []) {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = [], options = {}) {
+export function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = [], options = {}) {
   if (!$("data-history-matrix-summary")) return;
   if (!matrix.length) {
     $("data-history-matrix-summary").innerHTML = `
@@ -1974,7 +2031,7 @@ function renderDataHistoryMatrixSummary(matrix = [], rows = [], activeFilters = 
   `).join("");
 }
 
-function dataHistoryMatrixGroupDatasets(target) {
+export function dataHistoryMatrixGroupDatasets(target) {
   const asset = text(target.dataset.asset);
   const source = text(target.dataset.source);
   const bar = text(target.dataset.bar);
@@ -1988,7 +2045,7 @@ function dataHistoryMatrixGroupDatasets(target) {
   ));
 }
 
-function applyDataHistoryMatrixFilter(target) {
+export function applyDataHistoryMatrixFilter(target) {
   clearDataCatalogFilters();
   $("data-filter-asset").value = target.dataset.asset || "";
   $("data-filter-source").value = target.dataset.source || "";
@@ -2000,7 +2057,7 @@ function applyDataHistoryMatrixFilter(target) {
   if ($("data-catalog-body")) $("data-catalog-body").scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-async function handleDataHistoryMatrixAction(target) {
+export async function handleDataHistoryMatrixAction(target) {
   const action = String(target.dataset.matrixAction || "filter");
   if (action === "filter") {
     applyDataHistoryMatrixFilter(target);
@@ -2065,7 +2122,7 @@ async function handleDataHistoryMatrixAction(target) {
   }
 }
 
-function dataHomeWorkflowCards(filteredRows = []) {
+export function dataHomeWorkflowCards(filteredRows = []) {
   const catalog = state.dataCatalog || {};
   const diagnostics = state.diagnostics || {};
   const datasets = catalog.datasets || [];
@@ -2167,7 +2224,7 @@ function dataHomeWorkflowCards(filteredRows = []) {
   ];
 }
 
-function renderDataHomeWorkflows(filteredRows = []) {
+export function renderDataHomeWorkflows(filteredRows = []) {
   const container = $("data-home-workflows");
   if (!container) return;
   const cards = dataHomeWorkflowCards(filteredRows);
@@ -2184,7 +2241,7 @@ function renderDataHomeWorkflows(filteredRows = []) {
   `).join("");
 }
 
-function renderDataHomeShortlist(filteredRows = []) {
+export function renderDataHomeShortlist(filteredRows = []) {
   const container = $("data-home-shortlist");
   if (!container) return;
   const rows = recommendedDataRows(filteredRows);
@@ -2215,7 +2272,7 @@ function renderDataHomeShortlist(filteredRows = []) {
   }).join("");
 }
 
-function renderDataPreviewWall(filteredRows = []) {
+export function renderDataPreviewWall(filteredRows = []) {
   const container = $("data-preview-wall");
   if (!container || !$("data-preview-wall-note")) return;
   const rows = recommendedDataRows(filteredRows).slice(0, 8);
@@ -2257,7 +2314,7 @@ function renderDataPreviewWall(filteredRows = []) {
   }).join("");
 }
 
-function renderDataPreviewSummary(rows = [], total = 0, filteredRows = []) {
+export function renderDataPreviewSummary(rows = [], total = 0, filteredRows = []) {
   const container = $("data-preview-summary");
   if (!container) return;
   const catalogRows = state.dataCatalog.datasets || [];
@@ -2354,7 +2411,7 @@ function renderDataPreviewSummary(rows = [], total = 0, filteredRows = []) {
   `).join("");
 }
 
-function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
+export function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
   const rootPath = text(root.display_path || root.path);
   const rootPathLower = rootPath.toLowerCase();
   const summary = rootSummaries.find((item) => {
@@ -2378,7 +2435,7 @@ function rootCatalogSummary(root, rootSummaries = [], datasets = []) {
   };
 }
 
-function renderDataSourceMap() {
+export function renderDataSourceMap() {
   if (!$("data-source-map") || !$("data-source-map-note")) return;
   const diagnostics = state.diagnostics || {};
   const catalog = state.dataCatalog || {};
@@ -2463,4 +2520,3 @@ function renderDataSourceMap() {
     `).join("")
     : `<div class="empty-card"><strong>No data roots mapped</strong><span>Configure dashboard.data_roots or run a fetch job, then refresh Data Library.</span></div>`;
 }
-

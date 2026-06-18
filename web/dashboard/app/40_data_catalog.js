@@ -1,4 +1,35 @@
-function dataCatalogFilters() {
+import {
+  $,
+  age,
+  bytes,
+  dataCatalogPreviewPoints,
+  dataLibraryLoadState,
+  durationMsText,
+  escapeHtml,
+  fetchJson,
+  jsonDrilldown,
+  navigateToDataLens,
+  navigateToView,
+  numberText,
+  qualityBadge,
+  renderPageIntro,
+  row,
+  selectedDataCatalogLimit,
+  selectedDataCatalogOffset,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { finiteNumber, shortTimestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { compactDataPreviewChart, rangeLabel } from "./34_charts.js";
+import { renderDataCatalog, runDataCatalogServerSearch } from "./41_data_explorer.js";
+import { handleSymbolSelectionAction, renderDataCoverage, renderSymbolSelectionPanel, selectCatalogDatasetInWorkbench } from "./42_data_symbols.js";
+import { dataCatalogDatasetByPath } from "./50_fetch.js";
+import { replaceOptions } from "./60_workbench_builder.js";
+import { copyText, diagnoseDataSymbol, loadDataDetail, refresh } from "./90_bootstrap.js";
+
+export function dataCatalogFilters() {
   return {
     text: ($("data-filter-text").value || "").trim().toLowerCase(),
     quality: $("data-filter-quality").value || "",
@@ -12,7 +43,7 @@ function dataCatalogFilters() {
   };
 }
 
-function dataReplayReadinessModel(dataset) {
+export function dataReplayReadinessModel(dataset) {
   const quality = text(dataset.quality_status).toLowerCase();
   const contract = text(dataset.storage_contract_status).toLowerCase();
   const adjustment = text(dataset.adjustment_status).toLowerCase();
@@ -39,7 +70,7 @@ function dataReplayReadinessModel(dataset) {
   return { status, title, detail };
 }
 
-function dataCatalogSortValue(dataset, key) {
+export function dataCatalogSortValue(dataset, key) {
   if (key === "modified") return timestampMillis(dataset.modified_at) || 0;
   if (key === "rows") return Number(dataset.rows || 0);
   if (key === "size") return Number(dataset.size_bytes || 0);
@@ -59,7 +90,7 @@ function dataCatalogSortValue(dataset, key) {
   return String(dataset.symbol || dataset.path || "").toLowerCase();
 }
 
-function sortDataCatalogRows(datasets, sortKey) {
+export function sortDataCatalogRows(datasets, sortKey) {
   const [key, direction] = String(sortKey || "modified_desc").split("_");
   const multiplier = direction === "asc" ? 1 : -1;
   return (datasets || []).slice().sort((left, right) => {
@@ -74,7 +105,7 @@ function sortDataCatalogRows(datasets, sortKey) {
   });
 }
 
-function filteredDataCatalog(datasets) {
+export function filteredDataCatalog(datasets) {
   const filters = dataCatalogFilters();
   const manifestPaths = manifestPathFilterPaths();
   const filtered = (datasets || []).filter((dataset) => {
@@ -109,7 +140,7 @@ function filteredDataCatalog(datasets) {
   return sortDataCatalogRows(filtered, filters.sort);
 }
 
-function renderDataFilterOptions(datasets) {
+export function renderDataFilterOptions(datasets) {
   const makeOptions = (id, values) => {
     const select = $(id);
     const current = select.value;
@@ -129,7 +160,7 @@ function renderDataFilterOptions(datasets) {
   makeOptions("data-filter-contract", (datasets || []).map((item) => item.storage_contract_status));
 }
 
-function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
+export function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
   const groups = new Map();
   for (const dataset of (datasets || [])) {
     const symbol = text(dataset.symbol);
@@ -155,7 +186,7 @@ function symbolBrowserGroups(datasets = state.dataCatalog.datasets || []) {
   return groups;
 }
 
-function symbolBrowserFacetControls() {
+export function symbolBrowserFacetControls() {
   return {
     source: (($("data-symbol-browser-source") || {}).value || ""),
     bar: (($("data-symbol-browser-bar") || {}).value || ""),
@@ -165,7 +196,7 @@ function symbolBrowserFacetControls() {
   };
 }
 
-function datasetMatchesSymbolBrowserFacets(dataset, facets = symbolBrowserFacetControls()) {
+export function datasetMatchesSymbolBrowserFacets(dataset, facets = symbolBrowserFacetControls()) {
   return (!facets.source || text(dataset.source) === facets.source)
     && (!facets.bar || text(dataset.bar_size) === facets.bar)
     && (!facets.session || text(dataset.storage_session) === facets.session)
@@ -173,16 +204,16 @@ function datasetMatchesSymbolBrowserFacets(dataset, facets = symbolBrowserFacetC
     && (!facets.contract || text(dataset.storage_contract_status) === facets.contract);
 }
 
-function symbolBrowserFilteredDatasets() {
+export function symbolBrowserFilteredDatasets() {
   const facets = symbolBrowserFacetControls();
   return (state.dataCatalog.datasets || []).filter((dataset) => datasetMatchesSymbolBrowserFacets(dataset, facets));
 }
 
-function symbolBrowserFilteredGroups() {
+export function symbolBrowserFilteredGroups() {
   return symbolBrowserGroups(symbolBrowserFilteredDatasets());
 }
 
-function symbolBrowserFacetSummary(facets = symbolBrowserFacetControls()) {
+export function symbolBrowserFacetSummary(facets = symbolBrowserFacetControls()) {
   return [
     facets.source ? `source ${facets.source}` : "",
     facets.bar ? `bar ${facets.bar}` : "",
@@ -192,7 +223,7 @@ function symbolBrowserFacetSummary(facets = symbolBrowserFacetControls()) {
   ].filter(Boolean);
 }
 
-function renderSymbolBrowserFacetOptions(datasets = state.dataCatalog.datasets || []) {
+export function renderSymbolBrowserFacetOptions(datasets = state.dataCatalog.datasets || []) {
   const makeOptions = (id, values) => {
     const select = $(id);
     if (!select) return;
@@ -213,7 +244,7 @@ function renderSymbolBrowserFacetOptions(datasets = state.dataCatalog.datasets |
   makeOptions("data-symbol-browser-contract", datasets.map((item) => item.storage_contract_status));
 }
 
-function renderCatalogSymbolDatalists(browserSymbols, catalogSymbols = browserSymbols) {
+export function renderCatalogSymbolDatalists(browserSymbols, catalogSymbols = browserSymbols) {
   const renderOptions = (symbols) => (symbols || []).map((symbol) => `<option value="${escapeHtml(symbol)}"></option>`).join("");
   const browserDatalist = $("data-symbol-browser-options");
   if (browserDatalist) browserDatalist.innerHTML = renderOptions(browserSymbols);
@@ -221,17 +252,17 @@ function renderCatalogSymbolDatalists(browserSymbols, catalogSymbols = browserSy
   if (catalogDatalist) catalogDatalist.innerHTML = renderOptions(catalogSymbols);
 }
 
-function selectedSymbolBrowserSymbol() {
+export function selectedSymbolBrowserSymbol() {
   return ($("data-symbol-browser-input").value || "").trim().toUpperCase();
 }
 
-function selectedSymbolBrowserDatasets() {
+export function selectedSymbolBrowserDatasets() {
   const symbol = selectedSymbolBrowserSymbol();
   if (!symbol) return [];
   return symbolBrowserFilteredGroups().get(symbol) || [];
 }
 
-function symbolGroupSummary(symbol, rows) {
+export function symbolGroupSummary(symbol, rows) {
   const datasets = rows || [];
   const best = datasets[0] || {};
   const sources = Array.from(new Set(datasets.map((item) => text(item.source)).filter((item) => item !== "n/a"))).slice(0, 4);
@@ -256,7 +287,7 @@ function symbolGroupSummary(symbol, rows) {
   };
 }
 
-function symbolQuickPickSuggestions(query, groups, limit = 8) {
+export function symbolQuickPickSuggestions(query, groups, limit = 8) {
   const normalized = String(query || "").trim().toUpperCase();
   const summaries = Array.from(groups.entries()).map(([symbol, rows]) => symbolGroupSummary(symbol, rows));
   return summaries
@@ -289,7 +320,7 @@ function symbolQuickPickSuggestions(query, groups, limit = 8) {
     .slice(0, limit);
 }
 
-function renderSymbolQuickPicks(groups, query) {
+export function renderSymbolQuickPicks(groups, query) {
   const container = $("data-symbol-quick-picks");
   if (!container) return;
   const suggestions = symbolQuickPickSuggestions(query, groups, 8);
@@ -315,18 +346,18 @@ function renderSymbolQuickPicks(groups, query) {
   `;
 }
 
-function symbolMatchLabel(score) {
+export function symbolMatchLabel(score) {
   if (score === 0) return "exact";
   if (score === 1) return "starts";
   if (score === 2) return "contains";
   return "ranked";
 }
 
-function symbolTypeaheadSuggestions(groups, query) {
+export function symbolTypeaheadSuggestions(groups, query) {
   return symbolQuickPickSuggestions(query, groups, 6);
 }
 
-function renderSymbolTypeahead(groups, query) {
+export function renderSymbolTypeahead(groups, query) {
   const container = $("data-symbol-typeahead");
   if (!container) return;
   const suggestions = symbolTypeaheadSuggestions(groups, query);
@@ -362,20 +393,20 @@ function renderSymbolTypeahead(groups, query) {
   }
 }
 
-function selectSymbolBrowserSymbol(symbol) {
+export function selectSymbolBrowserSymbol(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return;
   $("data-symbol-browser-input").value = normalized;
   renderSymbolBrowser();
 }
 
-function topSymbolBrowserSuggestion() {
+export function topSymbolBrowserSuggestion() {
   const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   return (suggestions[0] || {}).symbol || "";
 }
 
-function activeSymbolTypeaheadSuggestion() {
+export function activeSymbolTypeaheadSuggestion() {
   const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   if (!suggestions.length) return "";
@@ -383,7 +414,7 @@ function activeSymbolTypeaheadSuggestion() {
   return (suggestions[index] || {}).symbol || "";
 }
 
-function moveSymbolTypeaheadSelection(delta) {
+export function moveSymbolTypeaheadSelection(delta) {
   const groups = symbolBrowserFilteredGroups();
   const suggestions = symbolTypeaheadSuggestions(groups, selectedSymbolBrowserSymbol());
   if (!suggestions.length) return "";
@@ -392,24 +423,24 @@ function moveSymbolTypeaheadSelection(delta) {
   return (suggestions[state.symbolTypeaheadActiveIndex] || {}).symbol || "";
 }
 
-function symbolRootIndexEntry(symbol) {
+export function symbolRootIndexEntry(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return null;
   return ((state.dataSymbolIndex || {}).symbols || [])
     .find((item) => text(item.symbol).toUpperCase() === normalized) || null;
 }
 
-function rootIndexSamplePathsForSymbol(symbol) {
+export function rootIndexSamplePathsForSymbol(symbol) {
   return rootIndexArray(symbolRootIndexEntry(symbol) || {}, "sample_paths");
 }
 
-function symbolVisibilityDiagnostic(symbol) {
+export function symbolVisibilityDiagnostic(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   const diagnostic = state.symbolDiagnostic || {};
   return normalized && text(diagnostic.symbol).toUpperCase() === normalized ? diagnostic : null;
 }
 
-function symbolVisibilityModel(symbol = selectedSymbolBrowserSymbol()) {
+export function symbolVisibilityModel(symbol = selectedSymbolBrowserSymbol()) {
   const normalized = String(symbol || "").trim().toUpperCase();
   const filteredRows = normalized ? (symbolBrowserFilteredGroups().get(normalized) || []) : [];
   const catalogRows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
@@ -528,7 +559,7 @@ function symbolVisibilityModel(symbol = selectedSymbolBrowserSymbol()) {
   return { symbol: normalized, status, title, note, cards, lines, next, rootEntry };
 }
 
-function renderSymbolVisibilityExplainer() {
+export function renderSymbolVisibilityExplainer() {
   if (!$("data-symbol-visibility-note") || !$("data-symbol-visibility-cards") || !$("data-symbol-visibility-body") || !$("data-symbol-visibility-actions")) return;
   const model = symbolVisibilityModel();
   $("data-symbol-visibility-note").textContent = model.symbol ? `${model.symbol}: ${model.note}` : model.note;
@@ -559,7 +590,7 @@ function renderSymbolVisibilityExplainer() {
   `).join("");
 }
 
-async function handleSymbolVisibilityAction(action) {
+export async function handleSymbolVisibilityAction(action) {
   if (action === "clear-facets") {
     $("data-symbol-browser-source").value = "";
     $("data-symbol-browser-bar").value = "";
@@ -605,18 +636,18 @@ async function handleSymbolVisibilityAction(action) {
   }
 }
 
-function bestCatalogDatasetForSymbol(symbol) {
+export function bestCatalogDatasetForSymbol(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) return null;
   return (symbolBrowserGroups().get(normalized) || [])[0] || null;
 }
 
-function datasetQualityRank(value) {
+export function datasetQualityRank(value) {
   const rank = { ok: 0, warn: 1, bad: 2 };
   return rank[String(value || "").toLowerCase()] ?? 3;
 }
 
-function recommendedDataRows(filteredRows = []) {
+export function recommendedDataRows(filteredRows = []) {
   const sourceRows = filteredRows.length ? filteredRows : (state.dataCatalog.datasets || []);
   return sourceRows
     .filter((dataset) => dataset && dataset.path)
@@ -634,7 +665,7 @@ function recommendedDataRows(filteredRows = []) {
     .slice(0, 6);
 }
 
-function renderDataSearchAssistant(filteredRows = []) {
+export function renderDataSearchAssistant(filteredRows = []) {
   if (!$("data-search-title") || !$("data-search-cards") || !$("data-search-actions")) return;
   const datasets = state.dataCatalog.datasets || [];
   const filters = dataCatalogFilters();
@@ -749,7 +780,7 @@ function renderDataSearchAssistant(filteredRows = []) {
       : `<div class="empty-card"><strong>No quick actions</strong><span>Clear filters, raise the catalog limit, or diagnose a typed symbol.</span></div>`;
 }
 
-function renderSymbolBrowser() {
+export function renderSymbolBrowser() {
   const allGroups = symbolBrowserGroups();
   renderSymbolBrowserFacetOptions(state.dataCatalog.datasets || []);
   const groups = symbolBrowserFilteredGroups();
@@ -800,7 +831,7 @@ function renderSymbolBrowser() {
     : `<div class="empty-card"><strong>No scanned symbols</strong><span>Add or configure historical data roots, then refresh the catalog.</span></div>`;
 }
 
-function symbolProfileModel(symbol) {
+export function symbolProfileModel(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   const rows = normalized ? (symbolBrowserFilteredGroups().get(normalized) || []) : [];
   const allRows = normalized ? (symbolBrowserGroups().get(normalized) || []) : [];
@@ -835,7 +866,7 @@ function symbolProfileModel(symbol) {
   };
 }
 
-function renderSymbolProfile(symbol) {
+export function renderSymbolProfile(symbol) {
   if (!$("data-symbol-profile-title")) return;
   const model = symbolProfileModel(symbol);
   const hasRows = Boolean(model.rows.length);
@@ -916,7 +947,7 @@ function renderSymbolProfile(symbol) {
     : `<div class="empty-card"><strong>${hasQuery ? "Symbol not visible" : "Choose a symbol"}</strong><span>${hasQuery ? (model.allRows.length ? "Clear or broaden Symbol Browser facets to show this symbol's catalog files." : "Run Diagnose to see whether files exist outside configured roots or fetch jobs returned no data.") : "Use typeahead, quick picks, or the Symbol Directory."}</span></div>`;
 }
 
-function symbolDirectoryControls() {
+export function symbolDirectoryControls() {
   return {
     filter: (($("data-symbol-directory-filter") || {}).value || "").trim().toLowerCase(),
     asset: (($("data-symbol-directory-asset") || {}).value || ""),
@@ -930,7 +961,7 @@ function symbolDirectoryControls() {
   };
 }
 
-function renderSymbolDirectoryFilterOptions(datasets) {
+export function renderSymbolDirectoryFilterOptions(datasets) {
   const makeOptions = (id, values) => {
     const select = $(id);
     if (!select) return;
@@ -950,14 +981,14 @@ function renderSymbolDirectoryFilterOptions(datasets) {
   makeOptions("data-symbol-directory-contract", datasets.map((item) => item.storage_contract_status));
 }
 
-function symbolDirectoryQualityScore(qualities) {
+export function symbolDirectoryQualityScore(qualities) {
   const rank = { ok: 0, warn: 1, bad: 2 };
   const entries = Object.keys(qualities || {});
   if (!entries.length) return 3;
   return Math.min(...entries.map((key) => rank[String(key).toLowerCase()] ?? 3));
 }
 
-function symbolDirectorySortValue(item, key) {
+export function symbolDirectorySortValue(item, key) {
   if (key === "files") return Number(item.file_count || 0);
   if (key === "rows") return Number(item.row_count || 0);
   if (key === "latest") return timestampMillis(item.last_day) || 0;
@@ -966,7 +997,7 @@ function symbolDirectorySortValue(item, key) {
   return String(item.symbol || "").toLowerCase();
 }
 
-function sortSymbolDirectoryRows(rows, sortKey) {
+export function sortSymbolDirectoryRows(rows, sortKey) {
   const [key, direction] = String(sortKey || "files_desc").split("_");
   const multiplier = direction === "asc" ? 1 : -1;
   return (rows || []).slice().sort((left, right) => {
@@ -981,7 +1012,7 @@ function sortSymbolDirectoryRows(rows, sortKey) {
   });
 }
 
-function symbolDirectoryRows() {
+export function symbolDirectoryRows() {
   const controls = symbolDirectoryControls();
   const datasetByPath = new Map((state.dataCatalog.datasets || []).map((dataset) => [dataset.path, dataset]));
   const directoryPayload = state.dataSymbolDirectory || {};
@@ -1058,7 +1089,7 @@ function symbolDirectoryRows() {
   };
 }
 
-function countArrayValues(rows, key) {
+export function countArrayValues(rows, key) {
   const counts = {};
   for (const rowItem of rows || []) {
     for (const value of rowItem[key] || []) {
@@ -1069,7 +1100,7 @@ function countArrayValues(rows, key) {
   return counts;
 }
 
-function renderSymbolDirectorySummary(directory) {
+export function renderSymbolDirectorySummary(directory) {
   if (!$("data-symbol-directory-summary")) return;
   const rows = directory.all_rows || [];
   const shown = directory.rows || [];
@@ -1147,7 +1178,7 @@ function renderSymbolDirectorySummary(directory) {
   `).join("");
 }
 
-function firstUniqueSymbolRows(candidates) {
+export function firstUniqueSymbolRows(candidates) {
   const seen = new Set();
   const rows = [];
   for (const item of candidates || []) {
@@ -1159,7 +1190,7 @@ function firstUniqueSymbolRows(candidates) {
   return rows;
 }
 
-function symbolDirectoryRecommendationRows(directory) {
+export function symbolDirectoryRecommendationRows(directory) {
   const rows = directory.all_rows || [];
   const newest = rows.slice().sort((left, right) => (timestampMillis(right.last_day) || 0) - (timestampMillis(left.last_day) || 0))[0] || null;
   const largest = rows.slice().sort((left, right) => Number(right.row_count || 0) - Number(left.row_count || 0))[0] || null;
@@ -1174,7 +1205,7 @@ function symbolDirectoryRecommendationRows(directory) {
   return firstUniqueSymbolRows([newest, largest, cleanest, mostFiles]).slice(0, 4);
 }
 
-function renderSymbolDirectoryAssistant(directory) {
+export function renderSymbolDirectoryAssistant(directory) {
   if (!$("data-directory-assistant-title") || !$("data-directory-assistant-cards") || !$("data-directory-assistant-actions")) return;
   const rows = directory.all_rows || [];
   const shown = directory.rows || [];
@@ -1268,7 +1299,7 @@ function renderSymbolDirectoryAssistant(directory) {
     : `<div class="empty-card"><strong>No symbol recommendation</strong><span>Clear filters, increase the catalog limit, or configure/fetch saved data.</span></div>`;
 }
 
-function renderSymbolCoverageLedger(directory) {
+export function renderSymbolCoverageLedger(directory) {
   if (!$("data-symbol-coverage-note") || !$("data-symbol-coverage-body")) return;
   const rows = directory.rows || [];
   const allRows = directory.all_rows || [];
@@ -1318,7 +1349,7 @@ function renderSymbolCoverageLedger(directory) {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function renderSymbolDirectory() {
+export function renderSymbolDirectory() {
   if (!$("data-symbol-directory") || !$("data-symbol-directory-note")) return;
   const groups = symbolBrowserGroups();
   renderSymbolDirectoryFilterOptions(state.dataCatalog.datasets || []);
@@ -1373,14 +1404,14 @@ function renderSymbolDirectory() {
       : `<div class="empty-card"><strong>No scanned symbols</strong><span>Configure data roots or run a fetch job, then refresh the catalog.</span></div>`;
 }
 
-function countSummary(counts) {
+export function countSummary(counts) {
   const entries = Object.entries(counts || {});
   return entries.length
     ? entries.map(([key, value]) => `${key}:${numberText(value, 0)}`).join(" ")
     : "none";
 }
 
-function topCountEntries(counts, limit = 4) {
+export function topCountEntries(counts, limit = 4) {
   return Object.entries(counts || {})
     .filter(([key, value]) => key && key !== "n/a" && Number(value || 0) > 0)
     .sort((left, right) => {
@@ -1390,7 +1421,7 @@ function topCountEntries(counts, limit = 4) {
     .slice(0, limit);
 }
 
-function breakdownChips(label, counts) {
+export function breakdownChips(label, counts) {
   const entries = topCountEntries(counts);
   const chips = entries.length
     ? entries.map(([key, value]) => `<span class="breakdown-chip">${escapeHtml(key)} ${escapeHtml(numberText(value, 0))}</span>`).join("")
@@ -1398,7 +1429,7 @@ function breakdownChips(label, counts) {
   return `<div class="breakdown-group"><span>${escapeHtml(label)}</span><div class="breakdown-chips">${chips}</div></div>`;
 }
 
-function countBy(rows, key) {
+export function countBy(rows, key) {
   const counts = {};
   for (const rowItem of rows || []) {
     const value = text(rowItem[key]);
@@ -1408,7 +1439,7 @@ function countBy(rows, key) {
   return counts;
 }
 
-function dataUniverseRows() {
+export function dataUniverseRows() {
   const datasets = state.dataCatalog.datasets || [];
   const datasetByPath = new Map(datasets.map((dataset) => [dataset.path, dataset]));
   const summaries = state.dataCatalog.symbol_summaries || [];
@@ -1458,7 +1489,7 @@ function dataUniverseRows() {
   });
 }
 
-function renderDataUniversePanel() {
+export function renderDataUniversePanel() {
   if (!$("data-universe-title") || !$("data-universe-cards") || !$("data-universe-symbols")) return;
   const rows = dataUniverseRows();
   const symbolIndex = state.dataSymbolIndex || {};
@@ -1554,14 +1585,14 @@ function renderDataUniversePanel() {
     : `<div class="empty-card"><strong>No symbols to rank</strong><span>Refresh Data Library after adding saved data roots.</span></div>`;
 }
 
-function rootIndexArray(row, key) {
+export function rootIndexArray(row, key) {
   const value = row && row[key];
   if (Array.isArray(value)) return value.map(text).filter((item) => item && item !== "n/a");
   const asText = text(value);
   return asText && asText !== "n/a" ? [asText] : [];
 }
 
-function rootIndexFilterState() {
+export function rootIndexFilterState() {
   return {
     text: (($("data-root-index-filter") || {}).value || "").trim().toLowerCase(),
     asset: (($("data-root-index-asset") || {}).value || ""),
@@ -1573,7 +1604,7 @@ function rootIndexFilterState() {
   };
 }
 
-function rootIndexServerQueryParams() {
+export function rootIndexServerQueryParams() {
   const filters = rootIndexFilterState();
   const params = new URLSearchParams();
   params.set("limit", String(Math.max(Number(selectedDataCatalogLimit()) || 0, 5000)));
@@ -1585,7 +1616,7 @@ function rootIndexServerQueryParams() {
   return params;
 }
 
-function rootIndexDetailServerQueryParams(symbol) {
+export function rootIndexDetailServerQueryParams(symbol) {
   const filters = rootIndexFilterState();
   const params = new URLSearchParams();
   params.set("symbol", String(symbol || "").trim().toUpperCase());
@@ -1597,7 +1628,7 @@ function rootIndexDetailServerQueryParams(symbol) {
   return params;
 }
 
-function dataCatalogServerQueryParams() {
+export function dataCatalogServerQueryParams() {
   const filters = dataCatalogFilters();
   const params = new URLSearchParams();
   params.set("limit", String(selectedDataCatalogLimit()));
@@ -1607,7 +1638,7 @@ function dataCatalogServerQueryParams() {
   return params;
 }
 
-function dataSymbolDirectoryServerQueryParams() {
+export function dataSymbolDirectoryServerQueryParams() {
   const filters = dataCatalogFilters();
   const params = new URLSearchParams();
   params.set("limit", String(selectedDataCatalogLimit()));
@@ -1615,11 +1646,11 @@ function dataSymbolDirectoryServerQueryParams() {
   return params;
 }
 
-function dataHistoryMatrixServerQueryParams() {
+export function dataHistoryMatrixServerQueryParams() {
   return dataSymbolDirectoryServerQueryParams();
 }
 
-function dataServerFilterMap(filters = dataCatalogFilters()) {
+export function dataServerFilterMap(filters = dataCatalogFilters()) {
   return Object.fromEntries(Object.entries({
     query: filters.text,
     asset_class: filters.asset,
@@ -1632,7 +1663,7 @@ function dataServerFilterMap(filters = dataCatalogFilters()) {
   }).filter(([, value]) => text(value) !== "n/a"));
 }
 
-function appendDataServerFiltersToParams(params, filters = dataCatalogFilters()) {
+export function appendDataServerFiltersToParams(params, filters = dataCatalogFilters()) {
   const map = dataServerFilterMap(filters);
   if (map.query) params.set("q", map.query);
   if (map.asset_class) params.set("asset_class", map.asset_class);
@@ -1644,7 +1675,7 @@ function appendDataServerFiltersToParams(params, filters = dataCatalogFilters())
   if (map.replay_status) params.set("replay_status", map.replay_status);
 }
 
-function normalizedDataServerFilterMap(map = {}) {
+export function normalizedDataServerFilterMap(map = {}) {
   const normalized = {};
   for (const key of ["query", "asset_class", "source", "bar_size", "storage_session", "quality_status", "storage_contract_status", "replay_status"]) {
     const value = text(map[key]).toLowerCase();
@@ -1653,7 +1684,7 @@ function normalizedDataServerFilterMap(map = {}) {
   return normalized;
 }
 
-function dataServerFilterMapsEqual(left = {}, right = {}) {
+export function dataServerFilterMapsEqual(left = {}, right = {}) {
   const a = normalizedDataServerFilterMap(left);
   const b = normalizedDataServerFilterMap(right);
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -1663,19 +1694,19 @@ function dataServerFilterMapsEqual(left = {}, right = {}) {
   return true;
 }
 
-function dataHistoryMatrixUsesBackendRows(payload = state.dataHistoryMatrix || {}) {
+export function dataHistoryMatrixUsesBackendRows(payload = state.dataHistoryMatrix || {}) {
   const rows = payload.rows || payload.groups || [];
   if (!rows.length || !dataHistoryMatrixBackendScopeApplied(payload)) return false;
   return true;
 }
 
-function dataHistoryMatrixBackendScopeApplied(payload = state.dataHistoryMatrix || {}) {
+export function dataHistoryMatrixBackendScopeApplied(payload = state.dataHistoryMatrix || {}) {
   if (!payload || payload.source === "catalog_fallback") return false;
   if (!Array.isArray(payload.rows || payload.groups)) return false;
   return dataServerFilterMapsEqual(payload.filters || {}, dataServerFilterMap());
 }
 
-function dataServerFilterLabelsFromMap(map = {}) {
+export function dataServerFilterLabelsFromMap(map = {}) {
   const normalized = normalizedDataServerFilterMap(map);
   return [
     normalized.query ? `search ${normalized.query}` : "",
@@ -1689,11 +1720,11 @@ function dataServerFilterLabelsFromMap(map = {}) {
   ].filter(Boolean);
 }
 
-function dataCatalogServerFilterLabels() {
+export function dataCatalogServerFilterLabels() {
   return dataServerFilterLabelsFromMap(dataServerFilterMap());
 }
 
-function dataCatalogServerScopeModel(catalog = state.dataCatalog || {}) {
+export function dataCatalogServerScopeModel(catalog = state.dataCatalog || {}) {
   const loadState = dataLibraryLoadState();
   const currentMap = dataServerFilterMap();
   const loadedMap = catalog.filters || {};
@@ -1735,7 +1766,7 @@ function dataCatalogServerScopeModel(catalog = state.dataCatalog || {}) {
   };
 }
 
-async function refreshRootIndexFromServerFilters() {
+export async function refreshRootIndexFromServerFilters() {
   const params = rootIndexServerQueryParams();
   const activeFilterCount = Array.from(params.keys()).filter((key) => key !== "limit").length;
   $("data-root-index-note").textContent = activeFilterCount
@@ -1752,7 +1783,7 @@ async function refreshRootIndexFromServerFilters() {
     : "Root Index refreshed from configured roots";
 }
 
-async function loadRootIndexDetail(symbol) {
+export async function loadRootIndexDetail(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   if (!normalized) throw new Error("Select a root-index symbol first");
   const params = rootIndexDetailServerQueryParams(normalized);
@@ -1764,7 +1795,7 @@ async function loadRootIndexDetail(symbol) {
   $("last-refresh").textContent = `Root Index candidate files loaded for ${normalized}`;
 }
 
-function syncRootIndexOptions(symbols = []) {
+export function syncRootIndexOptions(symbols = []) {
   const makeSelect = (id, values) => {
     const select = $(id);
     if (!select) return;
@@ -1782,14 +1813,14 @@ function syncRootIndexOptions(symbols = []) {
   makeSelect("data-root-index-session", symbols.flatMap((item) => rootIndexArray(item, "storage_sessions")));
 }
 
-function rootIndexSortValue(row, key) {
+export function rootIndexSortValue(row, key) {
   if (key === "files") return Number(row.file_count || 0);
   if (key === "modified") return timestampMillis(row.latest_modified_at) || 0;
   if (key === "size") return Number(row.size_bytes_total || 0);
   return text(row.symbol).toLowerCase();
 }
 
-function rootIndexRows() {
+export function rootIndexRows() {
   const symbols = ((state.dataSymbolIndex || {}).symbols || []).slice();
   syncRootIndexOptions(symbols);
   const filters = rootIndexFilterState();
@@ -1829,7 +1860,7 @@ function rootIndexRows() {
   return { rows, filters, shown: rows.slice(0, Math.max(1, filters.limit || 50)) };
 }
 
-function rootIndexRootStatus(root) {
+export function rootIndexRootStatus(root) {
   const overlap = root.covered_by_root
     ? ` Covered by earlier root ${text(root.covered_by_root)}.`
     : root.duplicate_of_root ? ` Duplicate of earlier root ${text(root.duplicate_of_root)}.` : "";
@@ -1845,7 +1876,7 @@ function rootIndexRootStatus(root) {
   return { status: "warn", title: "No Candidates", note: `No supported CSV/parquet files found.${overlap}${deferred}` };
 }
 
-function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
+export function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
   const roots = index.root_summaries || [];
   const totalRootScanMs = roots.reduce((sum, root) => sum + Number(root.scan_duration_ms || 0), 0);
   const slowestRoot = roots.slice().sort((left, right) => Number(right.scan_duration_ms || 0) - Number(left.scan_duration_ms || 0))[0] || null;
@@ -1867,7 +1898,7 @@ function rootIndexScanStats(index = state.dataSymbolIndex || {}) {
   };
 }
 
-function renderRootIndexDetail() {
+export function renderRootIndexDetail() {
   if (!$("data-root-index-detail-note") || !$("data-root-index-detail-summary") || !$("data-root-index-detail-body")) return;
   const detail = state.dataSymbolIndexDetail || {};
   const files = detail.files || [];
@@ -1938,7 +1969,7 @@ function renderRootIndexDetail() {
     : row([`<span class="muted">No candidate files found for ${escapeHtml(symbol)} under the current Root Index filters.</span>`, "", "", "", "", "", "", "", ""]);
 }
 
-function renderRootIndexBrowser() {
+export function renderRootIndexBrowser() {
   if (!$("data-root-index-note") || !$("data-root-index-summary") || !$("data-root-index-body")) return;
   const index = state.dataSymbolIndex || {};
   const symbols = index.symbols || [];
@@ -2047,7 +2078,7 @@ function renderRootIndexBrowser() {
   renderRootIndexDetail();
 }
 
-async function handleRootIndexBrowserAction(target) {
+export async function handleRootIndexBrowserAction(target) {
   const symbol = String(target.dataset.symbol || "").trim().toUpperCase();
   if (!symbol) return;
   if (target.classList.contains("root-index-show-files")) {
@@ -2087,7 +2118,7 @@ async function handleRootIndexBrowserAction(target) {
   }
 }
 
-async function handleRootIndexDetailAction(target) {
+export async function handleRootIndexDetailAction(target) {
   const path = target.dataset.path || "";
   if (!path) return;
   if (target.classList.contains("root-index-detail-inspect")) {
@@ -2128,7 +2159,7 @@ async function handleRootIndexDetailAction(target) {
   }
 }
 
-function timestampRangeFromDatasets(datasets) {
+export function timestampRangeFromDatasets(datasets) {
   const starts = (datasets || []).map((dataset) => timestampMillis(dataset.first_timestamp)).filter((value) => value !== null);
   const ends = (datasets || []).map((dataset) => timestampMillis(dataset.last_timestamp)).filter((value) => value !== null);
   if (!starts.length || !ends.length) return { start: null, end: null };
@@ -2138,19 +2169,19 @@ function timestampRangeFromDatasets(datasets) {
   };
 }
 
-function shellQuote(value) {
+export function shellQuote(value) {
   const raw = text(value);
   return `'${raw.replace(/'/g, "'\\''")}'`;
 }
 
-function approvalPreviewCommand(preview, artifacts) {
+export function approvalPreviewCommand(preview, artifacts) {
   const previewFile = text((artifacts || {}).order_preview_file);
   const approvalId = text((preview || {}).approval_id);
   if (!previewFile || !approvalId) return "";
   return `python3 scripts/approve_order_preview.py ${shellQuote(previewFile)} --approval-id ${shellQuote(approvalId)}`;
 }
 
-function approvalPreviewCanApprove(preview, artifacts) {
+export function approvalPreviewCanApprove(preview, artifacts) {
   const status = text(preview && preview.approval_status).toLowerCase();
   return Boolean(
     artifacts
@@ -2162,7 +2193,7 @@ function approvalPreviewCanApprove(preview, artifacts) {
   );
 }
 
-function csvCell(value) {
+export function csvCell(value) {
   const raw = value === null || value === undefined ? "" : String(value);
   return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
@@ -2183,7 +2214,7 @@ function manifestPathFilterPaths() {
   return new Set(((state.manifestPathFilter || {}).paths || []).map(text).filter((value) => value !== "n/a"));
 }
 
-function fetchVisibleOutputPaths(detail = state.fetchManifestDetail || {}) {
+export function fetchVisibleOutputPaths(detail = state.fetchManifestDetail || {}) {
   const paths = new Set();
   for (const item of (detail.outputs || [])) {
     if (!item.data_detail_available || !item.data_detail_path) continue;
@@ -2196,7 +2227,7 @@ function yamlScalar(value) {
   return JSON.stringify(String(value || ""));
 }
 
-function dataRootConfigPaths() {
+export function dataRootConfigPaths() {
   const diagnostics = state.diagnostics || {};
   const paths = new Set();
   for (const root of [...(diagnostics.data_roots || []), ...(diagnostics.suggested_data_roots || [])]) {
@@ -2206,7 +2237,7 @@ function dataRootConfigPaths() {
   return Array.from(paths).sort();
 }
 
-function dataRootsYamlSnippet() {
+export function dataRootsYamlSnippet() {
   const paths = dataRootConfigPaths();
   if (!paths.length) return "";
   return [
@@ -2216,7 +2247,7 @@ function dataRootsYamlSnippet() {
   ].join("\n");
 }
 
-function fetchManifestRootConfigPaths() {
+export function fetchManifestRootConfigPaths() {
   const payload = state.fetchManifests || {};
   const paths = new Set();
   for (const root of (payload.roots || [])) {
@@ -2226,7 +2257,7 @@ function fetchManifestRootConfigPaths() {
   return Array.from(paths).sort();
 }
 
-function fetchManifestRootsYamlSnippet() {
+export function fetchManifestRootsYamlSnippet() {
   const paths = fetchManifestRootConfigPaths();
   if (!paths.length) return "";
   return [
@@ -2246,4 +2277,3 @@ function replayStarterCommand(detail) {
     "python3 live/plugin_runner.py --config <saved_draft.yaml> --mode replay --max-steps 200",
   ].join("\n");
 }
-

@@ -1,4 +1,58 @@
-function replaceOptions(select, options) {
+import {
+  $,
+  bytes,
+  escapeHtml,
+  interval,
+  jsonDrilldown,
+  kvRows,
+  money,
+  navigateToDataLens,
+  navigateToRunsLens,
+  navigateToView,
+  navigateToWorkbenchLens,
+  numberText,
+  objectSummary,
+  pctText,
+  row,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { renderHelpWorkbenchQuickstart } from "./10_help.js";
+import {
+  attachDatasetOptionMetadata,
+  configDateRangePayload,
+  latestWorkbenchRunForDraft,
+  renderConfigBrokerBoundary,
+  renderConfigDataQuality,
+  renderConfigPluginBoundary,
+  renderConfigPluginFieldHelp,
+  renderWorkbenchGuide,
+  renderWorkbenchHome,
+  renderWorkbenchPluginBoundary,
+  selectedConfigDatasets,
+  selectedConfigPlugin,
+  selectedDataReadiness,
+  workbenchDatasetRows,
+} from "./20_workbench_foundation.js";
+import { finiteNumber, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { normalizedFillSide, positionSnapshotDrilldown } from "./31_performance_math.js";
+import { equityChart, rangeLabel, timeRangeLabel } from "./34_charts.js";
+import { approvalPreviewCanApprove, approvalPreviewCommand, countBy, countSummary, shellQuote, topCountEntries } from "./40_data_catalog.js";
+import {
+  copyText,
+  downloadDraftsCsv,
+  downloadRunArtifactsJson,
+  loadConfigArtifacts,
+  loadRunArtifacts,
+  loadRunDetail,
+  openWorkbenchResultPerformance,
+  runConfigDraft,
+  validateDrafts,
+} from "./90_bootstrap.js";
+
+export function replaceOptions(select, options) {
   const currentValues = select.multiple
     ? new Set(Array.from(select.selectedOptions).map((option) => option.value))
     : new Set([select.value]);
@@ -20,7 +74,7 @@ function replaceOptions(select, options) {
   }
 }
 
-function configFormOptionRows(field, options) {
+export function configFormOptionRows(field, options) {
   const source = field.options_source || "";
   if (source === "plugins") {
     return (options.plugins || []).map((plugin) => ({
@@ -51,25 +105,25 @@ function configFormOptionRows(field, options) {
   }));
 }
 
-function configSectionMetadataById() {
+export function configSectionMetadataById() {
   const sections = (state.configOptions && state.configOptions.form_sections) || [];
   return Object.fromEntries(sections.map((section) => [section.id, section]));
 }
 
-function configSectionTitle(section, metadataById = configSectionMetadataById()) {
+export function configSectionTitle(section, metadataById = configSectionMetadataById()) {
   return text((metadataById[section] || {}).label || section);
 }
 
-function configSectionHelp(section, metadataById = configSectionMetadataById()) {
+export function configSectionHelp(section, metadataById = configSectionMetadataById()) {
   return text((metadataById[section] || {}).help || "");
 }
 
-function configSectionOrder(section, metadataById = configSectionMetadataById()) {
+export function configSectionOrder(section, metadataById = configSectionMetadataById()) {
   const value = Number((metadataById[section] || {}).order);
   return Number.isFinite(value) ? value : 999;
 }
 
-function configFieldTitle(field, label) {
+export function configFieldTitle(field, label) {
   const meta = [];
   if (field.required) meta.push("Required");
   if (field.unit) meta.push(`Unit: ${field.unit}`);
@@ -80,7 +134,7 @@ function configFieldTitle(field, label) {
   return `<span class="field-title"><span>${label}</span>${metaHtml}</span>`;
 }
 
-function configFieldDescription(field) {
+export function configFieldDescription(field) {
   const description = field.description
     ? `<small class="field-description">${escapeHtml(field.description)}</small>`
     : "";
@@ -88,7 +142,7 @@ function configFieldDescription(field) {
   return `${description}${help}`;
 }
 
-function configFieldInputAffix(field, inputHtml) {
+export function configFieldInputAffix(field, inputHtml) {
   const prefix = field.prefix ? `<span class="field-affix">${escapeHtml(field.prefix)}</span>` : "";
   const suffix = field.suffix || field.unit;
   const suffixHtml = suffix ? `<span class="field-affix">${escapeHtml(suffix)}</span>` : "";
@@ -96,7 +150,7 @@ function configFieldInputAffix(field, inputHtml) {
   return `<span class="field-input-row">${prefix}${inputHtml}${suffixHtml}</span>`;
 }
 
-function renderConfigField(field) {
+export function renderConfigField(field) {
   const id = escapeHtml(field.id);
   const label = escapeHtml(field.label || field.name || field.id);
   const title = configFieldTitle(field, label);
@@ -132,7 +186,7 @@ function renderConfigField(field) {
   return `<label class="${escapeHtml(cls)}"${pluginAttr}>${title}${configFieldInputAffix(field, `<input ${attrs}>`)}${help}${validation}</label>`;
 }
 
-function updatePluginStrategyFields() {
+export function updatePluginStrategyFields() {
   const selectedPluginId = $("config-plugin") ? $("config-plugin").value : "";
   for (const field of document.querySelectorAll(".plugin-strategy-field")) {
     const visible = !field.dataset.pluginId || field.dataset.pluginId === selectedPluginId;
@@ -140,7 +194,7 @@ function updatePluginStrategyFields() {
   }
 }
 
-function renderConfigFormSchema() {
+export function renderConfigFormSchema() {
   const fields = (state.configOptions && state.configOptions.form_schema) || [];
   const container = $("config-form-fields");
   if (!container || container.dataset.rendered === "true" || !fields.length) return;
@@ -171,7 +225,7 @@ function renderConfigFormSchema() {
   container.dataset.rendered = "true";
 }
 
-function setConfigFieldDefault(el, value) {
+export function setConfigFieldDefault(el, value) {
   if (!el || value === undefined) return;
   if (el.type === "checkbox") {
     el.checked = Boolean(value);
@@ -191,7 +245,7 @@ function setConfigFieldDefault(el, value) {
   }
 }
 
-function configFieldValue(id) {
+export function configFieldValue(id) {
   const el = $(id);
   if (el instanceof HTMLSelectElement && el.multiple) {
     return Array.from(el.selectedOptions).map((option) => option.value).join(",");
@@ -199,7 +253,7 @@ function configFieldValue(id) {
   return el ? el.value : "";
 }
 
-function renderConfigBuilder() {
+export function renderConfigBuilder() {
   const options = state.configOptions || {};
   const defaults = options.defaults || {};
   const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
@@ -268,7 +322,7 @@ function renderConfigBuilder() {
   renderConfigAlignment(draft.alignment || {});
 }
 
-function configFieldLabel(path) {
+export function configFieldLabel(path) {
   const selectedPlugin = selectedConfigPlugin();
   const strategyMatch = String(path || "").match(/^strategy\.([A-Za-z_][A-Za-z0-9_]*)$/);
   if (strategyMatch) {
@@ -279,7 +333,7 @@ function configFieldLabel(path) {
   return formField ? text(formField.label || formField.name || formField.id) : text(path);
 }
 
-function configErrorPath(message) {
+export function configErrorPath(message) {
   const raw = String(message || "");
   const strategyMatch = raw.match(/\bstrategy\.([A-Za-z_][A-Za-z0-9_]*)\b/);
   if (strategyMatch) return `strategy.${strategyMatch[1]}`;
@@ -293,7 +347,7 @@ function configErrorPath(message) {
   return "draft";
 }
 
-function normalizeConfigDraftErrors(errorOrMessages) {
+export function normalizeConfigDraftErrors(errorOrMessages) {
   const rawMessages = Array.isArray(errorOrMessages)
     ? errorOrMessages
     : [errorOrMessages && errorOrMessages.message ? errorOrMessages.message : errorOrMessages];
@@ -310,7 +364,7 @@ function normalizeConfigDraftErrors(errorOrMessages) {
   return normalized;
 }
 
-function validationMessageGroups() {
+export function validationMessageGroups() {
   const messages = normalizeConfigDraftErrors(state.configDraftErrors || []);
   const groups = new Map();
   for (const message of messages) {
@@ -321,7 +375,7 @@ function validationMessageGroups() {
   return Array.from(groups.entries()).map(([path, messagesForPath]) => ({ path, messages: messagesForPath }));
 }
 
-function clearFieldValidationMessages() {
+export function clearFieldValidationMessages() {
   for (const label of document.querySelectorAll(".field-has-error")) {
     label.classList.remove("field-has-error");
   }
@@ -331,7 +385,7 @@ function clearFieldValidationMessages() {
   }
 }
 
-function renderFieldValidationMessages(groups) {
+export function renderFieldValidationMessages(groups) {
   clearFieldValidationMessages();
   for (const group of groups) {
     const messageEl = Array.from(document.querySelectorAll(".field-validation-message"))
@@ -344,7 +398,7 @@ function renderFieldValidationMessages(groups) {
   }
 }
 
-function renderConfigValidationMessages() {
+export function renderConfigValidationMessages() {
   if (!$("config-validation-messages") || !$("config-validation-message-note")) return;
   const groups = validationMessageGroups();
   renderFieldValidationMessages(groups);
@@ -363,14 +417,14 @@ function renderConfigValidationMessages() {
     : `<div class="empty-card"><span>Ready</span><strong>No Draft Errors</strong><small>Generate a draft to run server-side validation for selected data and plugin fields.</small></div>`;
 }
 
-function handleConfigDraftError(error) {
+export function handleConfigDraftError(error) {
   state.configDraft = null;
   state.configDraftErrors = normalizeConfigDraftErrors(error);
   renderConfigBuilder();
   $("last-refresh").textContent = `Config draft failed: ${error.message}`;
 }
 
-function renderConfigBuilderReadiness() {
+export function renderConfigBuilderReadiness() {
   if (!$("config-builder-readiness")) return;
   const selected = selectedConfigDatasets();
   const dataReadiness = selectedDataReadiness(selected);
@@ -454,7 +508,7 @@ function renderConfigBuilderReadiness() {
   `).join("");
 }
 
-function renderWorkbenchBuilderAssistant() {
+export function renderWorkbenchBuilderAssistant() {
   if (!$("workbench-builder-assistant-title") || !$("workbench-builder-assistant-cards") || !$("workbench-builder-assistant-actions")) return;
   const selected = selectedConfigDatasets();
   const plugin = selectedConfigPlugin();
@@ -571,7 +625,7 @@ function renderWorkbenchBuilderAssistant() {
   `).join("");
 }
 
-function handleWorkbenchBuilderAssistantAction(action) {
+export function handleWorkbenchBuilderAssistantAction(action) {
   if (action === "data") {
     navigateToDataLens("browse");
     return;
@@ -591,18 +645,18 @@ function handleWorkbenchBuilderAssistantAction(action) {
   $("config-generate-draft").click();
 }
 
-function selectedRunDraft() {
+export function selectedRunDraft() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   return ((state.configDrafts && state.configDrafts.drafts) || [])
     .find((draft) => draft.draft_id === selectedDraftId) || null;
 }
 
-function selectedRunDraftValidation() {
+export function selectedRunDraftValidation() {
   const draft = selectedRunDraft();
   return draft ? draftValidationById()[draft.draft_id] || null : null;
 }
 
-function selectedRunDraftCommands() {
+export function selectedRunDraftCommands() {
   const draft = selectedRunDraft();
   if (!draft || !draft.path) return {};
   const configPath = shellQuote(draft.path);
@@ -615,14 +669,14 @@ function selectedRunDraftCommands() {
   };
 }
 
-function runCommandBoundaryNote(action) {
+export function runCommandBoundaryNote(action) {
   if (action === "validate") return "Validation only; imports the plugin and checks config without replaying bars or submitting orders.";
   if (action === "replay") return "Replay only; evaluates saved bars and writes artifacts without broker orders.";
   if (action === "simulated_paper") return "Local simulated paper; uses runner accounting and artifacts without touching a broker.";
   return "Choose validate, replay, or simulated paper before running a saved draft.";
 }
 
-function renderWorkbenchRunCommands() {
+export function renderWorkbenchRunCommands() {
   if (!$("workbench-run-command-note") || !$("workbench-run-commands") || !$("workbench-run-command-cards")) return;
   const draft = selectedRunDraft();
   const commands = selectedRunDraftCommands();
@@ -682,7 +736,7 @@ function renderWorkbenchRunCommands() {
     : `<dt>Next</dt><dd><span class="muted">Generate and save a draft in Builder, then select it here.</span></dd>`;
 }
 
-function configCompatibilityNext(cards) {
+export function configCompatibilityNext(cards) {
   const blocked = cards.find((card) => card.status === "bad");
   if (blocked) return blocked.next;
   const warning = cards.find((card) => card.status === "warn");
@@ -690,7 +744,7 @@ function configCompatibilityNext(cards) {
   return "Ready to validate or run the selected draft with the configured public-safe runner.";
 }
 
-function renderConfigCompatibility() {
+export function renderConfigCompatibility() {
   if (!$("config-compatibility-cards") || !$("config-compatibility-note") || !$("config-compatibility-detail")) return;
   const options = state.configOptions || {};
   const selected = selectedConfigDatasets();
@@ -807,7 +861,7 @@ function renderConfigCompatibility() {
   )).join("");
 }
 
-function renderConfigLivePanels() {
+export function renderConfigLivePanels() {
   renderConfigDataQuality();
   updatePluginStrategyFields();
   renderWorkbenchPluginBoundary();
@@ -821,7 +875,7 @@ function renderConfigLivePanels() {
   renderHelpWorkbenchQuickstart();
 }
 
-function configPluginStrategyPayload() {
+export function configPluginStrategyPayload() {
   const payload = {};
   const selectedPluginId = $("config-plugin") ? $("config-plugin").value : "";
   const fields = ((state.configOptions || {}).form_schema || [])
@@ -834,7 +888,7 @@ function configPluginStrategyPayload() {
   return payload;
 }
 
-function renderConfigAlignment(alignment) {
+export function renderConfigAlignment(alignment) {
   const warnings = alignment.warnings || [];
   $("config-alignment-note").innerHTML = alignment.dataset_count
     ? warnings.length
@@ -869,12 +923,12 @@ function renderConfigAlignment(alignment) {
   renderWorkbenchGuide();
 }
 
-function draftValidationById() {
+export function draftValidationById() {
   const rows = (state.draftValidations && state.draftValidations.validations) || [];
   return Object.fromEntries(rows.map((rowItem) => [rowItem.draft_id, rowItem]));
 }
 
-function draftValidationBadge(draftId) {
+export function draftValidationBadge(draftId) {
   const validation = draftValidationById()[draftId];
   if (!validation) return `<span class="muted">not checked</span>`;
   if (validation.valid) return statusText("ok");
@@ -884,7 +938,7 @@ function draftValidationBadge(draftId) {
   return `<span class="status-bad"${title}>invalid${escapeHtml(suffix)}</span>`;
 }
 
-function renderDraftValidations() {
+export function renderDraftValidations() {
   const payload = state.draftValidations || {};
   const rows = payload.validations || [];
   const invalid = rows.filter((rowItem) => !rowItem.valid);
@@ -907,7 +961,7 @@ function renderDraftValidations() {
     : `<dt>Next</dt><dd><span class="muted">Save a generated draft locally, then click Validate Drafts.</span></dd>`;
 }
 
-function renderWorkbenchTriage() {
+export function renderWorkbenchTriage() {
   if (!$("workbench-triage-cards") || !$("workbench-triage-note")) return;
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const runs = (state.configRuns && state.configRuns.runs) || [];
@@ -1021,7 +1075,7 @@ function renderWorkbenchTriage() {
   `).join("");
 }
 
-function workbenchDraftInventoryModel() {
+export function workbenchDraftInventoryModel() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const runs = (state.configRuns && state.configRuns.runs) || [];
   const validations = (state.draftValidations && state.draftValidations.validations) || [];
@@ -1135,7 +1189,7 @@ function workbenchDraftInventoryModel() {
   return { headline, note, cards, lines };
 }
 
-function workbenchDraftInventoryText(model) {
+export function workbenchDraftInventoryText(model) {
   return [
     `Draft Inventory Review: ${model.headline}`,
     `Next action: ${model.note}`,
@@ -1144,7 +1198,7 @@ function workbenchDraftInventoryText(model) {
   ].join("\n");
 }
 
-function renderWorkbenchDraftInventory() {
+export function renderWorkbenchDraftInventory() {
   if (
     !$("workbench-draft-inventory-title")
     || !$("workbench-draft-inventory-note")
@@ -1178,7 +1232,7 @@ function renderWorkbenchDraftInventory() {
   ].join("");
 }
 
-function handleWorkbenchDraftInventoryAction(action) {
+export function handleWorkbenchDraftInventoryAction(action) {
   if (action === "copy") {
     copyText(state.workbenchDraftInventoryText || "No draft inventory review loaded").then(() => {
       $("last-refresh").textContent = "Draft inventory review copied";
@@ -1206,7 +1260,7 @@ function handleWorkbenchDraftInventoryAction(action) {
   }
 }
 
-function workbenchRunReadinessModel() {
+export function workbenchRunReadinessModel() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   const runAction = $("config-run-action") ? $("config-run-action").value : "";
   const maxSteps = finiteNumber($("config-run-max-steps") && $("config-run-max-steps").value);
@@ -1330,7 +1384,7 @@ function workbenchRunReadinessModel() {
   return { status, title, note, blockers, warnings, cards, actions };
 }
 
-function renderWorkbenchRunReadiness() {
+export function renderWorkbenchRunReadiness() {
   if (!$("workbench-run-readiness-note") || !$("workbench-run-readiness-cards") || !$("workbench-run-readiness-actions")) return;
   const model = workbenchRunReadinessModel();
   const suffix = model.blockers.length
@@ -1356,7 +1410,7 @@ function renderWorkbenchRunReadiness() {
   `).join("");
 }
 
-function handleWorkbenchRunReadinessAction(action) {
+export function handleWorkbenchRunReadinessAction(action) {
   if (action === "select") {
     const element = $("config-run-draft");
     if (element) {
@@ -1386,7 +1440,7 @@ function handleWorkbenchRunReadinessAction(action) {
   }
 }
 
-function workbenchResultModel() {
+export function workbenchResultModel() {
   const selectedDraftId = $("config-run-draft") ? $("config-run-draft").value : "";
   const selectedDraft = selectedRunDraft();
   const validation = selectedRunDraftValidation();
@@ -1474,7 +1528,7 @@ function workbenchResultModel() {
   };
 }
 
-function renderWorkbenchRunResult() {
+export function renderWorkbenchRunResult() {
   if (!$("workbench-result-title") || !$("workbench-result-tiles")) return;
   const model = workbenchResultModel();
   $("workbench-result-title").textContent = model.title;
@@ -1492,7 +1546,7 @@ function renderWorkbenchRunResult() {
   `).join("");
 }
 
-function applyRiskPreset() {
+export function applyRiskPreset() {
   if (!$("config-risk-preset")) return;
   const presetId = $("config-risk-preset").value;
   const preset = (state.configOptions.risk_presets || []).find((item) => item.id === presetId);
@@ -1513,7 +1567,7 @@ function applyRiskPreset() {
   }
 }
 
-function renderWorkbenchRuns() {
+export function renderWorkbenchRuns() {
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   renderDraftValidations();
   renderWorkbenchHome();
@@ -1565,7 +1619,7 @@ function renderWorkbenchRuns() {
     : row([`<span class="muted">No draft runs yet. Save a valid draft, choose validate/replay/simulated paper, then Run.</span>`, "", "", "", "", "", "", "", "", ""]);
 }
 
-function comparisonCard(title, run, value) {
+export function comparisonCard(title, run, value) {
   if (!run) {
     return `<div class="compare-card"><span>${escapeHtml(title)}</span><strong>n/a</strong><small>No summarized run</small></div>`;
   }
@@ -1578,7 +1632,7 @@ function comparisonCard(title, run, value) {
   `;
 }
 
-function renderComparisonFilterOptions(runs) {
+export function renderComparisonFilterOptions(runs) {
   const makeOptions = (id, values) => {
     const select = $(id);
     const current = select.value;
@@ -1596,7 +1650,7 @@ function renderComparisonFilterOptions(runs) {
   makeOptions("comparison-filter-mode", runs.map((run) => run.mode));
 }
 
-function filteredComparisonRuns(runs) {
+export function filteredComparisonRuns(runs) {
   const query = ($("comparison-filter-text").value || "").trim().toLowerCase();
   const status = $("comparison-filter-status").value || "";
   const action = $("comparison-filter-action").value || "";
@@ -1627,7 +1681,7 @@ function filteredComparisonRuns(runs) {
   });
 }
 
-function comparisonSortMetric(runItem, sortMode) {
+export function comparisonSortMetric(runItem, sortMode) {
   if (sortMode === "finished_desc") return Date.parse(runItem.finished_at || "");
   if (sortMode === "return_desc") return Number(runItem.total_return_pct);
   if (sortMode === "return_day_desc") return Number(runItem.return_per_day_pct);
@@ -1640,7 +1694,7 @@ function comparisonSortMetric(runItem, sortMode) {
   return Date.parse(runItem.finished_at || "");
 }
 
-function sortedComparisonRuns(runs) {
+export function sortedComparisonRuns(runs) {
   const sortMode = $("comparison-sort").value || "finished_desc";
   const ascending = sortMode === "drawdown_asc";
   return (runs || []).map((runItem, index) => ({
@@ -1658,7 +1712,7 @@ function sortedComparisonRuns(runs) {
   }).map((item) => item.runItem);
 }
 
-function comparisonBestRun(runs, metric, { smallest = false } = {}) {
+export function comparisonBestRun(runs, metric, { smallest = false } = {}) {
   const eligible = (runs || [])
     .map((runItem) => ({ runItem, value: finiteNumber(runItem[metric]) }))
     .filter((item) => item.value !== null);
@@ -1666,11 +1720,11 @@ function comparisonBestRun(runs, metric, { smallest = false } = {}) {
   return eligible.sort((left, right) => smallest ? left.value - right.value : right.value - left.value)[0].runItem;
 }
 
-function comparisonTotal(runs, key) {
+export function comparisonTotal(runs, key) {
   return (runs || []).reduce((sum, runItem) => sum + Number(runItem[key] || 0), 0);
 }
 
-function renderComparisonSummaryCards(runs, allRuns) {
+export function renderComparisonSummaryCards(runs, allRuns) {
   if (!$("comparison-summary-cards") || !$("comparison-summary-note")) return;
   const summarized = runs.filter((runItem) => runItem.summary_available);
   const bestReturn = comparisonBestRun(summarized, "total_return_pct");
@@ -1749,7 +1803,7 @@ function renderComparisonSummaryCards(runs, allRuns) {
   `).join("");
 }
 
-function renderRunComparison() {
+export function renderRunComparison() {
   const comparison = state.runComparison || {};
   const allRuns = comparison.runs || [];
   renderComparisonFilterOptions(allRuns);
@@ -1793,7 +1847,7 @@ function renderRunComparison() {
     : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 }
 
-function renderRunDetail() {
+export function renderRunDetail() {
   const detail = state.runDetail || {};
   const evidence = state.runEvidence || detail || {};
   const artifacts = evidence.artifacts || {};
@@ -1859,7 +1913,7 @@ function renderRunDetail() {
   $("run-log-stderr").value = (logs.stderr && logs.stderr.tail) || detail.stderr_tail || "";
 }
 
-function nonzeroObjectCount(value) {
+export function nonzeroObjectCount(value) {
   if (!value || typeof value !== "object") return 0;
   return Object.values(value).filter((item) => {
     const number = finiteNumber(item);
@@ -1867,7 +1921,7 @@ function nonzeroObjectCount(value) {
   }).length;
 }
 
-function artifactSessionRows(artifacts) {
+export function artifactSessionRows(artifacts) {
   const rows = [];
   for (const decision of artifacts.decisions || []) {
     rows.push({
@@ -1918,7 +1972,7 @@ function artifactSessionRows(artifacts) {
   });
 }
 
-function strategyDrilldownRows(decisions) {
+export function strategyDrilldownRows(decisions) {
   return (decisions || [])
     .map((decision) => ({
       timestamp: decision.timestamp,
@@ -1929,7 +1983,7 @@ function strategyDrilldownRows(decisions) {
     .filter((item) => Object.keys(item.drilldown).length);
 }
 
-function nearThresholdMissRows(drilldowns) {
+export function nearThresholdMissRows(drilldowns) {
   return (drilldowns || [])
     .filter((item) => item.intent_count === 0 && item.drilldown && item.drilldown.near_threshold === true)
     .sort((left, right) => {
@@ -1939,13 +1993,13 @@ function nearThresholdMissRows(drilldowns) {
     });
 }
 
-function drilldownSignalText(drilldown) {
+export function drilldownSignalText(drilldown) {
   const label = text(drilldown.signal_label || drilldown.reason || "signal");
   const value = drilldown.signal_value === undefined ? "n/a" : numberText(drilldown.signal_value, 4);
   return `${label}: ${value}`;
 }
 
-function drilldownThresholdText(drilldown) {
+export function drilldownThresholdText(drilldown) {
   const parts = [];
   if (drilldown.threshold !== undefined) parts.push(`threshold ${numberText(drilldown.threshold, 4)}`);
   if (drilldown.threshold_distance !== undefined) parts.push(`distance ${numberText(drilldown.threshold_distance, 4)}`);
@@ -1953,18 +2007,18 @@ function drilldownThresholdText(drilldown) {
   return parts.join("; ") || "n/a";
 }
 
-function drilldownHoldText(drilldown) {
+export function drilldownHoldText(drilldown) {
   if (drilldown.hold_until) return text(drilldown.hold_until);
   if (drilldown.expected_hold_minutes !== undefined) return `${numberText(drilldown.expected_hold_minutes, 0)}m expected`;
   return "n/a";
 }
 
-function drilldownNearText(drilldown) {
+export function drilldownNearText(drilldown) {
   const label = drilldown.near_threshold ? "near" : "no";
   return drilldown.near_threshold_reason ? `${label}: ${text(drilldown.near_threshold_reason)}` : label;
 }
 
-function drilldownExitText(drilldown) {
+export function drilldownExitText(drilldown) {
   const parts = [];
   if (drilldown.entry_marker) parts.push(`entry ${text(drilldown.entry_marker)}`);
   if (drilldown.exit_marker) parts.push(`exit ${text(drilldown.exit_marker)}`);
@@ -1976,13 +2030,13 @@ function drilldownExitText(drilldown) {
   return parts.join("; ") || "n/a";
 }
 
-function drilldownMaeMfeText(drilldown) {
+export function drilldownMaeMfeText(drilldown) {
   const mae = drilldown.mae_pct === undefined ? "n/a" : pctText(drilldown.mae_pct);
   const mfe = drilldown.mfe_pct === undefined ? "n/a" : pctText(drilldown.mfe_pct);
   return `${mae} / ${mfe}`;
 }
 
-function pluginResultFieldValue(field, value) {
+export function pluginResultFieldValue(field, value) {
   if (value === undefined || value === null || value === "") return "n/a";
   const kind = text(field.kind || "text");
   const decimals = Number(field.decimals);
@@ -2001,7 +2055,7 @@ function pluginResultFieldValue(field, value) {
   return `${prefix && prefix !== "n/a" ? prefix : ""}${formatted}${suffixParts.length ? ` ${suffixParts.join(" ")}` : ""}`;
 }
 
-function pluginResultFieldHelp(field) {
+export function pluginResultFieldHelp(field) {
   const parts = [
     text(field.help || ""),
     text(field.description || ""),
@@ -2014,7 +2068,7 @@ function pluginResultFieldHelp(field) {
   return parts.length ? parts.join("; ") : "n/a";
 }
 
-function pluginResultDisplayDescriptor(field) {
+export function pluginResultDisplayDescriptor(field) {
   const pieces = [
     field.order !== undefined ? `order ${numberText(field.order, 2)}` : "registry order",
     field.kind ? `kind ${text(field.kind)}` : "",
@@ -2026,7 +2080,7 @@ function pluginResultDisplayDescriptor(field) {
   return pieces.join("; ") || "default text display";
 }
 
-function pluginResultFieldRows(artifacts) {
+export function pluginResultFieldRows(artifacts) {
   const fields = ((artifacts.plugin || {}).result_fields || [])
     .filter((field) => field && field.name)
     .slice(0, 12);
@@ -2048,14 +2102,14 @@ function pluginResultFieldRows(artifacts) {
   return rows;
 }
 
-function pluginFieldList(fields) {
+export function pluginFieldList(fields) {
   const names = (fields || [])
     .filter((field) => field && field.name)
     .map((field) => text(field.label || field.name));
   return names.length ? names.join(", ") : "none";
 }
 
-function renderArtifactPluginBoundary(artifacts) {
+export function renderArtifactPluginBoundary(artifacts) {
   if (!$("artifact-plugin-boundary-note") || !$("artifact-plugin-boundary-cards") || !$("artifact-plugin-boundary")) return;
   const plugin = artifacts.plugin || {};
   const summary = artifacts.plugin_result_summary || {};
@@ -2180,7 +2234,7 @@ function renderArtifactPluginBoundary(artifacts) {
   ]);
 }
 
-function renderArtifactPluginCoverage(artifacts) {
+export function renderArtifactPluginCoverage(artifacts) {
   if (!$("artifact-plugin-coverage-note") || !$("artifact-plugin-coverage-body")) return;
   const summary = artifacts.plugin_result_summary || {};
   const coverageRows = (summary.field_coverage || []).filter((item) => item && item.name);
@@ -2213,7 +2267,7 @@ function renderArtifactPluginCoverage(artifacts) {
     : row([`<span class="muted">Declare result_fields in the plugin registry to summarize artifact diagnostics.</span>`, "", "", "", ""]);
 }
 
-function renderArtifactPluginResultSections(artifacts, coverageRows = [], decisionCount = 0) {
+export function renderArtifactPluginResultSections(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-result-sections")) return;
   const summary = artifacts.plugin_result_summary || {};
   const sections = (summary.section_coverage || []).filter((section) => section && section.id);
@@ -2248,7 +2302,7 @@ function renderArtifactPluginResultSections(artifacts, coverageRows = [], decisi
   }).join("");
 }
 
-function pluginResultSparkline(points = [], label = "plugin result trend") {
+export function pluginResultSparkline(points = [], label = "plugin result trend") {
   const values = (points || [])
     .map((point) => finiteNumber(point.value))
     .filter((value) => value !== null);
@@ -2268,7 +2322,7 @@ function pluginResultSparkline(points = [], label = "plugin result trend") {
   return `<svg class="plugin-widget-sparkline-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(text(label))}"><polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline></svg>`;
 }
 
-function pluginResultLineChart(fieldRows = [], label = "plugin result chart") {
+export function pluginResultLineChart(fieldRows = [], label = "plugin result chart") {
   const series = (fieldRows || [])
     .map((field, index) => ({
       name: text(field.label || field.name || `Series ${index + 1}`),
@@ -2325,7 +2379,7 @@ function pluginResultLineChart(fieldRows = [], label = "plugin result chart") {
   `;
 }
 
-function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
+export function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
   if (!$("artifact-plugin-widget-summary")) return;
   const summary = artifacts.plugin_result_summary || {};
   const widgets = (summary.widget_coverage || []).filter((widget) => widget && widget.id);
@@ -2406,7 +2460,7 @@ function renderArtifactPluginWidgetSummary(artifacts, decisionCount = 0) {
   `).join("");
 }
 
-function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {
+export function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-result-widgets")) return;
   const summary = artifacts.plugin_result_summary || {};
   const widgets = (summary.widget_coverage || []).filter((widget) => widget && widget.id);
@@ -2464,7 +2518,7 @@ function renderArtifactPluginResultWidgets(artifacts, coverageRows = [], decisio
   }).join("");
 }
 
-function renderArtifactPluginDisplayPlan(artifacts, coverageRows = [], decisionCount = 0) {
+export function renderArtifactPluginDisplayPlan(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-display-plan")) return;
   const declaredFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
   if (!declaredFields.length) {
@@ -2497,7 +2551,7 @@ function renderArtifactPluginDisplayPlan(artifacts, coverageRows = [], decisionC
     }).join("");
 }
 
-function renderArtifactPluginResultSnapshot(artifacts, coverageRows = [], decisionCount = 0) {
+export function renderArtifactPluginResultSnapshot(artifacts, coverageRows = [], decisionCount = 0) {
   if (!$("artifact-plugin-result-snapshot")) return;
   const declaredFields = ((artifacts.plugin || {}).result_fields || []).filter((field) => field && field.name);
   if (!declaredFields.length) {
@@ -2539,7 +2593,7 @@ function renderArtifactPluginResultSnapshot(artifacts, coverageRows = [], decisi
   `).join("");
 }
 
-function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {}) {
+export function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {}) {
   const summary = artifacts.summary || {};
   const performance = artifacts.performance || {};
   const pluginSummary = artifacts.plugin_result_summary || {};
@@ -2646,12 +2700,12 @@ function workbenchArtifactsAssistantModel(artifacts = state.configArtifacts || {
   return { status, title, note, cards, actions };
 }
 
-function latestLoadableWorkbenchRun() {
+export function latestLoadableWorkbenchRun() {
   return ((state.configRuns && state.configRuns.runs) || [])
     .find((run) => run && (run.run_id || run.draft_id) && text(run.status) === "completed" && text(run.action) !== "validate") || null;
 }
 
-function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts || {}) {
+export function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts || {}) {
   const savedRuns = (state.configRuns && state.configRuns.runs) || [];
   const loadableRun = latestLoadableWorkbenchRun();
   const summary = artifacts.summary || {};
@@ -2740,7 +2794,7 @@ function workbenchArtifactsActionSummaryModel(artifacts = state.configArtifacts 
   return { status, title, note, cards, actions, loadableRun };
 }
 
-function renderWorkbenchArtifactsActionSummary(artifacts = state.configArtifacts || {}) {
+export function renderWorkbenchArtifactsActionSummary(artifacts = state.configArtifacts || {}) {
   if (!$("workbench-artifacts-action-note") || !$("workbench-artifacts-action-cards") || !$("workbench-artifacts-action-actions")) return;
   const model = workbenchArtifactsActionSummaryModel(artifacts);
   $("workbench-artifacts-action-note").textContent = `${model.title}: ${model.note}`;
@@ -2759,7 +2813,7 @@ function renderWorkbenchArtifactsActionSummary(artifacts = state.configArtifacts
   `).join("");
 }
 
-async function handleWorkbenchArtifactsActionSummary(action) {
+export async function handleWorkbenchArtifactsActionSummary(action) {
   if (action === "load-latest") {
     const run = latestLoadableWorkbenchRun();
     if (!run) throw new Error("No completed Workbench run is available to load");
@@ -2796,7 +2850,7 @@ async function handleWorkbenchArtifactsActionSummary(action) {
   }
 }
 
-function renderWorkbenchArtifactsAssistant(artifacts = state.configArtifacts || {}) {
+export function renderWorkbenchArtifactsAssistant(artifacts = state.configArtifacts || {}) {
   if (!$("workbench-artifacts-assistant-title") || !$("workbench-artifacts-assistant-cards") || !$("workbench-artifacts-assistant-actions")) return;
   const model = workbenchArtifactsAssistantModel(artifacts);
   $("workbench-artifacts-assistant-title").textContent = model.title;
@@ -2820,7 +2874,7 @@ function renderWorkbenchArtifactsAssistant(artifacts = state.configArtifacts || 
   `).join("");
 }
 
-async function handleWorkbenchArtifactsAssistantAction(action) {
+export async function handleWorkbenchArtifactsAssistantAction(action) {
   if (action === "performance") {
     navigateToView("performance");
     return;
@@ -2840,7 +2894,7 @@ async function handleWorkbenchArtifactsAssistantAction(action) {
   }
 }
 
-function artifactChartMarkers(artifacts) {
+export function artifactChartMarkers(artifacts) {
   const markers = [];
   for (const fill of artifacts.fills || []) {
     markers.push({
@@ -2872,7 +2926,7 @@ function artifactChartMarkers(artifacts) {
   return markers;
 }
 
-function renderWorkbenchArtifacts() {
+export function renderWorkbenchArtifacts() {
   const artifacts = state.configArtifacts || {};
   const summary = artifacts.summary || {};
   const performance = artifacts.performance || {};

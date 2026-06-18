@@ -1089,8 +1089,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         with request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/", timeout=5) as resp:
             html = resp.read().decode("utf-8")
         assert "Trading Harness Workbench" in html
-        assert "/dashboard/app/00_core.js" in html
-        assert "/dashboard/app/90_bootstrap.js" in html
+        assert '<script type="module" src="/dashboard/app.js"></script>' in html
         assert "supervisors-body" in html
         assert "remote-control-body" in html
         assert "performance-home-result" in html

@@ -1,4 +1,39 @@
-function dataDetailActionSummaryModel(detail = {}, timezoneMode = "utc") {
+import {
+  $,
+  MAX_DATA_COMPARE_DATASETS,
+  bytes,
+  escapeHtml,
+  interval,
+  navigateToDataLens,
+  navigateToWorkbenchLens,
+  numberText,
+  pctText,
+  row,
+  signedValueHtml,
+  state,
+  statusClass,
+  statusText,
+  text,
+} from "./00_core.js";
+import { applyDataCompareRangePreset, attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedCompareDatasets, selectedCompareRangeBounds, updateCompareSelectionFromSelect } from "./20_workbench_foundation.js";
+import { finiteNumber, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
+import { candlestickChart, compareChart, detailChart, formatTimestampForMode, timeRangeLabel, timezoneLabel } from "./34_charts.js";
+import { bestCatalogDatasetForSymbol, countBy, countSummary, dataCatalogFilters, filteredDataCatalog, renderSymbolBrowser, sortDataCatalogRows } from "./40_data_catalog.js";
+import { compareSelectedSymbolDatasets } from "./42_data_symbols.js";
+import { renderConfigLivePanels, replaceOptions } from "./60_workbench_builder.js";
+import {
+  copyDataCompareJson,
+  downloadDataCompareCsv,
+  downloadDataDetailRangeCsv,
+  focusDataDetailLargestGap,
+  largestDataDetailGap,
+  loadDataCompare,
+  loadDataDetail,
+  loadDataDetailForSymbol,
+  reloadDataDetail,
+} from "./90_bootstrap.js";
+
+export function dataDetailActionSummaryModel(detail = {}, timezoneMode = "utc") {
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const typedSymbol = ($("data-detail-symbol") && $("data-detail-symbol").value.trim().toUpperCase()) || "";
   const opened = Boolean(detail && detail.path);
@@ -144,7 +179,7 @@ function dataDetailActionSummaryModel(detail = {}, timezoneMode = "utc") {
   };
 }
 
-function renderDataDetailActionSummary(detail = {}, timezoneMode = "utc") {
+export function renderDataDetailActionSummary(detail = {}, timezoneMode = "utc") {
   if (!$("data-detail-action-note") || !$("data-detail-action-cards") || !$("data-detail-action-actions")) return;
   const model = dataDetailActionSummaryModel(detail, timezoneMode);
   $("data-detail-action-note").textContent = model.note;
@@ -163,7 +198,7 @@ function renderDataDetailActionSummary(detail = {}, timezoneMode = "utc") {
   `).join("");
 }
 
-async function handleDataDetailAction(action) {
+export async function handleDataDetailAction(action) {
   if (action === "open-best") {
     await loadDataDetailForSymbol();
     return;
@@ -202,7 +237,7 @@ async function handleDataDetailAction(action) {
   }
 }
 
-function renderDataDetail() {
+export function renderDataDetail() {
   const detail = state.dataDetail || {};
   const coverage = detail.coverage || {};
   const quality = detail.quality || {};
@@ -307,7 +342,7 @@ function renderDataDetail() {
     : row([`<span class="muted">No inferred missing timestamps in this saved file.</span>`, "", ""]);
 }
 
-function previewCloseReturn(points = []) {
+export function previewCloseReturn(points = []) {
   const rows = (points || []).map((point) => ({
     timestamp: point.timestamp,
     close: finiteNumber(point.close),
@@ -319,7 +354,7 @@ function previewCloseReturn(points = []) {
   return ((last / first) - 1) * 100;
 }
 
-function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
+export function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
   const container = $("data-detail-range-stats");
   if (!container) return;
   if (!detail || !detail.path) {
@@ -409,7 +444,7 @@ function renderDataDetailRangeStats(detail = {}, timezoneMode = "utc") {
   `).join("");
 }
 
-function dataDetailNavigationModel(detail = {}) {
+export function dataDetailNavigationModel(detail = {}) {
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const path = String(detail.path || state.dataDetailPath || "");
   const filteredRows = filteredDataCatalog(datasets).filter((dataset) => dataset.path);
@@ -431,7 +466,7 @@ function dataDetailNavigationModel(detail = {}) {
   };
 }
 
-function renderDataDetailNavigator(detail = {}) {
+export function renderDataDetailNavigator(detail = {}) {
   if (!$("data-detail-prev") || !$("data-detail-next") || !$("data-detail-nav-note")) return;
   const model = dataDetailNavigationModel(detail);
   $("data-detail-prev").disabled = !model.previous;
@@ -447,7 +482,7 @@ function renderDataDetailNavigator(detail = {}) {
   }
 }
 
-async function openAdjacentDataDetail(direction) {
+export async function openAdjacentDataDetail(direction) {
   const model = dataDetailNavigationModel(state.dataDetail || {});
   const target = direction < 0 ? model.previous : model.next;
   if (!target || !target.path) {
@@ -458,12 +493,12 @@ async function openAdjacentDataDetail(direction) {
   $("data-detail-nav-note").textContent = `Opened ${text(target.symbol)} ${text(target.bar_size)} from ${text(target.source)}.`;
 }
 
-function dateInputValueFromTimestamp(value) {
+export function dateInputValueFromTimestamp(value) {
   const millis = timestampMillis(value);
   return millis === null ? "" : new Date(millis).toISOString().slice(0, 10);
 }
 
-function dataDetailWorkbenchDateRange(detail) {
+export function dataDetailWorkbenchDateRange(detail) {
   const coverage = (detail && detail.coverage) || {};
   const viewer = (detail && detail.viewer) || {};
   return {
@@ -472,7 +507,7 @@ function dataDetailWorkbenchDateRange(detail) {
   };
 }
 
-function useDataDetailInWorkbench() {
+export function useDataDetailInWorkbench() {
   const detail = state.dataDetail || {};
   const path = detail.path || state.dataDetailPath;
   if (!path) {
@@ -531,7 +566,7 @@ function useDataDetailInWorkbench() {
   $("last-refresh").textContent = `Selected ${text(detail.symbol || path)} for Workbench simulation`;
 }
 
-function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
+export function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   if (!$("data-detail-assistant-title") || !$("data-detail-assistant-cards") || !$("data-detail-assistant-actions")) return;
   const path = detail && detail.path;
   if (!path) {
@@ -705,7 +740,7 @@ function renderDataDetailAssistant(detail = {}, timezoneMode = "utc") {
   ]);
 }
 
-function dataDetailAssistantActionsHtml(actions = []) {
+export function dataDetailAssistantActionsHtml(actions = []) {
   return actions.map((item) => `
     <button class="data-detail-assistant-action status-${escapeHtml(item.status)}" data-data-detail-assistant-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
       <span>
@@ -717,7 +752,7 @@ function dataDetailAssistantActionsHtml(actions = []) {
   `).join("");
 }
 
-async function handleDataDetailAssistantAction(action) {
+export async function handleDataDetailAssistantAction(action) {
   const detail = state.dataDetail || {};
   if (action === "workbench") {
     useDataDetailInWorkbench();
@@ -744,7 +779,7 @@ async function handleDataDetailAssistantAction(action) {
   }
 }
 
-function renderDataDetailOverview(detail, timezoneMode = "utc") {
+export function renderDataDetailOverview(detail, timezoneMode = "utc") {
   if (!$("data-detail-overview") || !$("data-detail-overview-note")) return;
   const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
   const symbolCount = new Set(datasets.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")).size;
@@ -880,7 +915,7 @@ function renderDataDetailOverview(detail, timezoneMode = "utc") {
   `).join("");
 }
 
-function dataDetailHealthCards(detail, timezoneMode = "utc") {
+export function dataDetailHealthCards(detail, timezoneMode = "utc") {
   if (!detail || !detail.path) {
     return `<div class="health-card empty-card"><span>${statusText("waiting")}</span><strong>Select Data</strong><small>Choose a saved dataset to see replay-readiness checks.</small></div>`;
   }
@@ -971,7 +1006,7 @@ function dataDetailHealthCards(detail, timezoneMode = "utc") {
   `).join("");
 }
 
-function renderDataCompareControls() {
+export function renderDataCompareControls() {
   const select = $("data-compare-datasets");
   const previousSelection = new Set(
     state.dataCompareSelectedPaths.length
@@ -1043,7 +1078,7 @@ function renderDataCompareControls() {
   renderDataCompareAssistant(state.dataCompare || {}, $("data-compare-timezone").value || "utc");
 }
 
-function renderDataCompareFilterOptions(datasets) {
+export function renderDataCompareFilterOptions(datasets) {
   const makeOptions = (id, values) => {
     const select = $(id);
     if (!select) return;
@@ -1063,7 +1098,7 @@ function renderDataCompareFilterOptions(datasets) {
   makeOptions("data-compare-contract", datasets.map((item) => item.storage_contract_status));
 }
 
-function selectShownCompareDatasets() {
+export function selectShownCompareDatasets() {
   const select = $("data-compare-datasets");
   const paths = Array.from(select.options).map((option) => option.value).slice(0, MAX_DATA_COMPARE_DATASETS);
   state.dataCompareSelectedPaths = paths;
@@ -1080,7 +1115,7 @@ function selectShownCompareDatasets() {
     : "No shown datasets to select";
 }
 
-function selectSymbolCompareDatasets() {
+export function selectSymbolCompareDatasets() {
   const symbol = ($("data-compare-filter").value || "").trim().toUpperCase();
   if (!symbol) {
     $("last-refresh").textContent = "Enter a symbol in Find Dataset before selecting symbol matches";
@@ -1103,7 +1138,7 @@ function selectSymbolCompareDatasets() {
   $("last-refresh").textContent = `Selected ${numberText(matches.length, 0)} ${symbol} dataset${matches.length === 1 ? "" : "s"} for comparison`;
 }
 
-function clearCompareSelection() {
+export function clearCompareSelection() {
   state.dataCompareSelectedPaths = [];
   state.dataCompareSelectionCleared = true;
   state.dataCompare = {};
@@ -1123,7 +1158,7 @@ function clearCompareSelection() {
   $("last-refresh").textContent = "Compare selection cleared";
 }
 
-function useDataCompareInWorkbench() {
+export function useDataCompareInWorkbench() {
   const selected = selectedCompareDatasets();
   if (!selected.length) {
     $("data-compare-note").innerHTML = `<span class="status-bad">Select at least one saved dataset before sending to Workbench</span>`;
@@ -1156,7 +1191,7 @@ function useDataCompareInWorkbench() {
   $("last-refresh").textContent = `Selected ${numberText(selected.length, 0)} compared dataset${selected.length === 1 ? "" : "s"} for Workbench simulation`;
 }
 
-function dataCompareActionSummaryModel(comparison = {}, timezoneMode = "utc") {
+export function dataCompareActionSummaryModel(comparison = {}, timezoneMode = "utc") {
   const datasets = state.dataCatalog.datasets || [];
   const selected = selectedCompareDatasets();
   const selectedCount = selected.length;
@@ -1277,7 +1312,7 @@ function dataCompareActionSummaryModel(comparison = {}, timezoneMode = "utc") {
   };
 }
 
-function renderDataCompareActionSummary(comparison = {}, timezoneMode = "utc") {
+export function renderDataCompareActionSummary(comparison = {}, timezoneMode = "utc") {
   if (!$("data-compare-action-note") || !$("data-compare-action-cards") || !$("data-compare-action-actions")) return;
   const model = dataCompareActionSummaryModel(comparison, timezoneMode);
   $("data-compare-action-note").textContent = model.note;
@@ -1296,7 +1331,7 @@ function renderDataCompareActionSummary(comparison = {}, timezoneMode = "utc") {
   `).join("");
 }
 
-async function handleDataCompareAction(action) {
+export async function handleDataCompareAction(action) {
   if (action === "select-shown") {
     selectShownCompareDatasets();
     return;
@@ -1331,7 +1366,7 @@ async function handleDataCompareAction(action) {
   }
 }
 
-function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
+export function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
   if (!$("data-compare-assistant-title") || !$("data-compare-assistant-cards") || !$("data-compare-assistant-actions")) return;
   const selected = selectedCompareDatasets();
   const selectedCount = selected.length;
@@ -1474,7 +1509,7 @@ function renderDataCompareAssistant(comparison = {}, timezoneMode = "utc") {
   ]);
 }
 
-function dataCompareAssistantActionsHtml(actions = []) {
+export function dataCompareAssistantActionsHtml(actions = []) {
   return actions.map((item) => `
     <button class="data-compare-assistant-action status-${escapeHtml(item.status)}" data-data-compare-assistant-action="${escapeHtml(item.action)}" type="button"${item.disabled ? " disabled" : ""}>
       <span>
@@ -1486,7 +1521,7 @@ function dataCompareAssistantActionsHtml(actions = []) {
   `).join("");
 }
 
-async function handleDataCompareAssistantAction(action) {
+export async function handleDataCompareAssistantAction(action) {
   if (action === "compare") {
     await loadDataCompare();
     return;
@@ -1509,7 +1544,7 @@ async function handleDataCompareAssistantAction(action) {
   }
 }
 
-function renderDataCompare() {
+export function renderDataCompare() {
   const comparison = state.dataCompare || {};
   const series = comparison.series || [];
   const timezoneMode = $("data-compare-timezone").value || "utc";
@@ -1536,7 +1571,7 @@ function renderDataCompare() {
     : row([`<span class="muted">No comparison loaded</span>`, "", "", "", "", "", "", ""]);
 }
 
-function renderDataCompareStats(comparison = {}, timezoneMode = "utc") {
+export function renderDataCompareStats(comparison = {}, timezoneMode = "utc") {
   const container = $("data-compare-stats");
   if (!container) return;
   const series = comparison.series || [];
@@ -1609,7 +1644,7 @@ function renderDataCompareStats(comparison = {}, timezoneMode = "utc") {
   `).join("");
 }
 
-function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
+export function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
   const selected = selectedCompareDatasets();
   const contractCounts = countBy(selected, "storage_contract_status");
   const contractIssues = Number(contractCounts.bad || 0) + Number(contractCounts.warn || 0);
@@ -1672,4 +1707,3 @@ function dataCompareReadinessCards(comparison, timezoneMode = "utc") {
     </div>
   `).join("");
 }
-
