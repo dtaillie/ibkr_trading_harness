@@ -4,6 +4,8 @@ import {
   navigateToDataLens,
   navigateToHelpLens,
   navigateToOperationsLens,
+  navigateToOverviewLens,
+  navigateToPerformanceLens,
   navigateToRunsLens,
   navigateToView,
   navigateToWorkbenchLens,
@@ -14,12 +16,12 @@ import {
 } from "./00_core.js";
 import { latestArtifactPerformance, latestTelemetryRun, latestWorkbenchRunForDraft, selectedConfigDatasets, selectedDataReadiness } from "./20_workbench_foundation.js";
 import { eventStatusIsBad, firstPresent, latestAccountRow, normalizedRunMetrics, shortTimestampAgeLabel } from "./30_runtime_core.js";
-import { buildTradeLedger, performanceFromAccountRows, performancePeriodWindow, rowsInWindow } from "./31_performance_math.js";
+import { buildTradeLedger, performanceFromAccountRows, performancePeriodWindow, rowsInWindow, sourceMeaning } from "./31_performance_math.js";
 import { sortedStatusRollups, workflowHref, worstStatusFrom } from "./32_overview.js";
 import { performanceEvidenceModel, performanceSnapshotModel, performanceWorkflowCards } from "./33_performance_views.js";
-import { selectedRunDraft } from "./60_workbench_builder.js";
+import { draftValidationById, selectedRunDraft } from "./60_workbench_builder.js";
 import { accountBoundaryAuthority, currentOpenOrderRows, runEventRows } from "./70_runs.js";
-import { staleRemoteNodes } from "./80_operations.js";
+import { commandStatusIsFailed, staleRemoteNodes } from "./80_operations.js";
 import { copyText } from "./90_bootstrap.js";
 
 export function helpSetupGapItems() {

@@ -3,6 +3,11 @@ import {
   age,
   escapeHtml,
   money,
+  navigateToDataLens,
+  navigateToOperationsLens,
+  navigateToRunsLens,
+  navigateToView,
+  navigateToWorkbenchLens,
   normalizeView,
   numberText,
   pctText,
@@ -39,6 +44,7 @@ import { nonzeroPositionsFromSource, performanceFromAccountRows, performancePeri
 import { emptyChart, equitySparkline, statusRollupReturnChart } from "./34_charts.js";
 import { currentOpenOrderRows, runEventRows } from "./70_runs.js";
 import { eventStatus, remoteRunArtifactEvidenceRows } from "./80_operations.js";
+import { copyText } from "./90_bootstrap.js";
 
 export function overviewHealthChecks() {
   const payload = state.status || {};
