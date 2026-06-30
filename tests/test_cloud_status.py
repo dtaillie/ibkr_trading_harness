@@ -1094,20 +1094,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "remote-control-body" in html
         assert "performance-home-result" in html
         assert "performance-home-tiles" in html
-        assert "performance-scoreboard-note" in html
-        assert "performance-scoreboard-cards" in html
-        assert "performance-scoreboard-actions" in html
-        assert "performance-action-note" in html
-        assert "performance-action-cards" in html
-        assert "performance-action-actions" in html
         assert "performance-workflows" in html
-        assert "performance-review-note" in html
-        assert "performance-review-cards" in html
-        assert "performance-review-actions" in html
-        assert "performance-evidence-note" in html
-        assert "performance-evidence-cards" in html
-        assert "performance-evidence-body" in html
-        assert "performance-evidence-actions" in html
         assert "performance-live-period-note" in html
         assert "performance-live-period-cards" in html
         assert "data-catalog-body" in html
@@ -1415,10 +1402,6 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-source-mode" in html
         assert "performance-period" in html
         assert "performance-details-toggle" in html
-        assert "performance-triage-note" in html
-        assert "performance-triage-cards" in html
-        assert "performance-story-note" in html
-        assert "performance-story-cards" in html
         assert "performance-trade-summary" in html
         assert "performance-trade-filter-state" in html
         assert "performance-trade-filter-side" in html
@@ -1523,7 +1506,6 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "Position Detail" in html
         assert "runs-triage-note" in html
         assert "runs-triage-cards" in html
-        assert "runs-workflows" in html
         assert "runs-account-boundary-note" in html
         assert "runs-account-boundary-cards" in html
         assert "runs-table-note" in html

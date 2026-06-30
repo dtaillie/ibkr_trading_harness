@@ -30,12 +30,12 @@ export function renderRuns() {
   renderRunsFilterOptions(runs);
   const visibleRuns = sortedRuns(filteredRuns(runs));
   renderCurrentOrdersAndPositions();
+  renderRunsOrdersFills();
   renderRunsTriage();
   renderRunsReviewPanel();
   renderRunsActionSummary();
   renderRunsEvidence();
   renderRuntimeSessions();
-  renderRunsWorkflowLauncher();
   renderRunsAccountBoundary();
   renderRunsSearchAssistant(runs, visibleRuns);
   $("runs-table-note").textContent = `${numberText(visibleRuns.length, 0)} shown / ${numberText(runs.length, 0)} published run${runs.length === 1 ? "" : "s"}`;
@@ -56,6 +56,28 @@ export function renderRuns() {
         ]);
       }).join("")
     : row([`<span class="muted">No published runs match the current filters.</span>`, "", "", "", "", "", "", "", "", ""]);
+}
+
+// Flattened orders/fills/rejects that lead the Inspect landing: the simplest answer to
+// "did my orders behave?" Newest first, capped; the full filterable timeline (with
+// decisions, charts, and execution review) lives one click away under #runs/events.
+export function renderRunsOrdersFills() {
+  if (!$("runs-orders-fills-body") || !$("runs-orders-fills-note")) return;
+  const events = runEventRows().filter((event) => event.type === "order" || event.type === "fill");
+  const shown = events.slice(0, 25);
+  $("runs-orders-fills-note").textContent = events.length
+    ? `${numberText(shown.length, 0)} of ${numberText(events.length, 0)} recent order/fill event${events.length === 1 ? "" : "s"}, newest first`
+    : "No orders or fills yet — published runs with execution will show here.";
+  $("runs-orders-fills-body").innerHTML = shown.length
+    ? shown.map((event) => row([
+        escapeHtml(event.timestamp),
+        escapeHtml(event.run_id),
+        escapeHtml(event.type),
+        statusText(event.status),
+        escapeHtml(event.symbol),
+        escapeHtml(event.detail),
+      ])).join("")
+    : row([`<span class="muted">No orders or fills recorded.</span>`, "", "", "", "", ""]);
 }
 
 export function runtimeSessionRows() {
@@ -1034,109 +1056,6 @@ export function handleRunsEvidenceAction(action) {
   if (action === "events") return navigateToRunsLens("events");
   if (action === "runs") return navigateToRunsLens("runs");
   navigateToRunsLens("state");
-}
-
-export function runsWorkflowCards() {
-  const runs = (state.status && state.status.runs) || [];
-  const history = state.history || [];
-  const orders = currentOpenOrderRows();
-  const source = latestArtifactPerformance();
-  const positions = nonzeroPositionsFromSource(source);
-  const events = runEventRows();
-  const fills = events.filter((event) => event.type === "fill");
-  const rejectedOrders = events.filter((event) => event.type === "order" && eventStatusIsBad(event));
-  const latestEvent = events[0] || null;
-  const artifactLoaded = Boolean(state.configArtifacts && (state.configArtifacts.run_id || state.configArtifacts.draft_id));
-  const savedRuns = (state.configRuns && state.configRuns.runs) || [];
-  const visibleRuns = sortedRuns(filteredRuns(runs));
-  const sourceLabel = source.label || source.source_type || "source";
-  return [
-    {
-      label: "Current State",
-      title: runs.length ? `${numberText(runs.length, 0)} Published` : savedRuns.length ? `${numberText(savedRuns.length, 0)} Saved` : "No Runs",
-      value: history.length ? `${numberText(history.length, 0)} snapshots` : "no history",
-      status: runs.length ? "ok" : savedRuns.length || history.length ? "warn" : "bad",
-      detail: runs.length
-        ? "Review current telemetry, account boundary, open orders, and positions before reading archived tables."
-        : savedRuns.length ? "Saved Workbench runs exist, but no current runner telemetry is publishing." : "Start or publish a runner before Runs can answer current strategy state.",
-      href: workflowHref("runs", "state"),
-      cta: "State",
-    },
-    {
-      label: "Open Orders",
-      title: orders.length ? `${numberText(orders.length, 0)} Open` : "No Open Orders",
-      value: rejectedOrders.length ? `${numberText(rejectedOrders.length, 0)} rejects` : "orders clear",
-      status: rejectedOrders.length ? "bad" : orders.length ? "warn" : runs.length || artifactLoaded ? "ok" : "idle",
-      detail: rejectedOrders.length
-        ? "Rejected or canceled order telemetry is present; inspect broker/account state before trusting the run."
-        : orders.length ? "Non-terminal order telemetry is visible; reconcile it with broker state." : "No recent non-terminal order telemetry is visible.",
-      href: workflowHref("runs", "state"),
-      cta: "Orders",
-    },
-    {
-      label: "Positions",
-      title: positions.length ? `${numberText(positions.length, 0)} Open` : "No Positions",
-      value: text(sourceLabel),
-      status: positions.length ? "warn" : source.has_data ? "ok" : "bad",
-      detail: positions.length
-        ? `${positions.slice(0, 4).map((position) => text(position.symbol)).join(", ")}${positions.length > 4 ? "..." : ""} open in the selected/current account source.`
-        : source.has_data ? "Selected/current account source is flat or lacks nonzero positions." : "Load telemetry or artifacts with account snapshots to verify position state.",
-      href: workflowHref("runs", "state"),
-      cta: "Positions",
-    },
-    {
-      label: "Event Timeline",
-      title: events.length ? `${numberText(events.length, 0)} Events` : "No Events",
-      value: latestEvent ? text(latestEvent.type) : "empty",
-      status: rejectedOrders.length ? "bad" : events.length ? "ok" : runs.length ? "warn" : "idle",
-      detail: latestEvent
-        ? `Latest ${text(latestEvent.type)} ${text(latestEvent.status)} ${text(latestEvent.symbol)} at ${text(latestEvent.timestamp)}.`
-        : "No recent decisions, orders, fills, or rejects are published.",
-      href: workflowHref("runs", "events"),
-      cta: "Events",
-    },
-    {
-      label: "Run Search",
-      title: visibleRuns.length ? `${numberText(visibleRuns.length, 0)} Shown` : "No Matches",
-      value: runs.length ? `${numberText(runs.length, 0)} total` : `${numberText(savedRuns.length, 0)} saved`,
-      status: visibleRuns.length ? "ok" : runs.length || savedRuns.length ? "warn" : "idle",
-      detail: visibleRuns.length
-        ? "Open the filtered run table for status, mode, freshness, decisions, orders, fills, and rejects."
-        : runs.length ? "Current filters hide all published runs; adjust search, status, mode, or sort." : "No published run table is available yet.",
-      href: workflowHref("runs", "runs"),
-      cta: "Search",
-    },
-    {
-      label: "Loaded Artifacts",
-      title: artifactLoaded ? "Loaded" : savedRuns.length ? "Available" : "No Artifact",
-      value: artifactLoaded
-        ? text((state.configArtifacts || {}).run_id || (state.configArtifacts || {}).draft_id)
-        : savedRuns.length ? `${numberText(savedRuns.length, 0)} saved` : "missing",
-      status: artifactLoaded ? "ok" : savedRuns.length ? "warn" : "idle",
-      detail: artifactLoaded
-        ? `Loaded artifacts expose decisions, fills, logs, account rows, and Performance charts; ${numberText(fills.length, 0)} recent fills are also visible.`
-        : savedRuns.length ? "Open a saved Workbench run artifact for full sanitized detail." : "Run or load a Workbench artifact to inspect replay/simulated-paper evidence.",
-      href: workflowHref(artifactLoaded ? "performance" : "workbench", artifactLoaded ? "home" : "artifacts"),
-      cta: artifactLoaded ? "Performance" : "Artifacts",
-    },
-  ];
-}
-
-export function renderRunsWorkflowLauncher() {
-  const container = $("runs-workflows");
-  if (!container) return;
-  const cards = runsWorkflowCards();
-  container.innerHTML = cards.map((card) => `
-    <a class="action-card workflow-card status-${escapeHtml(card.status)}" href="${escapeHtml(card.href)}">
-      <span>${escapeHtml(card.label)}</span>
-      <strong>${escapeHtml(card.title)}</strong>
-      <small>${escapeHtml(card.detail)}</small>
-      <div class="workflow-card-foot">
-        <em>${escapeHtml(card.value)}</em>
-        <b>${escapeHtml(card.cta)}</b>
-      </div>
-    </a>
-  `).join("");
 }
 
 export function accountBoundaryAuthority(mode, source) {

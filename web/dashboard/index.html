@@ -269,7 +269,7 @@
 
     <section class="dashboard-section" data-view="overview" data-overview-lens="home">
       <div class="section-head">
-        <h2>Performance Snapshot</h2>
+        <h2>Performance Summary</h2>
         <span id="overview-performance-note" class="section-note">Waiting for status-history rollups</span>
       </div>
       <section class="overview-performance-panel">
@@ -426,7 +426,7 @@
             <span>Source</span>
             <select id="performance-source-mode">
               <option value="current" selected>Current</option>
-              <option value="artifact">Loaded artifact</option>
+              <option value="artifact">Loaded file</option>
               <option value="latest_run">Latest saved run</option>
             </select>
           </label>
@@ -458,103 +458,6 @@
         <span class="eyebrow">Performance</span>
         <button id="performance-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; trades, rollups &amp; diagnostics</button>
       </div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
-      <div class="section-head artifact-head">
-        <h2>Performance Triage</h2>
-        <span id="performance-triage-note" class="section-note">No performance source selected</span>
-      </div>
-      <div id="performance-triage-cards" class="action-card-grid"></div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
-      <section class="performance-home-panel">
-        <div class="performance-home-main">
-          <span class="eyebrow">Performance Home</span>
-          <strong id="performance-home-result">n/a</strong>
-          <span id="performance-home-note">Load telemetry or a saved artifact to inspect strategy performance.</span>
-          <div id="performance-strategy-identity" class="strategy-identity-strip" aria-label="Performance strategy identity"></div>
-          <div class="hero-actions">
-            <button id="performance-home-open-runs" class="secondary" type="button">Open Runs</button>
-            <button id="performance-home-open-workbench" class="secondary" type="button">Open Workbench</button>
-            <button id="performance-home-open-data" class="secondary" type="button">Load Benchmark Data</button>
-          </div>
-        </div>
-        <div id="performance-home-tiles" class="performance-home-tiles"></div>
-      </section>
-      <section class="nested-section performance-scoreboard-panel">
-        <div class="section-head">
-          <h2>Current Scoreboard</h2>
-          <span id="performance-scoreboard-note" class="section-note">No current scoreboard loaded</span>
-        </div>
-        <div id="performance-scoreboard-cards" class="performance-scoreboard-grid"></div>
-        <div id="performance-scoreboard-actions" class="hero-actions"></div>
-      </section>
-      <details class="meta-disclosure">
-        <summary>Detailed action summary, review, evidence, and report</summary>
-        <div class="meta-disclosure-body">
-      <section class="nested-section performance-action-summary-panel">
-        <div class="section-head">
-          <h2>Performance Action Summary</h2>
-          <span id="performance-action-note" class="section-note">No performance action summary loaded</span>
-        </div>
-        <div id="performance-action-cards" class="action-card-grid"></div>
-        <div id="performance-action-actions" class="hero-actions"></div>
-      </section>
-      <section class="nested-section performance-review-panel">
-        <div class="section-head">
-          <h2>Performance Review</h2>
-          <span id="performance-review-note" class="section-note">No performance review loaded</span>
-        </div>
-        <div id="performance-review-cards" class="action-card-grid"></div>
-        <div id="performance-review-actions" class="hero-actions"></div>
-      </section>
-      <section class="nested-section performance-report-panel">
-        <div class="section-head">
-          <h2>Current Strategy Report</h2>
-          <span id="performance-report-note" class="section-note">No current strategy report loaded</span>
-        </div>
-        <div id="performance-report-cards" class="action-card-grid"></div>
-        <div id="performance-report-body" class="performance-report-body"></div>
-        <div id="performance-report-actions" class="hero-actions"></div>
-      </section>
-      <section class="nested-section performance-evidence-panel">
-        <div class="section-head">
-          <h2>Performance Evidence</h2>
-          <span id="performance-evidence-note" class="section-note">No performance evidence loaded</span>
-        </div>
-        <div id="performance-evidence-cards" class="action-card-grid"></div>
-        <div id="performance-evidence-body" class="performance-report-body"></div>
-        <div id="performance-evidence-actions" class="hero-actions"></div>
-      </section>
-      <section class="nested-section performance-story-section">
-        <div class="section-head">
-          <h2>Performance Story</h2>
-          <span id="performance-story-note" class="section-note">No performance story loaded</span>
-        </div>
-        <div id="performance-story-cards" class="action-card-grid"></div>
-      </section>
-        </div>
-      </details>
-      <section class="nested-section performance-snapshot-panel">
-        <div class="section-head">
-          <h2>Performance Snapshot</h2>
-          <span id="performance-snapshot-note" class="section-note">Today, recent, all available return, and drawdown</span>
-        </div>
-        <div id="performance-snapshot-cards" class="action-card-grid"></div>
-        <div id="performance-snapshot-actions" class="hero-actions"></div>
-      </section>
-      <div id="performance-workflows" class="performance-workflow-grid" aria-label="Performance workflows"></div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
-      <section class="nested-section performance-live-period-panel">
-        <div class="section-head">
-          <h2>Live / Paper Periods</h2>
-          <span id="performance-live-period-note" class="section-note">Waiting for status-history rollups</span>
-        </div>
-        <div id="performance-live-period-cards" class="performance-period-summary-grid"></div>
-      </section>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="performance-layout">
@@ -598,6 +501,54 @@
           </div>
         </div>
       </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
+      <section class="performance-home-panel">
+        <div class="performance-home-main">
+          <span class="eyebrow">This run</span>
+          <strong id="performance-home-result">n/a</strong>
+          <span id="performance-home-note">Load telemetry or a saved artifact to inspect strategy performance.</span>
+          <div id="performance-strategy-identity" class="strategy-identity-strip" aria-label="Performance strategy identity"></div>
+          <div class="hero-actions">
+            <button id="performance-home-open-runs" class="secondary" type="button">Open Runs</button>
+            <button id="performance-home-open-workbench" class="secondary" type="button">Open Workbench</button>
+            <button id="performance-home-open-data" class="secondary" type="button">Load Benchmark Data</button>
+          </div>
+        </div>
+        <div id="performance-home-tiles" class="performance-home-tiles"></div>
+      </section>
+      <details class="meta-disclosure">
+        <summary>Run detail &amp; where these numbers come from</summary>
+        <div class="meta-disclosure-body">
+      <section class="nested-section performance-report-panel">
+        <div class="section-head">
+          <h2>Run detail &amp; export</h2>
+          <span id="performance-report-note" class="section-note">Provenance, the metrics behind the result, and a copy-to-clipboard plain-text report</span>
+        </div>
+        <div id="performance-report-cards" class="action-card-grid"></div>
+        <div id="performance-report-body" class="performance-report-body"></div>
+        <div id="performance-report-actions" class="hero-actions"></div>
+      </section>
+        </div>
+      </details>
+      <section class="nested-section performance-snapshot-panel">
+        <div class="section-head">
+          <h2>Returns by period</h2>
+          <span id="performance-snapshot-note" class="section-note">Return and drawdown for today, recent, this month, this year, and all available</span>
+        </div>
+        <div id="performance-snapshot-cards" class="action-card-grid"></div>
+        <div id="performance-snapshot-actions" class="hero-actions"></div>
+      </section>
+      <div id="performance-workflows" class="performance-workflow-grid" aria-label="Performance workflows"></div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
+      <section class="nested-section performance-live-period-panel">
+        <div class="section-head">
+          <h2>Live / Paper Periods</h2>
+          <span id="performance-live-period-note" class="section-note">Waiting for status-history rollups</span>
+        </div>
+        <div id="performance-live-period-cards" class="performance-period-summary-grid"></div>
+      </section>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
       <div class="performance-kpis">
@@ -660,6 +611,10 @@
       </div>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
+      <div class="section-head">
+        <h2>Charts</h2>
+        <span class="section-note">Equity, price &amp; trades, benchmark, drawdown, daily returns, and calendar</span>
+      </div>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Equity Curve</h2>
@@ -667,8 +622,6 @@
         </div>
         <div id="performance-equity-chart" class="detail-chart-wrap"></div>
       </div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Price &amp; Trades</h2>
@@ -683,8 +636,6 @@
         </div>
         <div id="performance-trade-chart" class="detail-chart-wrap"></div>
       </div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-panel">
         <div class="section-head">
           <h2>Benchmark Overlay</h2>
@@ -692,8 +643,6 @@
         </div>
         <div id="performance-benchmark-chart" class="detail-chart-wrap compact-chart"></div>
       </div>
-    </section>
-    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
       <div class="chart-grid">
         <div class="chart-panel">
           <div class="section-head">
@@ -722,7 +671,7 @@
       <div class="table-wrap compact-table">
         <div class="section-head inline-section-head">
           <h2>Trades</h2>
-          <span id="performance-trade-note" class="section-note">Derived from sanitized fills</span>
+          <span id="performance-trade-note" class="section-note">Buys and sells from this run's fills</span>
         </div>
         <div id="performance-trade-summary" class="action-card-grid"></div>
         <section class="performance-trade-assistant">
@@ -834,7 +783,7 @@
         <h2>Live/Paper Status Rollups</h2>
         <span class="button-pair">
           <button id="export-status-rollups-csv" class="secondary" type="button">Export Status CSV</button>
-          <span id="performance-status-rollups-note" class="section-note">Daily summaries from sanitized status history</span>
+          <span id="performance-status-rollups-note" class="section-note">Daily summaries from saved status history</span>
         </span>
       </div>
       <div class="chart-grid">
@@ -878,7 +827,7 @@
     <section class="dashboard-section" data-view="performance" data-performance-lens="rollups" hidden>
       <div class="section-head artifact-head">
         <h2>Live/Paper Period Rollups</h2>
-        <span id="performance-status-period-rollups-note" class="section-note">Month/year summaries from sanitized status history</span>
+        <span id="performance-status-period-rollups-note" class="section-note">Month/year summaries from saved status history</span>
       </div>
       <div id="performance-status-period-chart" class="period-return-chart" aria-label="Month and year return bars"></div>
       <div class="table-wrap compact-table">
@@ -1158,12 +1107,12 @@
         <div id="data-inventory-cards" class="data-inventory-cards"></div>
       </section>
       <details class="meta-disclosure">
-        <summary>Detailed review, visibility report, evidence, and action summary</summary>
+        <summary>Detailed review - visibility, details &amp; next steps</summary>
         <div class="meta-disclosure-body">
       <section class="nested-section data-action-summary-panel" data-data-lens="diagnostics" aria-label="Data action summary">
         <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="data-action-note" class="section-note">No data action summary loaded</span>
+          <h2>Next Steps</h2>
+          <span id="data-action-note" class="section-note">No data next steps loaded</span>
         </div>
         <div id="data-action-cards" class="action-card-grid"></div>
         <div id="data-action-actions" class="hero-actions"></div>
@@ -2678,6 +2627,9 @@
         <h2>Config Builder</h2>
         <span id="config-validation" class="section-note">No draft generated</span>
       </div>
+      <details class="meta-disclosure workbench-builder-assistant-disclosure">
+        <summary>Builder help &mdash; next-step guidance</summary>
+        <div class="meta-disclosure-body">
       <section class="workbench-builder-assistant">
         <div>
           <span class="eyebrow">Builder Assistant</span>
@@ -2687,6 +2639,8 @@
         <div id="workbench-builder-assistant-cards" class="workbench-builder-assistant-cards"></div>
         <div id="workbench-builder-assistant-actions" class="workbench-builder-assistant-actions"></div>
       </section>
+        </div>
+      </details>
       <form id="config-form" class="builder-form">
         <div id="config-form-fields" class="builder-form-fields"></div>
         <div class="config-builder-actions">
@@ -2892,7 +2846,7 @@
         </div>
       </details>
       <details class="meta-disclosure builder-developer-info">
-        <summary>Draft &amp; run inventory - saved drafts, validations, and triage</summary>
+        <summary>Draft &amp; run inventory - saved drafts, validations, and review</summary>
         <div class="meta-disclosure-body">
           <section class="nested-section workbench-draft-inventory-panel" aria-label="Saved draft inventory review">
             <div class="section-head">
@@ -2905,7 +2859,7 @@
           </section>
           <dl id="config-draft-validations" class="kv wide-kv"></dl>
           <div class="section-head artifact-head">
-            <h2>Workbench Triage</h2>
+            <h2>Draft &amp; Run Review</h2>
             <span id="workbench-triage-note" class="section-note">No saved workbench activity loaded</span>
           </div>
           <div id="workbench-triage-cards" class="action-card-grid"></div>
@@ -3365,6 +3319,30 @@
         <button id="runs-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; account state &amp; events</button>
       </div>
       <div data-runs-lens="home">
+      <section class="nested-section runs-orders-fills-panel" aria-label="Orders and fills">
+        <div class="section-head">
+          <h2>Orders &amp; Fills</h2>
+          <span id="runs-orders-fills-note" class="section-note">Recent orders, fills, and rejects</span>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Run</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Symbol</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody id="runs-orders-fills-body"></tbody>
+          </table>
+        </div>
+        <div class="hero-actions">
+          <a class="secondary" href="#runs/events">See all events &amp; filters</a>
+        </div>
+      </section>
       <section class="runs-review-panel" aria-label="Runs review">
         <div class="runs-review-main">
           <span class="eyebrow">Runs Review</span>
@@ -3375,17 +3353,17 @@
         <div id="runs-review-cards" class="runs-review-cards"></div>
       </section>
       <details class="meta-disclosure">
-        <summary>Run triage, evidence &amp; action summary</summary>
+        <summary>Run review - issues, details &amp; next steps</summary>
         <div class="meta-disclosure-body">
       <div class="section-head">
-        <h2>Runs Triage</h2>
+        <h2>Run Issues</h2>
         <span id="runs-triage-note" class="section-note">No run activity loaded</span>
       </div>
       <div id="runs-triage-cards" class="action-card-grid"></div>
       <section class="nested-section runs-evidence-panel" aria-label="Runs evidence">
         <div class="section-head">
-          <h2>Runs Evidence</h2>
-          <span id="runs-evidence-note" class="section-note">No runs evidence loaded</span>
+          <h2>Run Details</h2>
+          <span id="runs-evidence-note" class="section-note">No run details loaded</span>
         </div>
         <div id="runs-evidence-cards" class="action-card-grid"></div>
         <div id="runs-evidence-body" class="performance-report-body"></div>
@@ -3393,8 +3371,8 @@
       </section>
       <section class="nested-section runs-action-summary-panel" aria-label="Runs action summary">
         <div class="section-head">
-          <h2>Action Summary</h2>
-          <span id="runs-action-note" class="section-note">No runs action summary loaded</span>
+          <h2>Next Steps</h2>
+          <span id="runs-action-note" class="section-note">No next steps loaded</span>
         </div>
         <div id="runs-action-cards" class="action-card-grid"></div>
         <div id="runs-action-actions" class="hero-actions"></div>
@@ -3453,7 +3431,6 @@
           </div>
         </section>
       </section>
-      <div id="runs-workflows" class="runs-workflow-grid" aria-label="Runs workflows"></div>
       </div>
     </section>
 

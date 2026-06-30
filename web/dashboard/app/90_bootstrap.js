@@ -54,6 +54,7 @@ import {
   applyDataCompareRangePreset,
   compareConfigDatasets,
   configDateRangePayload,
+  defaultBenchmarkDataset,
   handleWorkbenchEvidenceAction,
   handleWorkbenchExampleGalleryAction,
   handleWorkbenchHomeAction,
@@ -89,8 +90,6 @@ import { handlePerformanceTradeAssistantAction } from "./31_performance_math.js"
 import { handleOverviewHealthReportAction, renderMetrics, renderOverview } from "./32_overview.js";
 import {
   focusPerformanceDay,
-  handlePerformanceAction,
-  handlePerformanceEvidenceAction,
   handlePerformanceReportAction,
   handlePerformanceRollupAssistantAction,
   handlePerformanceRollupContinuityAction,
@@ -285,6 +284,7 @@ export function renderAll() {
   renderOverviewChanges();
   renderMetrics();
   renderPerformance();
+  maybeAutoLoadBenchmark();
   renderStatusEquityRollups();
   renderPerformancePeriodRollups();
   renderPerformanceRollups();
@@ -976,6 +976,27 @@ export async function loadPerformanceBenchmark() {
   $("last-refresh").textContent = `Benchmark loaded: ${new Date().toLocaleString()}`;
 }
 
+// When a run with account history is loaded and the user has not explicitly
+// chosen a benchmark, auto-pick a market proxy (SPY etc.) so the overlay shows a
+// "did I beat the market?" comparison instead of an empty placeholder. Respects
+// an explicit choice (including "No benchmark"), fetches at most once per path,
+// and silently no-ops when no recognized market dataset is saved.
+export function maybeAutoLoadBenchmark() {
+  if (state.benchmarkExplicit) return;
+  if (!state.performanceHasAccountData) return;
+  if (state.performanceBenchmarkDetail && state.performanceBenchmarkDetail.path) return;
+  if (state.benchmarkAutoLoadingPath) return;
+  const dataset = defaultBenchmarkDataset();
+  if (!dataset || !dataset.path) return;
+  state.benchmarkAutoLoadingPath = dataset.path;
+  const select = $("performance-benchmark");
+  if (select) select.value = dataset.path;
+  state.performanceBenchmarkPath = dataset.path;
+  loadPerformanceBenchmark()
+    .catch(() => {})
+    .finally(() => { state.benchmarkAutoLoadingPath = null; });
+}
+
 // Fetch a symbol's price bars for the trade chart, scoped to the run's fill window
 // (padded a little so edge trades aren't clipped). Caches into state by a
 // symbol+window key; renderPerformanceTradeChart triggers this lazily and re-reads
@@ -1002,7 +1023,10 @@ export async function loadPerformanceTradeBars(symbol, { start = null, end = nul
   const params = new URLSearchParams();
   params.set("path", path);
   params.set("preview_points", "500");
-  params.set("gap_limit", "0");
+  // The trade chart only consumes response.preview (price bars); it ignores gap
+  // rows. The server requires gap_limit in 1..200, so request the minimum rather
+  // than 0 (which 400s with "gap_limit must be between 1 and 200").
+  params.set("gap_limit", "1");
   params.set("sample_mode", "sampled");
   if (Number.isFinite(start) && Number.isFinite(end)) {
     const pad = Math.max((end - start) * 0.05, 3600000);
@@ -3298,11 +3322,6 @@ export function init() {
   $("performance-trade-filter-state").addEventListener("change", renderPerformance);
   $("performance-trade-filter-side").addEventListener("change", renderPerformance);
   $("performance-trade-filter-symbol").addEventListener("input", renderPerformance);
-  $("performance-action-actions").addEventListener("click", (event) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-action]") : null;
-    if (!(target instanceof HTMLElement)) return;
-    handlePerformanceAction(target.dataset.performanceAction || "");
-  });
   $("performance-trade-assistant-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-trade-action]") : null;
     if (!(target instanceof HTMLElement)) return;
@@ -3323,17 +3342,15 @@ export function init() {
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceSnapshotAction(target.dataset.performanceSnapshotAction || "");
   });
-  $("performance-evidence-actions").addEventListener("click", (event) => {
-    const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-evidence-action]") : null;
-    if (!(target instanceof HTMLElement)) return;
-    handlePerformanceEvidenceAction(target.dataset.performanceEvidenceAction || "");
-  });
   $("performance-report-actions").addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target.closest("button[data-performance-report-action]") : null;
     if (!(target instanceof HTMLElement)) return;
     handlePerformanceReportAction(target.dataset.performanceReportAction || "");
   });
   $("performance-benchmark").addEventListener("change", () => {
+    // Any manual change (including "No benchmark") is an explicit choice the
+    // auto-picker must not override.
+    state.benchmarkExplicit = true;
     state.performanceBenchmarkPath = $("performance-benchmark").value || "";
     if (!state.performanceBenchmarkPath) {
       state.performanceBenchmarkDetail = null;
@@ -3341,6 +3358,7 @@ export function init() {
     }
   });
   $("performance-load-benchmark").addEventListener("click", () => {
+    state.benchmarkExplicit = true;
     loadPerformanceBenchmark().catch((err) => {
       $("performance-benchmark-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
       $("last-refresh").textContent = `Benchmark load failed: ${err.message}`;

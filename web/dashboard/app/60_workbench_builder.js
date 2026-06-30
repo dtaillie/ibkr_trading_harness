@@ -291,9 +291,21 @@ export function renderConfigFormSchema() {
   const container = $("config-form-fields");
   if (!container || container.dataset.rendered === "true" || !fields.length) return;
   const sectionMetadata = configSectionMetadataById();
+  // The draft name and the optional replay date range are secondary to picking a
+  // strategy + data, so route them into a synthetic "optional" group that lands in
+  // Advanced — fewer decisions stand between the user and Run.
+  const DEMOTE_TO_ADVANCED = new Set(["config-name", "config-start-date", "config-end-date"]);
+  const OPTIONAL = "optional";
+  const sectionTitleOf = (section) => section === OPTIONAL
+    ? "Optional" : configSectionTitle(section, sectionMetadata);
+  const sectionHelpOf = (section) => section === OPTIONAL
+    ? "Draft name and an optional replay date range — defaults are fine for a quick run."
+    : configSectionHelp(section, sectionMetadata);
+  const sectionOrderOf = (section) => section === OPTIONAL
+    ? -1 : configSectionOrder(section, sectionMetadata);
   const sections = [];
   for (const field of fields) {
-    const section = field.section || "settings";
+    const section = DEMOTE_TO_ADVANCED.has(field.id) ? OPTIONAL : (field.section || "settings");
     let group = sections.find((item) => item.section === section);
     if (!group) {
       group = { section, fields: [] };
@@ -302,13 +314,13 @@ export function renderConfigFormSchema() {
     group.fields.push(field);
   }
   sections.sort((left, right) => (
-    configSectionOrder(left.section, sectionMetadata) - configSectionOrder(right.section, sectionMetadata)
+    sectionOrderOf(left.section) - sectionOrderOf(right.section)
     || left.section.localeCompare(right.section)
   ));
   const renderSection = (group) => `
     <fieldset id="config-section-${escapeHtml(group.section)}" class="config-field-section">
-      <legend>${escapeHtml(configSectionTitle(group.section, sectionMetadata))}</legend>
-      <p>${escapeHtml(configSectionHelp(group.section, sectionMetadata))}</p>
+      <legend>${escapeHtml(sectionTitleOf(group.section))}</legend>
+      <p>${escapeHtml(sectionHelpOf(group.section))}</p>
       <div class="config-field-grid">
         ${group.fields.map(renderConfigField).join("")}
       </div>
@@ -323,7 +335,7 @@ export function renderConfigFormSchema() {
   container.innerHTML = essential.map(renderSection).join("")
     + (advanced.length
       ? `<details class="config-advanced-settings meta-disclosure">
-           <summary>Advanced settings &mdash; account size, risk limits, costs, session &amp; output</summary>
+           <summary>Advanced settings &mdash; name, dates, account size, risk limits, costs, session &amp; output</summary>
            <div class="config-advanced-body">${advanced.map(renderSection).join("")}</div>
          </details>`
       : "");

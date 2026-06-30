@@ -1281,6 +1281,14 @@ button[disabled] {
   gap: 10px;
 }
 
+/* Field labels carry an explicit display (grid/flex item), which overrides the [hidden]
+   attribute's display:none. So updatePluginStrategyFields() marked a non-selected plugin's
+   params hidden, yet RSI/ORB knobs still rendered under an SMA strategy — ~600px of dead
+   form pushing Run far down. Make hidden actually hide inside the builder form. */
+.builder-form [hidden] {
+  display: none !important;
+}
+
 .config-advanced-settings {
   margin-top: 6px;
 }
@@ -1290,6 +1298,14 @@ button[disabled] {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
   margin-top: 10px;
+}
+
+/* The explicit display:grid above leaks past the closed-<details> default, so the
+   "Advanced settings" disclosure showed its whole wall of secondary fields and
+   pushed Run Backtest far below the fold. Hide the body unless the user opens it,
+   so the form reads pick data -> pick strategy -> run. */
+.config-advanced-settings:not([open]) > .config-advanced-body {
+  display: none;
 }
 
 .config-builder-actions {
@@ -2345,7 +2361,6 @@ section {
 .data-workflow-grid,
 .fetch-workflow-grid,
 .workbench-workflow-grid,
-.runs-workflow-grid,
 .operations-workflow-grid,
 .help-workflow-grid,
 .broker-capability-grid {
@@ -2525,65 +2540,6 @@ button.action-card:hover {
 
 .performance-snapshot-panel {
   margin: 12px 0;
-}
-
-.performance-scoreboard-panel {
-  margin: 12px 0;
-}
-
-.performance-scoreboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-}
-
-.performance-scoreboard-card {
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  min-width: 0;
-  min-height: 132px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--line);
-  border-radius: 8px;
-  background: #fbfffc;
-  box-shadow: var(--surface-shadow);
-}
-
-.performance-scoreboard-card.status-ok {
-  border-left-color: var(--status-ok);
-}
-
-.performance-scoreboard-card.status-warn {
-  border-left-color: var(--status-warn);
-  background: #fffdf2;
-}
-
-.performance-scoreboard-card.status-bad {
-  border-left-color: var(--status-bad);
-  background: #fff6f6;
-}
-
-.performance-scoreboard-card span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.performance-scoreboard-card strong {
-  font-size: 22px;
-  line-height: 1.08;
-  overflow-wrap: anywhere;
-}
-
-.performance-scoreboard-card small {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
 }
 
 .performance-report-panel {
@@ -3929,11 +3885,6 @@ button.action-card:hover {
   margin: 12px 0 18px;
 }
 
-.runs-workflow-grid {
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  margin: 12px 0 18px;
-}
-
 .operations-workflow-grid {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin: 12px 0 18px;
@@ -3973,9 +3924,12 @@ button.action-card:hover {
   background: #fffaf0;
 }
 
+/* Color is reserved for things that need attention. A healthy "ok" card stays
+   neutral so a genuine warn/bad actually stands out instead of drowning in a
+   field of green. */
 .action-card.status-ok {
-  border-color: rgba(31, 122, 76, 0.22);
-  background: #f7fbf8;
+  border-color: var(--line);
+  background: var(--panel);
 }
 
 .performance-evidence-panel,
@@ -5862,7 +5816,6 @@ footer {
 }
 
 .action-card.status-idle,
-.performance-scoreboard-card.status-idle,
 .performance-report-line.status-idle,
 .workbench-selected-data-item.status-idle,
 .data-readiness-cell.status-idle,

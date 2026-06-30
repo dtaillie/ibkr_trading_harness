@@ -265,6 +265,41 @@ export function benchmarkDatasets() {
     });
 }
 
+// Recognized broad-market proxies, best first. The benchmark overlay is a
+// "did I beat the market?" comparison, so the only meaningful auto-default is a
+// market index — never one of the run's own holdings. If none of these are in
+// the saved catalog, defaultBenchmarkDataset() returns null and the overlay
+// stays empty (with a prompt) rather than picking a misleading dataset.
+const BENCHMARK_PROXY_SYMBOLS = ["SPY", "VOO", "IVV", "QQQ", "DIA", "IWM", "VTI"];
+
+function benchmarkQualityRank(dataset) {
+  const quality = text(dataset.quality_status).toLowerCase();
+  if (quality === "ok") return 0;
+  if (quality === "warn") return 1;
+  return 2;
+}
+
+function benchmarkCadenceRank(dataset) {
+  // Prefer a daily benchmark — the cleanest market-context curve regardless of
+  // the run's cadence (the overlay normalizes returns over the window anyway).
+  return /\bdaily\b|\b1\s?d(ay)?\b/i.test(text(dataset.bar_size)) ? 0 : 1;
+}
+
+export function defaultBenchmarkDataset() {
+  const datasets = benchmarkDatasets();
+  if (!datasets.length) return null;
+  for (const symbol of BENCHMARK_PROXY_SYMBOLS) {
+    const matches = datasets.filter((dataset) => text(dataset.symbol).toUpperCase() === symbol);
+    if (matches.length) {
+      matches.sort((a, b) =>
+        benchmarkQualityRank(a) - benchmarkQualityRank(b)
+        || benchmarkCadenceRank(a) - benchmarkCadenceRank(b));
+      return matches[0];
+    }
+  }
+  return null;
+}
+
 export function renderPerformanceBenchmarkOptions() {
   const select = $("performance-benchmark");
   if (!select) return;
