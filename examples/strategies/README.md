@@ -9,7 +9,6 @@ from an ignored local config (see the repository README).
 
 | File | Pattern | Buys when… | Sells when… |
 | --- | --- | --- | --- |
-| `no_edge_template.py` | none | never (emits no orders) | never |
 | `sma_crossover.py` | trend | fast SMA crosses **above** slow SMA | fast SMA crosses **below** slow SMA |
 | `rsi_mean_reversion.py` | mean reversion | RSI drops **below** `oversold` | RSI recovers **above** `exit_level` |
 | `opening_range_breakout.py` | intraday breakout | first close **above** the opening-range high | target (`range_high + target_r·range`) or stop (`range_low`) |

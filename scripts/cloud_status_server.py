@@ -188,104 +188,202 @@ ETF_SYMBOLS = {
 }
 CONFIG_BUILDER_PLUGINS = (
     {
-        "id": "no_edge_template",
-        "label": "No-edge template",
-        "spec": "examples.strategies.no_edge_template:create_strategy",
-        "status": "example_only",
+        "id": "sma_crossover",
+        "label": "SMA Crossover",
+        "spec": "examples.strategies.sma_crossover:create_strategy",
+        "status": "ready",
         "visibility": "public_example",
-        "description": "Demonstrates plugin wiring only; not a viable trading strategy.",
+        "description": "Runnable textbook moving-average crossover plugin for replay and simulated-paper checks. Example only -- not a viable trading strategy.",
         "boundary": (
-            "Public Workbench drafts only list generic example plugins. Point "
-            "ignored local configs at private plugins for real strategy work."
+            "Bundled public strategy plugin. Use it to exercise the harness, "
+            "runner, risk limits, and result views; keep private strategy logic "
+            "in ignored local plugin registries."
         ),
         "strategy_fields": [
             {
-                "name": "example_parameter",
-                "label": "Example Parameter",
-                "kind": "checkbox",
-                "default": True,
-                "description": "Example-only toggle that proves plugin fields render and serialize.",
-                "help": "Demonstrates plugin-specific config wiring only.",
+                "name": "fast",
+                "label": "Fast SMA",
+                "kind": "number",
+                "default": 5,
+                "min": 1,
+                "step": 1,
+                "description": "Fast moving-average window in bars.",
+                "help": "The plugin enters when this average crosses above the slow average. Applied to every selected symbol independently.",
+                "order": 20,
+            },
+            {
+                "name": "slow",
+                "label": "Slow SMA",
+                "kind": "number",
+                "default": 20,
+                "min": 2,
+                "step": 1,
+                "description": "Slow moving-average window in bars.",
+                "help": "Must be greater than the fast SMA window.",
+                "order": 30,
+            },
+            {
+                "name": "position_fraction",
+                "label": "Position Size (fraction of equity)",
+                "kind": "number",
+                "default": 0.1,
+                "min": 0.01,
+                "max": 1,
+                "step": 0.05,
+                "description": "Fraction of account equity to allocate per position.",
+                "help": "Each entry sizes to this share of equity (0.1 = 10%), capped by available cash so positions across symbols never over-allocate.",
+                "order": 40,
+            },
+        ],
+        "validation_rules": [
+            {
+                "id": "fast_less_than_slow",
+                "type": "comparison",
+                "label": "Fast SMA below Slow SMA",
+                "field": "fast",
+                "operator": "<",
+                "other_field": "slow",
+                "error": "strategy.fast must be less than strategy.slow",
             },
         ],
         "result_fields": [
             {
                 "name": "reason",
-                "label": "Example Reason",
+                "label": "Decision Reason",
                 "kind": "text",
-                "help": "Example-only public diagnostic emitted by diagnostics.dashboard.",
+                "help": "Plugin reason emitted for the latest decision.",
                 "order": 10,
             },
             {
+                "name": "signal_label",
+                "label": "Signal Label",
+                "kind": "text",
+                "help": "Human-readable signal name emitted by the plugin.",
+                "order": 15,
+            },
+            {
                 "name": "signal_value",
-                "label": "Example Score",
+                "label": "Signal Value",
                 "kind": "number",
-                "help": "No-edge demonstration score; this is not a tradable signal.",
+                "help": "Current SMA spread emitted by diagnostics.dashboard.",
                 "decimals": 2,
                 "order": 20,
             },
             {
-                "name": "threshold_distance",
-                "label": "Threshold Distance",
+                "name": "threshold",
+                "label": "Threshold",
                 "kind": "number",
-                "help": "Demonstrates labeled result-field rendering for plugin diagnostics.",
-                "suffix": "score units",
+                "help": "Configured comparison threshold for this signal.",
                 "decimals": 2,
                 "order": 30,
+            },
+            {
+                "name": "near_threshold",
+                "label": "Near Threshold",
+                "kind": "boolean",
+                "help": "Whether the latest signal is close to the configured threshold.",
+                "order": 40,
+            },
+            {
+                "name": "active_exit_rule",
+                "label": "Exit Rule",
+                "kind": "text",
+                "help": "Exit condition currently declared by the plugin.",
+                "order": 50,
             },
         ],
         "result_sections": [
             {
-                "id": "example_status",
-                "label": "Example Status",
-                "description": "Groups public-safe example diagnostics for artifact display.",
-                "fields": ["reason", "signal_value", "threshold_distance"],
+                "id": "strategy_status",
+                "label": "Strategy Status",
+                "description": "Latest plugin diagnostics emitted by the replay artifacts.",
+                "fields": ["reason", "signal_label", "signal_value", "threshold", "near_threshold", "active_exit_rule"],
                 "order": 10,
             },
         ],
         "result_widgets": [
             {
-                "id": "example_cards",
-                "label": "Example Cards",
+                "id": "strategy_cards",
+                "label": "Strategy Cards",
                 "kind": "cards",
-                "description": "Example-only cards for public-safe result diagnostics.",
-                "fields": ["reason", "signal_value", "threshold_distance"],
+                "description": "At-a-glance plugin diagnostics for the selected run.",
+                "fields": ["reason", "signal_label", "signal_value", "threshold", "near_threshold", "active_exit_rule"],
                 "order": 10,
             },
             {
-                "id": "example_summary",
-                "label": "Example Bar Summary",
+                "id": "strategy_summary",
+                "label": "Signal Summary",
                 "kind": "bar_summary",
-                "description": "Example-only emitted-count summary for public diagnostics.",
-                "fields": ["signal_value", "threshold_distance"],
+                "description": "Distribution summary for numeric plugin diagnostics.",
+                "fields": ["signal_value", "threshold"],
                 "order": 20,
             },
             {
-                "id": "example_trend",
-                "label": "Example Trend",
+                "id": "signal_trend",
+                "label": "Signal Trend",
                 "kind": "sparkline",
-                "description": "Example-only trend lines from public-safe numeric diagnostics.",
-                "fields": ["signal_value", "threshold_distance"],
+                "description": "Recent signal values emitted by the plugin.",
+                "fields": ["signal_value", "threshold"],
                 "order": 30,
             },
             {
-                "id": "example_line_chart",
-                "label": "Example Line Chart",
+                "id": "signal_line_chart",
+                "label": "Signal Line Chart",
                 "kind": "line_chart",
-                "description": "Example-only multi-field chart from public-safe numeric diagnostics.",
-                "fields": ["signal_value", "threshold_distance"],
+                "description": "Signal and threshold over the replay timeline.",
+                "fields": ["signal_value", "threshold"],
                 "order": 40,
             },
             {
-                "id": "example_custom_chart",
-                "label": "Example Custom Chart",
+                "id": "signal_custom_chart",
+                "label": "Signal Custom Chart",
                 "kind": "custom_chart",
                 "chart_kind": "line_chart",
                 "point_limit": 40,
-                "description": "Example-only declarative custom chart using an allowlisted public renderer.",
-                "fields": ["signal_value", "threshold_distance"],
+                "description": "Configured chart renderer for plugin diagnostics.",
+                "fields": ["signal_value", "threshold"],
                 "order": 50,
             },
+        ],
+    },
+    {
+        "id": "rsi_mean_reversion",
+        "label": "RSI Mean Reversion",
+        "spec": "examples.strategies.rsi_mean_reversion:create_strategy",
+        "status": "ready",
+        "visibility": "public_example",
+        "description": "Runnable textbook RSI plugin for replay and simulated-paper checks. Example only -- not a viable trading strategy.",
+        "boundary": (
+            "Bundled public strategy plugin. Use it to exercise the harness, "
+            "runner, risk limits, and result views; keep private strategy logic "
+            "in ignored local plugin registries."
+        ),
+        "strategy_fields": [
+            {"name": "period", "label": "RSI Period", "kind": "number", "default": 14, "min": 2, "step": 1, "help": "Wilder RSI lookback in bars.", "order": 20},
+            {"name": "oversold", "label": "Oversold Level", "kind": "number", "default": 30, "min": 1, "max": 99, "step": 1, "help": "Entry threshold while flat.", "order": 30},
+            {"name": "exit_level", "label": "Exit Level", "kind": "number", "default": 52, "min": 1, "max": 99, "step": 1, "help": "Exit threshold while long.", "order": 40},
+            {"name": "position_fraction", "label": "Position Size (fraction of equity)", "kind": "number", "default": 0.1, "min": 0.01, "max": 1, "step": 0.05, "help": "Each entry sizes to this share of equity (0.1 = 10%), capped by available cash so positions across symbols never over-allocate.", "order": 50},
+        ],
+        "validation_rules": [
+            {"id": "oversold_below_exit", "type": "comparison", "label": "Oversold below Exit", "field": "oversold", "operator": "<", "other_field": "exit_level", "error": "strategy.oversold must be less than strategy.exit_level"},
+        ],
+    },
+    {
+        "id": "opening_range_breakout",
+        "label": "Opening Range Breakout",
+        "spec": "examples.strategies.opening_range_breakout:create_strategy",
+        "status": "ready",
+        "visibility": "public_example",
+        "description": "Runnable textbook opening-range breakout plugin for replay and simulated-paper checks. Example only -- not a viable trading strategy.",
+        "boundary": (
+            "Bundled public strategy plugin. Use it to exercise the harness, "
+            "runner, risk limits, and result views; keep private strategy logic "
+            "in ignored local plugin registries."
+        ),
+        "strategy_fields": [
+            {"name": "opening_range_bars", "label": "Opening Range Bars", "kind": "number", "default": 6, "min": 1, "step": 1, "help": "Number of session-opening bars used to define the range.", "order": 20},
+            {"name": "target_r", "label": "Target R", "kind": "number", "default": 2.0, "min": 0.1, "step": 0.1, "help": "Target distance as a multiple of opening-range size.", "order": 30},
+            {"name": "position_fraction", "label": "Position Size (fraction of equity)", "kind": "number", "default": 0.1, "min": 0.01, "max": 1, "step": 0.05, "help": "Each entry sizes to this share of equity (0.1 = 10%), capped by available cash so positions across symbols never over-allocate.", "order": 40},
         ],
     },
 )
@@ -353,12 +451,12 @@ CONFIG_BUILDER_RISK_PRESETS = (
 )
 CONFIG_BUILDER_FORM_SCHEMA = (
     {"id": "config-name", "name": "name", "label": "Name", "kind": "text", "default_key": "name", "section": "identity", "help": "Local draft name. The server normalizes it for file-safe output."},
-    {"id": "config-plugin", "name": "plugin_id", "label": "Plugin", "kind": "select", "options_source": "plugins", "section": "identity", "help": "Public examples demonstrate wiring only; private plugins belong in ignored local configs."},
+    {"id": "config-plugin", "name": "plugin_id", "label": "Plugin", "kind": "select", "options_source": "plugins", "section": "identity", "help": "Choose a registered strategy plugin. Private plugins belong in ignored local registries."},
     {"id": "config-mode", "name": "mode", "label": "Mode", "kind": "select", "options_source": "modes", "section": "identity", "help": "Replay and simulated-paper are public-safe local modes."},
     {"id": "config-dataset", "name": "datasets", "label": "Datasets", "kind": "select", "options_source": "datasets", "multiple": True, "size": 5, "wide": True, "section": "data", "help": "Choose one or more scanned CSV/parquet files from Data Library."},
     {"id": "config-start-date", "name": "start", "label": "Start Date", "kind": "date", "section": "data", "help": "Optional replay start date."},
     {"id": "config-end-date", "name": "end", "label": "End Date", "kind": "date", "section": "data", "help": "Optional replay end date."},
-    {"id": "config-starting-cash", "name": "starting_cash", "label": "Starting Cash", "kind": "number", "min": 1, "step": 100, "default_key": "starting_cash", "section": "account", "help": "Starting cash for replay or simulated-paper accounting."},
+    {"id": "config-starting-cash", "name": "starting_cash", "label": "Starting Cash", "kind": "number", "min": 1, "step": 1, "default_key": "starting_cash", "section": "account", "help": "Starting cash for replay or simulated-paper accounting."},
     {"id": "config-history-bars", "name": "history_bars", "label": "History Bars", "kind": "number", "min": 1, "step": 1, "default_key": "history_bars", "section": "account", "help": "Number of prior bars provided to the plugin decision window."},
     {"id": "config-max-steps", "name": "max_steps", "label": "Max Steps", "kind": "number", "min": 1, "step": 1, "default_key": "max_steps", "section": "account", "help": "Optional cap on replay steps for quick tests."},
     {"id": "config-session-enabled", "name": "session_enabled", "label": "Use session window", "kind": "checkbox", "section": "runtime", "help": "When enabled, loop mode can idle outside a configured local session."},
@@ -398,7 +496,10 @@ CONFIG_BUILDER_GUIDE_STEPS = (
     {"id": "results", "label": "Inspect Results", "help": "Open artifacts in Performance and Runs.", "order": 70},
 )
 WORKBENCH_OUTPUT_ROOT = ROOT / "paper_logs" / "workbench"
-MAX_DRAFT_RUN_STEPS = 500
+# A historical replay (backtest) is bounded by the dataset and the run timeout, so
+# the step cap just needs to be high enough to cover a full dataset rather than
+# silently truncating a month of bars to a quick 100-bar smoke test.
+MAX_DRAFT_RUN_STEPS = 1000000
 MAX_DRAFT_RUN_TIMEOUT_SECONDS = 120
 MAX_ARTIFACT_ROWS = 500
 MAX_DATA_DETAIL_POINTS = 1000
@@ -513,6 +614,11 @@ def file_response(handler: BaseHTTPRequestHandler, path: Path) -> None:
     content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     handler.send_response(200)
     handler.send_header("Content-Type", content_type)
+    if path.suffix.lower() in (".html", ".js", ".mjs", ".css"):
+        # Local dashboard assets change on every deploy; with no cache headers
+        # browsers served stale ES modules (the recurring "I don't see my
+        # changes" trap). Never cache the dashboard's own code.
+        handler.send_header("Cache-Control", "no-store, max-age=0")
     handler.send_header("Content-Length", str(len(raw)))
     handler.end_headers()
     write_response_body(handler, raw)
@@ -2258,6 +2364,42 @@ def infer_bar_size(path: Path, df: pd.DataFrame) -> str | None:
     return infer_bar_size_from_text("/".join(path.parts))
 
 
+BAR_SIZE_SECONDS = {
+    "1min": 60, "2min": 120, "3min": 180, "5min": 300, "10min": 600,
+    "15min": 900, "30min": 1800, "1h": 3600, "2h": 7200, "4h": 14400, "1d": 86400,
+}
+
+
+def bar_size_label_for_seconds(seconds: float | None) -> str | None:
+    """Map an interval in seconds to the nearest standard bar-size label, but only
+    when it is a close match (within 25%) so odd cadences are not force-labelled."""
+    if seconds is None or seconds <= 0:
+        return None
+    label, sec = min(BAR_SIZE_SECONDS.items(), key=lambda kv: abs(kv[1] - seconds))
+    return label if abs(sec - seconds) <= sec * 0.25 else None
+
+
+def detect_actual_bar_size(ordered: pd.Series, median_interval: float | None):
+    """Most common WITHIN-session spacing of the data, mapped to a bar-size label.
+
+    Returns (label, modal_seconds, mixed). IBKR's historical 1-minute lookback is
+    limited, so older "1min" requests silently come back as 5-minute bars; this
+    detects the granularity actually present so the catalog can report the truth.
+    ``mixed`` flags files whose dominant cadence covers <70% of intra-session gaps
+    (e.g. a 1-min span concatenated with a 5-min span)."""
+    if median_interval is None or median_interval <= 0 or len(ordered) < 3:
+        return None, None, False
+    diffs = ordered.diff().dt.total_seconds().dropna()
+    # Drop overnight/weekend closes so the modal reflects in-session cadence.
+    intra = diffs[(diffs > 0) & (diffs <= max(median_interval * 3.0, 3600.0))]
+    if len(intra) < 2:
+        return None, None, False
+    rounded = intra.round()
+    modal = float(rounded.mode().iloc[0])
+    share = float((rounded == modal).mean())
+    return bar_size_label_for_seconds(modal), modal, share < 0.7
+
+
 def infer_asset_class(path: Path, symbol: str | None) -> str:
     symbol_text = (symbol or "").upper()
     lowered = "/".join(part.lower() for part in path.parts)
@@ -2649,48 +2791,65 @@ def data_quality_summary(
     close_outside_high_low_count: int = 0,
     negative_volume_count: int = 0,
 ) -> dict[str, Any]:
-    blockers = []
-    warnings = []
+    # Issues are split into two tiers:
+    #   * blocking  - the file is structurally unusable OR its values are wrong
+    #                 (real corruption). A backtest must not silently run on these.
+    #   * advisory  - coverage/cosmetic facts (session gaps, missing volume column)
+    #                 that are expected for real market data and must NOT block runs.
+    structural = []   # file cannot be loaded/interpreted at all
+    corruption = []   # values present but provably wrong
+    advisory = []     # coverage / informational only
     if rows <= 0:
-        blockers.append("file contains no rows")
+        structural.append("file contains no rows")
     if not timestamp_available:
-        blockers.append("no timestamp column or DatetimeIndex found")
+        structural.append("no timestamp column or DatetimeIndex found")
     elif valid_timestamp_count <= 0:
-        blockers.append("no parseable timestamps")
+        structural.append("no parseable timestamps")
     elif timestamp_parse_failures:
-        warnings.append(f"{timestamp_parse_failures} timestamp parse failures")
+        corruption.append(f"{timestamp_parse_failures} timestamp parse failures")
     if close_column_name is None:
-        blockers.append("no close/last column found")
+        structural.append("no close/last column found")
     elif close_missing:
-        warnings.append(f"{close_missing} missing close values")
+        corruption.append(f"{close_missing} missing close values")
     if duplicate_timestamps:
-        warnings.append(f"{duplicate_timestamps} duplicate timestamps")
+        corruption.append(f"{duplicate_timestamps} duplicate timestamps")
     if high_low_inversion_count:
-        warnings.append(f"{high_low_inversion_count} bars with high below low")
+        corruption.append(f"{high_low_inversion_count} bars with high below low")
     if close_outside_high_low_count:
-        warnings.append(f"{close_outside_high_low_count} closes outside high/low range")
+        corruption.append(f"{close_outside_high_low_count} closes outside high/low range")
+    if negative_volume_count:
+        corruption.append(f"{negative_volume_count} negative volume values")
     if estimated_missing_intervals:
-        warnings.append(f"{estimated_missing_intervals} estimated missing intervals")
+        advisory.append(f"{estimated_missing_intervals} estimated missing intervals")
     elif (
         median_interval_seconds is not None
         and largest_gap_seconds is not None
         and median_interval_seconds > 0
         and largest_gap_seconds > median_interval_seconds * 3
     ):
-        warnings.append("largest timestamp gap is more than 3x the median interval")
+        advisory.append("largest timestamp gap is more than 3x the median interval")
     if volume_column_name is None:
-        warnings.append("no volume column found")
+        advisory.append("no volume column found")
     elif volume_missing:
-        warnings.append(f"{volume_missing} missing volume values")
-    if negative_volume_count:
-        warnings.append(f"{negative_volume_count} negative volume values")
+        advisory.append(f"{volume_missing} missing volume values")
 
-    status = "bad" if blockers else "warn" if warnings else "ok"
-    all_warnings = blockers + warnings
+    blocking = structural + corruption
+    # quality_status (legacy, display): bad only when the file is structurally
+    # unusable; otherwise warn if anything at all was noted. Preserved so existing
+    # catalog badges/filters keep surfacing every advisory.
+    all_warnings = blocking + advisory
+    status = "bad" if structural else "warn" if all_warnings else "ok"
+    # quality_blocking_status (new, gate): bad when the file is structurally
+    # unusable OR contains real corruption. This is what the run/export gate keys
+    # on, so normal session gaps no longer block a backtest.
+    blocking_status = "bad" if blocking else "ok"
     return {
         "quality_status": status,
         "quality_warnings": all_warnings,
         "quality_warning_count": len(all_warnings),
+        "quality_blocking_status": blocking_status,
+        "quality_blocking_warnings": blocking,
+        "quality_blocking_warning_count": len(blocking),
         "high_low_inversion_count": high_low_inversion_count,
         "close_outside_high_low_count": close_outside_high_low_count,
         "negative_volume_count": negative_volume_count,
@@ -2704,6 +2863,36 @@ def evenly_sample_indices(length: int, points: int) -> list[int]:
         return [length - 1]
     step = (length - 1) / (points - 1)
     return sorted({round(index * step) for index in range(points)})
+
+
+def estimate_session_missing_intervals(ordered, median_interval, *, continuous: bool) -> int:
+    """Estimate bars missing *within* trading sessions, ignoring market closures.
+
+    The naive ``round(gap/median)-1`` over every gap counts each overnight,
+    weekend, and holiday close as thousands of phantom "missing" bars, which
+    falsely flags virtually every intraday dataset (e.g. a 1-/5-min file picks up
+    ~200k phantom gaps and is marked low-quality, blocking backtests).
+
+    Calendar-free rules:
+      * continuous (24/7 crypto): there is no session to cross, so every gap above
+        normal spacing is a genuine feed hole and is counted.
+      * intraday equities: count a gap only when both endpoints fall on the same
+        UTC calendar date. Overnight / weekend / holiday closes cross a date
+        boundary and are expected, not data defects.
+      * daily or coarser bars: closures dominate and cannot be distinguished from
+        real holes without a market calendar, so nothing is counted.
+    """
+    if median_interval is None or median_interval <= 0 or len(ordered) < 2:
+        return 0
+    if median_interval >= 23 * 3600:  # daily or coarser cadence
+        return 0
+    gap = ordered.diff().dt.total_seconds()
+    raw = ((gap / median_interval).round() - 1).clip(lower=0)
+    raw = raw.where(gap > median_interval * 1.5, 0.0).fillna(0.0)
+    if not continuous:
+        day = ordered.dt.normalize()
+        raw = raw.where(day == day.shift(1), 0.0)
+    return int(raw.sum())
 
 
 def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[str, Any]:
@@ -2731,6 +2920,9 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
     first_ts = last_ts = None
     median_interval = largest_gap = None
     estimated_missing: int | None = None
+    actual_bar_size = None
+    actual_bar_size_seconds = None
+    actual_bar_size_mixed = False
     if not parsed_ts.empty:
         ordered = parsed_ts.sort_values()
         first_ts = ordered.iloc[0].isoformat()
@@ -2740,8 +2932,15 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
             median_interval = float(diffs.median())
             largest_gap = float(diffs.max())
             if median_interval > 0:
-                estimated_missing = int(
-                    sum(max(0, round(float(diff) / median_interval) - 1) for diff in diffs if diff > median_interval * 1.5)
+                # 24/7 crypto has no session closures, so every gap is a real hole;
+                # equities/ETFs close overnight and on weekends/holidays, which must
+                # not be counted as missing data (see estimate_session_missing_intervals).
+                continuous = infer_asset_class(path, infer_symbol(path, df)) == "crypto"
+                estimated_missing = estimate_session_missing_intervals(
+                    ordered, median_interval, continuous=continuous
+                )
+                actual_bar_size, actual_bar_size_seconds, actual_bar_size_mixed = detect_actual_bar_size(
+                    ordered, median_interval
                 )
 
     close_col = close_column(df)
@@ -2822,6 +3021,16 @@ def summarize_data_file(path: Path, *, root: Path, preview_points: int) -> dict[
         "canonical_symbol": canonical,
         "asset_class": asset_class,
         "bar_size": bar_size,
+        # Granularity actually present in the data, vs the filename's bar_size label.
+        # IBKR's 1-minute history lookback is limited, so older "1min" extended files
+        # silently contain 5-minute bars; bar_size_mismatch surfaces that so a 1-min
+        # strategy is not unknowingly backtested on coarser data.
+        "bar_size_actual": actual_bar_size,
+        "bar_size_actual_seconds": actual_bar_size_seconds,
+        "bar_size_mixed": bool(actual_bar_size_mixed),
+        "bar_size_mismatch": bool(
+            actual_bar_size and bar_size and normalize_bar_size(bar_size) != actual_bar_size
+        ),
         "storage_session": storage_session,
         "adjustment_status": adjustment_status,
         **storage_contract,
@@ -4750,11 +4959,15 @@ def interval_heatmap_for_data_file(path: Path, *, root: Path) -> dict[str, Any]:
     actual_by_date_hour: Counter[tuple[str, int]] = Counter((ts.date().isoformat(), int(ts.hour)) for ts in ordered)
     missing_by_hour: Counter[int] = Counter()
     missing_by_date_hour: Counter[tuple[str, int]] = Counter()
+    # 24/7 crypto has no session closures; equities/ETFs do, so only within-session
+    # (same UTC date) holes are real missing intervals (see missing_interval_analysis).
+    continuous = infer_asset_class(path, infer_symbol(path, df)) == "crypto"
     previous = ordered.iloc[0]
     step = pd.Timedelta(seconds=median_interval)
     for current in ordered.iloc[1:]:
         gap_seconds = float((current - previous).total_seconds())
-        if gap_seconds > median_interval * 1.5:
+        within_session = continuous or previous.normalize() == current.normalize()
+        if gap_seconds > median_interval * 1.5 and within_session:
             missing = max(0, round(gap_seconds / median_interval) - 1)
             for index in range(1, missing + 1):
                 estimated_ts = previous + step * index
@@ -6357,13 +6570,13 @@ def normalize_config_plugin(row: dict[str, Any], *, source: str, source_path: st
     if not spec or ":" not in spec:
         raise ValueError(f"plugin {plugin_id} must define spec as module:function")
     visibility = str(row.get("visibility") or ("public_example" if source == "builtin" else "private_local")).strip()
-    status = str(row.get("status") or ("example_only" if source == "builtin" else "private_local")).strip()
+    status = str(row.get("status") or ("ready" if source == "builtin" else "private_local")).strip()
     label = str(row.get("label") or plugin_id).strip()
     description = str(row.get("description") or "").strip()
     boundary = str(row.get("boundary") or "").strip()
     if not boundary:
         boundary = (
-            "Public example plugin; not a viable trading strategy."
+            "Bundled public strategy plugin loaded through the generic runner contract."
             if source == "builtin"
             else "Loaded from an ignored local plugin registry; keep strategy logic and tuned configs private."
         )
@@ -6961,6 +7174,8 @@ def timestamp_summary_for_file(
         "quality_status": data_summary.get("quality_status"),
         "quality_warnings": data_summary.get("quality_warnings") or [],
         "quality_warning_count": data_summary.get("quality_warning_count", 0),
+        "quality_blocking_status": data_summary.get("quality_blocking_status"),
+        "quality_blocking_warnings": data_summary.get("quality_blocking_warnings") or [],
         "_timestamps": valid,
     }
 
@@ -7173,21 +7388,27 @@ def missing_interval_analysis(
     *,
     gap_limit: int,
     missing_interval_limit: int | None,
+    continuous: bool = False,
 ) -> dict[str, Any]:
     parsed_valid = parsed_ts.dropna()
     ordered = parsed_valid.sort_values()
     diffs = ordered.diff().dropna().dt.total_seconds() if not ordered.empty else pd.Series([], dtype="float64")
     median_interval = finite_float(diffs.median()) if not diffs.empty else None
     largest_gap = finite_float(diffs.max()) if not diffs.empty else None
+    daily_or_coarser = bool(median_interval and median_interval >= 23 * 3600)
     gap_rows = []
     missing_interval_rows = []
     estimated_missing = 0
-    if median_interval and median_interval > 0 and len(ordered) > 1:
+    if median_interval and median_interval > 0 and len(ordered) > 1 and not daily_or_coarser:
         previous = ordered.iloc[0]
         expected_step = pd.Timedelta(seconds=float(median_interval))
         for current in ordered.iloc[1:]:
             gap_seconds = float((current - previous).total_seconds())
-            if gap_seconds > median_interval * 1.5:
+            # Only a within-session hole is a real missing interval. Overnight /
+            # weekend / holiday closes cross a UTC date boundary (24/7 crypto has
+            # no session, so every gap counts). Mirrors estimate_session_missing_intervals.
+            within_session = continuous or previous.normalize() == current.normalize()
+            if gap_seconds > median_interval * 1.5 and within_session:
                 missing = max(0, round(gap_seconds / median_interval) - 1)
                 estimated_missing += missing
                 gap_index = len(gap_rows)
@@ -7248,6 +7469,7 @@ def data_missing_intervals_csv(
         pd.Series(parse_datetime_utc(raw_ts, source_timezone=source_tz)),
         gap_limit=MAX_DATA_GAP_ROWS,
         missing_interval_limit=max_rows,
+        continuous=infer_asset_class(path, infer_symbol(path, df)) == "crypto",
     )
     output = io.StringIO()
     writer = csv.DictWriter(
@@ -7410,6 +7632,7 @@ def build_data_detail(
         parsed_ts,
         gap_limit=gap_limit,
         missing_interval_limit=missing_interval_limit,
+        continuous=infer_asset_class(path, infer_symbol(path, df)) == "crypto",
     )
     parsed_valid = analysis["parsed_valid"]
     ordered = analysis["ordered"]
@@ -7844,7 +8067,7 @@ def build_config_draft(
     plugins: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     name = slugify(str(payload.get("name") or "workbench_example"))
-    plugin_id = str(payload.get("plugin_id") or "no_edge_template")
+    plugin_id = str(payload.get("plugin_id") or "sma_crossover")
     available_plugins = plugins or load_config_builder_plugins()
     plugin = config_plugin_by_id(plugin_id, available_plugins)
     if plugin is None:
@@ -7866,15 +8089,19 @@ def build_config_draft(
     data_files = {symbol: rel_path for symbol, (_path, rel_path) in selected.items()}
     start_raw, end_raw, start_ts, end_ts = parse_payload_date_range(payload)
     alignment = build_data_alignment_for_files(selected, start_ts=start_ts, end_ts=end_ts)
+    # Block only on real corruption / structurally-unusable files, not on benign
+    # coverage advisories (session gaps, missing volume column) that are expected
+    # for real intraday market data. Fall back to the legacy status only if the
+    # blocking field is absent (older cached payloads).
     quality_rows = [
         row
         for row in alignment.get("rows", [])
-        if row.get("quality_status") in {"warn", "bad"}
+        if (row.get("quality_blocking_status") or row.get("quality_status")) == "bad"
     ]
     if quality_rows and not bool(payload.get("allow_quality_warnings", False)):
         symbols = ", ".join(str(row.get("symbol")) for row in quality_rows)
         raise ValueError(
-            "selected datasets have data quality warnings: "
+            "selected datasets have corrupt data: "
             f"{symbols}; set allow_quality_warnings=true to continue"
         )
 
@@ -9989,6 +10216,51 @@ def summarize_plugin_contract_artifact(payload: dict[str, Any] | None) -> dict[s
     }
 
 
+# Account rows read for the daily-Sharpe computation. Display lists stay capped
+# at the request `limit`; Sharpe must see the full series (one equity per date)
+# to stay consistent with the full-run return/drawdown taken from summary.json.
+PERFORMANCE_DAILY_LIMIT = 100000
+
+
+def daily_sharpe_from_rows(rows: list[dict[str, Any]]) -> float | None:
+    """Daily Sharpe annualized x sqrt(252) over the full account series.
+
+    Mirrors analysis/__init__.py exactly: collapse to one equity per UTC calendar
+    date (last snapshot of the date), day-over-day returns, population std (divide
+    by N). Returns None for fewer than two trading days or zero volatility instead
+    of the reference's degenerate 0.0, so the UI can show an honest "n/a".
+    """
+    by_date: dict[Any, float] = {}
+    for row in rows:
+        raw = row.get("timestamp")
+        equity = finite_float(row.get("equity"))
+        if not raw or equity is None:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        by_date[parsed.astimezone(timezone.utc).date()] = equity
+    daily = [by_date[day] for day in sorted(by_date)]
+    if len(daily) < 2:
+        return None
+    returns = []
+    for index in range(1, len(daily)):
+        if not daily[index - 1]:
+            return None
+        returns.append(daily[index] / daily[index - 1] - 1.0)
+    if len(returns) < 2:
+        return None
+    avg = sum(returns) / len(returns)
+    variance = sum((value - avg) ** 2 for value in returns) / len(returns)
+    std = math.sqrt(variance)
+    if std <= 0:
+        return None
+    return avg / std * math.sqrt(252)
+
+
 def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any] | None) -> dict[str, Any]:
     summary = summary or {}
     timestamps = []
@@ -10055,6 +10327,7 @@ def performance_from_account(rows: list[dict[str, Any]], summary: dict[str, Any]
         "final_equity": summary.get("final_equity", final_equity),
         "total_return_pct": summary.get("total_return_pct", finite_float(total_return_pct)),
         "max_drawdown_pct": summary.get("max_drawdown_pct", finite_float(max_drawdown)),
+        "sharpe": summary.get("sharpe", finite_float(daily_sharpe_from_rows(rows))),
         "account_start_time": summary.get("account_start_time", timestamps[0].isoformat() if timestamps else None),
         "account_end_time": summary.get("account_end_time", timestamps[-1].isoformat() if timestamps else None),
         "elapsed_seconds": summary.get("elapsed_seconds", elapsed_seconds),
@@ -10316,7 +10589,8 @@ def load_config_draft_artifacts(
     decisions_raw = read_jsonl_tail(output_dir / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(output_dir / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(output_dir / "fills.jsonl", limit=limit)
-    account_raw = read_jsonl_tail(output_dir / "account.jsonl", limit=limit)
+    account_perf = read_jsonl_tail(output_dir / "account.jsonl", limit=PERFORMANCE_DAILY_LIMIT)
+    account_raw = account_perf[-limit:] if limit and limit > 0 else account_perf
     order_preview_file = output_dir / "order_previews.jsonl"
     previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
     decisions = [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw]
@@ -10329,7 +10603,7 @@ def load_config_draft_artifacts(
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "plugin_contract": summarize_plugin_contract_artifact(plugin_contract_raw),
-        "performance": performance_from_account(account_raw, summary),
+        "performance": performance_from_account(account_perf, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
             "decisions": len(decisions_raw),
@@ -10403,7 +10677,8 @@ def load_config_draft_run_artifacts(
     decisions_raw = read_jsonl_tail(path / "decisions.jsonl", limit=limit)
     orders_raw = read_jsonl_tail(path / "orders.jsonl", limit=limit)
     fills_raw = read_jsonl_tail(path / "fills.jsonl", limit=limit)
-    account_raw = read_jsonl_tail(path / "account.jsonl", limit=limit)
+    account_perf = read_jsonl_tail(path / "account.jsonl", limit=PERFORMANCE_DAILY_LIMIT)
+    account_raw = account_perf[-limit:] if limit and limit > 0 else account_perf
     order_preview_file = path / "order_previews.jsonl"
     previews_raw = read_jsonl_tail(order_preview_file, limit=limit)
     decisions = [summarize_decision_artifact(row, result_fields=result_fields) for row in decisions_raw]
@@ -10420,7 +10695,7 @@ def load_config_draft_run_artifacts(
         "summary": summary,
         "runner_status": summarize_runner_status_artifact(runner_status_raw),
         "plugin_contract": summarize_plugin_contract_artifact(plugin_contract_raw),
-        "performance": performance_from_account(account_raw, summary),
+        "performance": performance_from_account(account_perf, summary),
         "performance_rollups": summarize_performance_rollups_artifact(performance_rollups_raw, limit=limit),
         "counts": {
             "decisions": len(decisions_raw),

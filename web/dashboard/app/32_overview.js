@@ -424,9 +424,29 @@ export function renderOverview() {
     ? `${text(latestStatusMonth.label)} status rollup / ${numberText(latestStatusMonth.day_count, 0)} days`
     : monthRows.length ? `${monthWindow.label} / ${numberText(monthRows.length, 0)} account snapshots` : `${monthWindow.label} / no account snapshots`;
 
+  // Account equity is the secondary read-out; keep it neutral (a balance is not a
+  // "gain"). Green/red is reserved strictly for signed P&L below.
   $("overview-equity").textContent = money(equity);
-  $("overview-equity").className = "value-equity";
-  $("overview-subtitle").textContent = sourceMeta;
+  $("overview-equity").className = "";
+  // The one number a solo day-trader opens the dashboard for: am I up or down
+  // today — shown in both % and $ (a $25-40k account thinks in dollars), color-coded.
+  let hasToday = false;
+  if ($("overview-today-hero-value")) {
+    const todayPct = finiteNumber(todayPerf.total_return_pct);
+    const todayPnl = finiteNumber(todayPerf.end_equity) !== null && finiteNumber(todayPerf.start_equity) !== null
+      ? todayPerf.end_equity - todayPerf.start_equity
+      : null;
+    hasToday = todayPct !== null || todayPnl !== null;
+    const parts = [];
+    if (todayPct !== null) parts.push(pctText(todayPct));
+    if (todayPnl !== null) parts.push(money(todayPnl));
+    const el = $("overview-today-hero-value");
+    el.textContent = parts.length ? parts.join(" · ") : "Flat";
+    el.className = `overview-today-hero-value ${signedValueClass(todayPct ?? todayPnl)}`;
+  }
+  $("overview-subtitle").textContent = hasToday
+    ? sourceMeta
+    : "No trades yet today — open Performance for run history, or run a backtest.";
   if ($("overview-equity-spark")) {
     $("overview-equity-spark").innerHTML = equitySparkline(accountRows);
   }

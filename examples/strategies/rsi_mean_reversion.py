@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from framework.strategy_plugin import OrderIntent, StrategyContext, StrategyDecision
+from framework.strategy_plugin import OrderIntent, StrategyContext, StrategyDecision, equity_fraction_cash
 
 
 def wilder_rsi(close: pd.Series, period: int) -> pd.Series:
@@ -39,56 +39,65 @@ class RsiMeanReversionStrategy:
 
     def on_start(self, config: dict[str, Any]) -> None:
         self.config = dict(config)
-        self.symbol = str(config.get("symbol", "SPY")).upper()
         self.period = int(config.get("period", 14))
         self.oversold = float(config.get("oversold", 30))
         self.exit_level = float(config.get("exit_level", 52))
-        self.cash_quantity = float(config.get("cash_quantity", 10_000))
+        self.position_fraction = float(config.get("position_fraction", 0.1))
         if self.period < 2:
             raise ValueError("rsi_mean_reversion: period must be >= 2")
         if not 0 < self.oversold < self.exit_level < 100:
             raise ValueError("rsi_mean_reversion: require 0 < oversold < exit_level < 100")
-        if self.cash_quantity <= 0:
-            raise ValueError("rsi_mean_reversion: cash_quantity must be > 0")
+        if not 0 < self.position_fraction <= 1:
+            raise ValueError("rsi_mean_reversion: position_fraction must be in (0, 1]")
 
     def on_data(self, data: dict[str, pd.DataFrame], context: StrategyContext) -> StrategyDecision:
+        # Apply the per-symbol RSI rule to EVERY selected symbol independently; the account
+        # is shared, entries size to a fraction of equity, and a running cash budget keeps
+        # several same-bar entries from over-allocating the account.
         intents: list[OrderIntent] = []
-        reason = "no_signal"
-        df = data.get(self.symbol)
-        held = float(context.positions.get(self.symbol, 0.0) or 0.0)
-        rsi_now = None
-
-        if df is not None and len(df) > self.period:
-            rsi = wilder_rsi(df["close"], self.period)
-            last = rsi.iloc[-1]
-            if pd.notna(last):
-                rsi_now = float(last)
-                if rsi_now < self.oversold and held <= 0:
+        entries = exits = 0
+        rsis: dict[str, float] = {}
+        budget = context.cash
+        for symbol, df in sorted(data.items()):
+            held = float(context.positions.get(symbol, 0.0) or 0.0)
+            if df is None or len(df) <= self.period:
+                continue
+            last = wilder_rsi(df["close"], self.period).iloc[-1]
+            if pd.isna(last):
+                continue
+            rsi_now = float(last)
+            rsis[symbol] = round(rsi_now, 2)
+            if rsi_now < self.oversold and held <= 0:
+                cash = equity_fraction_cash(context, self.position_fraction, available=budget)
+                if cash is not None:
                     intents.append(OrderIntent(
-                        symbol=self.symbol, side="buy", cash_quantity=self.cash_quantity,
+                        symbol=symbol, side="buy", cash_quantity=cash,
                         order_type="market", tag="rsi_oversold_enter_long",
                     ))
-                    reason = "rsi_below_oversold"
-                elif rsi_now > self.exit_level and held > 0:
-                    intents.append(OrderIntent(
-                        symbol=self.symbol, side="sell", quantity=held,
-                        order_type="market", tag="rsi_recovered_exit_long",
-                    ))
-                    reason = "rsi_above_exit_level"
+                    if budget is not None:
+                        budget -= cash
+                    entries += 1
+            elif rsi_now > self.exit_level and held > 0:
+                intents.append(OrderIntent(
+                    symbol=symbol, side="sell", quantity=held,
+                    order_type="market", tag="rsi_recovered_exit_long",
+                ))
+                exits += 1
 
+        reason = "no_signal" if not intents else f"{entries} entries, {exits} exits"
         return StrategyDecision(
             timestamp=context.now,
             intents=intents,
-            signal={"reason": reason, "rsi": rsi_now},
+            signal={"reason": reason, "entries": entries, "exits": exits, "rsi": rsis},
             diagnostics={
                 "symbols_seen": sorted(data),
-                "note": "Example only; non-viable textbook RSI mean reversion, no edge.",
+                "note": "Example only; non-viable textbook RSI mean reversion applied per symbol, no edge.",
                 "dashboard": {
                     "reason": reason,
-                    "signal_label": f"RSI({self.period})",
-                    "signal_value": round(rsi_now, 2) if rsi_now is not None else 0.0,
+                    "signal_label": f"RSI({self.period}) crosses",
+                    "signal_value": float(len(intents)),
                     "threshold": self.oversold,
-                    "near_threshold": rsi_now is not None and abs(rsi_now - self.oversold) < 5,
+                    "near_threshold": False,
                     "active_exit_rule": f"rsi_above_{self.exit_level:g}",
                 },
             },

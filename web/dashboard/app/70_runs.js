@@ -608,11 +608,13 @@ export function renderRunsReviewPanel() {
     },
     {
       label: "Account State",
-      title: positions.length ? `${numberText(positions.length, 0)} positions` : source.has_data ? "flat/unknown" : "missing",
+      title: positions.length
+        ? `${numberText(positions.length, 0)} position${positions.length === 1 ? "" : "s"}`
+        : source.has_data ? "Flat" : "No account yet",
       status: positions.length ? "warn" : source.has_data ? "ok" : "idle",
       detail: source.account && source.account.length
         ? `Latest account ${shortTimestampAgeLabel(accountRow.timestamp)} from ${text(source.label)}.`
-        : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "No account source loaded.",
+        : source.has_data ? `${text(source.label)} has no account snapshot rows.` : "Run a paper session to populate account state.",
     },
     {
       label: "Orders",

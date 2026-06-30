@@ -17,15 +17,15 @@ import {
   fetchText,
   handleRouteAction,
   interval,
-  jumpToDashboardTarget,
   money,
-  navigateToDataLens,
-  navigateToFetchLens,
-  navigateToHelpLens,
-  navigateToOperationsLens,
-  navigateToOverviewLens,
-  navigateToPerformanceLens,
+  setDataDetailsOpen,
+  setFetchDetailsOpen,
+  setHelpDetailsOpen,
+  setOperationsDetailsOpen,
+  setOverviewDetailsOpen,
+  setPerformanceDetailsOpen,
   navigateToRunsLens,
+  setRunsDetailsOpen,
   navigateToView,
   navigateToViewTarget,
   navigateToWorkbenchLens,
@@ -41,7 +41,6 @@ import {
   setActiveView,
   setDataCatalogOffset,
   setDataDiagnosticsLoadingNote,
-  startDashboardTask,
   state,
   statusText,
   syncDataCatalogLimitControl,
@@ -67,7 +66,12 @@ import {
   selectedConfigDatasets,
   selectedDataCoverageRows,
   selectedTelemetryRun,
+  barSizeDurationLabel,
+  barSizeMinutes,
+  syncWorkbenchSelectedDatasetPathsFromSelect,
   updateCompareSelectionFromSelect,
+  workbenchDatasetGroups,
+  workbenchDatasetSelectable,
 } from "./20_workbench_foundation.js";
 import {
   checkDashboardDataApis,
@@ -215,7 +219,6 @@ import {
   handleWorkbenchRunReadinessAction,
   renderConfigAlignment,
   renderConfigBuilder,
-  renderConfigBuilderReadiness,
   renderConfigCompatibility,
   renderConfigLivePanels,
   renderDraftValidations,
@@ -513,6 +516,16 @@ export async function refreshDataLibrary({ includeDiagnostics = false, force = f
       state.dataEndpointContracts = endpointContracts;
       renderDashboardApiHealth();
       throw catalogErr;
+    }
+    // Publish the catalog and fill the Backtest dataset picker as soon as the
+    // catalog itself is back, instead of waiting on the symbol-directory /
+    // history-matrix / symbol-index scans below. Those feed the Data view, not
+    // the picker, and each can add several seconds on a cold scan cache — which
+    // is exactly when the picker would otherwise sit empty and look broken.
+    if (requestId === loadState.requestId) {
+      state.dataCatalog = dataCatalog || { datasets: [], errors: [] };
+      loadState.catalogLoaded = true;
+      renderConfigBuilder();
     }
     let dataSymbolDirectory = {
       symbols: dataCatalog.symbol_summaries || [],
@@ -831,7 +844,6 @@ export async function previewConfigAlignment() {
   state.alignmentPreview = response.alignment || {};
   renderConfigAlignment(state.alignmentPreview);
   renderWorkbenchBuilderAssistant();
-  renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchHome();
   $("last-refresh").textContent = `Alignment preview loaded: ${new Date().toLocaleString()}`;
@@ -962,6 +974,48 @@ export async function loadPerformanceBenchmark() {
   state.performanceBenchmarkDetail = response;
   renderPerformance();
   $("last-refresh").textContent = `Benchmark loaded: ${new Date().toLocaleString()}`;
+}
+
+// Fetch a symbol's price bars for the trade chart, scoped to the run's fill window
+// (padded a little so edge trades aren't clipped). Caches into state by a
+// symbol+window key; renderPerformanceTradeChart triggers this lazily and re-reads
+// the cache. The symbol's file is resolved from the catalog (best/widest file).
+export async function loadPerformanceTradeBars(symbol, { start = null, end = null, key = "" } = {}) {
+  // Prefer the exact file the run used (recorded at run time, matched by draft id)
+  // so the chart shows the run's true cadence/session; otherwise fall back to the
+  // symbol's best catalog file.
+  const runPaths = state.runDatasetPaths;
+  const artifactDraftId = (state.configArtifacts || {}).draft_id;
+  let path = runPaths && runPaths.bySymbol && runPaths.draftId && runPaths.draftId === artifactDraftId
+    ? runPaths.bySymbol[String(symbol).toUpperCase()]
+    : null;
+  if (!path) {
+    const dataset = bestCatalogDatasetForSymbol(symbol);
+    path = dataset && dataset.path;
+  }
+  if (!path) {
+    state.performanceTradeBars = { key, symbol, error: `No saved price bars for ${symbol} — fetch them under Data to chart its trades.` };
+    renderPerformance();
+    return;
+  }
+  state.performanceTradeBars = { key, symbol, loadingKey: key };
+  const params = new URLSearchParams();
+  params.set("path", path);
+  params.set("preview_points", "500");
+  params.set("gap_limit", "0");
+  params.set("sample_mode", "sampled");
+  if (Number.isFinite(start) && Number.isFinite(end)) {
+    const pad = Math.max((end - start) * 0.05, 3600000);
+    params.set("start", new Date(start - pad).toISOString());
+    params.set("end", new Date(end + pad).toISOString());
+  }
+  try {
+    const response = await fetchJson(`/data_detail?${params.toString()}`);
+    state.performanceTradeBars = { key, symbol, path, points: (response && response.preview) || [] };
+  } catch (err) {
+    state.performanceTradeBars = { key, symbol, error: `Could not load ${symbol} price bars: ${err.message}` };
+  }
+  renderPerformance();
 }
 
 export async function reloadDataDetail(event) {
@@ -1175,6 +1229,7 @@ export async function loadConfigArtifacts(draftId, options = {}) {
   renderPerformance();
   renderOverview();
   if (options.openPerformance) navigateToView("performance");
+  else if (options.keepLens) { /* stay on the current lens; the verdict renders inline */ }
   else if (activeView() === "workbench") applyWorkbenchLens("artifacts");
   $("last-refresh").textContent = options.openPerformance
     ? `Results opened: ${new Date().toLocaleString()}`
@@ -1264,6 +1319,7 @@ export async function loadRunArtifacts(runId, options = {}) {
   renderOverview();
   renderWorkbenchGuide();
   if (options.openPerformance) navigateToView("performance");
+  else if (options.keepLens) { /* stay on the current lens; the verdict renders inline */ }
   else if (activeView() === "workbench") applyWorkbenchLens("artifacts");
   $("last-refresh").textContent = options.openPerformance
     ? `Run results opened: ${new Date().toLocaleString()}`
@@ -1349,6 +1405,7 @@ export async function runConfigDraft(event = null, options = {}) {
   state.cleanupPlan = await fetchJson("/workbench_cleanup_plan");
   const loadedArtifacts = await loadCompletedRunOutput(run, draftId, {
     openPerformance: Boolean(options.openPerformance),
+    keepLens: !options.openPerformance,
   });
   renderWorkbenchRuns();
   renderRunComparison();
@@ -1362,8 +1419,209 @@ export async function runConfigDraft(event = null, options = {}) {
     : `Config draft run finished: ${new Date().toLocaleString()}`;
 }
 
+// One button does the whole job: take the data + strategy the user picked,
+// save the config, replay it over the bars, and drop the result in place — no
+// hunting for a separate "Run Draft" form or re-picking the draft you just made.
+export async function runBacktest() {
+  const status = $("config-run-status");
+  const setStatus = (html) => { if (status) status.innerHTML = html; };
+  // Give the draft a sensible name if the user did not — they want to run, not file it.
+  const nameField = $("config-name");
+  if (nameField && !nameField.value.trim()) {
+    const opt = $("config-dataset") && $("config-dataset").selectedOptions[0];
+    const sym = opt ? text(opt.textContent).split(" ")[0] : "backtest";
+    const plug = ($("config-plugin") && $("config-plugin").value) || "strategy";
+    nameField.value = `${sym}_${plug}`.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 48) || "backtest";
+  }
+  // Point the strategy at the data you picked. If the plugin has a "symbol" param
+  // still holding its schema default (e.g. SPY), match it to the selected dataset
+  // so the backtest actually trades — a basic user shouldn't get 0 fills because a
+  // default symbol silently disagreed with the data they chose.
+  const selectedPlugin = $("config-plugin") ? $("config-plugin").value : "";
+  const symField = ((state.configOptions || {}).form_schema || [])
+    .find((f) => f.plugin_id === selectedPlugin && String(f.name).toLowerCase() === "symbol");
+  const datasetOption = $("config-dataset") && $("config-dataset").selectedOptions[0];
+  if (symField && $(symField.id) && datasetOption) {
+    const el = $(symField.id);
+    const datasetSymbol = text(datasetOption.textContent).split(/\s/)[0];
+    if (datasetSymbol && datasetSymbol !== "n/a" && String(el.value) === String(symField.default ?? "")) {
+      el.value = datasetSymbol;
+    }
+  }
+  // The default risk preset is a tiny live-safety demo guardrail (orders capped at
+  // ~$100) that rejects every order a real strategy emits, so a backtest fills
+  // nothing. Raise the caps to let the strategy trade at its configured size —
+  // only ever raising, so a user who deliberately set tighter limits keeps them.
+  const startingCash = Number($("config-starting-cash") && $("config-starting-cash").value) || 10000;
+  const raiseRiskFloor = (id, floor) => {
+    const el = $(id);
+    if (el && (Number(el.value) || 0) < floor) el.value = String(floor);
+  };
+  raiseRiskFloor("config-max-cash", startingCash);
+  raiseRiskFloor("config-max-notional", startingCash);
+  raiseRiskFloor("config-max-quantity", 1000000);
+  raiseRiskFloor("config-max-exposure", 1);
+  raiseRiskFloor("config-max-orders", 100000);
+  // The run needs a saved draft file; force the save so the user never has to tick
+  // a "save this draft" box just to run a backtest.
+  if ($("config-save")) $("config-save").checked = true;
+  setStatus(`<span class="status-warn">Saving config…</span>`);
+  let draft;
+  try {
+    await submitConfigDraft({ previewOnly: false });
+    draft = state.configDraft || {};
+  } catch (err) {
+    setStatus(`<span class="status-bad">${escapeHtml(err.message)}</span>`);
+    return;
+  }
+  if (draft.validation && draft.validation.valid === false) {
+    setStatus(`<span class="status-bad">Fix the config: ${escapeHtml((draft.validation.errors || []).join("; ") || "see validation messages")}</span>`);
+    return;
+  }
+  const savedPath = text(draft.saved_path || "");
+  const draftId = savedPath ? savedPath.split(/[\\/]/).pop().replace(/\.ya?ml$/i, "") : text(draft.name || "");
+  if (!draftId) {
+    setStatus(`<span class="status-bad">Could not save the backtest config.</span>`);
+    return;
+  }
+  // Record which saved file each symbol came from so the Performance trade chart
+  // can plot the run's EXACT bars (true cadence + session) instead of a best-guess
+  // catalog file. selectedConfigDatasets carries catalog-format paths /data_detail
+  // accepts; key by draft id so a later run can't mismatch an earlier chart.
+  const runDatasetPaths = {};
+  for (const dataset of selectedConfigDatasets()) {
+    const datasetSymbol = text(dataset.canonical_symbol || dataset.symbol || "").toUpperCase();
+    if (datasetSymbol && datasetSymbol !== "N/A" && dataset.path) runDatasetPaths[datasetSymbol] = dataset.path;
+  }
+  state.runDatasetPaths = { draftId, bySymbol: runDatasetPaths };
+  // Use simulated_paper, not replay: replay only records the strategy's intended
+  // decisions, while simulated_paper actually fills those orders against the bars
+  // and tracks equity — which is what a backtest result needs.
+  if ($("config-run-draft")) $("config-run-draft").value = draftId;
+  if ($("config-run-action")) $("config-run-action").value = "simulated_paper";
+  // Replay the WHOLE dataset, not the 100-bar quick-check default: a "backtest"
+  // that silently stops after ~1 day produces no trades and looks broken. The
+  // replay stops when the bars run out, so a high cap just means "all of it".
+  if ($("config-run-max-steps")) $("config-run-max-steps").value = "1000000";
+  if ($("config-run-timeout")) $("config-run-timeout").value = "120";
+  setStatus(`<span class="status-warn">Running backtest…</span>`);
+  try {
+    await runConfigDraft(null, { openPerformance: false });
+  } catch (err) {
+    setStatus(`<span class="status-bad">${escapeHtml(err.message)}</span>`);
+    return;
+  }
+  const result = $("workbench-result-tiles") || $("workbench-result-title");
+  if (result && result.scrollIntoView) result.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Mirror of the server's symbol_like_query() guard: only single symbol-shaped
+// queries hit the indexed fast path. Anything else (spaces, slashes, ...) would
+// make the server fall back to a full ~3-minute tree scan, so we reject it here.
+const PICKER_SYMBOL_QUERY = /^[A-Za-z0-9][A-Za-z0-9.-]{0,24}$/;
+
+// Monotonic token so a stale in-flight search can't overwrite newer state. Every
+// call (search, clear, or a superseding search) bumps it; the post-await writes are
+// gated on still owning the latest token. Mirrors refreshDataLibrary's requestId.
+let workbenchDatasetSearchSeq = 0;
+
+// Server-side symbol search for the Backtest dataset picker. The catalog the
+// picker normally lists is capped for speed, so a symbol past the cap is invisible
+// and raising the cap means a multi-minute full scan. /data_catalog?q=SYM uses the
+// indexed fast path (~0.1-0.3s) and scopes the picker to just that symbol's files.
+export async function searchWorkbenchDatasets() {
+  const input = $("config-dataset-search");
+  if (!input) return;
+  const button = $("config-dataset-search-btn");
+  const note = $("config-dataset-search-note");
+  const setNote = (message, status) => {
+    if (!note) return;
+    note.textContent = message;
+    note.className = status ? `dataset-search-note status-${status}` : "dataset-search-note";
+  };
+  // Invalidate any in-flight search: a result that lands after this point (e.g.
+  // because the user cleared the box or searched again) must not touch the picker.
+  const seq = ++workbenchDatasetSearchSeq;
+  const query = (input.value || "").trim();
+  if (!query) {
+    // Clearing the box restores the full catalog.
+    state.workbenchDatasetSearch = null;
+    renderConfigBuilder();
+    setNote("");
+    return;
+  }
+  if (!PICKER_SYMBOL_QUERY.test(query)) {
+    setNote("Enter a single symbol like AIG, AAPL, or BTC-USD.", "warn");
+    return;
+  }
+  setNote(`Searching saved data for “${query}”…`);
+  const params = new URLSearchParams();
+  params.set("q", query);
+  // The query scopes the scan to matching files, so a generous cap stays fast and
+  // still surfaces every saved file for the symbol (all bar sizes and sessions).
+  params.set("limit", "2000");
+  params.set("refresh", "1");
+  // Disable the controls during the (brief) scan so a second click or Enter can't
+  // fire a concurrent re-scan; this also serializes searches so only one is ever
+  // in flight. The seq token below is the correctness backstop for any stale write.
+  if (button) button.disabled = true;
+  input.disabled = true;
+  let result;
+  try {
+    result = await fetchJson(`/data_catalog?${params.toString()}`);
+  } catch (err) {
+    if (seq === workbenchDatasetSearchSeq) {
+      state.workbenchDatasetSearch = null;
+      renderConfigBuilder();
+      setNote(`Search failed: ${err.message}`, "bad");
+    }
+    return;
+  } finally {
+    // Safe to always re-enable: the disable above guarantees a single in-flight scan.
+    if (button) button.disabled = false;
+    input.disabled = false;
+  }
+  if (seq !== workbenchDatasetSearchSeq) return;
+  const datasets = (result.datasets || []).filter((dataset) => dataset && dataset.path && workbenchDatasetSelectable(dataset));
+  state.workbenchDatasetSearch = { query, datasets };
+  renderConfigBuilder();
+  if (!datasets.length) {
+    setNote(`No saved data matches “${query}”. Fetch it under Data, or clear the box to browse everything.`, "warn");
+    return;
+  }
+  const groups = workbenchDatasetGroups();
+  // The bar-duration filter may hide every match — point at the durations that do
+  // exist instead of claiming matches the user can't see in the scoped list.
+  const duration = state.workbenchDatasetDuration || "";
+  if (duration && !groups.length) {
+    const durations = Array.from(new Set(datasets.map((dataset) => text(dataset.bar_size))))
+      .sort((left, right) => barSizeMinutes(left) - barSizeMinutes(right))
+      .map(barSizeDurationLabel);
+    setNote(`Matches for “${query}” are at ${durations.join(" / ")} — set Bar duration to one of those (or All) to see them.`, "warn");
+    return;
+  }
+  // If exactly one symbol+bar+session group matched, select it (and set the run's
+  // date range to that file's span) so the user can run immediately. When several
+  // groups match (e.g. 1min and daily), leave the scoped list for the user to pick.
+  const exact = groups.filter((group) => text(group.symbol).toUpperCase() === query.toUpperCase());
+  const fileWord = datasets.length === 1 ? "file" : "files";
+  if (exact.length === 1 && exact[0].representative) {
+    selectCatalogDatasetInWorkbench(exact[0].representative);
+    setNote(`Selected ${text(exact[0].symbol)} · ${text(exact[0].bar_size)} — ${numberText(datasets.length, 0)} saved ${fileWord}. Clear the box to browse all.`, "ok");
+    return;
+  }
+  setNote(`Found ${numberText(groups.length, 0)} match${groups.length === 1 ? "" : "es"} for “${query}” (${numberText(datasets.length, 0)} ${fileWord}). Pick one above; clear the box to browse all.`, "ok");
+}
+
 export async function openWorkbenchResultPerformance() {
   const model = workbenchResultModel();
+  // After a validate-only run, the button reads "Run simulated paper": run it
+  // (staying on the Run lens) so the verdict appears in place.
+  if (model.runSimNext) {
+    if ($("config-run-action")) $("config-run-action").value = "simulated_paper";
+    await runConfigDraft(null, { openPerformance: false });
+    return;
+  }
   if (!model.selectedDraftId || !model.latestRun || model.latestRun.action === "validate") {
     $("config-run-status").innerHTML = `<span class="status-warn">Run replay or simulated paper before opening performance.</span>`;
     return;
@@ -2098,8 +2356,9 @@ export function initToken() {
 }
 
 export function init() {
-  const storedView = sessionStorage.getItem("dashboardView") || "overview";
-  setActiveView(window.location.hash ? viewFromHash() : storedView);
+  // Always boot into Today (overview) — the daily monitoring check — unless a
+  // deep-link hash points elsewhere.
+  setActiveView(window.location.hash ? viewFromHash() : "overview");
   for (const button of document.querySelectorAll("[data-view-target]")) {
     button.addEventListener("click", () => navigateToViewTarget(button.dataset.viewTarget, button.dataset.viewLens || ""));
   }
@@ -2128,10 +2387,6 @@ export function init() {
       applyIntroCollapsed(collapsed);
     });
   }
-  $("dashboard-jump-go").addEventListener("click", () => jumpToDashboardTarget($("dashboard-jump").value));
-  $("dashboard-jump").addEventListener("change", () => jumpToDashboardTarget($("dashboard-jump").value));
-  $("dashboard-task-go").addEventListener("click", () => startDashboardTask($("dashboard-task").value));
-  $("dashboard-task").addEventListener("change", () => startDashboardTask($("dashboard-task").value));
   $("check-dashboard-data-apis").addEventListener("click", () => {
     checkDashboardDataApis().catch((err) => {
       $("last-refresh").textContent = `Data API checks failed: ${err.message}`;
@@ -2163,29 +2418,40 @@ export function init() {
       $("last-refresh").textContent = `Copy dashboard link failed: ${err.message}`;
     });
   });
-  for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
-    button.addEventListener("click", () => navigateToOverviewLens(button.dataset.overviewLensTarget));
+  if ($("overview-details-toggle")) {
+    $("overview-details-toggle").addEventListener("click", () => {
+      setOverviewDetailsOpen($("overview-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-performance-lens-target]")) {
-    button.addEventListener("click", () => navigateToPerformanceLens(button.dataset.performanceLensTarget));
+  if ($("performance-details-toggle")) {
+    $("performance-details-toggle").addEventListener("click", () => {
+      setPerformanceDetailsOpen($("performance-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-data-lens-target]")) {
-    button.addEventListener("click", () => navigateToDataLens(button.dataset.dataLensTarget));
+  if ($("data-details-toggle")) {
+    $("data-details-toggle").addEventListener("click", () => {
+      setDataDetailsOpen($("data-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-fetch-lens-target]")) {
-    button.addEventListener("click", () => navigateToFetchLens(button.dataset.fetchLensTarget));
+  if ($("fetch-details-toggle")) {
+    $("fetch-details-toggle").addEventListener("click", () => {
+      setFetchDetailsOpen($("fetch-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-workbench-lens-target]")) {
-    button.addEventListener("click", () => navigateToWorkbenchLens(button.dataset.workbenchLensTarget));
+  if ($("runs-details-toggle")) {
+    $("runs-details-toggle").addEventListener("click", () => {
+      setRunsDetailsOpen($("runs-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-runs-lens-target]")) {
-    button.addEventListener("click", () => navigateToRunsLens(button.dataset.runsLensTarget));
+  if ($("operations-details-toggle")) {
+    $("operations-details-toggle").addEventListener("click", () => {
+      setOperationsDetailsOpen($("operations-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
-  for (const button of document.querySelectorAll("[data-operations-lens-target]")) {
-    button.addEventListener("click", () => navigateToOperationsLens(button.dataset.operationsLensTarget));
-  }
-  for (const button of document.querySelectorAll("[data-help-lens-target]")) {
-    button.addEventListener("click", () => navigateToHelpLens(button.dataset.helpLensTarget));
+  if ($("help-details-toggle")) {
+    $("help-details-toggle").addEventListener("click", () => {
+      setHelpDetailsOpen($("help-details-toggle").getAttribute("aria-expanded") !== "true");
+    });
   }
   window.addEventListener("hashchange", () => setActiveView(viewFromHash()));
 
@@ -2585,6 +2851,7 @@ export function init() {
   for (const id of ["config-dataset", "config-start-date", "config-end-date"]) {
     if ($(id)) $(id).addEventListener("change", renderConfigLivePanels);
   }
+  onOptional("config-dataset", "change", syncWorkbenchSelectedDatasetPathsFromSelect);
   $("config-data-open-detail").addEventListener("click", () => {
     openFirstConfigDatasetDetail().catch((err) => {
       $("config-data-actions-note").innerHTML = `<span class="status-bad">${escapeHtml(err.message)}</span>`;
@@ -3014,6 +3281,9 @@ export function init() {
   $("performance-home-open-workbench").addEventListener("click", () => navigateToWorkbenchLens("home"));
   $("performance-home-open-data").addEventListener("click", () => navigateToView("data"));
   $("performance-period").addEventListener("change", renderPerformance);
+  if ($("performance-trade-symbol")) {
+    $("performance-trade-symbol").addEventListener("change", renderPerformance);
+  }
   $("performance-telemetry-run").addEventListener("change", () => {
     state.performanceTelemetryRunId = $("performance-telemetry-run").value || "";
     reloadTelemetryArtifacts().catch((err) => {
@@ -3091,10 +3361,43 @@ export function init() {
       handleConfigDraftError(err);
     });
   });
+  if ($("config-run-backtest")) {
+    $("config-run-backtest").addEventListener("click", () => {
+      runBacktest().catch((err) => handleConfigDraftError(err));
+    });
+  }
+  // The dataset search box and button are rendered inside the form (renderConfigField),
+  // so delegate from the always-present #config-form instead of binding at init.
+  $("config-form").addEventListener("click", (event) => {
+    if (event.target instanceof HTMLElement && event.target.id === "config-dataset-search-btn") {
+      event.preventDefault();
+      searchWorkbenchDatasets().catch((err) => handleConfigDraftError(err));
+    }
+  });
+  $("config-form").addEventListener("keydown", (event) => {
+    if (event.target instanceof HTMLElement && event.target.id === "config-dataset-search" && event.key === "Enter") {
+      event.preventDefault();
+      searchWorkbenchDatasets().catch((err) => handleConfigDraftError(err));
+    }
+  });
+  $("config-form").addEventListener("input", (event) => {
+    // Emptying the search box (typing it out or the clear "x") restores the full catalog.
+    if (event.target instanceof HTMLElement && event.target.id === "config-dataset-search" && !event.target.value.trim() && state.workbenchDatasetSearch) {
+      searchWorkbenchDatasets().catch((err) => handleConfigDraftError(err));
+    }
+  });
   $("config-form").addEventListener("input", renderConfigLivePanels);
   $("config-form").addEventListener("change", (event) => {
+    if (event.target instanceof HTMLElement && event.target.id === "config-dataset") {
+      syncWorkbenchSelectedDatasetPathsFromSelect();
+    }
     if (event.target instanceof HTMLElement && event.target.id === "config-risk-preset") {
       applyRiskPreset();
+    }
+    if (event.target instanceof HTMLElement && event.target.id === "config-dataset-duration") {
+      // Re-scope the picker to the chosen bar duration so each symbol shows once.
+      state.workbenchDatasetDuration = event.target.value;
+      renderConfigBuilder();
     }
     renderConfigLivePanels();
   });
@@ -3463,5 +3766,9 @@ export function init() {
 }
 
 export function initializeDashboard() {
-  document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+    return;
+  }
+  init();
 }

@@ -116,7 +116,17 @@ export function equitySparkline(accountRows) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
   const cls = values[values.length - 1] >= values[0] ? "spark-good" : "spark-bad";
-  return `<svg class="sparkline hero-spark ${cls}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="selected-source equity history"><polyline points="${coords}"></polyline></svg>`;
+  // Fill the area under the curve with a gradient that fades to nothing at the
+  // baseline — the equity trend is the page's signature, so give it weight
+  // beyond a hairline. currentColor inherits the spark-good/bad line color.
+  const area = `${coords} ${width.toFixed(1)},${height.toFixed(1)} 0,${height.toFixed(1)}`;
+  return `<svg class="sparkline hero-spark ${cls}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="selected-source equity history">`
+    + `<defs><linearGradient id="hero-spark-fill" x1="0" y1="0" x2="0" y2="1">`
+    + `<stop offset="0" stop-color="currentColor" stop-opacity="0.20"></stop>`
+    + `<stop offset="1" stop-color="currentColor" stop-opacity="0"></stop>`
+    + `</linearGradient></defs>`
+    + `<polygon class="spark-area" points="${area}" fill="url(#hero-spark-fill)"></polygon>`
+    + `<polyline points="${coords}"></polyline></svg>`;
 }
 
 export function emptyChart(message) {
@@ -270,7 +280,35 @@ export function detailChart(points, timezoneMode = "utc", gaps = []) {
   return `<svg class="detail-chart ${cls}" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data price, gaps, and volume">${gapMarkers}<polyline points="${coords}"><title>${escapeHtml(caption)}</title></polyline>${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
-export function candlestickChart(points, timezoneMode = "utc", gaps = []) {
+// Overlay layer for the trade chart: entry->exit connectors (drawn first, behind)
+// colored by win/loss, then buy/sell markers. Pure numeric input computed by the
+// caller (markers/trades already normalized + labelled) so this stays a plain
+// plotter sharing candlestickChart's coordinate system.
+export function tradeOverlaySvg(overlay, scale) {
+  if (!overlay) return "";
+  const { xFor, yFor, min, max, minTime, maxTime } = scale;
+  const cx = (millis) => xFor(Math.max(minTime, Math.min(maxTime, millis)));
+  const cy = (price) => yFor(Math.max(min, Math.min(max, price)));
+  const connectors = (overlay.trades || []).map((trade) => {
+    if (![trade.entryMillis, trade.exitMillis, trade.entryPrice, trade.exitPrice].every(Number.isFinite)) return "";
+    const cls = trade.win ? "trade-arc win" : "trade-arc loss";
+    return `<line class="${cls}" x1="${cx(trade.entryMillis).toFixed(1)}" y1="${cy(trade.entryPrice).toFixed(1)}" x2="${cx(trade.exitMillis).toFixed(1)}" y2="${cy(trade.exitPrice).toFixed(1)}"><title>${escapeHtml(trade.label || "")}</title></line>`;
+  }).join("");
+  const markers = (overlay.markers || []).map((marker) => {
+    if (!Number.isFinite(marker.millis) || !Number.isFinite(marker.price)) return "";
+    const x = cx(marker.millis);
+    const y = cy(marker.price);
+    // Buy: up-triangle just below the fill price (apex points up at it). Sell:
+    // down-triangle just above (apex points down at it) — the standard convention.
+    const points = marker.side === "buy"
+      ? `${x.toFixed(1)},${(y + 3).toFixed(1)} ${(x - 5).toFixed(1)},${(y + 12).toFixed(1)} ${(x + 5).toFixed(1)},${(y + 12).toFixed(1)}`
+      : `${x.toFixed(1)},${(y - 3).toFixed(1)} ${(x - 5).toFixed(1)},${(y - 12).toFixed(1)} ${(x + 5).toFixed(1)},${(y - 12).toFixed(1)}`;
+    return `<polygon class="trade-marker ${marker.side === "buy" ? "buy" : "sell"}" points="${points}"><title>${escapeHtml(marker.label || "")}</title></polygon>`;
+  }).join("");
+  return `<g class="trade-overlay">${connectors}${markers}</g>`;
+}
+
+export function candlestickChart(points, timezoneMode = "utc", gaps = [], overlay = null) {
   if (!points || points.length < 2) return detailChart(points, timezoneMode, gaps);
   const rows = points.map((point) => ({
     timestamp: point.timestamp,
@@ -333,10 +371,11 @@ export function candlestickChart(points, timezoneMode = "utc", gaps = []) {
   }
   const gapMarkers = gapMarkerBands(gaps, width, priceHeight, minTime, maxTime, timezoneMode);
   const gapLegend = gapMarkerLegend(gaps, minTime, maxTime, timezoneMode);
+  const tradeLayer = overlay ? tradeOverlaySvg(overlay, { xFor, yFor, min, max, minTime, maxTime }) : "";
   const first = rows[0];
   const last = rows[rows.length - 1];
   const caption = `${formatTimestampForMode(first.timestamp, timezoneMode)} close ${numberText(first.close)} | ${formatTimestampForMode(last.timestamp, timezoneMode)} close ${numberText(last.close)}`;
-  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="saved data candlestick, gaps, and volume">${gapMarkers}${candles}${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
+  return `<svg class="detail-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${overlay ? "price candlesticks with buy and sell trade markers" : "saved data candlestick, gaps, and volume"}">${gapMarkers}${candles}${tradeLayer}${volumeBars}</svg>${gapLegend}<span class="chart-caption">${escapeHtml(caption)}</span>`;
 }
 
 export function compareChart(series, timezoneMode = "utc") {

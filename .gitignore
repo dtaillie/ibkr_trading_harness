@@ -28,6 +28,7 @@ config/local/
 
 # Runtime artifacts.
 paper_logs/
+state/
 
 # Private notes/research direction.
 docs/private_*.md

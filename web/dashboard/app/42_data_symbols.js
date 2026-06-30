@@ -21,7 +21,7 @@ import {
   syncDataCatalogLimitControl,
   text,
 } from "./00_core.js";
-import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets } from "./20_workbench_foundation.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets, setWorkbenchSelectedDatasetPaths, workbenchDatasetOptionLabel } from "./20_workbench_foundation.js";
 import { finiteNumber, renderDataBackendStatus, timestampAgeLabel } from "./30_runtime_core.js";
 import { rangeLabel } from "./34_charts.js";
 import { bestCatalogDatasetForSymbol, countSummary, dataRootConfigPaths, renderSymbolBrowser, renderSymbolDirectory, selectedSymbolBrowserDatasets, selectedSymbolBrowserSymbol, symbolProfileModel, timestampRangeFromDatasets } from "./40_data_catalog.js";
@@ -132,6 +132,7 @@ export function selectCatalogDatasetInWorkbench(dataset) {
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
   let found = false;
+  setWorkbenchSelectedDatasetPaths([dataset.path]);
   for (const option of datasetSelect.options) {
     option.selected = option.value === dataset.path;
     if (option.value === dataset.path) {
@@ -142,7 +143,7 @@ export function selectCatalogDatasetInWorkbench(dataset) {
   if (!found) {
     const option = document.createElement("option");
     option.value = dataset.path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
+    option.textContent = workbenchDatasetOptionLabel(dataset);
     option.selected = true;
     attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);

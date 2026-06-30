@@ -256,6 +256,68 @@ export function buildTradeLedger(fills) {
   };
 }
 
+// Collapse per-bar account snapshots to one equity value per UTC calendar date
+// (last snapshot of each date), matching analysis/__init__.py's daily_equities.
+export function dailyEquitySeries(accountRows) {
+  const rows = numericAccountRows(accountRows)
+    .filter((row) => timestampMillis(row.timestamp) !== null)
+    .slice()
+    .sort((a, b) => timestampMillis(a.timestamp) - timestampMillis(b.timestamp));
+  const byDate = new Map();
+  for (const row of rows) {
+    const date = new Date(timestampMillis(row.timestamp));
+    const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`;
+    byDate.set(key, row.equity); // chronological iteration -> last equity of the date wins
+  }
+  return Array.from(byDate.values());
+}
+
+// Daily Sharpe, annualized x sqrt(252), replicating analysis/__init__.py exactly:
+// population std (divide by N), and null (shown as n/a) when there are fewer than
+// two trading days or zero volatility, rather than the Python's degenerate 0.
+export function sharpeFromAccountRows(accountRows) {
+  const daily = dailyEquitySeries(accountRows);
+  if (daily.length < 2) return null;
+  const returns = [];
+  for (let i = 1; i < daily.length; i += 1) {
+    if (!daily[i - 1]) return null;
+    returns.push(daily[i] / daily[i - 1] - 1);
+  }
+  if (returns.length < 2) return null;
+  const avg = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance = returns.reduce((sum, value) => sum + (value - avg) ** 2, 0) / returns.length;
+  const std = Math.sqrt(variance);
+  if (!(std > 0)) return null;
+  return (avg / std) * Math.sqrt(252);
+}
+
+// The single source of truth for a backtest's headline metrics. Return/drawdown/
+// equity come from the runner's own performance summary; Sharpe is computed from
+// account snapshots and win rate / profit factor from the paired-fill ledger.
+export function tearSheetMetrics(artifacts = {}) {
+  const performance = artifacts.performance || {};
+  const summary = artifacts.summary || {};
+  const account = artifacts.account || [];
+  const fills = artifacts.fills || [];
+  const ledger = buildTradeLedger(fills);
+  const closedCount = ledger.stats.closed_count;
+  return {
+    returnPct: finiteNumber(performance.total_return_pct),
+    drawdownPct: finiteNumber(performance.max_drawdown_pct),
+    finalEquity: performance.final_equity ?? summary.final_equity,
+    netPnl: performance.total_pnl ?? summary.total_pnl ?? performance.realized_pnl ?? summary.realized_pnl,
+    // Prefer the server's full-run Sharpe (consistent with return/drawdown); fall
+    // back to a local compute from the (possibly capped) account rows for older
+    // artifacts whose payload predates the server field.
+    sharpe: finiteNumber(performance.sharpe) ?? sharpeFromAccountRows(account),
+    winRatePct: closedCount ? (Number(ledger.stats.wins || 0) / closedCount) * 100 : null,
+    profitFactor: ledger.stats.profit_factor,
+    closedCount,
+    fills: finiteNumber(summary.fills) ?? fills.length,
+    tradingDays: dailyEquitySeries(account).length,
+  };
+}
+
 export function renderPerformanceTradeControls(ledger) {
   if (!$("performance-trade-summary")) return ledger.rows || [];
   const stateFilter = (($("performance-trade-filter-state") || {}).value || "").toLowerCase();

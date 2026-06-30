@@ -13,38 +13,21 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 
-EXPECTED_VIEWS = ("overview", "performance", "data", "fetch", "workbench", "runs", "operations", "help")
-EXPECTED_JUMP_ROUTES = (
-    "overview", "overview/activity", "overview/diagnostics",
-    "performance", "performance/trades", "performance/rollups", "performance/diagnostics",
-    "data", "data/browse", "data/inspect", "data/compare", "data/diagnostics",
-    "fetch", "fetch/jobs", "fetch/detail",
-    "workbench", "workbench/builder", "workbench/run", "workbench/artifacts",
-    "runs", "runs/state", "runs/runs", "runs/events",
-    "operations", "operations/paper", "operations/remote", "operations/control", "operations/diagnostics",
-    "help", "help/pages", "help/workflows", "help/data", "help/boundary", "help/docs",
-)
-EXPECTED_TASK_LABELS = (
-    "Monitor today's run",
-    "Review performance",
-    "Find saved data",
-    "Recover a fetch job",
-    "Build a simulation",
-    "Inspect runs and orders",
-    "Check runtime health",
-    "Publish safely",
-)
+# The side-nav now shows exactly four verb-named destinations, in this order.
+# Performance, Fetch, Operations, and Help still exist as sections (reachable by
+# deep-link, the Settings gear, the Help "?", and in-view "Open X" buttons) but
+# are no longer top-level nav destinations.
+EXPECTED_VIEWS = ("overview", "workbench", "data", "runs")
+# Sections that remain routable/deep-linkable even though they left the nav.
+EXPECTED_OFF_NAV_VIEWS = ("performance", "fetch", "operations", "help")
+# Quick-Jump dropdown and the "I want to" task selector were removed as nav
+# crutches; the contract now asserts they stay gone (no such <select> options).
+EXPECTED_JUMP_ROUTES = ()
+EXPECTED_TASK_LABELS = ()
 EXPECTED_SCRIPT_PATHS = ("/dashboard/app.js",)
-EXPECTED_LENSES = {
-    "overview": ("home", "activity", "diagnostics"),
-    "performance": ("home", "trades", "rollups", "diagnostics"),
-    "data": ("home", "browse", "inspect", "compare", "diagnostics"),
-    "fetch": ("home", "jobs", "detail"),
-    "workbench": ("home", "builder", "run", "artifacts"),
-    "runs": ("home", "state", "runs", "events"),
-    "operations": ("home", "paper", "remote", "control", "diagnostics"),
-    "help": ("home", "pages", "workflows", "data", "boundary", "docs"),
-}
+# Every view has been flattened into a single scroll behind a Details toggle, so
+# there are no per-view lens-tab rows left to contract against.
+EXPECTED_LENSES: dict[str, tuple[str, ...]] = {}
 REQUIRED_PAGE_INTRO_IDS = (
     "page-intro", "page-route", "page-route-home", "page-route-copy",
     "page-intro-title", "page-intro-note", "page-intro-next",
@@ -55,7 +38,7 @@ REQUIRED_JS_TOKENS = (
     "function setActiveView", "function navigateToView", "function applyOverviewLens",
     "function applyPerformanceLens", "function applyDataLens", "function applyFetchLens",
     "function applyWorkbenchLens", "function applyRunsLens", "function applyOperationsLens",
-    "function applyHelpLens", "function renderPageIntro", "dashboard-task", "dashboard-jump",
+    "function applyHelpLens", "function renderPageIntro",
 )
 REQUIRED_CSS_TOKENS = (
     ".side-nav", ".nav-link", ".topbar", ".page-intro", ".page-intro-next",
@@ -146,7 +129,11 @@ def audit_html(root: Path) -> list[Finding]:
         findings.append(Finding("BLOCKER", rel, "dashboard must load the single ES module entrypoint /dashboard/app.js"))
     if any(script["type"] != "module" for script in dashboard_scripts):
         findings.append(Finding("BLOCKER", rel, "dashboard app entrypoint must use type=\"module\""))
-    missing_views = [view for view in EXPECTED_VIEWS if view not in parser.data_views]
+    missing_views = [
+        view
+        for view in (*EXPECTED_VIEWS, *EXPECTED_OFF_NAV_VIEWS)
+        if view not in parser.data_views
+    ]
     if missing_views:
         findings.append(Finding("BLOCKER", rel, f"missing dashboard sections for views: {', '.join(missing_views)}"))
     jump_routes = [row["value"] for row in parser.options_by_select.get("dashboard-jump", [])]

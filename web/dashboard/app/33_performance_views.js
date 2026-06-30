@@ -27,6 +27,7 @@ import {
   holdDurationLabel,
   modeMeaning,
   nonzeroPositionsFromSource,
+  normalizedFillSide,
   performanceFromAccountRows,
   performancePeriodWindow,
   projectionCaveat,
@@ -40,9 +41,12 @@ import { renderPerformanceLivePeriodSummary, rollupReturnClass, sortedStatusRoll
 import {
   benchmarkOverlayChart,
   calendarReturnHeatmap,
+  candlestickChart,
   dailyReturnChart,
   drawdownChart,
+  emptyChart,
   equityChart,
+  formatTimestampForMode,
   intradayPnlChart,
   intradayPnlStats,
   latestSessionAccountRows,
@@ -53,7 +57,100 @@ import {
   tradeCumulativePnlChart,
   tradePnlBarChart,
 } from "./34_charts.js";
-import { copyText, downloadStatusRollupsCsv, renderAll } from "./90_bootstrap.js";
+import { copyText, downloadStatusRollupsCsv, loadPerformanceTradeBars, renderAll } from "./90_bootstrap.js";
+
+// Build the buy/sell markers + entry->exit connectors for one symbol, in the
+// numeric form candlestickChart's overlay layer expects. Sides are normalized
+// here so the chart module stays a plain plotter.
+function buildTradeOverlay(symbolFills, closedTrades) {
+  const markers = symbolFills.map((fill) => {
+    const side = normalizedFillSide(fill.side) === "sell" ? "sell" : "buy";
+    const quantity = Math.abs(finiteNumber(fill.quantity) || 0);
+    const price = finiteNumber(fill.price);
+    return {
+      millis: timestampMillis(fill.timestamp),
+      price,
+      side,
+      label: `${formatTimestampForMode(fill.timestamp, "utc")} · ${side} ${numberText(quantity, 0)} @ ${numberText(price)}`,
+    };
+  });
+  const trades = closedTrades.map((trade) => {
+    const pnl = finiteNumber(trade.pnl);
+    return {
+      entryMillis: timestampMillis(trade.entry_time),
+      entryPrice: finiteNumber(trade.entry_price),
+      exitMillis: timestampMillis(trade.exit_time),
+      exitPrice: finiteNumber(trade.exit_price),
+      win: pnl !== null && pnl >= 0,
+      label: `${text(trade.side)} ${numberText(Math.abs(finiteNumber(trade.quantity) || 0), 0)} · entry ${numberText(finiteNumber(trade.entry_price))} → exit ${numberText(finiteNumber(trade.exit_price))} · P&L ${money(trade.pnl)}`,
+    };
+  });
+  return { markers, trades };
+}
+
+// Per-symbol price chart with the strategy's buys/sells overlaid — the standard
+// "did my entries/exits make sense?" view. Fills and closed trades come straight
+// from the run artifacts renderPerformance already computed; the symbol's bars are
+// fetched lazily (loadPerformanceTradeBars) and cached in state.performanceTradeBars.
+export function renderPerformanceTradeChart(fills, ledger) {
+  const container = $("performance-trade-chart");
+  const select = $("performance-trade-symbol");
+  if (!container || !select) return;
+  const note = $("performance-trade-chart-note");
+  const legend = $("performance-trade-legend");
+  const usableFills = (fills || []).filter((fill) => (
+    fill && finiteNumber(fill.price) !== null && timestampMillis(fill.timestamp) !== null && text(fill.symbol) !== "n/a"
+  ));
+  const counts = new Map();
+  for (const fill of usableFills) counts.set(text(fill.symbol), (counts.get(text(fill.symbol)) || 0) + 1);
+  const symbols = Array.from(counts.entries()).sort((left, right) => right[1] - left[1]).map(([symbol]) => symbol);
+  if (!symbols.length) {
+    select.innerHTML = `<option value="">No fills</option>`;
+    select.disabled = true;
+    if (legend) legend.innerHTML = "";
+    if (note) note.textContent = "No fills in this run — run a simulated-paper backtest (not replay) to see buys and sells here.";
+    container.innerHTML = emptyChart("No fills to plot.");
+    return;
+  }
+  select.disabled = symbols.length < 2;
+  const signature = symbols.join("|");
+  if (select.dataset.symbolSignature !== signature) {
+    select.dataset.symbolSignature = signature;
+    select.innerHTML = symbols.map((symbol) => `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)} · ${numberText(counts.get(symbol), 0)} fills</option>`).join("");
+  }
+  const symbol = select.value && symbols.includes(select.value) ? select.value : symbols[0];
+  select.value = symbol;
+  const symbolFills = usableFills.filter((fill) => text(fill.symbol) === symbol);
+  const closedTrades = ((ledger && ledger.closed) || []).filter((trade) => text(trade.symbol) === symbol);
+  const times = symbolFills.map((fill) => timestampMillis(fill.timestamp)).filter((value) => value !== null);
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  const key = `${symbol}|${minTime}|${maxTime}`;
+  if (legend) {
+    legend.innerHTML = [
+      `<span class="legend-item"><span class="trade-legend-mark buy"></span>buy</span>`,
+      `<span class="legend-item"><span class="trade-legend-mark sell"></span>sell</span>`,
+      `<span class="legend-item"><span class="trade-legend-line win"></span>winning trade</span>`,
+      `<span class="legend-item"><span class="trade-legend-line loss"></span>losing trade</span>`,
+    ].join("");
+  }
+  if (note) {
+    const wins = closedTrades.filter((trade) => (finiteNumber(trade.pnl) ?? -1) >= 0).length;
+    const winRate = closedTrades.length ? (wins / closedTrades.length) * 100 : null;
+    note.textContent = `${symbol}: ${numberText(symbolFills.length, 0)} fills · ${numberText(closedTrades.length, 0)} closed trades${winRate !== null ? ` · ${pctText(winRate)} win rate` : ""}.`;
+  }
+  const bars = state.performanceTradeBars || {};
+  if (bars.key !== key && bars.loadingKey !== key) {
+    loadPerformanceTradeBars(symbol, { start: minTime, end: maxTime, key }).catch(() => {});
+  }
+  if (bars.key === key && Array.isArray(bars.points) && bars.points.length >= 2) {
+    container.innerHTML = candlestickChart(bars.points, "utc", [], buildTradeOverlay(symbolFills, closedTrades));
+  } else if (bars.key === key && bars.error) {
+    container.innerHTML = emptyChart(bars.error);
+  } else {
+    container.innerHTML = emptyChart(`Loading ${symbol} price bars…`);
+  }
+}
 
 export function renderPerformance() {
   $("performance-source-mode").value = state.performanceSourceMode || "current";
@@ -341,6 +438,7 @@ export function renderPerformance() {
   $("performance-intraday-snapshots").textContent = sessionStats ? numberText(sessionStats.count, 0) : "n/a";
   $("performance-intraday-chart").innerHTML = intradayPnlChart(sessionRows);
   $("performance-equity-chart").innerHTML = equityChart(accountRows);
+  renderPerformanceTradeChart(fills, ledger);
   $("performance-benchmark-chart").innerHTML = benchmarkOverlayChart(accountRows, state.performanceBenchmarkDetail);
   $("performance-benchmark-note").textContent = state.performanceBenchmarkDetail && state.performanceBenchmarkDetail.path
     ? `${text(state.performanceBenchmarkDetail.symbol)} ${text(state.performanceBenchmarkDetail.bar_size)} from ${text(state.performanceBenchmarkDetail.path)}`
@@ -654,14 +752,24 @@ export function renderPerformanceHome(context) {
   } = context;
   const benchmark = state.performanceBenchmarkDetail || {};
   const totalReturn = Number(periodPerf.total_return_pct);
-  const returnClass = Number.isFinite(totalReturn)
+  const returnKnown = Number.isFinite(totalReturn);
+  const equityKnown = finiteNumber(periodPerf.final_equity) !== null;
+  const returnClass = returnKnown
     ? signedValueClass(totalReturn)
     : "value-neutral";
-  const result = source.has_data
-    ? `${pctText(periodPerf.total_return_pct)} / ${money(periodPerf.final_equity)}`
-    : "No performance data";
+  // A null return next to real equity used to read as a bare "n/a / $X" and look
+  // like a failed run. Lead with the equity we do have and explain the blank.
+  const result = !source.has_data
+    ? "No performance data"
+    : returnKnown
+      ? `${pctText(periodPerf.total_return_pct)} / ${money(periodPerf.final_equity)}`
+      : equityKnown
+        ? `Equity ${money(periodPerf.final_equity)}`
+        : "No performance data";
   let nextNote = "Publish telemetry, run a Workbench config, or open a saved artifact from Runs.";
-  if (source.has_data && !accountRows.length) {
+  if (source.has_data && !returnKnown) {
+    nextNote = "No computed return for this period - live telemetry alone can't produce one. Run a Workbench backtest, or use the Source selector to load a saved run artifact (and set Period to All).";
+  } else if (source.has_data && !accountRows.length) {
     nextNote = "Selected source lacks account snapshots for this period; switch period or open a richer artifact.";
   } else if (rejections > 0 || approvalRequired > 0) {
     nextNote = "Execution needs review: rejected orders or approval holds are present.";

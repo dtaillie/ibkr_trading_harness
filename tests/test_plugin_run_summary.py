@@ -99,7 +99,7 @@ def test_summarize_plugin_run_metrics(tmp_path):
             {
                 "schema_version": 1,
                 "plugin": {
-                    "spec": "examples.strategies.no_edge_template:create_strategy",
+                    "spec": "tests.fixtures.no_edge_template:create_strategy",
                     "name": "no_edge_template",
                     "validator_count": 0,
                 },

@@ -1,6 +1,7 @@
 import {
   $,
   bytes,
+  dataLibraryLoadState,
   escapeHtml,
   interval,
   jsonDrilldown,
@@ -22,6 +23,7 @@ import {
 import { renderHelpWorkbenchQuickstart } from "./10_help.js";
 import {
   attachDatasetOptionMetadata,
+  barSizeDurationLabel,
   configDateRangePayload,
   latestWorkbenchRunForDraft,
   renderConfigBrokerBoundary,
@@ -34,11 +36,14 @@ import {
   selectedConfigDatasets,
   selectedConfigPlugin,
   selectedDataReadiness,
-  workbenchDatasetRows,
+  setWorkbenchSelectedDatasetPaths,
+  workbenchAvailableDurations,
+  workbenchDatasetGroupLabel,
+  workbenchDatasetGroups,
 } from "./20_workbench_foundation.js";
 import { finiteNumber, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
-import { normalizedFillSide, positionSnapshotDrilldown } from "./31_performance_math.js";
-import { equityChart, rangeLabel, timeRangeLabel } from "./34_charts.js";
+import { normalizedFillSide, positionSnapshotDrilldown, tearSheetMetrics } from "./31_performance_math.js";
+import { equityChart, equitySparkline, rangeLabel, timeRangeLabel } from "./34_charts.js";
 import { approvalPreviewCanApprove, approvalPreviewCommand, countBy, countSummary, shellQuote, topCountEntries } from "./40_data_catalog.js";
 import {
   copyText,
@@ -54,10 +59,16 @@ import {
 
 export function replaceOptions(select, options) {
   const currentValues = select.multiple
-    ? new Set(Array.from(select.selectedOptions).map((option) => option.value))
+    ? new Set([
+        ...(Array.isArray(state.workbenchSelectedDatasetPaths) ? state.workbenchSelectedDatasetPaths : []),
+        ...Array.from(select.selectedOptions).map((option) => option.value),
+      ])
     : new Set([select.value]);
   select.innerHTML = options.map((option) => (
-    `<option value="${escapeHtml(option.value)}"${option.description ? ` title="${escapeHtml(option.description)}"` : ""}>${escapeHtml(option.label)}</option>`
+    // Always carry a hover tooltip of the full text — a <select multiple> listbox
+    // truncates long option labels (dataset rows can be wide), so the title keeps
+    // the cut-off tail (date range, cadence note) readable.
+    `<option value="${escapeHtml(option.value)}" title="${escapeHtml(option.description || option.label)}">${escapeHtml(option.label)}</option>`
   )).join("");
   options.forEach((option, index) => {
     if (option.dataset && select.options[index]) attachDatasetOptionMetadata(select.options[index], option.dataset);
@@ -72,6 +83,34 @@ export function replaceOptions(select, options) {
   if (!select.multiple && !restored && options.length) {
     select.value = options[0].value;
   }
+  if (select.id === "config-dataset") {
+    setWorkbenchSelectedDatasetPaths(Array.from(select.selectedOptions).map((option) => option.value));
+  }
+}
+
+// One-line, plain-English captions so the run mode/action dropdowns say what
+// they produce instead of leaking raw engine tokens. simulated_paper is the
+// only mode/action that yields P&L, so it is the default (see defaultSelectOnce).
+export const RUN_ACTION_CAPTIONS = {
+  simulated_paper: "Simulated paper - backtest with P&L + equity curve",
+  replay: "Replay - decisions only, no P&L",
+  validate: "Validate - config check, no run",
+};
+export const RUN_MODE_CAPTIONS = {
+  simulated_paper: "Simulated paper - produces P&L + equity curve",
+  replay: "Replay - decisions only, no accounting",
+  shadow: "Shadow - mirror live decisions, no orders",
+};
+
+// Set a select to `value` once, the first render where that option exists, then
+// leave it alone so a later user choice is never overridden. Guarded by a DOM
+// dataset flag; if the option is not yet populated it retries on the next render.
+export function defaultSelectOnce(id, value) {
+  const el = $(id);
+  if (!el || el.dataset.defaulted === "true") return;
+  if (!Array.from(el.options).some((option) => option.value === value)) return;
+  el.value = value;
+  el.dataset.defaulted = "true";
 }
 
 export function configFormOptionRows(field, options) {
@@ -82,7 +121,7 @@ export function configFormOptionRows(field, options) {
       label: `${plugin.label} (${plugin.visibility || plugin.status})`,
     }));
   }
-  if (source === "modes") return (options.modes || []).map((mode) => ({ value: mode, label: mode }));
+  if (source === "modes") return (options.modes || []).map((mode) => ({ value: mode, label: RUN_MODE_CAPTIONS[mode] || mode }));
   if (source === "risk_presets") {
     return (options.risk_presets || []).map((preset) => ({
       value: preset.id,
@@ -90,10 +129,40 @@ export function configFormOptionRows(field, options) {
     }));
   }
   if (source === "datasets") {
-    return workbenchDatasetRows().map((dataset) => ({
-      value: dataset.path,
-      label: `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`,
-      dataset,
+    // One entry per symbol+bar_size+session instead of one per file, so a symbol
+    // with 165 daily chunks shows a single grouped row. The value is the group's
+    // representative path (consolidated file if present, else widest chunk).
+    const groups = workbenchDatasetGroups();
+    if (!groups.length) {
+      // An empty listbox reads as "no data exists" even while the catalog is
+      // still being scanned (the first scan over the cache can take several
+      // seconds) or when a scan failed. Surface which case it is with a single
+      // non-selectable placeholder row (value "" is filtered out of any run).
+      const load = dataLibraryLoadState();
+      const search = state.workbenchDatasetSearch;
+      const duration = state.workbenchDatasetDuration || "";
+      const durationLabel = duration ? barSizeDurationLabel(duration) : "";
+      const otherDurationsExist = duration && workbenchAvailableDurations().some((item) => item.bar_size !== duration);
+      let label;
+      if (load.catalogError) {
+        label = `Saved-data scan failed: ${load.catalogError} — press Refresh`;
+      } else if (load.catalogLoading || !load.catalogLoaded) {
+        label = "Loading saved datasets… (first scan after new data can take several seconds)";
+      } else if (search && search.query) {
+        label = duration
+          ? `No ${durationLabel} data matches “${search.query}” — set Bar duration to All, or clear the search`
+          : `No saved data matches “${search.query}” — clear the search to browse all, or fetch it under Data`;
+      } else if (otherDurationsExist) {
+        label = `No ${durationLabel} data in view — set Bar duration to All to see other cadences`;
+      } else {
+        label = "No saved datasets found in the configured data roots — fetch or generate data first";
+      }
+      return [{ value: "", label }];
+    }
+    return groups.map((group) => ({
+      value: group.representative.path,
+      label: workbenchDatasetGroupLabel(group),
+      dataset: group.representative,
     }));
   }
   return (field.options || []).map((option) => ({
@@ -168,7 +237,27 @@ export function renderConfigField(field) {
     const multiple = field.multiple ? " multiple" : "";
     const size = field.size ? ` size="${escapeHtml(String(field.size))}"` : "";
     const required = field.required ? " required" : "";
-    return `<label class="${escapeHtml(cls)}"${pluginAttr}>${title}<select id="${id}"${multiple}${size}${required}></select>${help}${validation}</label>`;
+    const selectHtml = `<label class="${escapeHtml(cls)}"${pluginAttr}>${title}<select id="${id}"${multiple}${size}${required}></select>${help}${validation}</label>`;
+    if (field.options_source === "datasets") {
+      // The scanned catalog is capped for speed (a full scan of the local cache is
+      // minutes), so a symbol past the cap is simply not in the list. This box runs
+      // a fast server-side symbol search (/data_catalog?q=SYM, ~0.1-0.3s) and scopes
+      // the picker to the result — find any saved symbol without raising the limit.
+      const search = `<div class="dataset-search wide-field">
+        <div class="dataset-duration-row">
+          <label class="field-title" for="config-dataset-duration"><span>Bar duration</span></label>
+          <select id="config-dataset-duration" class="dataset-duration"></select>
+        </div>
+        <label class="field-title" for="config-dataset-search"><span>Find a saved symbol</span></label>
+        <div class="dataset-search-row">
+          <input id="config-dataset-search" type="search" autocomplete="off" placeholder="Search any saved symbol — e.g. AIG, AAPL, BTC-USD">
+          <button id="config-dataset-search-btn" type="button" class="secondary">Find</button>
+        </div>
+        <small id="config-dataset-search-note" class="dataset-search-note" role="status" aria-live="polite"></small>
+      </div>`;
+      return search + selectHtml;
+    }
+    return selectHtml;
   }
   if (field.kind === "checkbox") {
     return `<label class="${escapeHtml(cls)}"${pluginAttr}><input id="${id}" type="checkbox">${title}${help}${validation}</label>`;
@@ -191,6 +280,9 @@ export function updatePluginStrategyFields() {
   for (const field of document.querySelectorAll(".plugin-strategy-field")) {
     const visible = !field.dataset.pluginId || field.dataset.pluginId === selectedPluginId;
     field.hidden = !visible;
+    for (const control of field.querySelectorAll("input, select, textarea")) {
+      control.disabled = !visible;
+    }
   }
 }
 
@@ -213,15 +305,28 @@ export function renderConfigFormSchema() {
     configSectionOrder(left.section, sectionMetadata) - configSectionOrder(right.section, sectionMetadata)
     || left.section.localeCompare(right.section)
   ));
-  container.innerHTML = sections.map((group) => `
+  const renderSection = (group) => `
     <fieldset id="config-section-${escapeHtml(group.section)}" class="config-field-section">
       <legend>${escapeHtml(configSectionTitle(group.section, sectionMetadata))}</legend>
       <p>${escapeHtml(configSectionHelp(group.section, sectionMetadata))}</p>
       <div class="config-field-grid">
         ${group.fields.map(renderConfigField).join("")}
       </div>
-    </fieldset>
-  `).join("");
+    </fieldset>`;
+  // The four-step flow only needs Data and Strategy up front. Account size, risk
+  // limits, simulated costs, session windows, and output toggles are real but
+  // secondary — tuck them behind one disclosure so the form reads as pick data ->
+  // pick strategy -> run, instead of a wall of fields.
+  const ESSENTIAL_SECTIONS = new Set(["identity", "data", "plugin_strategy"]);
+  const essential = sections.filter((group) => ESSENTIAL_SECTIONS.has(group.section));
+  const advanced = sections.filter((group) => !ESSENTIAL_SECTIONS.has(group.section));
+  container.innerHTML = essential.map(renderSection).join("")
+    + (advanced.length
+      ? `<details class="config-advanced-settings meta-disclosure">
+           <summary>Advanced settings &mdash; account size, risk limits, costs, session &amp; output</summary>
+           <div class="config-advanced-body">${advanced.map(renderSection).join("")}</div>
+         </details>`
+      : "");
   container.dataset.rendered = "true";
 }
 
@@ -253,22 +358,56 @@ export function configFieldValue(id) {
   return el ? el.value : "";
 }
 
+// Populate the "Bar duration" selector from the durations present in saved data,
+// and default it once to the most common so a symbol that exists at several
+// cadences (1min AND 5min, say) shows once instead of repeating down the picker.
+export function renderWorkbenchDatasetDurationControl() {
+  const select = $("config-dataset-duration");
+  if (!select) return;
+  const durations = workbenchAvailableDurations();
+  // Default once to the most common duration (most files) so the first view is the
+  // de-duplicated one; "" ("All durations") stays available to see every cadence.
+  if (state.workbenchDatasetDuration === null && durations.length) {
+    const mostCommon = durations.slice().sort((left, right) => right.count - left.count)[0];
+    state.workbenchDatasetDuration = mostCommon ? mostCommon.bar_size : "";
+  }
+  const current = state.workbenchDatasetDuration === null ? "" : state.workbenchDatasetDuration;
+  // Rebuild options only when the set actually changes, to avoid dropdown flicker
+  // on the periodic re-render.
+  const signature = durations.map((item) => `${item.bar_size}:${item.count}`).join("|");
+  if (select.dataset.durationSignature !== signature) {
+    select.dataset.durationSignature = signature;
+    select.innerHTML = [`<option value="">All durations</option>`]
+      .concat(durations.map((item) => `<option value="${escapeHtml(item.bar_size)}">${escapeHtml(barSizeDurationLabel(item.bar_size))}</option>`))
+      .join("");
+  }
+  select.value = current;
+}
+
 export function renderConfigBuilder() {
   const options = state.configOptions || {};
   const defaults = options.defaults || {};
-  const runActions = (options.run_actions || []).map((action) => ({ value: action, label: action }));
+  const runActions = (options.run_actions || []).map((action) => ({ value: action, label: RUN_ACTION_CAPTIONS[action] || action }));
   const drafts = (state.configDrafts && state.configDrafts.drafts) || [];
   const draftOptions = drafts.map((draft) => ({
     value: draft.draft_id,
     label: `${draft.draft_id} - ${text(draft.mode)}`,
   }));
   renderConfigFormSchema();
+  // Set the bar-duration default/options before the dataset options below, since
+  // the datasets picker (configFormOptionRows -> workbenchDatasetGroups) reads the
+  // selected duration to scope its rows.
+  renderWorkbenchDatasetDurationControl();
   for (const field of options.form_schema || []) {
     if (field.kind === "select" && $(field.id)) {
       replaceOptions($(field.id), configFormOptionRows(field, options));
     }
   }
-  if (runActions.length) replaceOptions($("config-run-action"), runActions);
+  defaultSelectOnce("config-mode", "simulated_paper");
+  if (runActions.length) {
+    replaceOptions($("config-run-action"), runActions);
+    defaultSelectOnce("config-run-action", "simulated_paper");
+  }
   replaceOptions($("config-run-draft"), draftOptions);
 
   const defaultFields = Object.fromEntries((options.form_schema || [])
@@ -293,7 +432,6 @@ export function renderConfigBuilder() {
   renderConfigPluginFieldHelp();
   renderConfigBrokerBoundary();
   renderWorkbenchBuilderAssistant();
-  renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderConfigValidationMessages();
 
@@ -424,90 +562,6 @@ export function handleConfigDraftError(error) {
   $("last-refresh").textContent = `Config draft failed: ${error.message}`;
 }
 
-export function renderConfigBuilderReadiness() {
-  if (!$("config-builder-readiness")) return;
-  const selected = selectedConfigDatasets();
-  const dataReadiness = selectedDataReadiness(selected);
-  const plugin = selectedConfigPlugin();
-  const mode = $("config-mode") ? $("config-mode").value : "";
-  const dateRange = configDateRangePayload();
-  const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
-  const riskValues = [
-    finiteNumber($("config-max-orders") && $("config-max-orders").value),
-    finiteNumber($("config-max-notional") && $("config-max-notional").value),
-    finiteNumber($("config-max-exposure") && $("config-max-exposure").value),
-  ];
-  const costValues = [
-    finiteNumber($("config-slippage") && $("config-slippage").value),
-    finiteNumber($("config-commission") && $("config-commission").value),
-  ];
-  const draft = state.configDraft || {};
-  const draftValid = draft.validation ? Boolean(draft.validation.valid) : false;
-  const cards = [
-    {
-      status: dataReadiness.status,
-      title: numberText(selected.length, 0),
-      label: "Data",
-      note: selected.length
-        ? dataReadiness.issueCount
-          ? dataReadiness.reviewNote
-          : "Selected datasets pass catalog quality and metadata checks."
-        : "Choose one or more Data Library files.",
-    },
-    {
-      status: alignment.dataset_count ? Number(alignment.warning_count || 0) ? "warn" : "ok" : selected.length ? "warn" : "idle",
-      title: alignment.dataset_count ? numberText(alignment.common_timestamp_count, 0) : "Preview",
-      label: "Alignment",
-      note: alignment.dataset_count
-        ? `${numberText(alignment.dataset_count, 0)} dataset${alignment.dataset_count === 1 ? "" : "s"}; ${pctText(alignment.common_coverage_pct)} common coverage.`
-        : "Preview alignment before trusting a replay window.",
-    },
-    {
-      status: plugin.id ? plugin.visibility === "public_example" ? "warn" : "ok" : "bad",
-      title: text(plugin.label || plugin.id),
-      label: "Plugin",
-      note: plugin.visibility === "public_example"
-        ? "Public example plugin demonstrates wiring only."
-        : text(plugin.boundary || "Private/local plugin metadata loaded from registry."),
-    },
-    {
-      status: mode ? "ok" : "idle",
-      title: text(mode),
-      label: "Mode",
-      note: dateRange.start || dateRange.end
-        ? `Range ${dateRange.start || "first bar"} to ${dateRange.end || "last bar"}.`
-        : "No date range set; replay uses each selected file's full history.",
-    },
-    {
-      status: riskValues.every((value) => value !== null && value > 0) ? "ok" : "bad",
-      title: text($("config-risk-preset") && $("config-risk-preset").value),
-      label: "Risk",
-      note: `Orders ${text($("config-max-orders") && $("config-max-orders").value)}, notional ${money($("config-max-notional") && $("config-max-notional").value)}, exposure ${pctText(Number($("config-max-exposure") && $("config-max-exposure").value) * 100)}.`,
-    },
-    {
-      status: costValues.every((value) => value !== null && value >= 0) ? "ok" : "bad",
-      title: `${numberText($("config-slippage") && $("config-slippage").value, 2)} / ${numberText($("config-commission") && $("config-commission").value, 2)}`,
-      label: "Costs",
-      note: "Simulated slippage and commission basis points.",
-    },
-    {
-      status: draft.yaml ? draftValid ? "ok" : "warn" : "idle",
-      title: draft.yaml ? draftValid ? "Valid" : "Review" : "Not Generated",
-      label: "Draft",
-      note: draft.yaml
-        ? draft.saved_path ? `Saved to ${text(draft.saved_path)}.` : "Generated draft is not saved."
-        : "Generate a draft to get YAML and local commands.",
-    },
-  ];
-  $("config-builder-readiness").innerHTML = cards.map((card) => `
-    <div class="action-card status-${escapeHtml(card.status)}">
-      <span>${statusText(card.status)}</span>
-      <strong>${escapeHtml(card.title)}</strong>
-      <small>${escapeHtml(card.label)} - ${escapeHtml(card.note)}</small>
-    </div>
-  `).join("");
-}
-
 export function renderWorkbenchBuilderAssistant() {
   if (!$("workbench-builder-assistant-title") || !$("workbench-builder-assistant-cards") || !$("workbench-builder-assistant-actions")) return;
   const selected = selectedConfigDatasets();
@@ -574,7 +628,7 @@ export function renderWorkbenchBuilderAssistant() {
       status: draftValid && savedPath ? "ok" : draftValid ? "warn" : "idle",
       label: "Run",
       title: draftValid && savedPath ? "Ready" : "Not Ready",
-      note: draftValid && savedPath ? "Open Run to execute or validate saved drafts." : "Run requires a valid saved draft.",
+      note: draftValid && savedPath ? "Open Run to execute or validate saved drafts." : "Generate and save a valid draft first.",
     },
   ];
   $("workbench-builder-assistant-cards").innerHTML = cards.map((card) => `
@@ -752,7 +806,7 @@ export function renderConfigCompatibility() {
   const visibility = plugin.visibility || plugin.status || "";
   const strategyFields = plugin.strategy_fields || [];
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
-  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const qualityIssues = selected.filter((dataset) => text(dataset.quality_blocking_status || dataset.quality_status).toLowerCase() === "bad");
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const allowQualityWarnings = $("config-allow-quality-warnings") ? $("config-allow-quality-warnings").checked : false;
   const barSizes = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
@@ -783,7 +837,7 @@ export function renderConfigCompatibility() {
       label: "Plugin",
       note: `${text(visibility)}; ${numberText(strategyFields.length, 0)} public-safe field${strategyFields.length === 1 ? "" : "s"}.`,
       next: plugin.id
-        ? "Public examples prove wiring only; choose an ignored local plugin registry entry for real private logic."
+        ? "Bundled public plugin metadata loaded. Private strategy logic can be registered through ignored local configs."
         : "Choose a configured Workbench plugin.",
     },
     {
@@ -868,7 +922,6 @@ export function renderConfigLivePanels() {
   renderConfigPluginBoundary();
   renderConfigPluginFieldHelp();
   renderWorkbenchBuilderAssistant();
-  renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchGuide();
   renderWorkbenchHome();
@@ -918,7 +971,6 @@ export function renderConfigAlignment(alignment) {
   $("config-alignment").innerHTML = pairs.map(([key, value]) => (
     `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`
   )).join("");
-  renderConfigBuilderReadiness();
   renderConfigCompatibility();
   renderWorkbenchGuide();
 }
@@ -1449,9 +1501,23 @@ export function workbenchResultModel() {
   const artifacts = state.configArtifacts || {};
   const loadedSameRun = Boolean(latestRun && artifacts.run_id && artifacts.run_id === latestRun.run_id);
   const loadedSameDraft = Boolean(selectedDraftId && artifacts.draft_id && artifacts.draft_id === selectedDraftId);
+  // The just-run backtest's outcome is already in state.configArtifacts.performance
+  // after loadCompletedRunOutput; surface it here instead of making the user leave.
+  const performance = artifacts.performance || {};
+  // Only trust the loaded artifacts as the verdict when they are not demonstrably
+  // an older run than the one we are describing (a same-draft refresh can leave
+  // run A's artifacts in state while latestRun advances to run B).
+  const artifactsAreStale = Boolean(latestRun && latestRun.run_id && artifacts.run_id && latestRun.run_id !== artifacts.run_id);
+  const resultLoaded = (loadedSameRun || loadedSameDraft) && !artifactsAreStale;
+  const ranAccounting = Boolean(latestRun && latestRun.action !== "validate" && latestRun.status === "completed");
+  const returnPct = finiteNumber(performance.total_return_pct);
+  const drawdownPct = finiteNumber(performance.max_drawdown_pct);
+  const finalEquity = performance.final_equity ?? summary.final_equity;
+  const netPnl = performance.total_pnl ?? summary.total_pnl ?? performance.realized_pnl ?? summary.realized_pnl;
+  const hasVerdict = resultLoaded && ranAccounting && returnPct !== null;
   let status = "idle";
-  let title = "Select Draft";
-  let note = "Choose a saved draft, validate it, then run replay or simulated paper.";
+  let title = "No results yet";
+  let note = "Pick data and a strategy above, then Run Backtest to see how it performed.";
   if (selectedDraft) {
     status = validation && validation.valid === false ? "bad" : "warn";
     title = latestRun ? text(latestRun.status) : "Ready To Run";
@@ -1469,9 +1535,15 @@ export function workbenchResultModel() {
       title = "Validated";
       note = "Validation finished; choose replay or simulated paper to create performance artifacts.";
     } else if (loadedSameRun || loadedSameDraft) {
-      status = "ok";
-      title = "Results Loaded";
-      note = "Artifacts are loaded. Open Performance for charts or Runs for the session timeline.";
+      if (hasVerdict) {
+        status = returnPct >= 0 ? "ok" : "bad";
+        title = `${pctText(returnPct)} return`;
+        note = `Final equity ${money(finalEquity)} · max drawdown ${pctText(drawdownPct)} · net P&L ${money(netPnl)} · ${numberText(summary.fills, 0)} fills. Open Performance for the equity curve, drawdown, and trade list.`;
+      } else {
+        status = "ok";
+        title = "Results Loaded";
+        note = "Artifacts are loaded. Open Performance for charts or Runs for the session timeline.";
+      }
     } else if (latestRun.artifact_path) {
       status = latestRun.status === "completed" ? "warn" : "bad";
       title = "Open Results";
@@ -1484,7 +1556,12 @@ export function workbenchResultModel() {
   }
   const hasRun = Boolean(latestRun);
   const canOpenPerformance = Boolean(selectedDraftId && latestRun && latestRun.action !== "validate" && latestRun.status === "completed");
-  const cards = [
+  // After a validate-only run there is nothing to "Open Performance" for, so the
+  // primary button offers the next useful step instead of sitting dead-disabled.
+  const runSimNext = Boolean(selectedDraftId && latestRun && latestRun.action === "validate" && latestRun.status === "completed");
+  const openPerformanceLabel = runSimNext ? "Run simulated paper" : "Open Performance";
+  const openPerformanceDisabled = runSimNext ? false : !canOpenPerformance;
+  const pipelineCards = [
     {
       status: selectedDraft ? validation && validation.valid === false ? "bad" : "ok" : "idle",
       label: "Selected Draft",
@@ -1516,6 +1593,11 @@ export function workbenchResultModel() {
         : "Run a draft to summarize decisions, fills, and rejects.",
     },
   ];
+  // When a backtest's outcome is loaded the panel renders the full tear-sheet
+  // (renderWorkbenchTearSheet) instead of these pipeline-state cards. Before
+  // anything has been run, show just the invitation above rather than a row of
+  // empty "None / Missing" status cards.
+  const cards = (selectedDraft || latestRun) ? pipelineCards : [];
   return {
     status,
     title,
@@ -1523,9 +1605,91 @@ export function workbenchResultModel() {
     selectedDraftId,
     latestRun,
     hasRun,
+    hasVerdict,
     canOpenPerformance,
+    runSimNext,
+    openPerformanceLabel,
+    openPerformanceDisabled,
     cards,
   };
+}
+
+export function profitFactorText(value) {
+  if (value === Infinity) return "inf";
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "n/a";
+  return numberText(value, 2);
+}
+
+// The single tear-sheet shown both inline on the Run lens and atop the Artifacts
+// lens. Leads with the money questions (return, drawdown), the project headline
+// metric (Sharpe), and trade quality (win rate, profit factor), plus an equity
+// sparkline. Sharpe/win rate are n/a until there are enough trading days/trades.
+export function workbenchTearSheetTiles(metrics) {
+  return [
+    {
+      status: metrics.returnPct === null ? "idle" : metrics.returnPct >= 0 ? "ok" : "bad",
+      label: "Return",
+      title: pctText(metrics.returnPct),
+      note: `Final equity ${money(metrics.finalEquity)}.`,
+    },
+    {
+      status: metrics.drawdownPct === null ? "idle" : metrics.drawdownPct < -10 ? "bad" : metrics.drawdownPct < 0 ? "warn" : "ok",
+      label: "Max Drawdown",
+      title: pctText(metrics.drawdownPct),
+      note: "Peak-to-trough equity decline.",
+    },
+    {
+      status: metrics.sharpe === null ? "idle" : metrics.sharpe >= 1 ? "ok" : metrics.sharpe >= 0 ? "warn" : "bad",
+      label: "Sharpe",
+      title: metrics.sharpe === null ? "n/a" : numberText(metrics.sharpe, 2),
+      note: metrics.sharpe === null
+        ? "Needs >= 2 trading days of equity."
+        : "Daily returns, annualized (x252).",
+    },
+    {
+      status: metrics.winRatePct === null ? "idle" : metrics.winRatePct >= 50 ? "ok" : "warn",
+      label: "Win Rate",
+      title: metrics.winRatePct === null ? "n/a" : pctText(metrics.winRatePct),
+      note: metrics.closedCount ? `${numberText(metrics.closedCount, 0)} closed trades.` : "No closed round-trips yet.",
+    },
+    {
+      status: metrics.profitFactor === null ? "idle" : Number(metrics.profitFactor) >= 1 || metrics.profitFactor === Infinity ? "ok" : "bad",
+      label: "Profit Factor",
+      title: profitFactorText(metrics.profitFactor),
+      note: "Gross profit / gross loss.",
+    },
+    {
+      status: metrics.netPnl === null || metrics.netPnl === undefined ? "idle" : Number(metrics.netPnl) >= 0 ? "ok" : "bad",
+      label: "Net P&L",
+      title: money(metrics.netPnl),
+      note: `${numberText(metrics.fills, 0)} fills.`,
+    },
+  ];
+}
+
+export function renderWorkbenchTearSheet(containerId, artifacts) {
+  const container = $(containerId);
+  if (!container) return false;
+  const account = (artifacts || {}).account || [];
+  const metrics = tearSheetMetrics(artifacts || {});
+  const hasData = Boolean(account.length || metrics.returnPct !== null || metrics.finalEquity != null || metrics.closedCount);
+  if (!hasData) {
+    container.innerHTML = `<div class="tearsheet"><span class="muted">Run a simulated-paper backtest to see return, drawdown, Sharpe, and win rate here.</span></div>`;
+    return false;
+  }
+  const tiles = workbenchTearSheetTiles(metrics).map((tile) => `
+    <div class="action-card status-${escapeHtml(tile.status)}">
+      <span>${escapeHtml(tile.label)}</span>
+      <strong>${escapeHtml(tile.title)}</strong>
+      <small>${escapeHtml(tile.note)}</small>
+    </div>
+  `).join("");
+  const spark = equitySparkline((artifacts || {}).account || []);
+  container.innerHTML = `<div class="tearsheet">
+    <div class="tearsheet-tiles">${tiles}</div>
+    ${spark ? `<div class="tearsheet-spark">${spark}</div>` : ""}
+  </div>`;
+  return true;
 }
 
 export function renderWorkbenchRunResult() {
@@ -1534,9 +1698,18 @@ export function renderWorkbenchRunResult() {
   $("workbench-result-title").textContent = model.title;
   $("workbench-result-title").className = statusClass(model.status);
   $("workbench-result-note").textContent = model.note;
-  $("workbench-result-open-performance").disabled = !model.canOpenPerformance;
+  const openPerformanceButton = $("workbench-result-open-performance");
+  openPerformanceButton.textContent = model.openPerformanceLabel;
+  openPerformanceButton.disabled = model.openPerformanceDisabled;
+  // When there are results to open (or a validate run to promote to a sim run),
+  // make this the prominent next step instead of one of three equal grey buttons —
+  // the full equity curve, drawdown, and trades live one click behind it.
+  openPerformanceButton.className = model.openPerformanceDisabled ? "secondary" : "primary-run";
   $("workbench-result-open-runs").disabled = !model.hasRun;
   $("workbench-result-open-log").disabled = !model.hasRun;
+  if (model.hasVerdict && renderWorkbenchTearSheet("workbench-result-tiles", state.configArtifacts || {})) {
+    return;
+  }
   $("workbench-result-tiles").innerHTML = model.cards.map((card) => `
     <div class="action-card status-${escapeHtml(card.status)}">
       <span>${escapeHtml(card.label)}</span>
@@ -2139,7 +2312,7 @@ export function renderArtifactPluginBoundary(artifacts) {
       label: "Plugin",
       note: plugin.matched
         ? plugin.visibility === "public_example"
-          ? "Public example wiring only; not a viable strategy."
+          ? "Bundled public strategy plugin metadata loaded."
           : text(plugin.boundary || "Local/private plugin metadata.")
         : "Load or restore the matching plugin registry entry for this draft.",
     },
@@ -2937,6 +3110,7 @@ export function renderWorkbenchArtifacts() {
     : "No run selected";
   renderWorkbenchArtifactsActionSummary(artifacts);
   renderWorkbenchArtifactsAssistant(artifacts);
+  renderWorkbenchTearSheet("artifact-tearsheet", artifacts);
   const pairs = [
     ["Mode", text(summary.mode)],
     ["Decisions", text(summary.decisions)],
@@ -3168,4 +3342,3 @@ export function renderWorkbenchArtifacts() {
 	      ])).join("")
 	    : row([`<span class="muted">none</span>`, "", "", "", "", "", "", "", "", "", ""]);
 }
-

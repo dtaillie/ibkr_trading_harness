@@ -56,6 +56,9 @@ export const state = {
   endpointMap: { endpoints: [] },
   configOptions: { plugins: [], modes: [], defaults: {} },
   workbenchExtraDatasets: {},
+  workbenchSelectedDatasetPaths: [],
+  workbenchDatasetSearch: null,
+  workbenchDatasetDuration: null,
   configDraft: null,
   configDraftErrors: [],
   alignmentPreview: null,
@@ -69,6 +72,10 @@ export const state = {
   runEvidence: null,
   configArtifacts: null,
   refreshInFlight: false,
+  loadingActivity: {
+    count: 0,
+    label: "",
+  },
   statusFetchError: "",
   telemetryAccount: { run_id: "", account: [] },
   performanceTelemetryRunId: "",
@@ -197,22 +204,76 @@ export function headers() {
   return out;
 }
 
-export async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: { ...headers(), ...(options.headers || {}) },
-  });
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const body = await response.clone().json();
-      detail = body && body.error ? String(body.error) : "";
-    } catch {
-      detail = "";
-    }
-    throw new Error(detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`);
+export function dashboardLoadingLabel(url) {
+  const path = String(url || "").split("?")[0].toLowerCase();
+  if (path.includes("config_draft/run")) return "Running Workbench draft";
+  if (path.includes("config_draft") || path.includes("workbench")) return "Loading Workbench";
+  if (path.includes("data_") || path.includes("data/")) return "Loading Data Library";
+  if (path.includes("fetch")) return "Loading Fetch Jobs";
+  if (path.includes("performance") || path.includes("rollup")) return "Loading Performance";
+  if (path.includes("runtime") || path.includes("runs")) return "Loading Runs";
+  if (path.includes("remote") || path.includes("command") || path.includes("cloud")) return "Loading Operations";
+  if (path.includes("docs")) return "Loading docs";
+  if (path.includes("status")) return "Loading status";
+  return "Syncing dashboard data";
+}
+
+export function renderGlobalLoadingIndicator() {
+  const element = $("global-loading");
+  if (!element) return;
+  const count = Math.max(0, Number((state.loadingActivity || {}).count || 0));
+  const active = count > 0;
+  element.hidden = !active;
+  element.setAttribute("aria-busy", active ? "true" : "false");
+  if ($("global-loading-detail")) {
+    $("global-loading-detail").textContent = active
+      ? text((state.loadingActivity || {}).label || "Syncing dashboard data")
+      : "Idle";
   }
-  return response.json();
+  if ($("global-loading-count")) {
+    $("global-loading-count").textContent = count === 1 ? "1 request" : `${numberText(count, 0)} requests`;
+  }
+}
+
+export function beginDashboardLoading(url, label = "") {
+  state.loadingActivity = {
+    count: Math.max(0, Number((state.loadingActivity || {}).count || 0)) + 1,
+    label: label || dashboardLoadingLabel(url),
+  };
+  renderGlobalLoadingIndicator();
+}
+
+export function endDashboardLoading() {
+  const count = Math.max(0, Number((state.loadingActivity || {}).count || 0) - 1);
+  state.loadingActivity = {
+    count,
+    label: count ? (state.loadingActivity || {}).label || "Syncing dashboard data" : "",
+  };
+  renderGlobalLoadingIndicator();
+}
+
+export async function fetchJson(url, options = {}) {
+  const { loadingLabel = "", ...fetchOptions } = options;
+  beginDashboardLoading(url, loadingLabel);
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers: { ...headers(), ...(fetchOptions.headers || {}) },
+    });
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const body = await response.clone().json();
+        detail = body && body.error ? String(body.error) : "";
+      } catch {
+        detail = "";
+      }
+      throw new Error(detail ? `${response.status} ${response.statusText}: ${detail}` : `${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } finally {
+    endDashboardLoading();
+  }
 }
 
 export async function fetchOptionalJson(label, url, fallback) {
@@ -270,14 +331,20 @@ export function dataEndpointContract(label, url, payload, { durationMs = null, e
 }
 
 export async function fetchText(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: { ...headers(), ...(options.headers || {}) },
-  });
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+  const { loadingLabel = "", ...fetchOptions } = options;
+  beginDashboardLoading(url, loadingLabel);
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers: { ...headers(), ...(fetchOptions.headers || {}) },
+    });
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return response.text();
+  } finally {
+    endDashboardLoading();
   }
-  return response.text();
 }
 
 export function text(value) {
@@ -738,6 +805,8 @@ export function viewFromHash() {
 
 export function setActiveView(view) {
   const targetView = normalizeView(view || "overview");
+  const routeKey = window.location.hash || `#${targetView}`;
+  const previousRoute = sessionStorage.getItem("dashboardRoute") || "";
   for (const section of document.querySelectorAll(".dashboard-section")) {
     section.hidden = section.dataset.view !== targetView;
   }
@@ -754,18 +823,24 @@ export function setActiveView(view) {
     }
   }
   sessionStorage.setItem("dashboardView", targetView);
+  sessionStorage.setItem("dashboardRoute", routeKey);
+  if (previousRoute && previousRoute !== routeKey) {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
   renderPageIntro(targetView);
   if (targetView === "overview") {
     applyOverviewLens(selectedOverviewLens());
   }
   if (targetView === "performance") {
-    applyPerformanceLens(selectedPerformanceLens());
+    if (selectedPerformanceLens() !== "home") setPerformanceDetailsOpen(true);
+    else applyPerformanceLens();
   }
   if (targetView === "data") {
     applyDataLens(selectedDataLens());
   }
   if (targetView === "fetch") {
-    applyFetchLens(selectedFetchLens());
+    if (selectedFetchLens() !== "home") setFetchDetailsOpen(true);
+    else applyFetchLens();
   }
   if (targetView === "workbench") {
     applyWorkbenchLens(selectedWorkbenchLens());
@@ -774,10 +849,12 @@ export function setActiveView(view) {
     applyRunsLens(selectedRunsLens());
   }
   if (targetView === "operations") {
-    applyOperationsLens(selectedOperationsLens());
+    if (selectedOperationsLens() !== "home") setOperationsDetailsOpen(true);
+    else applyOperationsLens();
   }
   if (targetView === "help") {
-    applyHelpLens(selectedHelpLens());
+    if (selectedHelpLens() !== "home") setHelpDetailsOpen(true);
+    else applyHelpLens();
   }
 }
 
@@ -813,25 +890,29 @@ export function overviewLensContent(lens) {
   return content[normalizeOverviewLens(lens)] || content.home;
 }
 
-export function applyOverviewLens(lens) {
-  const selected = normalizeOverviewLens(lens);
-  sessionStorage.setItem("dashboardOverviewLens", selected);
+let overviewDetailsOpen = false;
+
+export function setOverviewDetailsOpen(open) {
+  overviewDetailsOpen = Boolean(open);
+  applyOverviewLens("home");
+}
+
+// Today is flattened: home sections are always visible; activity & diagnostics
+// are revealed by the Details toggle rather than by lens tabs.
+export function applyOverviewLens() {
   for (const section of document.querySelectorAll('.dashboard-section[data-view="overview"]')) {
     if (section.dataset.overviewLensFixed === "true") {
       section.hidden = false;
       continue;
     }
     const lenses = new Set(String(section.dataset.overviewLens || "home").split(/\s+/).filter(Boolean));
-    section.hidden = !lenses.has(selected);
+    section.hidden = lenses.has("home") ? false : !overviewDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-overview-lens-target]")) {
-    const active = normalizeOverviewLens(button.dataset.overviewLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("overview-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", overviewDetailsOpen ? "true" : "false");
+    toggle.innerHTML = overviewDetailsOpen ? "&#9652; Hide details" : "&#9662; Details &mdash; activity &amp; diagnostics";
   }
-  const content = overviewLensContent(selected);
-  if ($("overview-lens-title")) $("overview-lens-title").textContent = content.title;
-  if ($("overview-lens-note")) $("overview-lens-note").textContent = content.note;
   if (activeView() === "overview") renderRouteBreadcrumb("overview");
 }
 
@@ -867,9 +948,18 @@ export function performanceLensContent(lens) {
   return content[normalizePerformanceLens(lens)] || content.home;
 }
 
-export function applyPerformanceLens(lens) {
-  const selected = normalizePerformanceLens(lens);
-  sessionStorage.setItem("dashboardPerformanceLens", selected);
+let performanceDetailsOpen = false;
+
+export function setPerformanceDetailsOpen(open) {
+  performanceDetailsOpen = Boolean(open);
+  applyPerformanceLens();
+}
+
+// Performance is flattened: the current result, evidence, risk, and main charts
+// (home) are always visible; trades, rollups, and diagnostics sit behind the
+// Details toggle. Inbound deep-links (#performance/rollups) open Details via the
+// setActiveView dispatch so cross-view "Open rollups/trades" buttons still work.
+export function applyPerformanceLens() {
   for (const section of document.querySelectorAll('.dashboard-section[data-view="performance"]')) {
     const configured = String(section.dataset.performanceLens || "").trim();
     if (!configured) {
@@ -877,16 +967,15 @@ export function applyPerformanceLens(lens) {
       continue;
     }
     const lenses = new Set(configured.split(/\s+/).filter(Boolean));
-    section.hidden = !lenses.has(selected);
+    section.hidden = lenses.has("home") ? false : !performanceDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-performance-lens-target]")) {
-    const active = normalizePerformanceLens(button.dataset.performanceLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("performance-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", performanceDetailsOpen ? "true" : "false");
+    toggle.innerHTML = performanceDetailsOpen
+      ? "&#9652; Hide details"
+      : "&#9662; Details &mdash; trades, rollups &amp; diagnostics";
   }
-  const content = performanceLensContent(selected);
-  if ($("performance-lens-title")) $("performance-lens-title").textContent = content.title;
-  if ($("performance-lens-note")) $("performance-lens-note").textContent = content.note;
   if (activeView() === "performance") renderRouteBreadcrumb("performance");
 }
 
@@ -926,31 +1015,35 @@ export function dataLensContent(lens) {
   return content[normalizeDataLens(lens)] || content.home;
 }
 
-export function applyDataLens(lens) {
-  const selected = normalizeDataLens(lens);
-  sessionStorage.setItem("dashboardDataLens", selected);
+let dataDetailsOpen = false;
+
+export function setDataDetailsOpen(open) {
+  dataDetailsOpen = Boolean(open);
+  applyDataLens();
+}
+
+// Data is flattened: the cached-data overview (home) is always visible; browse,
+// inspect, compare, and diagnostics are revealed by the Details toggle.
+export function applyDataLens() {
   for (const element of document.querySelectorAll('[data-view="data"], [data-data-lens]')) {
     if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view !== "data") continue;
-    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view === "data" && !element.dataset.dataLens) {
+    const configured = String(element.dataset.dataLens || "").trim();
+    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view === "data" && !configured) {
       element.hidden = false;
       continue;
     }
-    const configured = String(element.dataset.dataLens || "").trim();
     if (!configured) continue;
     const lenses = new Set(configured.split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
+    element.hidden = lenses.has("home") ? false : !dataDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-data-lens-target]")) {
-    const active = normalizeDataLens(button.dataset.dataLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("data-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", dataDetailsOpen ? "true" : "false");
+    toggle.innerHTML = dataDetailsOpen ? "&#9652; Hide details" : "&#9662; Details &mdash; browse, inspect, compare, diagnostics";
   }
-  const content = dataLensContent(selected);
-  if ($("data-lens-title")) $("data-lens-title").textContent = content.title;
-  if ($("data-lens-note")) $("data-lens-note").textContent = content.note;
   if (activeView() === "data") renderRouteBreadcrumb("data");
   if (state.refreshLoaded && activeView() === "data") {
-    refreshDataLibrary({ includeDiagnostics: selected === "diagnostics" }).catch((err) => {
+    refreshDataLibrary({ includeDiagnostics: dataDetailsOpen }).catch((err) => {
       $("last-refresh").textContent = `Data Library refresh failed: ${err.message}`;
     });
   }
@@ -984,28 +1077,35 @@ export function fetchLensContent(lens) {
   return content[normalizeFetchLens(lens)] || content.home;
 }
 
-export function applyFetchLens(lens) {
-  const selected = normalizeFetchLens(lens);
-  sessionStorage.setItem("dashboardFetchLens", selected);
+let fetchDetailsOpen = false;
+
+export function setFetchDetailsOpen(open) {
+  fetchDetailsOpen = Boolean(open);
+  applyFetchLens();
+}
+
+// Fetch is flattened: manifest roots, health, and recovery pressure (home) stay
+// visible; the job list and per-job detail move behind the Details toggle.
+// Inbound deep-links (#fetch/jobs) open Details via the setActiveView dispatch.
+export function applyFetchLens() {
   for (const element of document.querySelectorAll('[data-view="fetch"], [data-fetch-lens]')) {
-    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view !== "fetch") continue;
-    if (element.classList && element.classList.contains("dashboard-section") && element.dataset.view === "fetch" && !element.dataset.fetchLens) {
-      element.hidden = false;
+    const isSection = element.classList && element.classList.contains("dashboard-section");
+    if (isSection && element.dataset.view !== "fetch") continue;
+    const configured = String(element.dataset.fetchLens || "").trim();
+    if (!configured) {
+      if (isSection && element.dataset.view === "fetch") element.hidden = false;
       continue;
     }
-    const configured = String(element.dataset.fetchLens || "").trim();
-    if (!configured) continue;
     const lenses = new Set(configured.split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
+    element.hidden = lenses.has("home") ? false : !fetchDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-fetch-lens-target]")) {
-    const active = normalizeFetchLens(button.dataset.fetchLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("fetch-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", fetchDetailsOpen ? "true" : "false");
+    toggle.innerHTML = fetchDetailsOpen
+      ? "&#9652; Hide details"
+      : "&#9662; Details &mdash; job list &amp; per-job detail";
   }
-  const content = fetchLensContent(selected);
-  if ($("fetch-lens-title")) $("fetch-lens-title").textContent = content.title;
-  if ($("fetch-lens-note")) $("fetch-lens-note").textContent = content.note;
   if (activeView() === "fetch") renderRouteBreadcrumb("fetch");
 }
 
@@ -1041,21 +1141,9 @@ export function workbenchLensContent(lens) {
   return content[normalizeWorkbenchLens(lens)] || content.home;
 }
 
-export function applyWorkbenchLens(lens) {
-  const selected = normalizeWorkbenchLens(lens);
-  sessionStorage.setItem("dashboardWorkbenchLens", selected);
-  for (const element of document.querySelectorAll("[data-workbench-lens]")) {
-    const lenses = new Set(String(element.dataset.workbenchLens || "").split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
-  }
-  for (const button of document.querySelectorAll("[data-workbench-lens-target]")) {
-    const active = normalizeWorkbenchLens(button.dataset.workbenchLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
-  }
-  const content = workbenchLensContent(selected);
-  if ($("workbench-lens-title")) $("workbench-lens-title").textContent = content.title;
-  if ($("workbench-lens-note")) $("workbench-lens-note").textContent = content.note;
+// Backtest is flattened with native <details> sections, so there is no lens
+// gating to apply here — the dispatch just refreshes the breadcrumb.
+export function applyWorkbenchLens() {
   if (activeView() === "workbench") renderRouteBreadcrumb("workbench");
 }
 
@@ -1080,8 +1168,8 @@ export function runsLensContent(lens) {
       note: "Account boundary, current open orders, managed positions, and recent status snapshots.",
     },
     runs: {
-      title: "Runs",
-      note: "Searchable run telemetry, mode/status filters, freshness, metrics, and artifact actions.",
+      title: "Inspect a run",
+      note: "Pick a run to see its result, orders, fills, and equity. Account state and the event timeline are under Details.",
     },
     events: {
       title: "Events",
@@ -1091,21 +1179,25 @@ export function runsLensContent(lens) {
   return content[normalizeRunsLens(lens)] || content.home;
 }
 
-export function applyRunsLens(lens) {
-  const selected = normalizeRunsLens(lens);
-  sessionStorage.setItem("dashboardRunsLens", selected);
+let runsDetailsOpen = false;
+
+export function setRunsDetailsOpen(open) {
+  runsDetailsOpen = Boolean(open);
+  applyRunsLens();
+}
+
+// Inspect is flattened: the run review + run list (home, runs) are always
+// visible; account state and the event timeline are behind the Details toggle.
+export function applyRunsLens() {
   for (const element of document.querySelectorAll("[data-runs-lens]")) {
     const lenses = new Set(String(element.dataset.runsLens || "").split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
+    element.hidden = (lenses.has("home") || lenses.has("runs")) ? false : !runsDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-runs-lens-target]")) {
-    const active = normalizeRunsLens(button.dataset.runsLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("runs-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", runsDetailsOpen ? "true" : "false");
+    toggle.innerHTML = runsDetailsOpen ? "&#9652; Hide details" : "&#9662; Details &mdash; account state &amp; events";
   }
-  const content = runsLensContent(selected);
-  if ($("runs-lens-title")) $("runs-lens-title").textContent = content.title;
-  if ($("runs-lens-note")) $("runs-lens-note").textContent = content.note;
   if (activeView() === "runs") renderRouteBreadcrumb("runs");
 }
 
@@ -1145,21 +1237,29 @@ export function operationsLensContent(lens) {
   return content[normalizeOperationsLens(lens)] || content.home;
 }
 
-export function applyOperationsLens(lens) {
-  const selected = normalizeOperationsLens(lens);
-  sessionStorage.setItem("dashboardOperationsLens", selected);
+let operationsDetailsOpen = false;
+
+export function setOperationsDetailsOpen(open) {
+  operationsDetailsOpen = Boolean(open);
+  applyOperationsLens();
+}
+
+// Operations is flattened: the local readiness / health summary (home) stays
+// visible; paper, remote, control, and diagnostics move behind the Details
+// toggle. Inbound deep-links (#operations/diagnostics) open Details via the
+// setActiveView dispatch so cross-view health/control buttons still work.
+export function applyOperationsLens() {
   for (const element of document.querySelectorAll("[data-operations-lens]")) {
     const lenses = new Set(String(element.dataset.operationsLens || "").split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
+    element.hidden = lenses.has("home") ? false : !operationsDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-operations-lens-target]")) {
-    const active = normalizeOperationsLens(button.dataset.operationsLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("operations-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", operationsDetailsOpen ? "true" : "false");
+    toggle.innerHTML = operationsDetailsOpen
+      ? "&#9652; Hide details"
+      : "&#9662; Details &mdash; paper, remote, control &amp; diagnostics";
   }
-  const content = operationsLensContent(selected);
-  if ($("operations-lens-title")) $("operations-lens-title").textContent = content.title;
-  if ($("operations-lens-note")) $("operations-lens-note").textContent = content.note;
   if (activeView() === "operations") renderRouteBreadcrumb("operations");
 }
 
@@ -1203,21 +1303,28 @@ export function helpLensContent(lens) {
   return content[normalizeHelpLens(lens)] || content.home;
 }
 
-export function applyHelpLens(lens) {
-  const selected = normalizeHelpLens(lens);
-  sessionStorage.setItem("dashboardHelpLens", selected);
+let helpDetailsOpen = false;
+
+export function setHelpDetailsOpen(open) {
+  helpDetailsOpen = Boolean(open);
+  applyHelpLens();
+}
+
+// Help is flattened: "start by question" plus current setup gaps (home) stay
+// visible; the page guide, workflows, data tips, boundary rules, and docs move
+// behind the Details toggle. Inbound deep-links (#help/boundary) open Details.
+export function applyHelpLens() {
   for (const element of document.querySelectorAll("[data-help-lens]")) {
     const lenses = new Set(String(element.dataset.helpLens || "").split(/\s+/).filter(Boolean));
-    element.hidden = !lenses.has(selected);
+    element.hidden = lenses.has("home") ? false : !helpDetailsOpen;
   }
-  for (const button of document.querySelectorAll("[data-help-lens-target]")) {
-    const active = normalizeHelpLens(button.dataset.helpLensTarget) === selected;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+  const toggle = $("help-details-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", helpDetailsOpen ? "true" : "false");
+    toggle.innerHTML = helpDetailsOpen
+      ? "&#9652; Hide details"
+      : "&#9662; Details &mdash; page guide, workflows, data, boundary &amp; docs";
   }
-  const content = helpLensContent(selected);
-  if ($("help-lens-title")) $("help-lens-title").textContent = content.title;
-  if ($("help-lens-note")) $("help-lens-note").textContent = content.note;
   if (activeView() === "help") renderRouteBreadcrumb("help");
 }
 
@@ -1282,78 +1389,9 @@ export function routeHash(view = activeView(), lens = currentRouteLens(view)) {
   return selectedLens === "home" ? `#${targetView}` : `#${targetView}/${selectedLens}`;
 }
 
-export function routeTargetValue(view = activeView(), lens = currentRouteLens(view)) {
-  return routeHash(view, lens).replace(/^#/, "");
-}
-
 export function routeUrl(view = activeView(), lens = currentRouteLens(view)) {
   const base = `${window.location.origin}${window.location.pathname}`;
   return `${base}${routeHash(view, lens)}`;
-}
-
-export function syncDashboardJump(view = activeView()) {
-  const select = $("dashboard-jump");
-  if (!select) return;
-  const value = routeTargetValue(view, currentRouteLens(view));
-  if ([...select.options].some((option) => option.value === value)) {
-    select.value = value;
-  } else {
-    select.value = normalizeView(view);
-  }
-}
-
-export function jumpToDashboardTarget(value) {
-  const parts = dashboardHashParts(value);
-  const targetView = normalizeView(parts.view);
-  const lens = parts.hasExplicitLens ? parts.lens : "";
-  navigateToViewTarget(targetView, lens);
-}
-
-export function routeTaskValue(view = activeView(), lens = currentRouteLens(view)) {
-  const targetView = normalizeView(view);
-  const selectedLens = String(lens || "home");
-  if (targetView === "performance") return "performance";
-  if (targetView === "data") return "data";
-  if (targetView === "fetch") return "fetch";
-  if (targetView === "workbench") return "simulate";
-  if (targetView === "runs") return "runs";
-  if (targetView === "operations") return "operations";
-  if (targetView === "help" && ["boundary", "docs"].includes(selectedLens)) return "publish";
-  return "monitor";
-}
-
-export function syncDashboardTask(view = activeView()) {
-  const select = $("dashboard-task");
-  if (!select) return;
-  const value = routeTaskValue(view, currentRouteLens(view));
-  if ([...select.options].some((option) => option.value === value)) {
-    select.value = value;
-  }
-}
-
-export function dashboardTaskTarget(value) {
-  const payload = state.status || {};
-  const runs = payload.runs || [];
-  const datasets = (state.dataCatalog && state.dataCatalog.datasets) || [];
-  const manifests = (state.fetchManifests && state.fetchManifests.manifests) || [];
-  const source = latestArtifactPerformance();
-  const task = String(value || "").trim();
-  const targets = {
-    monitor: ["overview", runs.length ? "home" : "diagnostics"],
-    performance: ["performance", source.has_data || runs.length ? "home" : "diagnostics"],
-    data: ["data", datasets.length ? "browse" : "diagnostics"],
-    fetch: ["fetch", manifests.length ? "jobs" : "home"],
-    simulate: ["workbench", datasets.length ? "builder" : "home"],
-    runs: ["runs", runs.length ? "state" : "runs"],
-    operations: ["operations", "paper"],
-    publish: ["help", "boundary"],
-  };
-  return targets[task] || targets.monitor;
-}
-
-export function startDashboardTask(value) {
-  const [targetView, lens] = dashboardTaskTarget(value);
-  navigateToViewTarget(targetView, lens);
 }
 
 export function renderRouteBreadcrumb(view = activeView()) {
@@ -1380,8 +1418,6 @@ export function renderRouteBreadcrumb(view = activeView()) {
   if (copyButton) {
     copyButton.dataset.routeLink = routeUrl(targetView, lens);
   }
-  syncDashboardJump(targetView);
-  syncDashboardTask(targetView);
 }
 
 export function handleRouteAction(action) {
@@ -1586,9 +1622,9 @@ export function pageIntroContent(view) {
   const gatewayLabel = gateway.enabled ? `Gateway ${gateway.reachable ? "reachable" : "not reachable"}` : "Gateway check disabled";
   const viewMap = {
     overview: {
-      eyebrow: "Overview",
-      title: "Current strategy status",
-      note: "Confirm telemetry, account state, Gateway reachability, current positions, and the latest strategy activity before drilling into detail.",
+      eyebrow: "Today",
+      title: "How am I doing?",
+      note: "Live paper/live health, today's P&L and equity, open positions, and alerts at a glance. Activity and diagnostics are under Details.",
       status: `${generatedLabel}; ${visibleRuns} run${visibleRuns === 1 ? "" : "s"} visible; ${alerts.length} alert${alerts.length === 1 ? "" : "s"}`,
       statusState: payload.generated_at ? alerts.length ? "warn" : "ok" : "bad",
       primary: { label: "Open Performance", target: "performance", lens: "home" },
@@ -1682,9 +1718,9 @@ export function pageIntroContent(view) {
       ],
     },
     workbench: {
-      eyebrow: "Workbench",
-      title: "Build and validate example configs",
-      note: "Generate public-safe replay or paper config drafts from saved data, preview alignment, validate drafts, and run local simulations.",
+      eyebrow: "Backtest",
+      title: "Run a backtest",
+      note: "Pick saved data, choose a strategy, and run a bounded simulated-paper backtest — the result appears inline. Config details and exports live under Advanced.",
       status: `${drafts.length} draft${drafts.length === 1 ? "" : "s"}; ${((state.configRuns && state.configRuns.runs) || []).length} recent draft run${((state.configRuns && state.configRuns.runs) || []).length === 1 ? "" : "s"}`,
       statusState: drafts.length ? "ok" : "warn",
       primary: { label: "Inspect Data", target: "data", lens: "browse" },
@@ -1800,4 +1836,3 @@ export function renderPageIntro(view = activeView()) {
   pageIntroAction("page-intro-primary", content.primary);
   pageIntroAction("page-intro-secondary", content.secondary);
 }
-

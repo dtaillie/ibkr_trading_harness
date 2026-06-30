@@ -55,11 +55,11 @@ and a dashboard-readable JSON fetch manifest under `paper_logs/fetch_manifests`.
 
 Use the examples as templates:
 
-- `examples/strategies/no_edge_template.py`
-- `examples/strategies/no_edge_crypto_signal.py`
-- `examples/strategies/no_edge_stock_signal.py`
+- `examples/strategies/sma_crossover.py`
+- `examples/strategies/rsi_mean_reversion.py`
+- `examples/strategies/opening_range_breakout.py`
 
-Public examples intentionally emit no tradable edge.
+Bundled strategies intentionally claim no tradable edge.
 
 ## 5. Keep Real Config Private
 

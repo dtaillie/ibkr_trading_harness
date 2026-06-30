@@ -1,14 +1,16 @@
 description: >
-  EXAMPLE ONLY. Generic public plugin-runner config using a no-edge strategy
-  and local sample bars. This demonstrates wiring only; it is not a viable
-  strategy.
+  EXAMPLE ONLY. Generic public plugin-runner config using the SMA crossover
+  example strategy and local sample bars. This demonstrates wiring only; it is
+  not a viable strategy.
 
 metadata:
-  strategy_plugin: examples.strategies.no_edge_template:create_strategy
+  strategy_plugin: examples.strategies.sma_crossover:create_strategy
   status: example_only
 
 strategy:
-  example_parameter: true
+  fast: 5
+  slow: 20
+  position_fraction: 0.01   # 1% of equity per entry, sized to fit this example's tiny risk caps
 
 runner:
   mode: replay

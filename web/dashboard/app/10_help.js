@@ -215,7 +215,7 @@ export function helpWorkflowCards(setupItems = helpSetupGapItems()) {
       title: "Boundary Guide",
       value: "public/private",
       status: "ok",
-      detail: "Use the Boundary and Docs lenses for public examples, ignored private configs, publication checks, and runbook links.",
+      detail: "Use the Boundary and Docs lenses for bundled strategies, ignored private configs, publication checks, and runbook links.",
       href: workflowHref("help", "boundary"),
       cta: "Boundary",
     },
@@ -554,7 +554,7 @@ export function helpTaskNavigatorModel(setupItems = helpSetupGapItems()) {
       title: "Publish Safely",
       route: "boundary",
       cta: "Boundary",
-      detail: "Use Help Boundary for private configs, public examples, export commands, readiness audits, and blog/publication checks.",
+      detail: "Use Help Boundary for private configs, bundled strategies, export commands, readiness audits, and blog/publication checks.",
     },
   ];
   const cards = [
@@ -1215,7 +1215,7 @@ export function helpCloudAccessGuideModel() {
     {
       status: "ok",
       title: "Public/Private Boundary",
-      detail: "Public examples can show the harness, receiver, status publishing, sanitized monitoring, and command audit. Private strategy configs, account IDs, credentials, logs, and tuned signals stay in ignored local files.",
+      detail: "Bundled public assets show the harness, receiver, status publishing, sanitized monitoring, and command audit. Private strategy configs, account IDs, credentials, logs, and tuned signals stay in ignored local files.",
     },
     {
       status: "warn",

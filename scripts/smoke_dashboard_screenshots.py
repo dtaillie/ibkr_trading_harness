@@ -494,9 +494,9 @@ EMPTY_STATE_CHECK_SCRIPT = r"""
   const activePath = location.hash.replace(/^#/, "") || "overview";
   const requirements = {
     "overview": [
-      { selector: "#overview-command-title" },
-      { selector: "#overview-workflow-note" },
-      { selector: "#overview-glance-title" }
+      { selector: "#overview-performance-result" },
+      { selector: "#overview-alerts-note" },
+      { selector: "#overview-positions-note" }
     ],
     "overview/activity": [{ selector: "#overview-timeline-note" }],
     "overview/diagnostics": [{ selector: "#overview-checklist", minChildren: 1 }],

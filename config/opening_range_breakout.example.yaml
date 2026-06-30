@@ -8,10 +8,9 @@ metadata:
   status: example_only
 
 strategy:
-  symbol: SPY
   opening_range_bars: 6        # first 30 minutes of 5-minute bars
   target_r: 2.0                # exit target = range_high + 2.0 * (range_high - range_low)
-  cash_quantity: 10000
+  position_fraction: 0.1       # 10% of equity per position; applied to every symbol in data.files
 
 runner:
   mode: simulated_paper        # replay only observes; simulated_paper records fills + equity

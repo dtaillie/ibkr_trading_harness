@@ -23,8 +23,6 @@ EXAMPLE_CONFIGS = (
 
 SERVER_REQUIRED_TOKENS = (
     "CONFIG_BUILDER_PLUGINS",
-    '"id": "no_edge_template"',
-    '"status": "example_only"',
     '"visibility": "public_example"',
     "not a viable trading strategy",
     "validation_rules",
@@ -175,8 +173,19 @@ def audit_workbench_server_contract(root: Path) -> list[Finding]:
     public_plugin_block = re.search(r"CONFIG_BUILDER_PLUGINS\s*=\s*\((.*?)\n\)", text, flags=re.DOTALL)
     if not public_plugin_block:
         findings.append(Finding("BLOCKER", rel, "CONFIG_BUILDER_PLUGINS block is not inspectable"))
-    elif "examples.strategies.no_edge_template:create_strategy" not in public_plugin_block.group(1):
-        findings.append(Finding("BLOCKER", rel, "builtin public plugin must point at the no-edge example strategy"))
+    else:
+        block = public_plugin_block.group(1)
+        specs = re.findall(r'"spec":\s*"([^"]+)"', block)
+        if not specs:
+            findings.append(Finding("BLOCKER", rel, "builtin public plugins must declare strategy specs"))
+        # Every builtin public plugin must point at a bundled public example strategy,
+        # never a private/local strategy package.
+        non_example = sorted(spec for spec in specs if not spec.startswith("examples.strategies."))
+        if non_example:
+            findings.append(Finding(
+                "BLOCKER", rel,
+                f"builtin public plugins must point at bundled examples.strategies.* (found: {', '.join(non_example)})",
+            ))
     return findings
 
 

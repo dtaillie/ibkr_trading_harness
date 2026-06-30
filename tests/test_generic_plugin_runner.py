@@ -89,7 +89,7 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
     )
 
     result = run_from_config(config_path, mode_override="replay")
@@ -156,7 +156,7 @@ def test_replay_runner_records_no_edge_decisions(tmp_path):
     contract = json.loads((output_dir / "plugin_contract.json").read_text())
     assert contract["schema_version"] == 1
     assert contract["source"] == "plugin_runner"
-    assert contract["plugin"]["spec"] == "examples.strategies.no_edge_template:create_strategy"
+    assert contract["plugin"]["spec"] == "tests.fixtures.no_edge_template:create_strategy"
     assert contract["plugin"]["name"] == "no_edge_template"
     assert contract["plugin"]["validator_count"] == 0
     assert contract["data"]["symbols"] == ["SPY"]
@@ -194,7 +194,7 @@ def test_replay_runner_filters_file_data_range(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         data={"start": "2026-01-02T14:35:00Z", "end": "2026-01-02T14:35:00Z"},
     )
 
@@ -216,7 +216,7 @@ def test_validate_config_rejects_reversed_data_range(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         data={"start": "2026-01-03", "end": "2026-01-02"},
     )
 
@@ -235,12 +235,12 @@ def test_validate_config_file_does_not_create_output_dir(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
     )
 
     config = validate_config_file(config_path)
 
-    assert config["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
+    assert config["metadata"]["strategy_plugin"] == "tests.fixtures.no_edge_template:create_strategy"
     assert not output_dir.exists()
 
 
@@ -609,7 +609,7 @@ def test_validate_config_rejects_invalid_short_borrow_fee_schedule(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         execution={"sim_short_borrow_bps_annual_by_symbol": {"SPY": -1}},
     )
 
@@ -746,7 +746,7 @@ def test_validate_config_file_rejects_non_bool_manual_approval(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         execution={"require_order_approval": "yes"},
     )
 
@@ -765,7 +765,7 @@ def test_validate_config_file_rejects_empty_approval_dir(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         execution={"approval_dir": ""},
     )
 
@@ -825,7 +825,7 @@ def test_validate_config_file_rejects_loop_for_replay(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={"loop": True, "max_loop_iterations": 2, "loop_interval_seconds": 0},
     )
 
@@ -845,7 +845,7 @@ def test_validate_config_file_rejects_nonpositive_loop_runtime(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={"loop": True, "max_runtime_seconds": 0},
     )
 
@@ -865,7 +865,7 @@ def test_shadow_loop_records_bounded_iterations(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={
             "loop": True,
             "loop_interval_seconds": 0,
@@ -912,7 +912,7 @@ def test_shadow_loop_stops_at_max_runtime(tmp_path, monkeypatch):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={
             "loop": True,
             "loop_interval_seconds": 0,
@@ -958,7 +958,7 @@ def test_shadow_loop_publishes_next_check_while_sleeping(tmp_path, monkeypatch):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={
             "loop": True,
             "loop_interval_seconds": 1,
@@ -997,7 +997,7 @@ def test_shadow_loop_skips_duplicate_latest_by_default(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={"loop": True, "loop_interval_seconds": 0, "max_loop_iterations": 2},
     )
 
@@ -1113,7 +1113,7 @@ def test_shadow_loop_runs_inside_session_window(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={
             "loop": True,
             "loop_interval_seconds": 0,
@@ -1146,7 +1146,7 @@ def test_validate_config_rejects_invalid_session_config(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={
             "session": {
                 "timezone": "Not/AZone",
@@ -1173,7 +1173,7 @@ def test_paper_mode_requires_explicit_confirmation(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
     )
 
     with pytest.raises(ValueError, match="confirm-paper-orders"):
@@ -1189,7 +1189,7 @@ def test_paper_mode_rejects_live_account_mode_before_broker_connect(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"account_mode": "live", "port": 4002},
     )
 
@@ -1208,7 +1208,7 @@ def test_paper_mode_rejects_known_live_ibkr_port_without_dual_opt_in(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"account_mode": "paper", "port": 4001},
     )
 
@@ -1227,7 +1227,7 @@ def test_paper_mode_live_port_requires_config_and_cli_opt_in(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"account_mode": "paper", "port": 4001, "allow_live_broker_port_for_paper": True},
     )
 
@@ -1384,7 +1384,7 @@ def test_validate_config_file_rejects_invalid_broker_account_mode(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"account_mode": "demo"},
     )
 
@@ -1404,7 +1404,7 @@ def test_validate_config_file_rejects_unsupported_broker_live_mode_and_requires_
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"adapter": "ibkr", "account_mode": "live", "port": 4001},
     )
 
@@ -1426,7 +1426,7 @@ def test_validate_config_file_rejects_live_mode_without_explicit_live_gates(tmp_
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={"mode": "live"},
         broker={"adapter": "ibkr", "account_mode": "paper", "port": 4002},
     )
@@ -1451,7 +1451,7 @@ def test_validate_config_file_rejects_live_mode_even_after_live_gates_until_adap
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         runner={"mode": "live"},
         execution={"enable_live_orders": True, "require_order_approval": True},
         broker={
@@ -1480,7 +1480,7 @@ def test_validate_config_file_rejects_required_missing_expected_account(tmp_path
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"adapter": "file", "account_mode": "paper", "require_expected_account_id": True},
     )
 
@@ -1500,7 +1500,7 @@ def test_validate_config_file_rejects_metadata_only_broker_adapter(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         broker={"adapter": "schwab"},
     )
 
@@ -1519,7 +1519,7 @@ def test_validate_config_file_reports_missing_data_file(tmp_path):
         config_path,
         bars_path=tmp_path / "missing.csv",
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
     )
 
     with pytest.raises(ConfigValidationError) as exc:
@@ -1538,7 +1538,7 @@ def test_validate_config_file_rejects_unsupported_order_type(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         execution={"allowed_order_types": ["market", "limit"]},
     )
 
@@ -1558,7 +1558,7 @@ def test_validate_config_file_rejects_negative_quote_spread(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         execution={"sim_quote_spread_bps": -1},
     )
 
@@ -1741,7 +1741,7 @@ def test_validate_config_rejects_empty_stop_marker(tmp_path):
         config_path,
         bars_path=bars_path,
         output_dir=output_dir,
-        plugin="examples.strategies.no_edge_template:create_strategy",
+        plugin="tests.fixtures.no_edge_template:create_strategy",
         control={"stop_marker": "   "},
     )
 

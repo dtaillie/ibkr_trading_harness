@@ -1,55 +1,64 @@
 description: >
-  EXAMPLE ONLY. Copy this to config/plugin_registry_local.yaml for local
-  private use. Keep real strategy package names, tuned parameters, and private
-  strategy logic out of the public repo.
+  EXAMPLE ONLY local plugin registry template -- do not publish real strategy
+  package names, tuned parameters, or private strategy logic. Copy this to
+  config/plugin_registry_local.yaml for private use and keep that copy out of the
+  public repo (it is gitignored).
 
 plugins:
-  - id: local_example_placeholder
-    label: Local example placeholder
-    spec: your_package.example_strategy:create_strategy
+  - id: local_private_strategy
+    label: Local Private Strategy
+    spec: your_package.private_strategy:create_strategy
     status: private_local
     visibility: private_local
-    description: Local metadata only. Replace this in an ignored local copy.
-    boundary: Loaded from an ignored local registry; do not publish real edge.
+    description: Local metadata only. Replace this entry in an ignored local copy.
+    boundary: Loaded from an ignored local registry; keep private strategy logic and tuned configs out of commits.
     strategy_fields:
-      - name: example_parameter
-        label: Example Parameter
-        kind: checkbox
-        default: false
-        description: Example-only toggle that proves plugin field rendering.
-        help: Public-safe wiring example only; do not publish tuned values.
+      - name: symbol
+        label: Symbol
+        kind: text
+        default: SPY
+        required: true
+        description: Ticker consumed by the local plugin.
+        help: Must match a symbol in the selected dataset.
+      - name: signal_threshold
+        label: Signal Threshold
+        kind: number
+        default: 0.5
+        min: 0
+        step: 0.01
+        description: Public-safe metadata for a numeric local plugin input.
+        help: Replace with private local metadata before use.
         advanced: false
     validation_rules:
-      - id: example_parameter_required
+      - id: signal_threshold_required
         type: required
-        label: Example Parameter Required
-        field: example_parameter
-        help: Example-only declarative validation metadata.
-        error: strategy.example_parameter must be set for this example wiring check
+        label: Signal Threshold Required
+        field: signal_threshold
+        help: Declarative validation metadata for the local plugin registry.
+        error: strategy.signal_threshold must be set
     result_fields:
-      - name: example_score
-        label: Example Score
+      - name: signal_value
+        label: Signal Value
         kind: number
         help: Public-safe diagnostics.dashboard field label for artifact tables.
         decimals: 2
-        suffix: example units
-      - name: example_reason
-        label: Example Reason
+      - name: reason
+        label: Decision Reason
         kind: text
-        help: Human-readable reason emitted by the private plugin.
+        help: Human-readable decision reason emitted by the local plugin.
     result_sections:
-      - id: example_status
-        label: Example Status
-        description: Example-only grouping for public-safe result fields.
+      - id: strategy_status
+        label: Strategy Status
+        description: Grouping for public-safe result fields.
         fields:
-          - example_score
-          - example_reason
+          - signal_value
+          - reason
     result_widgets:
-      - id: example_custom_chart
-        label: Example Custom Chart
+      - id: signal_custom_chart
+        label: Signal Custom Chart
         kind: custom_chart
         chart_kind: line_chart
         point_limit: 40
-        description: Example-only declarative chart wiring using an allowlisted renderer.
+        description: Declarative chart wiring using an allowlisted renderer.
         fields:
-          - example_score
+          - signal_value

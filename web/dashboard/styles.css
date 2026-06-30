@@ -163,6 +163,40 @@ body {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.side-nav-utility {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.nav-utility {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.nav-utility b {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.nav-utility:hover,
+.nav-utility.active {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
 :where(a, button, input, select, textarea):focus-visible {
   outline: 3px solid var(--accent-dark);
   outline-offset: 2px;
@@ -257,14 +291,122 @@ body {
   background: var(--status-bad-bg);
 }
 
+.global-loading-indicator {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, auto) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  max-width: 280px;
+  padding: 6px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.08), rgba(0, 168, 107, 0.10)),
+    rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10);
+}
+
+.global-loading-indicator[hidden] {
+  display: none;
+}
+
+.global-loading-indicator::after {
+  position: absolute;
+  inset: auto 10px 4px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, transparent, var(--info), var(--accent), transparent);
+  content: "";
+  animation: loading-sweep 1.35s ease-in-out infinite;
+}
+
+.global-loading-mark {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(37, 99, 235, 0.20);
+  border-top-color: var(--accent);
+  border-right-color: var(--info);
+  border-radius: 50%;
+  animation: loading-spin 0.9s linear infinite;
+}
+
+.global-loading-copy {
+  display: grid;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.global-loading-copy b,
+.global-loading-copy em,
+.global-loading-count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-loading-copy b {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.global-loading-copy em {
+  max-width: 160px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.global-loading-count {
+  max-width: 72px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--info);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-sweep {
+  0% {
+    transform: translateX(-65%);
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(65%);
+    opacity: 0.45;
+  }
+}
+
 .page-intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 18px;
-  margin: 0 28px 18px;
-  padding: 18px 0 20px;
+  gap: 8px;
+  margin: 0 28px 14px;
+  padding: 12px 0 14px;
   border-bottom: 1px solid var(--line);
+}
+
+/* Slimmed guide: the big route-name title and description just paraphrase the
+   lens-bar eyebrow + hero below, so hide them; keep the eyebrow, the recommended
+   next step, status, and the focused actions (the actual guidance). */
+.page-intro #page-intro-title,
+.page-intro #page-intro-note {
+  display: none;
 }
 
 .page-intro h2 {
@@ -352,29 +494,30 @@ body {
 
 .page-intro-side {
   display: grid;
-  justify-items: end;
+  justify-items: start;
   align-content: start;
-  gap: 10px;
-  min-width: min(360px, 40vw);
+  gap: 8px;
+  min-width: 0;
+  max-width: 760px;
 }
 
 .page-intro-status {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
-  text-align: right;
+  text-align: left;
 }
 
 .page-intro-status .status-badge {
-  justify-content: flex-end;
+  justify-content: flex-start;
   max-width: 100%;
-  text-align: right;
+  text-align: left;
 }
 
 .page-intro-evidence {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 6px;
   width: 100%;
 }
@@ -426,12 +569,11 @@ body {
 
 .page-intro-next {
   display: grid;
-  justify-items: end;
-  gap: 3px;
+  justify-items: start;
+  gap: 2px;
   width: 100%;
-  padding: 10px 0 4px;
-  border-top: 1px solid var(--line);
-  text-align: right;
+  padding: 2px 0;
+  text-align: left;
 }
 
 .page-intro-next span {
@@ -455,7 +597,7 @@ body {
 .page-intro-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -1139,12 +1281,42 @@ button[disabled] {
   gap: 10px;
 }
 
+.config-advanced-settings {
+  margin-top: 6px;
+}
+
+.config-advanced-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
 .config-builder-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   width: 100%;
+}
+
+/* The one action this page exists for. Make it unmistakably the primary path so
+   "how do I run a backtest" never needs documentation. */
+.primary-run {
+  min-height: 40px;
+  padding: 9px 22px;
+  font-size: 14px;
+  font-weight: 800;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.28);
+}
+
+.primary-run:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  transform: translateY(-1px);
 }
 
 .builder-form input,
@@ -1578,9 +1750,79 @@ button[disabled] {
   width: 100%;
 }
 
+.dataset-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.dataset-duration-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dataset-duration-row .field-title {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.dataset-duration {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+
+.dataset-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.dataset-search-row input[type="search"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dataset-search-row button.secondary {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.dataset-search-note {
+  min-height: 1em;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.dataset-search-note.status-ok {
+  color: var(--good);
+}
+
+.dataset-search-note.status-warn {
+  color: var(--warn);
+}
+
+.dataset-search-note.status-bad {
+  color: var(--bad);
+}
+
 select[multiple] {
   min-height: 124px;
   padding: 4px;
+}
+
+/* The dataset picker carries wide rows (symbol · cadence · session · range), so
+   give it more height (more rows at once) and a denser font so more of each row
+   is visible before a <select> truncates it. Full label stays on hover (title). */
+#config-dataset {
+  min-height: 220px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#config-dataset option {
+  padding: 2px 5px;
 }
 
 select[multiple] option {
@@ -1821,9 +2063,30 @@ section {
 
 .eyebrow {
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Figures read like a trading blotter: tabular digits so dollar/count columns
+   line up, with a tightened display treatment on the big hero numbers. */
+.overview-main-card strong,
+.performance-card strong,
+.status-tile strong,
+.action-card strong,
+.metric strong,
+.runs-review-main strong,
+.data-library-card strong,
+.root-card strong,
+.runtime-status-card strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-main-card strong,
+.performance-card strong {
+  letter-spacing: -0.01em;
+  font-weight: 650;
 }
 
 .hero-actions {
@@ -2688,7 +2951,11 @@ button.action-card:hover {
   display: block;
   margin-top: 8px;
   font-size: 30px;
+  font-weight: 650;
   line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 .performance-home-main > span:last-of-type,
@@ -2716,6 +2983,29 @@ button.action-card:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+}
+
+/* Reusable backtest tear-sheet (Run lens result panel + Artifacts lens header). */
+.tearsheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+.tearsheet-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.tearsheet-spark {
+  width: 100%;
+}
+.tearsheet-spark .sparkline {
+  width: 100%;
+  height: 56px;
+}
+.artifact-metadata-disclosure {
+  min-width: 0;
 }
 
 .overview-performance-side {
@@ -4636,6 +4926,41 @@ tr:last-child td {
   color: var(--loss);
 }
 
+/* Today hero: today's P&L is the marquee figure (green/red, the reason you opened
+   the app); account equity is a quieter labeled read-out beneath it. */
+.overview-main-card .overview-today-hero-value {
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(34px, 4vw, 46px);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.overview-equity-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 12px 0 2px;
+}
+
+.overview-equity-line .overview-equity-label {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.overview-main-card .overview-equity-line #overview-equity {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .value-neutral {
   color: var(--neutral);
 }
@@ -4897,6 +5222,94 @@ tr:last-child td {
 
 .candle-bad {
   color: var(--bad);
+}
+
+/* Price & Trades chart: buy/sell markers + entry->exit connectors. */
+.trade-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.trade-chart-symbol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.trade-chart-symbol select {
+  min-width: 160px;
+}
+
+.trade-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.trade-chart-legend .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trade-legend-mark {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+}
+
+.trade-legend-mark.buy {
+  border-bottom: 9px solid var(--gain);
+}
+
+.trade-legend-mark.sell {
+  border-top: 9px solid var(--loss);
+}
+
+.trade-legend-line {
+  width: 18px;
+  border-top: 2px dashed var(--gain);
+}
+
+.trade-legend-line.loss {
+  border-top-color: var(--loss);
+}
+
+.trade-overlay .trade-marker {
+  stroke: var(--surface, #ffffff);
+  stroke-width: 0.6;
+}
+
+.trade-overlay .trade-marker.buy {
+  fill: var(--gain);
+}
+
+.trade-overlay .trade-marker.sell {
+  fill: var(--loss);
+}
+
+.trade-overlay .trade-arc {
+  fill: none;
+  stroke-width: 1;
+  opacity: 0.5;
+  stroke-dasharray: 3 2;
+}
+
+.trade-overlay .trade-arc.win {
+  stroke: var(--gain);
+}
+
+.trade-overlay .trade-arc.loss {
+  stroke: var(--loss);
 }
 
 .calendar-scroll {
@@ -5399,7 +5812,8 @@ footer {
   }
 
   .toolbar > .command-boundary,
-  .toolbar > #refresh {
+  .toolbar > #refresh,
+  .toolbar > #global-loading {
     grid-column: 1 / -1;
   }
 
@@ -5468,6 +5882,10 @@ footer {
   display: block;
   width: 100%;
   height: 56px;
+}
+
+.hero-spark .spark-area {
+  stroke: none;
 }
 
 /* Trade ledger charts: chart-led summary above the dense trade rows. */

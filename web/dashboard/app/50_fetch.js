@@ -16,7 +16,7 @@ import {
   statusText,
   text,
 } from "./00_core.js";
-import { attachDatasetOptionMetadata, rememberWorkbenchDataset } from "./20_workbench_foundation.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset, setWorkbenchSelectedDatasetPaths, workbenchDatasetOptionLabel } from "./20_workbench_foundation.js";
 import { fetchBackendStatusModel, renderFetchBackendStatus, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
 import { workflowHref } from "./32_overview.js";
 import { rangeLabel } from "./34_charts.js";
@@ -1447,6 +1447,7 @@ export function useFetchOutputsInWorkbench() {
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
   const selectedPaths = new Set(paths);
+  setWorkbenchSelectedDatasetPaths(Array.from(selectedPaths));
   for (const option of datasetSelect.options) {
     option.selected = selectedPaths.has(option.value);
   }
@@ -1457,7 +1458,7 @@ export function useFetchOutputsInWorkbench() {
     rememberWorkbenchDataset(dataset);
     const option = document.createElement("option");
     option.value = path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${path}`;
+    option.textContent = workbenchDatasetOptionLabel(dataset);
     option.selected = true;
     attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);

@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from framework.strategy_plugin import OrderIntent, StrategyContext, StrategyDecision
+from framework.strategy_plugin import OrderIntent, StrategyContext, StrategyDecision, equity_fraction_cash
 
 
 class SmaCrossoverStrategy:
@@ -27,60 +27,68 @@ class SmaCrossoverStrategy:
 
     def on_start(self, config: dict[str, Any]) -> None:
         self.config = dict(config)
-        self.symbol = str(config.get("symbol", "SPY")).upper()
         self.fast = int(config.get("fast", 5))
         self.slow = int(config.get("slow", 20))
-        self.cash_quantity = float(config.get("cash_quantity", 10_000))
+        self.position_fraction = float(config.get("position_fraction", 0.1))
         if self.fast < 1 or self.slow < 1:
             raise ValueError("sma_crossover: fast and slow must be >= 1")
         if self.fast >= self.slow:
             raise ValueError("sma_crossover: fast must be strictly less than slow")
-        if self.cash_quantity <= 0:
-            raise ValueError("sma_crossover: cash_quantity must be > 0")
+        if not 0 < self.position_fraction <= 1:
+            raise ValueError("sma_crossover: position_fraction must be in (0, 1]")
 
     def on_data(self, data: dict[str, pd.DataFrame], context: StrategyContext) -> StrategyDecision:
+        # Apply the per-symbol crossover rule to EVERY selected symbol independently.
+        # The account (cash, positions) is shared, so this is a portfolio of independent
+        # single-symbol signals; entries size to a fraction of equity and a running cash
+        # budget keeps several same-bar entries from over-allocating the account.
         intents: list[OrderIntent] = []
-        reason = "no_signal"
-        df = data.get(self.symbol)
-        held = float(context.positions.get(self.symbol, 0.0) or 0.0)
-        fast_now = slow_now = None
-
-        if df is not None and len(df) > self.slow:
+        entries = exits = 0
+        spreads: dict[str, float] = {}
+        budget = context.cash
+        for symbol, df in sorted(data.items()):
+            held = float(context.positions.get(symbol, 0.0) or 0.0)
+            if df is None or len(df) <= self.slow:
+                continue
             close = df["close"]
             fast = close.rolling(self.fast).mean()
             slow = close.rolling(self.slow).mean()
             fast_now, fast_prev = float(fast.iloc[-1]), float(fast.iloc[-2])
             slow_now, slow_prev = float(slow.iloc[-1]), float(slow.iloc[-2])
+            spreads[symbol] = round(fast_now - slow_now, 4)
             cross_up = fast_prev <= slow_prev and fast_now > slow_now
             cross_down = fast_prev >= slow_prev and fast_now < slow_now
-
             if cross_up and held <= 0:
-                intents.append(OrderIntent(
-                    symbol=self.symbol, side="buy", cash_quantity=self.cash_quantity,
-                    order_type="market", tag="sma_cross_up_enter_long",
-                ))
-                reason = "fast_crossed_above_slow"
+                cash = equity_fraction_cash(context, self.position_fraction, available=budget)
+                if cash is not None:
+                    intents.append(OrderIntent(
+                        symbol=symbol, side="buy", cash_quantity=cash,
+                        order_type="market", tag="sma_cross_up_enter_long",
+                    ))
+                    if budget is not None:
+                        budget -= cash
+                    entries += 1
             elif cross_down and held > 0:
                 intents.append(OrderIntent(
-                    symbol=self.symbol, side="sell", quantity=held,
+                    symbol=symbol, side="sell", quantity=held,
                     order_type="market", tag="sma_cross_down_exit_long",
                 ))
-                reason = "fast_crossed_below_slow"
+                exits += 1
 
-        spread = None if fast_now is None or slow_now is None else fast_now - slow_now
+        reason = "no_signal" if not intents else f"{entries} entries, {exits} exits"
         return StrategyDecision(
             timestamp=context.now,
             intents=intents,
-            signal={"reason": reason, "fast_sma": fast_now, "slow_sma": slow_now},
+            signal={"reason": reason, "entries": entries, "exits": exits, "spreads": spreads},
             diagnostics={
                 "symbols_seen": sorted(data),
-                "note": "Example only; non-viable textbook SMA crossover, no edge.",
+                "note": "Example only; non-viable textbook SMA crossover applied per symbol, no edge.",
                 "dashboard": {
                     "reason": reason,
-                    "signal_label": f"SMA{self.fast}-SMA{self.slow} spread",
-                    "signal_value": round(spread, 4) if spread is not None else 0.0,
+                    "signal_label": f"SMA{self.fast}-SMA{self.slow} crosses",
+                    "signal_value": float(len(intents)),
                     "threshold": 0.0,
-                    "near_threshold": spread is not None and abs(spread) < 0.05,
+                    "near_threshold": False,
                     "active_exit_rule": "sma_cross_down",
                 },
             },

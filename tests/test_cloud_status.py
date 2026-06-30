@@ -118,8 +118,8 @@ def write_runner_config(path: Path, *, bars_path: Path, state_path: Path, orders
     path.write_text(
         yaml.safe_dump(
             {
-                "metadata": {"strategy_plugin": "examples.strategies.no_edge_template:create_strategy"},
-                "strategy": {"example_parameter": True},
+                "metadata": {"strategy_plugin": "examples.strategies.sma_crossover:create_strategy"},
+                "strategy": {"fast": 5, "slow": 20, "position_fraction": 0.1},
                 "runner": {
                     "mode": "paper",
                     "starting_cash": 10000,
@@ -1115,13 +1115,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "data-filter-contract" in html
         assert "data-root-cards" in html
         assert "copy-data-roots-yaml" in html
-        assert "data-lens-title" in html
-        assert "data-lens-note" in html
-        assert "data-lens-home" in html
-        assert "data-lens-browse" in html
-        assert "data-lens-inspect" in html
-        assert "data-lens-compare" in html
-        assert "data-lens-diagnostics" in html
+        assert "data-details-toggle" in html
         assert "data-home-title" in html
         assert "data-home-filtered-count" in html
         assert "data-home-breakdown" in html
@@ -1322,16 +1316,12 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "use-data-detail-workbench" in html
         assert "export-data-detail-range" in html
         assert "export-data-missing-intervals" in html
-        assert "nav-performance" in html
+        assert "nav-settings" in html
+        assert "nav-help" in html
         assert "performance-context-note" in html
         assert "performance-metric-context" in html
-        assert "nav-fetch" in html
         assert "fetch-manifests-body" in html
-        assert "fetch-lens-title" in html
-        assert "fetch-lens-note" in html
-        assert "fetch-lens-home" in html
-        assert "fetch-lens-jobs" in html
-        assert "fetch-lens-detail" in html
+        assert "fetch-details-toggle" in html
         assert "fetch-filter-text" in html
         assert "fetch-filter-status" in html
         assert "fetch-filter-kind" in html
@@ -1412,11 +1402,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runtime-session-detail-cards" in html
         assert "runtime-session-detail-body" in html
         assert "export-runtime-sessions-csv" in html
-        assert "overview-lens-title" in html
-        assert "overview-lens-note" in html
-        assert "overview-lens-home" in html
-        assert "overview-lens-activity" in html
-        assert "overview-lens-diagnostics" in html
+        assert "overview-details-toggle" in html
         assert "performance-drawdown-chart" in html
         assert "performance-intraday-chart" in html
         assert "performance-intraday-pnl" in html
@@ -1428,12 +1414,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "performance-benchmark-note" in html
         assert "performance-source-mode" in html
         assert "performance-period" in html
-        assert "performance-lens-title" in html
-        assert "performance-lens-note" in html
-        assert "performance-lens-home" in html
-        assert "performance-lens-trades" in html
-        assert "performance-lens-rollups" in html
-        assert "performance-lens-diagnostics" in html
+        assert "performance-details-toggle" in html
         assert "performance-triage-note" in html
         assert "performance-triage-cards" in html
         assert "performance-story-note" in html
@@ -1583,18 +1564,7 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "workbench-evidence-cards" in html
         assert "workbench-evidence-body" in html
         assert "workbench-evidence-actions" in html
-        assert "workbench-lens-title" in html
-        assert "workbench-lens-note" in html
-        assert "workbench-lens-home" in html
-        assert "workbench-lens-builder" in html
-        assert "workbench-lens-run" in html
-        assert "workbench-lens-artifacts" in html
-        assert "runs-lens-title" in html
-        assert "runs-lens-note" in html
-        assert "runs-lens-home" in html
-        assert "runs-lens-state" in html
-        assert "runs-lens-runs" in html
-        assert "runs-lens-events" in html
+        assert "runs-details-toggle" in html
         assert "runs-review-title" in html
         assert "runs-review-note" in html
         assert "runs-review-cards" in html
@@ -1609,21 +1579,8 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "runs-state-action-note" in html
         assert "runs-state-action-cards" in html
         assert "runs-state-action-actions" in html
-        assert "operations-lens-title" in html
-        assert "operations-lens-note" in html
-        assert "operations-lens-home" in html
-        assert "operations-lens-paper" in html
-        assert "operations-lens-remote" in html
-        assert "operations-lens-control" in html
-        assert "operations-lens-diagnostics" in html
-        assert "help-lens-title" in html
-        assert "help-lens-note" in html
-        assert "help-lens-home" in html
-        assert "help-lens-pages" in html
-        assert "help-lens-workflows" in html
-        assert "help-lens-data" in html
-        assert "help-lens-boundary" in html
-        assert "help-lens-docs" in html
+        assert "operations-details-toggle" in html
+        assert "help-details-toggle" in html
         assert "page-intro-next" in html
         assert "page-intro-next-title" in html
         assert "page-intro-next-note" in html
@@ -1662,7 +1619,6 @@ def test_cloud_status_server_receives_and_serves_status(tmp_path):
         assert "config-form" in html
         assert "config-form-fields" in html
         assert "config-preview-draft" in html
-        assert "config-builder-readiness" in html
         assert "config-builder-actions" in html
         assert "config-data-actions-note" in html
         assert "config-data-open-detail" in html
@@ -3662,7 +3618,11 @@ def test_cloud_status_server_serves_data_gap_summary(tmp_path):
                 "2026-01-02T14:30:00Z,100,101,99,100.5,1000",
                 "2026-01-02T14:35:00Z,100.5,101,100,100.75,1100",
                 "2026-01-02T14:40:00Z,100.75,102,100.5,101.25,900",
-                "2026-01-04T14:40:00Z,101.25,102,101,101.5,900",
+                # within-session hole (14:40 -> 15:00, same UTC date): real missing intervals
+                "2026-01-02T15:00:00Z,101.25,102,101,101.5,900",
+                # cross-date jump (skips 2026-01-03): exercises the missing-calendar-day path,
+                # and must NOT be counted as missing intra-session intervals
+                "2026-01-04T14:40:00Z,101.5,102,101,101.75,900",
             ]
         )
         + "\n",
@@ -4318,7 +4278,7 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
         draft_req = request.Request(
             f"{base}/config_draft",
             data=json.dumps({
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "datasets": [{"symbol": "WARN", "path": str(data_root / "WARN_1min_sample.csv")}],
             }).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -4330,13 +4290,13 @@ def test_cloud_status_server_marks_data_catalog_quality(tmp_path):
         except error.HTTPError as exc:
             assert exc.code == 400
             error_payload = json.loads(exc.read().decode("utf-8"))
-        assert "selected datasets have data quality warnings: WARN" in error_payload["error"]
+        assert "selected datasets have corrupt data: WARN" in error_payload["error"]
 
         allowed = post_json(
             base,
             "/config_draft",
             {
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "datasets": [{"symbol": "WARN", "path": str(data_root / "WARN_1min_sample.csv")}],
                 "allow_quality_warnings": True,
             },
@@ -4959,37 +4919,52 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         with request.urlopen(f"{base}/config_options", timeout=5) as resp:
             options = json.loads(resp.read().decode("utf-8"))
         plugin_ids = {plugin["id"] for plugin in options["plugins"]}
-        assert plugin_ids == {"no_edge_template"}
-        plugin = options["plugins"][0]
+        assert plugin_ids == {"sma_crossover", "rsi_mean_reversion", "opening_range_breakout"}
+        plugin = next(item for item in options["plugins"] if item["id"] == "sma_crossover")
         assert options["config_schema_version"] == 1
         assert options["form_schema_version"] == 5
         assert plugin["visibility"] == "public_example"
-        assert "not a viable trading strategy" in plugin["description"]
-        assert "private plugins" in plugin["boundary"]
+        assert "Runnable textbook moving-average crossover plugin" in plugin["description"]
+        assert "private strategy logic" in plugin["boundary"]
+        assert [field["name"] for field in plugin["strategy_fields"]] == [
+            "fast",
+            "slow",
+            "position_fraction",
+        ]
+        assert plugin["validation_rules"][0]["id"] == "fast_less_than_slow"
         assert [field["name"] for field in plugin["result_fields"]] == [
             "reason",
+            "signal_label",
             "signal_value",
-            "threshold_distance",
+            "threshold",
+            "near_threshold",
+            "active_exit_rule",
         ]
-        assert plugin["result_sections"][0]["id"] == "example_status"
-        assert plugin["result_sections"][0]["fields"] == ["reason", "signal_value", "threshold_distance"]
+        assert plugin["result_sections"][0]["id"] == "strategy_status"
+        assert plugin["result_sections"][0]["fields"] == [
+            "reason",
+            "signal_label",
+            "signal_value",
+            "threshold",
+            "near_threshold",
+            "active_exit_rule",
+        ]
         assert [widget["id"] for widget in plugin["result_widgets"]] == [
-            "example_cards",
-            "example_summary",
-            "example_trend",
-            "example_line_chart",
-            "example_custom_chart",
+            "strategy_cards",
+            "strategy_summary",
+            "signal_trend",
+            "signal_line_chart",
+            "signal_custom_chart",
         ]
         assert plugin["result_widgets"][1]["kind"] == "bar_summary"
-        assert plugin["result_widgets"][1]["fields"] == ["signal_value", "threshold_distance"]
+        assert plugin["result_widgets"][1]["fields"] == ["signal_value", "threshold"]
         assert plugin["result_widgets"][2]["kind"] == "sparkline"
         assert plugin["result_widgets"][3]["kind"] == "line_chart"
         assert plugin["result_widgets"][4]["kind"] == "custom_chart"
         assert plugin["result_widgets"][4]["chart_kind"] == "line_chart"
         assert plugin["result_widgets"][4]["point_limit"] == 40
-        assert plugin["result_fields"][1]["label"] == "Example Score"
-        assert plugin["result_fields"][1]["decimals"] == 2
-        assert plugin["result_fields"][2]["suffix"] == "score units"
+        assert plugin["result_fields"][2]["label"] == "Signal Value"
+        assert plugin["result_fields"][2]["decimals"] == 2
         assert options["run_actions"] == ["validate", "replay", "simulated_paper"]
         assert options["guide_schema_version"] == 2
         assert [step["id"] for step in options["guide_steps"]] == [
@@ -5015,7 +4990,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert options["form_sections"][0]["order"] == 10
         field_ids = [field["id"] for field in options["form_schema"]]
         assert field_ids[:4] == ["config-name", "config-plugin", "config-mode", "config-dataset"]
-        assert "config-plugin-field-no-edge-template-example-parameter" in field_ids
+        assert "config-plugin-field-sma-crossover-fast" in field_ids
+        assert "config-plugin-field-rsi-mean-reversion-period" in field_ids
+        assert "config-plugin-field-opening-range-breakout-opening-range-bars" in field_ids
         assert "config-session-enabled" in field_ids
         assert "config-session-outside" in field_ids
         assert "config-risk-preset" in field_ids
@@ -5051,9 +5028,9 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
             f"{base}/config_draft_preview",
             data=json.dumps({
                 "name": "Preview Draft",
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "mode": "replay",
-                "strategy": {"example_parameter": True},
+                "strategy": {"fast": 5, "slow": 20, "position_fraction": 0.1},
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
                 "starting_cash": 10000,
                 "history_bars": 20,
@@ -5076,16 +5053,16 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert preview["name"] == "Preview_Draft"
         assert preview["validation"] == {"valid": True, "errors": []}
         assert preview["saved_path"] is None
-        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in preview["yaml"]
+        assert "strategy_plugin: examples.strategies.sma_crossover:create_strategy" in preview["yaml"]
         assert not (state_dir / "config_drafts" / "Preview_Draft.yaml").exists()
 
         draft_req = request.Request(
             f"{base}/config_draft",
             data=json.dumps({
                 "name": "Test Draft",
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "mode": "simulated_paper",
-                "strategy": {"example_parameter": False},
+                "strategy": {"fast": 5, "slow": 20, "position_fraction": 0.1},
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
                 "start": "2026-01-02",
                 "end": "2026-01-02",
@@ -5116,7 +5093,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["name"] == "Test_Draft"
         assert draft["validation"] == {"valid": True, "errors": []}
         assert draft["config"]["runner"]["mode"] == "simulated_paper"
-        assert draft["config"]["strategy"] == {"example_parameter": False}
+        assert draft["config"]["strategy"] == {"fast": 5, "slow": 20, "position_fraction": 0.1}
         assert draft["config"]["runner"]["session"] == {
             "timezone": "America/New_York",
             "start": "09:30",
@@ -5137,7 +5114,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert draft["alignment"]["filter_end"] == "2026-01-02T23:59:59.999999+00:00"
         assert draft["alignment"]["common_timestamp_count"] == 2
         assert draft["alignment"]["warning_count"] == 0
-        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in draft["yaml"]
+        assert "strategy_plugin: examples.strategies.sma_crossover:create_strategy" in draft["yaml"]
         assert "start: '2026-01-02'" in draft["yaml"]
         assert "end: '2026-01-02'" in draft["yaml"]
         assert draft["saved_path"]
@@ -5150,14 +5127,14 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert detail["draft"]["draft_id"] == "Test_Draft"
         assert detail["validation"] == {"valid": True, "errors": []}
         assert detail["alignment"]["common_timestamp_count"] == 2
-        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in detail["yaml"]
+        assert "strategy_plugin: examples.strategies.sma_crossover:create_strategy" in detail["yaml"]
         assert "--mode simulated-paper" in detail["commands"]["simulated_paper"]
 
         with request.urlopen(f"{base}/config_draft_yaml?draft_id=Test_Draft", timeout=5) as resp:
             assert resp.headers["Content-Type"].startswith("application/x-yaml")
             assert resp.headers["Content-Disposition"] == 'attachment; filename="Test_Draft.yaml"'
             yaml_body = resp.read().decode("utf-8")
-        assert "strategy_plugin: examples.strategies.no_edge_template:create_strategy" in yaml_body
+        assert "strategy_plugin: examples.strategies.sma_crossover:create_strategy" in yaml_body
         assert "risk_preset: costed_demo" in yaml_body
 
         with request.urlopen(f"{base}/config_draft_validations", timeout=5) as resp:
@@ -5169,7 +5146,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert validations["validations"][0]["valid"] is True
         assert validations["validations"][0]["errors"] == []
         assert validations["validations"][0]["folder"] == "config_drafts"
-        assert validations["validations"][0]["status_label"] == "example_only"
+        assert validations["validations"][0]["status_label"] == "ready"
         assert "simulated_paper" in validations["validations"][0]["tags"]
 
         with request.urlopen(f"{base}/config_drafts_export", timeout=5) as resp:
@@ -5180,7 +5157,7 @@ def test_cloud_status_server_generates_and_saves_config_draft(tmp_path):
         assert len(draft_rows) == 1
         assert draft_rows[0]["draft_id"] == "Test_Draft"
         assert draft_rows[0]["folder"] == "config_drafts"
-        assert draft_rows[0]["status_label"] == "example_only"
+        assert draft_rows[0]["status_label"] == "ready"
         assert draft_rows[0]["valid"] == "True"
         assert draft_rows[0]["error_count"] == "0"
         assert "SPY" in draft_rows[0]["symbols"]
@@ -5258,7 +5235,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             f"{base}/config_draft",
             data=json.dumps({
                 "name": "Run Draft",
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "mode": "simulated_paper",
                 "datasets": [
                     {"symbol": "SPY", "path": str(data_file)},
@@ -5307,7 +5284,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert drafts["drafts"][0]["draft_id"] == "Run_Draft"
         assert drafts["drafts"][0]["symbols"] == ["QQQ", "SPY"]
         assert drafts["drafts"][0]["folder"] == "config_drafts"
-        assert drafts["drafts"][0]["status_label"] == "example_only"
+        assert drafts["drafts"][0]["status_label"] == "ready"
         assert "2 symbols" in drafts["drafts"][0]["tags"]
 
         validate_req = request.Request(
@@ -5389,22 +5366,22 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
             run_artifacts = json.loads(resp.read().decode("utf-8"))
         assert run_artifacts["run_id"] == replay["run_id"]
         assert run_artifacts["draft_id"] == "Run_Draft"
-        assert run_artifacts["plugin"]["id"] == "no_edge_template"
+        assert run_artifacts["plugin"]["id"] == "sma_crossover"
         assert run_artifacts["plugin"]["matched"] is True
-        assert run_artifacts["plugin"]["strategy_fields"][0]["name"] == "example_parameter"
+        assert run_artifacts["plugin"]["strategy_fields"][0]["name"] == "fast"
         assert run_artifacts["plugin"]["result_fields"][0]["name"] == "reason"
-        assert run_artifacts["plugin"]["result_sections"][0]["id"] == "example_status"
-        assert run_artifacts["plugin"]["result_widgets"][0]["id"] == "example_cards"
+        assert run_artifacts["plugin"]["result_sections"][0]["id"] == "strategy_status"
+        assert run_artifacts["plugin"]["result_widgets"][0]["id"] == "strategy_cards"
         assert run_artifacts["plugin_result_summary"]["status"] == "ok"
-        assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["declared_field_count"] == 6
         assert run_artifacts["plugin_result_summary"]["declared_section_count"] == 1
         assert run_artifacts["plugin_result_summary"]["declared_widget_count"] == 5
-        assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 3
-        assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 6
-        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "example_status"
-        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["emitted_field_count"] == 3
-        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["id"] == "example_cards"
-        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["emitted_field_count"] == 3
+        assert run_artifacts["plugin_result_summary"]["emitted_field_count"] == 6
+        assert run_artifacts["plugin_result_summary"]["emitted_value_count"] == 12
+        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["id"] == "strategy_status"
+        assert run_artifacts["plugin_result_summary"]["section_coverage"][0]["emitted_field_count"] == 6
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["id"] == "strategy_cards"
+        assert run_artifacts["plugin_result_summary"]["widget_coverage"][0]["emitted_field_count"] == 6
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["kind"] == "bar_summary"
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][1]["field_summaries"][0]["name"] == "signal_value"
         assert run_artifacts["plugin_result_summary"]["widget_coverage"][2]["kind"] == "sparkline"
@@ -5417,7 +5394,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert len(run_artifacts["plugin_result_summary"]["widget_coverage"][4]["field_summaries"][0]["points"]) == 2
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["name"] == "reason"
         assert run_artifacts["plugin_result_summary"]["field_coverage"][0]["emitted_count"] == 2
-        assert "signal_label" in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
+        assert "signal_label" not in run_artifacts["plugin_result_summary"]["unlabeled_public_keys"]
         assert run_artifacts["summary"]["mode"] == "replay"
         assert run_artifacts["counts"] == {
             "account": 2,
@@ -5436,11 +5413,11 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["runner_status"]["next_check_time"] is None
         assert run_artifacts["runner_status"]["next_expected_decision_time"] is None
         assert run_artifacts["runner_status"]["next_check_reason"] == "one_shot_completed"
-        assert run_artifacts["runner_status"]["latest_signal_reason"] == "example_only_no_signal"
-        assert run_artifacts["runner_status"]["next_order_condition"] == "Example score threshold distance -1"
+        assert run_artifacts["runner_status"]["latest_signal_reason"] == "no_signal"
+        assert "SMA" in run_artifacts["runner_status"]["next_order_condition"]
         assert run_artifacts["runner_status"]["latest_rejection_time"] is None
         assert run_artifacts["plugin_contract"]["available"] is True
-        assert run_artifacts["plugin_contract"]["plugin"]["name"] == "no_edge_template"
+        assert run_artifacts["plugin_contract"]["plugin"]["name"] == "sma_crossover"
         assert run_artifacts["plugin_contract"]["data"]["symbols"] == ["QQQ", "SPY"]
         assert "signal_value" in run_artifacts["plugin_contract"]["observed"]["dashboard_keys"]
         assert run_artifacts["performance_rollups"]["available"] is True
@@ -5449,9 +5426,9 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert run_artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in run_artifacts["decisions"][0]
         assert "diagnostics" not in run_artifacts["decisions"][0]
-        assert run_artifacts["decisions"][0]["drilldown"]["signal_label"] == "Example score"
-        assert run_artifacts["decisions"][0]["drilldown"]["reason"] == "example_only_no_signal"
-        assert run_artifacts["decisions"][0]["drilldown"]["threshold"] == 1.0
+        assert run_artifacts["decisions"][0]["drilldown"]["signal_label"] == "SMA5-SMA20 crosses"
+        assert run_artifacts["decisions"][0]["drilldown"]["reason"] == "no_signal"
+        assert run_artifacts["decisions"][0]["drilldown"]["threshold"] == 0.0
         assert run_artifacts["performance"]["max_gross_exposure"] == 0.0
         assert run_artifacts["performance"]["max_gross_exposure_pct"] == 0.0
         assert run_artifacts["performance"]["max_abs_net_exposure"] == 0.0
@@ -5475,17 +5452,15 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         with request.urlopen(f"{base}/config_draft_artifacts?draft_id=Run_Draft&limit=5", timeout=5) as resp:
             artifacts = json.loads(resp.read().decode("utf-8"))
         assert artifacts["draft_id"] == "Run_Draft"
-        assert artifacts["plugin"]["id"] == "no_edge_template"
+        assert artifacts["plugin"]["id"] == "sma_crossover"
         assert artifacts["plugin"]["matched"] is True
-        assert artifacts["plugin"]["result_fields"][1]["kind"] == "number"
-        assert artifacts["plugin"]["result_sections"][0]["label"] == "Example Status"
-        assert artifacts["plugin"]["result_widgets"][1]["label"] == "Example Bar Summary"
-        assert artifacts["plugin"]["result_fields"][1]["decimals"] == 2
-        assert artifacts["plugin"]["result_fields"][2]["suffix"] == "score units"
+        assert artifacts["plugin"]["result_fields"][2]["kind"] == "number"
+        assert artifacts["plugin"]["result_sections"][0]["label"] == "Strategy Status"
+        assert artifacts["plugin"]["result_widgets"][1]["label"] == "Signal Summary"
+        assert artifacts["plugin"]["result_fields"][2]["decimals"] == 2
         assert artifacts["plugin_result_summary"]["status"] == "ok"
-        assert artifacts["plugin_result_summary"]["field_coverage"][1]["decimals"] == 2
-        assert artifacts["plugin_result_summary"]["field_coverage"][1]["latest_value"] == 0.0
-        assert artifacts["plugin_result_summary"]["field_coverage"][2]["suffix"] == "score units"
+        assert artifacts["plugin_result_summary"]["field_coverage"][2]["decimals"] == 2
+        assert artifacts["plugin_result_summary"]["field_coverage"][2]["latest_value"] == 0.0
         assert artifacts["plugin_result_summary"]["section_coverage"][0]["field_coverage_pct"] == 100.0
         assert artifacts["plugin_result_summary"]["widget_coverage"][1]["field_coverage_pct"] == 100.0
         assert artifacts["plugin_result_summary"]["widget_coverage"][2]["field_summaries"][0]["points"][0]["value"] == 0.0
@@ -5524,7 +5499,7 @@ def test_cloud_status_server_runs_saved_config_draft(tmp_path):
         assert artifacts["decisions"][0]["intent_count"] == 0
         assert artifacts["decisions"][0]["symbols"] == ["QQQ", "SPY"]
         assert "signal" not in artifacts["decisions"][0]
-        assert artifacts["decisions"][0]["drilldown"]["active_exit_rule"] == "none"
+        assert artifacts["decisions"][0]["drilldown"]["active_exit_rule"] == "sma_cross_down"
         assert artifacts["orders"] == []
         assert artifacts["fills"] == []
         assert artifacts["account"][0]["equity"] == 25000.0
@@ -5770,7 +5745,7 @@ def test_cloud_status_server_config_draft_rejects_duplicate_datasets(tmp_path):
         duplicate_symbol_req = request.Request(
             f"{base}/config_draft",
             data=json.dumps({
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "datasets": [
                     {"symbol": "SPY", "path": str(data_file)},
                     {"symbol": "SPY", "path": str(other_file)},
@@ -5790,7 +5765,7 @@ def test_cloud_status_server_config_draft_rejects_duplicate_datasets(tmp_path):
         duplicate_path_req = request.Request(
             f"{base}/config_draft",
             data=json.dumps({
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "datasets": [
                     {"symbol": "SPY", "path": str(data_file)},
                     {"symbol": "QQQ", "path": str(data_file)},
@@ -6180,8 +6155,8 @@ def test_cloud_status_server_artifacts_reject_output_outside_workbench(tmp_path)
         "\n".join(
             [
                 "metadata:",
-                "  strategy_plugin: examples.strategies.no_edge_template:create_strategy",
-                "  status: example_only",
+                "  strategy_plugin: examples.strategies.sma_crossover:create_strategy",
+                "  status: ready",
                 "strategy: {}",
                 "runner:",
                 "  mode: replay",
@@ -6232,7 +6207,7 @@ def test_cloud_status_server_config_draft_run_rejects_unsupported_plugin(tmp_pat
             [
                 "metadata:",
                 "  strategy_plugin: unsupported.module:create_strategy",
-                "  status: example_only",
+                "  status: ready",
                 "strategy: {}",
                 "runner:",
                 "  mode: replay",
@@ -6341,7 +6316,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
                 "plugins:",
                 "  - id: local_demo",
                 "    label: Local demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    status: private_local",
                 "    visibility: private_local",
                 "    description: Local metadata only; strategy logic stays outside public configs.",
@@ -6389,7 +6364,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
             options = json.loads(resp.read().decode("utf-8"))
 
         plugins = {plugin["id"]: plugin for plugin in options["plugins"]}
-        assert set(plugins) == {"no_edge_template", "local_demo"}
+        assert set(plugins) == {"sma_crossover", "rsi_mean_reversion", "opening_range_breakout", "local_demo"}
         assert plugins["local_demo"]["visibility"] == "private_local"
         assert plugins["local_demo"]["status"] == "private_local"
         assert plugins["local_demo"]["source"] == "local_registry"
@@ -6429,7 +6404,7 @@ def test_cloud_status_server_loads_local_plugin_registry_for_workbench(tmp_path)
         assert draft["validation"]["valid"] is True
         assert draft["config"]["strategy"] == {"local_flag": True}
         assert draft["config"]["metadata"]["status"] == "private_local"
-        assert draft["config"]["metadata"]["strategy_plugin"] == "examples.strategies.no_edge_template:create_strategy"
+        assert draft["config"]["metadata"]["strategy_plugin"] == "examples.strategies.sma_crossover:create_strategy"
         assert "Loaded from an ignored local registry." in draft["config"]["notes"]
     finally:
         server.shutdown()
@@ -6449,7 +6424,7 @@ def test_cloud_status_server_validates_plugin_strategy_fields(tmp_path):
                 "plugins:",
                 "  - id: bounded_demo",
                 "    label: Bounded demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    status: private_local",
                 "    visibility: private_local",
                 "    strategy_fields:",
@@ -6600,7 +6575,7 @@ def test_cloud_status_server_validates_declarative_plugin_rules(tmp_path):
                 "plugins:",
                 "  - id: rule_demo",
                 "    label: Rule demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    strategy_fields:",
                 "      - name: symbol",
                 "        kind: text",
@@ -6664,7 +6639,7 @@ def test_cloud_status_server_validates_plugin_result_sections(tmp_path):
                 "plugins:",
                 "  - id: section_demo",
                 "    label: Section demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    result_fields:",
                 "      - name: public_score",
                 "        label: Public Score",
@@ -6693,7 +6668,7 @@ def test_cloud_status_server_validates_plugin_result_widgets(tmp_path):
                 "plugins:",
                 "  - id: widget_demo",
                 "    label: Widget demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    result_fields:",
                 "      - name: public_score",
                 "        label: Public Score",
@@ -6723,7 +6698,7 @@ def test_cloud_status_server_validates_declarative_custom_chart_widgets(tmp_path
                 "plugins:",
                 "  - id: custom_chart_demo",
                 "    label: Custom chart demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    result_fields:",
                 "      - name: public_score",
                 "        label: Public Score",
@@ -6762,7 +6737,7 @@ def test_cloud_status_server_validates_declarative_custom_chart_widgets(tmp_path
                 "plugins:",
                 "  - id: bad_custom_chart_demo",
                 "    label: Bad custom chart demo",
-                "    spec: examples.strategies.no_edge_template:create_strategy",
+                "    spec: examples.strategies.sma_crossover:create_strategy",
                 "    result_fields:",
                 "      - name: public_score",
                 "        label: Public Score",
@@ -6873,7 +6848,7 @@ def test_cloud_status_server_config_draft_rejects_data_outside_roots(tmp_path):
         draft_req = request.Request(
             f"{base}/config_draft",
             data=json.dumps({
-                "plugin_id": "no_edge_template",
+                "plugin_id": "sma_crossover",
                 "datasets": [{"symbol": "SPY", "path": str(data_file)}],
             }).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -8052,7 +8027,7 @@ def test_config_draft_uses_detected_timestamp_column(tmp_path):
 
     draft = status_server.build_config_draft(
         {
-            "plugin_id": "no_edge_template",
+            "plugin_id": "sma_crossover",
             "datasets": [{"symbol": "AAPL", "path": str(data_root / "AAPL_5min_sample.csv")}],
         },
         state_dir=tmp_path / "state",
@@ -8061,3 +8036,63 @@ def test_config_draft_uses_detected_timestamp_column(tmp_path):
     )
 
     assert "timestamp_column: date" in draft["yaml"]
+
+
+def _account_rows(pairs: list[tuple[str, float]]) -> list[dict]:
+    return [{"timestamp": ts, "equity": eq} for ts, eq in pairs]
+
+
+def test_daily_sharpe_matches_canonical_daily_method():
+    # Multi-day, intraday snapshots; collapses to last equity per UTC date.
+    rows = _account_rows([
+        ("2026-01-02T14:30:00+00:00", 100000), ("2026-01-02T15:30:00+00:00", 100500),
+        ("2026-01-02T21:00:00+00:00", 101200),
+        ("2026-01-05T14:30:00+00:00", 101200), ("2026-01-05T21:00:00+00:00", 100800),
+        ("2026-01-06T14:30:00+00:00", 100800), ("2026-01-06T21:00:00+00:00", 102500),
+        ("2026-01-07T21:00:00+00:00", 103100),
+        ("2026-01-08T21:00:00+00:00", 102200),
+    ])
+    sharpe = status_server.daily_sharpe_from_rows(rows)
+    # Independently computed from the canonical daily method (population std x sqrt(252)).
+    daily = [101200, 100800, 102500, 103100, 102200]
+    rets = [daily[i] / daily[i - 1] - 1 for i in range(1, len(daily))]
+    avg = sum(rets) / len(rets)
+    std = (sum((r - avg) ** 2 for r in rets) / len(rets)) ** 0.5
+    expected = avg / std * (252 ** 0.5)
+    assert sharpe == pytest.approx(expected)
+    assert sharpe == pytest.approx(4.058301, abs=1e-5)
+
+
+def test_daily_sharpe_na_guards():
+    # Single calendar date (intraday-only) -> not enough trading days.
+    assert status_server.daily_sharpe_from_rows(_account_rows([
+        ("2026-01-02T14:30:00+00:00", 100000),
+        ("2026-01-02T21:00:00+00:00", 101000),
+    ])) is None
+    # Two dates = one daily return -> still insufficient for a std.
+    assert status_server.daily_sharpe_from_rows(_account_rows([
+        ("2026-01-02T21:00:00+00:00", 100000),
+        ("2026-01-05T21:00:00+00:00", 101000),
+    ])) is None
+    # Flat equity across days -> zero volatility -> None, not a divide-by-zero.
+    assert status_server.daily_sharpe_from_rows(_account_rows([
+        ("2026-01-02T21:00:00+00:00", 100000),
+        ("2026-01-05T21:00:00+00:00", 100000),
+        ("2026-01-06T21:00:00+00:00", 100000),
+    ])) is None
+    assert status_server.daily_sharpe_from_rows([]) is None
+
+
+def test_performance_from_account_exposes_sharpe():
+    rows = _account_rows([
+        ("2026-01-02T21:00:00+00:00", 100000),
+        ("2026-01-05T21:00:00+00:00", 101000),
+        ("2026-01-06T21:00:00+00:00", 100500),
+        ("2026-01-07T21:00:00+00:00", 102000),
+    ])
+    perf = status_server.performance_from_account(rows, summary=None)
+    assert "sharpe" in perf
+    assert perf["sharpe"] is not None
+    # An explicit summary value takes precedence over the computed one.
+    perf2 = status_server.performance_from_account(rows, summary={"sharpe": 1.23})
+    assert perf2["sharpe"] == 1.23

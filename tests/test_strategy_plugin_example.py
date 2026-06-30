@@ -1,6 +1,6 @@
 import pandas as pd
 
-from examples.strategies.no_edge_template import create_strategy
+from tests.fixtures.no_edge_template import create_strategy
 from framework.plugin_loader import create_plugin
 from framework.strategy_plugin import StrategyContext
 

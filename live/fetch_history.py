@@ -145,6 +145,26 @@ def fetch_with_retries(
                 sleep_fn(retry_delay)
 
 
+def consolidate_symbol_bars(symbol: str) -> dict | None:
+    """Merge a just-fetched symbol's chunk files into one consolidated parquet per
+    bar-size/session under data/consolidated_bars. Non-destructive (the per-day
+    chunks are kept) and best-effort: a consolidation failure must never break the
+    fetch, so any error is logged and swallowed."""
+    try:
+        from scripts.consolidate_saved_bars import consolidate_saved_bars
+
+        output_root = CACHE_DIR.parent.parent / "data" / "consolidated_bars"
+        return consolidate_saved_bars(
+            [CACHE_DIR],
+            output_root=output_root,
+            limit=100_000,
+            symbols={symbol.upper()},
+        )
+    except Exception as exc:  # noqa: BLE001 - consolidation must never break a fetch
+        log.warning("  %s: auto-consolidation skipped (%s)", symbol, exc)
+        return None
+
+
 def main(argv: list[str] | None = None):
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description="Fetch historical bars from IBKR (read-only)")
@@ -181,6 +201,10 @@ def main(argv: list[str] | None = None):
                         help="JSON stock fetch manifest to resume: uses its symbols/range/options unless overridden.")
     parser.add_argument("--force", action="store_true",
                         help="With --resume-manifest, refetch symbols already marked ok/empty/skipped.")
+    parser.add_argument("--consolidate", action=argparse.BooleanOptionalAction, default=True,
+                        help="After each symbol is fetched, merge its per-day chunk files into one "
+                             "consolidated parquet per bar/session under data/consolidated_bars "
+                             "(non-destructive). Use --no-consolidate to skip.")
     args = parser.parse_args(argv)
 
     resume: dict | None = None
@@ -399,6 +423,18 @@ def main(argv: list[str] | None = None):
                     first_timestamp=bars[0].timestamp,
                     last_timestamp=bars[-1].timestamp,
                 )
+                if args.consolidate:
+                    report = consolidate_symbol_bars(symbol)
+                    if report and report.get("output_count"):
+                        log.info(
+                            "  %s: consolidated %d chunk file(s) -> %d file(s) in data/consolidated_bars",
+                            symbol, report.get("input_bar_files", 0), report["output_count"],
+                        )
+                        manifest.event(
+                            "consolidated",
+                            f"{symbol}: merged {report.get('input_bar_files', 0)} chunk files into "
+                            f"{report['output_count']} consolidated file(s)",
+                        )
             else:
                 log.warning(f"  {symbol}: no bars returned")
                 manifest.error(

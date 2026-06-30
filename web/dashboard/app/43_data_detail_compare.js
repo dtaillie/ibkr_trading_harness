@@ -15,7 +15,7 @@ import {
   statusText,
   text,
 } from "./00_core.js";
-import { applyDataCompareRangePreset, attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedCompareDatasets, selectedCompareRangeBounds, updateCompareSelectionFromSelect } from "./20_workbench_foundation.js";
+import { applyDataCompareRangePreset, attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedCompareDatasets, selectedCompareRangeBounds, setWorkbenchSelectedDatasetPaths, updateCompareSelectionFromSelect, workbenchDatasetOptionLabel } from "./20_workbench_foundation.js";
 import { finiteNumber, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
 import { candlestickChart, compareChart, detailChart, formatTimestampForMode, timeRangeLabel, timezoneLabel } from "./34_charts.js";
 import { bestCatalogDatasetForSymbol, countBy, countSummary, dataCatalogFilters, filteredDataCatalog, renderSymbolBrowser, sortDataCatalogRows } from "./40_data_catalog.js";
@@ -538,6 +538,7 @@ export function useDataDetailInWorkbench() {
     format: detail.format,
   });
   let found = false;
+  setWorkbenchSelectedDatasetPaths([path]);
   for (const option of datasetSelect.options) {
     option.selected = option.value === path;
     if (option.value === path) {
@@ -546,10 +547,9 @@ export function useDataDetailInWorkbench() {
     }
   }
   if (!found) {
-    const label = `${text(detail.symbol)} ${text(detail.bar_size)} [${text((detail.quality || {}).quality_status || "unknown")}] - ${path}`;
     const option = document.createElement("option");
     option.value = path;
-    option.textContent = label;
+    option.textContent = workbenchDatasetOptionLabel(dataset);
     option.selected = true;
     attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);
@@ -1167,6 +1167,7 @@ export function useDataCompareInWorkbench() {
   const datasetSelect = $("config-dataset");
   if (!datasetSelect) return;
   const selectedPaths = new Set(selected.map((dataset) => dataset.path));
+  setWorkbenchSelectedDatasetPaths(Array.from(selectedPaths));
   for (const option of datasetSelect.options) {
     option.selected = selectedPaths.has(option.value);
   }
@@ -1175,7 +1176,7 @@ export function useDataCompareInWorkbench() {
     if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
     const option = document.createElement("option");
     option.value = dataset.path;
-    option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
+    option.textContent = workbenchDatasetOptionLabel(dataset);
     option.selected = true;
     attachDatasetOptionMetadata(option, dataset);
     datasetSelect.appendChild(option);

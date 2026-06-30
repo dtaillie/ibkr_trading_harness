@@ -8,10 +8,9 @@ metadata:
   status: example_only
 
 strategy:
-  symbol: SPY
   fast: 5
   slow: 20
-  cash_quantity: 10000
+  position_fraction: 0.1   # 10% of equity per position; applied to every symbol in data.files
 
 runner:
   mode: simulated_paper        # replay only observes; simulated_paper records fills + equity

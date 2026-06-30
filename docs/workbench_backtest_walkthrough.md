@@ -27,24 +27,63 @@ the Workbench's quick-iteration bounds), see
    python3 scripts/demo_dashboard.py
    ```
 
-3. Open `http://127.0.0.1:8765/` and go to the **Workbench** page (deep link:
-   `http://127.0.0.1:8765/#workbench`).
+3. Open `http://127.0.0.1:8765/` and click **Backtest** in the left nav (this is
+   the Workbench surface; deep link: `http://127.0.0.1:8765/#workbench`).
 
-The Workbench presents a guided sequence of steps across the top and a config
-form below. The steps are a checklist; the form is where you fill in values.
-You can move through the steps in order or jump straight to the form.
+The Workbench leads with a **Config Builder**. At the top of it a **Builder
+Assistant** shows live status cards (Data, Plugin, Alignment, Draft, Run) plus
+action buttons (Select/Change Data, Preview Alignment, Generate Draft, Open Run);
+the config form sits below. The same step-by-step flow is also available as a
+stepper and checklist under the collapsed **Overview & guide** disclosure. You
+can follow the steps or work straight from the Builder Assistant and form.
 
 ![Workbench builder with seeded demo state](images/dashboard_workbench.png)
 
-## The Seven-Step Path
+## Consolidate Chunked Fetches
+
+The Workbench expects one selected file per symbol. Some fetch workflows write
+one parquet per day or chunk, and runtime session folders also contain
+operational CSV/parquet artifacts such as `orders.csv`, `fills.csv`,
+`signal.csv`, and `bars_1min.parquet`. Keep those visible in Data Library for
+inspection, but consolidate replay inputs before using them in Workbench:
+
+```bash
+python3 scripts/consolidate_saved_bars.py \
+  --config config/cloud_status_local.yaml \
+  --symbol AAL,SPY \
+  --output-root data/consolidated_bars
+```
+
+Then add `data/consolidated_bars` to `dashboard.data_roots` in your local
+dashboard config and refresh the Data Library. The Workbench picker will show
+the consolidated files as cleaner replay candidates.
+
+## The Seven-Step Flow
+
+The seven steps below are the conceptual path. The literal stepper and checklist
+now live under the collapsed **Overview & guide** disclosure, while the **Builder
+Assistant** cards (Data, Plugin, Alignment, Draft, Run) at the top of the Config
+Builder track the same progress.
 
 ### 1. Choose Data
 
 Select one or more scanned datasets (CSV or parquet) from the Data Library. Each
 selection maps a symbol to a saved file. Selecting two or more files sets up a
-multi-symbol run. If a symbol you expect is missing, the Data Library's Symbol
-Visibility diagnostic on the **Data** page explains why it is capped, unparsed,
-or not indexed.
+multi-symbol run.
+
+The picker is grouped by a **Bar duration** selector (it defaults to the most
+common cadence in your saved data, with an *All durations* option), so a symbol
+that exists at several cadences is not listed once per bar size and you don't
+accidentally replay the same symbol at the wrong resolution. Within the chosen
+duration each row collapses a symbol's files for that session into a single entry
+(with a file count and date range, for example `AAL · 1min · 165 files ·
+<range>`), and a **Find a saved symbol** search box reaches symbols beyond the
+scanned catalog cap. To replay many per-day or per-chunk files as one continuous
+series, still consolidate them first (see *Consolidate Chunked Fetches* above).
+
+If a symbol you expect is missing, the Data Library's Symbol Visibility
+diagnostic on the **Data** page explains why it is capped, unparsed, or not
+indexed.
 
 ### 2. Review Data
 
@@ -98,9 +137,13 @@ engine used on the command line, captures its output, and records the run.
 
 A completed `simulated_paper` run archives its artifacts and computes a summary.
 Open them on the **Performance** page (equity curve, drawdown, realized PnL,
-return bars, KPIs) and the **Runs** page (per-run `decisions`, `orders`,
-`fills`, `account`, and `summary` records). Trade rows are paired from
-sanitized fills, so win rate and profit factor reflect real round trips.
+return bars, KPIs, and a per-symbol **Price & Trades** candlestick chart with
+your buy/sell markers and a symbol selector) and the **Runs** page (per-run
+`decisions`, `orders`, `fills`, `account`, and `summary` records). Trade rows
+are paired from sanitized fills, so win rate and profit factor reflect real
+round trips. The Price & Trades chart only populates for runs that produced
+fills, so use `simulated_paper` (not `replay`) to see entries and exits plotted
+on the price bars.
 
 ![Performance page with seeded simulated-paper results](images/dashboard_performance.png)
 
@@ -112,7 +155,11 @@ The form groups fields into sections. Only the most run-shaping fields are
 listed here; each field carries inline help in the UI.
 
 - **Setup** — draft name, plugin, and run mode (`replay`, `shadow`, or
-  `simulated_paper`).
+  `simulated_paper`). This run *mode* is baked into the generated YAML and is
+  distinct from the Run-step *action* (`validate`, `replay`, `simulated_paper`)
+  in Step 6: `validate` re-checks the config without running, and `shadow`
+  (mirror-live decisions, no orders) is a valid mode but is not offered as a
+  Workbench Run action.
 - **Data** — selected datasets and the optional start/end date window.
 - **Plugin Settings** — the public-safe parameters the selected plugin exposes
   (for example, fast/slow lengths for an SMA-crossover example). These are
@@ -137,8 +184,10 @@ Workbench runs are intentionally scoped to fast, safe iteration:
 - **No order authority.** The Run step accepts only `validate`, `replay`, and
   `simulated_paper`. There is no live action and no IBKR paper-order action
   reachable from the browser — the Workbench cannot submit orders to a broker.
-- **Step cap.** Runs are bounded by a step limit (default 100, maximum 500), so
-  a Workbench run is a quick smoke rather than a full-length backtest.
+- **Step cap.** Runs are bounded by a step limit (default 100, maximum
+  1,000,000). The default keeps quick iterations short; the high ceiling exists
+  so a longer replay is not silently truncated. In practice the wall-clock
+  timeout below, not the step cap, is what bounds run length in the browser.
 - **Time limit.** Runs are bounded by a wall-clock timeout (default 30s,
   maximum 120s); anything that exceeds it is stopped and recorded as a timeout.
 - **Local only.** This execution capability belongs to the local dashboard

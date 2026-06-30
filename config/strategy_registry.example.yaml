@@ -10,7 +10,7 @@ strategies:
     mode: replay
     status: example_only
     config_path: config/plugin_runner.example.yaml
-    plugin: examples.strategies.no_edge_template:create_strategy
+    plugin: examples.strategies.sma_crossover:create_strategy
     runner_command: python3 live/plugin_runner.py --config config/plugin_runner.example.yaml --mode replay --max-steps 3
     public: true
     notes:

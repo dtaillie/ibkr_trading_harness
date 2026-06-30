@@ -21,7 +21,7 @@ import {
   statusText,
   text,
 } from "./00_core.js";
-import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets } from "./20_workbench_foundation.js";
+import { attachDatasetOptionMetadata, rememberWorkbenchDataset, selectedConfigDatasets, setWorkbenchSelectedDatasetPaths, workbenchDatasetOptionLabel } from "./20_workbench_foundation.js";
 import { dataBackendStatusModel, shortTimestampAgeLabel, symbolInventoryModel, timestampAgeLabel, timestampMillis } from "./30_runtime_core.js";
 import { workflowHref } from "./32_overview.js";
 import { miniChart, rangeLabel } from "./34_charts.js";
@@ -2096,6 +2096,7 @@ export async function handleDataHistoryMatrixAction(target) {
     const datasetSelect = $("config-dataset");
     if (!datasetSelect) return;
     const selectedPaths = new Set(selected.map((dataset) => dataset.path));
+    setWorkbenchSelectedDatasetPaths(Array.from(selectedPaths));
     for (const option of datasetSelect.options) {
       option.selected = selectedPaths.has(option.value);
     }
@@ -2104,7 +2105,7 @@ export async function handleDataHistoryMatrixAction(target) {
       if (Array.from(datasetSelect.options).some((option) => option.value === dataset.path)) continue;
       const option = document.createElement("option");
       option.value = dataset.path;
-      option.textContent = `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
+      option.textContent = workbenchDatasetOptionLabel(dataset);
       option.selected = true;
       attachDatasetOptionMetadata(option, dataset);
       datasetSelect.appendChild(option);

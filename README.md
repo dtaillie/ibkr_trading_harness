@@ -15,7 +15,7 @@ In 10 seconds:
   gated by config, runtime flags, limits, and audit trails.
 - **Observability:** the dashboard shows run health, data quality, performance,
   artifacts, Gateway state, and public-safe status telemetry.
-- **Public boundary:** example strategies are intentionally non-viable; tuned
+- **Public boundary:** bundled textbook strategies are intentionally non-viable; tuned
   signals, credentials, account data, and logs stay private.
 
 ![Dashboard overview with seeded example telemetry](docs/images/dashboard_overview.png)
@@ -34,8 +34,8 @@ a real deployment uses; only the data is synthetic.
 
 For public posting and feedback collection, see `docs/public_launch_plan.md`.
 
-The public version is intentionally strategy-neutral. It includes non-viable example strategies,
-the harness, broker adapter, plugin interfaces, and Gateway service wrapper.
+The public version is intentionally strategy-neutral. It includes non-viable example strategies
+(bundled textbook demos), the harness, broker adapter, plugin interfaces, and Gateway service wrapper.
 Real strategies, tuned parameters, account config, logs, and research artifacts
 should live in a private repo or ignored local files.
 
@@ -48,8 +48,8 @@ should live in a private repo or ignored local files.
 - A generic local supervisor that can schedule one or more plugin-runner jobs
   from public-safe config.
 - Strategy plugin contracts for generic, stock, and crypto runners.
-- Runnable textbook example strategies (SMA crossover, RSI mean reversion,
-  opening-range breakout) plus an empty template — illustrative, no edge claimed.
+- Runnable textbook strategy plugins (SMA crossover, RSI mean reversion,
+  opening-range breakout) with no edge claimed.
 
 ## What This Is Not
 
@@ -194,10 +194,10 @@ troubleshooting — is `docs/public_quickstart.md`.
 
 ## Strategy Plugins
 
-Public examples live in `examples/strategies/` (see its
-[README](examples/strategies/README.md)). They are non-viable demonstrations of
+Bundled strategies live in `examples/strategies/` (see its
+[README](examples/strategies/README.md)). They are non-viable implementations of
 well-known textbook patterns — SMA crossover, RSI mean reversion, and
-opening-range breakout, plus an empty `no_edge_template` — with no claimed edge.
+opening-range breakout — with no claimed edge.
 A private strategy implements the same contract and is referenced from an
 ignored local config:
 

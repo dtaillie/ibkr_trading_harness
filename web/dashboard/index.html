@@ -18,38 +18,26 @@
       </div>
       <nav class="side-nav" aria-label="Dashboard views">
         <button id="nav-overview" class="nav-link active" type="button" data-view-target="overview" aria-current="page">
-          <strong>Overview</strong>
-          <small>Today, health, positions</small>
-        </button>
-        <button id="nav-performance" class="nav-link" type="button" data-view-target="performance">
-          <strong>Performance</strong>
-          <small>Returns, risk, trades</small>
-        </button>
-        <button id="nav-data" class="nav-link" type="button" data-view-target="data">
-          <strong>Data Library</strong>
-          <small>Saved bars and quality</small>
-        </button>
-        <button id="nav-fetch" class="nav-link" type="button" data-view-target="fetch">
-          <strong>Fetch Jobs</strong>
-          <small>Pulls, resumes, outputs</small>
+          <strong>Today</strong>
+          <small>Health, P&amp;L, positions</small>
         </button>
         <button id="nav-workbench" class="nav-link" type="button" data-view-target="workbench">
-          <strong>Workbench</strong>
-          <small>Build, validate, simulate</small>
+          <strong>Backtest</strong>
+          <small>Test a strategy end to end</small>
+        </button>
+        <button id="nav-data" class="nav-link" type="button" data-view-target="data">
+          <strong>Data</strong>
+          <small>Saved bars and quality</small>
         </button>
         <button id="nav-runs" class="nav-link" type="button" data-view-target="runs">
-          <strong>Runs</strong>
-          <small>Orders, fills, artifacts</small>
-        </button>
-        <button id="nav-operations" class="nav-link" type="button" data-view-target="operations">
-          <strong>Operations</strong>
-          <small>Gateway, cloud, controls</small>
-        </button>
-        <button id="nav-help" class="nav-link" type="button" data-view-target="help">
-          <strong>Help</strong>
-          <small>Guides and runbooks</small>
+          <strong>Inspect</strong>
+          <small>Runs, orders, fills</small>
         </button>
       </nav>
+      <div class="side-nav-utility" aria-label="Settings and help">
+        <button id="nav-settings" class="nav-utility" type="button" data-view-target="operations" title="Settings &mdash; gateway, cloud &amp; controls">&#9881;<span>Settings</span></button>
+        <button id="nav-help" class="nav-utility" type="button" data-view-target="help" title="Help &mdash; guides &amp; runbooks"><b>?</b><span>Help</span></button>
+      </div>
       <div class="sidebar-note">
         <strong>Public-safe</strong>
         <span>Raw private signal payloads stay local and hidden.</span>
@@ -66,82 +54,20 @@
           </div>
         </div>
         <div class="toolbar">
-          <label class="jump-field">
-            <span>Quick Jump</span>
-            <select id="dashboard-jump">
-              <optgroup label="Overview">
-                <option value="overview">Overview Home</option>
-                <option value="overview/activity">Overview Activity</option>
-                <option value="overview/diagnostics">Overview Diagnostics</option>
-              </optgroup>
-              <optgroup label="Performance">
-                <option value="performance">Performance Home</option>
-                <option value="performance/trades">Performance Trades</option>
-                <option value="performance/rollups">Performance Rollups</option>
-                <option value="performance/diagnostics">Performance Diagnostics</option>
-              </optgroup>
-              <optgroup label="Data Library">
-                <option value="data">Data Home</option>
-                <option value="data/browse">Data Browse</option>
-                <option value="data/inspect">Data Inspect</option>
-                <option value="data/compare">Data Compare</option>
-                <option value="data/diagnostics">Data Diagnostics</option>
-              </optgroup>
-              <optgroup label="Fetch Jobs">
-                <option value="fetch">Fetch Home</option>
-                <option value="fetch/jobs">Fetch Jobs</option>
-                <option value="fetch/detail">Fetch Detail</option>
-              </optgroup>
-              <optgroup label="Workbench">
-                <option value="workbench">Workbench Home</option>
-                <option value="workbench/builder">Workbench Builder</option>
-                <option value="workbench/run">Workbench Run</option>
-                <option value="workbench/artifacts">Workbench Artifacts</option>
-              </optgroup>
-              <optgroup label="Runs">
-                <option value="runs">Runs Home</option>
-                <option value="runs/state">Runs State</option>
-                <option value="runs/runs">Runs Search</option>
-                <option value="runs/events">Runs Events</option>
-              </optgroup>
-              <optgroup label="Operations">
-                <option value="operations">Operations Home</option>
-                <option value="operations/paper">Operations Paper</option>
-                <option value="operations/remote">Operations Remote</option>
-                <option value="operations/control">Operations Control</option>
-                <option value="operations/diagnostics">Operations Diagnostics</option>
-              </optgroup>
-              <optgroup label="Help">
-                <option value="help">Help Home</option>
-                <option value="help/pages">Help Pages</option>
-                <option value="help/workflows">Help Workflows</option>
-                <option value="help/data">Help Data</option>
-                <option value="help/boundary">Help Boundary</option>
-                <option value="help/docs">Help Docs</option>
-              </optgroup>
-            </select>
-          </label>
-          <button id="dashboard-jump-go" type="button">Go</button>
-          <label class="jump-field task-field">
-            <span>I want to</span>
-            <select id="dashboard-task">
-              <option value="monitor">Monitor today's run</option>
-              <option value="performance">Review performance</option>
-              <option value="data">Find saved data</option>
-              <option value="fetch">Recover a fetch job</option>
-              <option value="simulate">Build a simulation</option>
-              <option value="runs">Inspect runs and orders</option>
-              <option value="operations">Check runtime health</option>
-              <option value="publish">Publish safely</option>
-            </select>
-          </label>
-          <button id="dashboard-task-go" type="button">Start</button>
           <label class="token-field">
             <span>Token</span>
             <input id="auth-token" type="password" autocomplete="off">
           </label>
           <button id="save-token" type="button">Save</button>
           <button id="refresh" type="button">Refresh</button>
+          <div id="global-loading" class="global-loading-indicator" role="status" aria-live="polite" aria-busy="false" hidden>
+            <span class="global-loading-mark" aria-hidden="true"></span>
+            <span class="global-loading-copy">
+              <b id="global-loading-title">Loading</b>
+              <em id="global-loading-detail">Syncing dashboard data</em>
+            </span>
+            <span id="global-loading-count" class="global-loading-count">1</span>
+          </div>
         </div>
       </header>
 
@@ -176,27 +102,23 @@
 
       <main>
     <section class="dashboard-section overview-lens-section" data-view="overview" data-overview-lens-fixed="true">
-      <div class="overview-lens-bar" aria-label="Overview focus">
-        <div>
-          <span class="eyebrow">Overview Focus</span>
-          <strong id="overview-lens-title">Home</strong>
-          <small id="overview-lens-note">Portfolio value, today's state, performance, and positions.</small>
-        </div>
-        <div class="overview-lens-actions" role="tablist" aria-label="Overview focus tabs">
-          <button id="overview-lens-home" class="overview-lens-button active" type="button" data-overview-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="overview-lens-activity" class="overview-lens-button" type="button" data-overview-lens-target="activity" role="tab" aria-selected="false">Activity</button>
-          <button id="overview-lens-diagnostics" class="overview-lens-button" type="button" data-overview-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
-        </div>
+      <div class="overview-lens-bar" aria-label="Today">
+        <span class="eyebrow">Today</span>
+        <button id="overview-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; activity &amp; diagnostics</button>
       </div>
     </section>
 
     <section class="dashboard-section hero-section" data-view="overview" data-overview-lens-fixed="true">
       <div class="overview-hero">
         <div class="overview-main-card">
-          <span class="eyebrow">Current Strategy</span>
-          <strong id="overview-equity">n/a</strong>
+          <span class="eyebrow">Today &middot; profit &amp; loss</span>
+          <strong id="overview-today-hero-value" class="overview-today-hero-value">n/a</strong>
+          <div class="overview-equity-line">
+            <span class="overview-equity-label">Account equity</span>
+            <strong id="overview-equity">n/a</strong>
+          </div>
           <span id="overview-subtitle">Waiting for a published run or workbench artifact</span>
-          <div id="overview-equity-spark" class="overview-equity-spark" aria-label="Selected-source equity history"></div>
+          <div id="overview-equity-spark" class="overview-equity-spark" aria-label="Account equity history"></div>
           <div id="overview-strategy-identity" class="strategy-identity-strip" aria-label="Current strategy identity"></div>
           <div class="hero-actions">
             <button class="secondary nav-jump" type="button" data-view-target="performance">Performance</button>
@@ -532,18 +454,9 @@
           <span id="performance-note" class="section-note">No performance data loaded</span>
         </span>
       </div>
-      <div class="overview-lens-bar performance-lens-bar" aria-label="Performance focus">
-        <div>
-          <span class="eyebrow">Performance Focus</span>
-          <strong id="performance-lens-title">Home</strong>
-          <small id="performance-lens-note">Current result, evidence quality, risk, and the main charts.</small>
-        </div>
-        <div class="overview-lens-actions performance-lens-actions" role="tablist" aria-label="Performance focus tabs">
-          <button id="performance-lens-home" class="overview-lens-button" type="button" data-performance-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="performance-lens-trades" class="overview-lens-button" type="button" data-performance-lens-target="trades" role="tab" aria-selected="false">Trades</button>
-          <button id="performance-lens-rollups" class="overview-lens-button" type="button" data-performance-lens-target="rollups" role="tab" aria-selected="false">Rollups</button>
-          <button id="performance-lens-diagnostics" class="overview-lens-button" type="button" data-performance-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
-        </div>
+      <div class="overview-lens-bar performance-lens-bar" aria-label="Performance">
+        <span class="eyebrow">Performance</span>
+        <button id="performance-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; trades, rollups &amp; diagnostics</button>
       </div>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="diagnostics" hidden>
@@ -753,6 +666,22 @@
           <span id="performance-chart-note" class="section-note">Archived run artifacts show the cleanest curve.</span>
         </div>
         <div id="performance-equity-chart" class="detail-chart-wrap"></div>
+      </div>
+    </section>
+    <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
+      <div class="chart-panel">
+        <div class="section-head">
+          <h2>Price &amp; Trades</h2>
+          <span id="performance-trade-chart-note" class="section-note">Buys and sells plotted on the symbol's price bars.</span>
+        </div>
+        <div class="trade-chart-controls">
+          <label class="trade-chart-symbol">
+            <span>Symbol</span>
+            <select id="performance-trade-symbol"></select>
+          </label>
+          <div id="performance-trade-legend" class="trade-chart-legend" aria-label="Trade chart legend"></div>
+        </div>
+        <div id="performance-trade-chart" class="detail-chart-wrap"></div>
       </div>
     </section>
     <section class="dashboard-section" data-view="performance" data-performance-lens="home" hidden>
@@ -1052,19 +981,12 @@
     </section>
 
     <section class="dashboard-section" data-view="operations" hidden>
-      <div class="overview-lens-bar operations-lens-bar" aria-label="Operations focus">
+      <div class="overview-lens-bar operations-lens-bar" aria-label="Operations">
         <div>
-          <span class="eyebrow">Operations Focus</span>
-          <strong id="operations-lens-title">Home</strong>
-          <small id="operations-lens-note">Local readiness, remote freshness, command safety, and next action.</small>
+          <span class="eyebrow">Operations</span>
+          <strong>Gateway, cloud &amp; controls</strong>
         </div>
-        <div class="overview-lens-actions operations-lens-actions" role="tablist" aria-label="Operations focus tabs">
-          <button id="operations-lens-home" class="overview-lens-button" type="button" data-operations-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="operations-lens-paper" class="overview-lens-button" type="button" data-operations-lens-target="paper" role="tab" aria-selected="false">Paper</button>
-          <button id="operations-lens-remote" class="overview-lens-button" type="button" data-operations-lens-target="remote" role="tab" aria-selected="false">Remote</button>
-          <button id="operations-lens-control" class="overview-lens-button" type="button" data-operations-lens-target="control" role="tab" aria-selected="false">Control</button>
-          <button id="operations-lens-diagnostics" class="overview-lens-button" type="button" data-operations-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
-        </div>
+        <button id="operations-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; paper, remote, control &amp; diagnostics</button>
       </div>
       <div data-operations-lens="diagnostics">
       <div class="section-head">
@@ -1129,19 +1051,9 @@
           <span id="data-catalog-errors" class="section-note"></span>
         </span>
       </div>
-      <div class="overview-lens-bar data-lens-bar" aria-label="Data Library focus">
-        <div>
-          <span class="eyebrow">Data Focus</span>
-          <strong id="data-lens-title">Home</strong>
-          <small id="data-lens-note">Root visibility, loaded symbols, best matches, and next action.</small>
-        </div>
-        <div class="overview-lens-actions data-lens-actions" role="tablist" aria-label="Data Library focus tabs">
-          <button id="data-lens-home" class="overview-lens-button" type="button" data-data-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="data-lens-browse" class="overview-lens-button" type="button" data-data-lens-target="browse" role="tab" aria-selected="false">Browse</button>
-          <button id="data-lens-inspect" class="overview-lens-button" type="button" data-data-lens-target="inspect" role="tab" aria-selected="false">Inspect</button>
-          <button id="data-lens-compare" class="overview-lens-button" type="button" data-data-lens-target="compare" role="tab" aria-selected="false">Compare</button>
-          <button id="data-lens-diagnostics" class="overview-lens-button" type="button" data-data-lens-target="diagnostics" role="tab" aria-selected="false">Diagnostics</button>
-        </div>
+      <div class="overview-lens-bar data-lens-bar" aria-label="Data">
+        <span class="eyebrow">Data</span>
+        <button id="data-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; browse, inspect, compare, diagnostics</button>
       </div>
       <div class="data-library-summary" data-data-lens="home browse diagnostics">
         <div class="data-library-card">
@@ -1198,7 +1110,7 @@
           <span id="data-visibility-note">The catalog only shows files under configured roots.</span>
         </div>
       </div>
-      <section class="nested-section data-backend-status-panel" data-data-lens="home diagnostics" aria-label="Data Library backend status">
+      <section class="nested-section data-backend-status-panel" data-data-lens="diagnostics" aria-label="Data Library backend status">
         <div class="section-head">
           <h2>Backend Status</h2>
           <span id="data-backend-status-note" class="section-note">No Data Library backend checks loaded</span>
@@ -1218,7 +1130,7 @@
           </table>
         </div>
       </section>
-      <section class="nested-section data-root-index-spotlight" data-data-lens="home" aria-label="Saved universe root index spotlight">
+      <section class="nested-section data-root-index-spotlight" data-data-lens="diagnostics" aria-label="Saved universe root index spotlight">
         <div class="section-head">
           <h2>Saved Universe</h2>
           <span id="data-root-index-spotlight-note" class="section-note">No root-index inventory loaded</span>
@@ -1227,7 +1139,7 @@
         <div id="data-root-index-spotlight-symbols" class="data-universe-symbols"></div>
         <div id="data-root-index-spotlight-actions" class="hero-actions"></div>
       </section>
-      <section class="data-storage-assistant data-scope-assistant" data-data-lens="home" aria-label="Catalog scope assistant">
+      <section class="data-storage-assistant data-scope-assistant" data-data-lens="diagnostics" aria-label="Catalog scope assistant">
         <div>
           <span class="eyebrow">Catalog Scope</span>
           <strong id="data-scope-assistant-title">No catalog loaded</strong>
@@ -1248,7 +1160,7 @@
       <details class="meta-disclosure">
         <summary>Detailed review, visibility report, evidence, and action summary</summary>
         <div class="meta-disclosure-body">
-      <section class="nested-section data-action-summary-panel" data-data-lens="home" aria-label="Data action summary">
+      <section class="nested-section data-action-summary-panel" data-data-lens="diagnostics" aria-label="Data action summary">
         <div class="section-head">
           <h2>Action Summary</h2>
           <span id="data-action-note" class="section-note">No data action summary loaded</span>
@@ -1256,7 +1168,7 @@
         <div id="data-action-cards" class="action-card-grid"></div>
         <div id="data-action-actions" class="hero-actions"></div>
       </section>
-      <section class="nested-section data-history-review-panel" data-data-lens="home">
+      <section class="nested-section data-history-review-panel" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Historical Data Review</h2>
           <span id="data-history-note" class="section-note">No historical data review loaded</span>
@@ -1264,7 +1176,7 @@
         <div id="data-history-cards" class="action-card-grid"></div>
         <div id="data-history-actions" class="hero-actions"></div>
       </section>
-      <section class="nested-section data-visibility-report-panel" data-data-lens="home diagnostics">
+      <section class="nested-section data-visibility-report-panel" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Data Visibility Report</h2>
           <span id="data-visibility-report-note" class="section-note">No data visibility report loaded</span>
@@ -1273,7 +1185,7 @@
         <div id="data-visibility-report-body" class="performance-report-body"></div>
         <div id="data-visibility-report-actions" class="hero-actions"></div>
       </section>
-      <section class="nested-section data-inventory-evidence-panel" data-data-lens="home diagnostics" aria-label="Historical inventory evidence">
+      <section class="nested-section data-inventory-evidence-panel" data-data-lens="diagnostics" aria-label="Historical inventory evidence">
         <div class="section-head">
           <h2>Historical Inventory Evidence</h2>
           <span id="data-inventory-evidence-note" class="section-note">No historical inventory evidence loaded</span>
@@ -1284,7 +1196,7 @@
       </section>
         </div>
       </details>
-      <section class="nested-section" data-data-lens="home browse">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Saved History Matrix</h2>
           <span class="button-pair">
@@ -1343,7 +1255,7 @@
           </div>
         </div>
         <div id="data-home-breakdown" class="data-home-breakdown"></div>
-        <section class="data-universe-panel" aria-label="Saved data universe">
+        <section data-data-lens="diagnostics" class="data-universe-panel" aria-label="Saved data universe">
           <div>
             <span class="eyebrow">Universe Coverage</span>
             <strong id="data-universe-title">No universe loaded</strong>
@@ -1352,7 +1264,7 @@
           <div id="data-universe-cards" class="data-universe-cards"></div>
           <div id="data-universe-symbols" class="data-universe-symbols"></div>
         </section>
-        <section class="nested-section" data-data-lens="home browse" aria-label="Root index browser">
+        <section class="nested-section" data-data-lens="diagnostics" aria-label="Root index browser">
           <div class="section-head">
             <h2>Root Index Browser</h2>
             <span id="data-root-index-note" class="section-note">Filename/path-inferred symbols from configured roots</span>
@@ -1401,7 +1313,7 @@
           </div>
           <div id="data-root-index-summary" class="action-card-grid"></div>
           <div id="data-root-index-roots" class="action-card-grid" aria-label="Root index root coverage"></div>
-          <section class="nested-section data-root-index-detail-panel" aria-label="Root index candidate files">
+          <section data-data-lens="diagnostics" class="nested-section data-root-index-detail-panel" aria-label="Root index candidate files">
             <div class="section-head">
               <h3>Candidate Files</h3>
               <span class="button-pair">
@@ -1448,7 +1360,7 @@
             </table>
           </div>
         </section>
-        <section class="nested-section data-preview-wall-panel" aria-label="Saved data preview wall">
+        <section data-data-lens="diagnostics" class="nested-section data-preview-wall-panel" aria-label="Saved data preview wall">
           <div class="section-head">
             <h2>Saved Data Preview Wall</h2>
             <span id="data-preview-wall-note" class="section-note">No saved-data previews loaded</span>
@@ -1459,7 +1371,7 @@
         <div id="data-home-workflows" class="data-workflow-grid" aria-label="Saved data workflows"></div>
         <div id="data-home-shortlist" class="data-shortlist"></div>
       </section>
-      <section class="nested-section" data-data-lens="home diagnostics">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Data Source Map</h2>
           <span id="data-source-map-note" class="section-note">No source map loaded</span>
@@ -1474,7 +1386,7 @@
         </span>
       </div>
       <div id="data-root-cards" class="root-grid" data-data-lens="home diagnostics"></div>
-      <section class="nested-section" data-data-lens="home diagnostics">
+      <section class="nested-section" data-data-lens="diagnostics">
         <div class="section-head">
           <h2>Data Library Guide</h2>
           <span id="data-library-guide-note" class="section-note">No data guide loaded</span>
@@ -1522,7 +1434,7 @@
           <button id="data-symbol-browser-diagnose" class="secondary" type="button">Diagnose</button>
           <button id="data-symbol-browser-clear-facets" class="secondary" type="button">Clear Facets</button>
         </div>
-        <section class="nested-section symbol-visibility-panel" aria-label="Symbol visibility explainer">
+        <section data-data-lens="diagnostics" class="nested-section symbol-visibility-panel" aria-label="Symbol visibility explainer">
           <div class="section-head">
             <h2>Symbol Visibility</h2>
             <span id="data-symbol-visibility-note" class="section-note">Type a symbol to explain saved-data visibility</span>
@@ -1531,7 +1443,7 @@
           <div id="data-symbol-visibility-body" class="performance-report-body"></div>
           <div id="data-symbol-visibility-actions" class="hero-actions"></div>
         </section>
-        <section id="data-symbol-selection-panel" class="symbol-selection-panel" aria-label="Selected symbol actions">
+        <section data-data-lens="diagnostics" id="data-symbol-selection-panel" class="symbol-selection-panel" aria-label="Selected symbol actions">
           <div class="symbol-selection-main">
             <span class="eyebrow">Selected Symbol</span>
             <strong id="data-symbol-selection-title">No symbol selected</strong>
@@ -1546,7 +1458,7 @@
           </div>
           <div id="data-symbol-selection-cards" class="symbol-selection-cards"></div>
         </section>
-        <section class="symbol-profile-panel" aria-label="Selected symbol profile">
+        <section data-data-lens="diagnostics" class="symbol-profile-panel" aria-label="Selected symbol profile">
           <div class="symbol-profile-main">
             <span class="eyebrow">Symbol Profile</span>
             <strong id="data-symbol-profile-title">No symbol selected</strong>
@@ -1575,7 +1487,7 @@
             <span id="data-symbol-directory-note" class="section-note">Top scanned symbols from the current catalog</span>
           </span>
         </div>
-        <section class="data-directory-assistant">
+        <section data-data-lens="diagnostics" class="data-directory-assistant">
           <div>
             <span class="eyebrow">Directory Assistant</span>
             <strong id="data-directory-assistant-title">No symbols loaded</strong>
@@ -1636,7 +1548,7 @@
           <button id="data-symbol-directory-clear" class="secondary" type="button">Clear</button>
         </div>
         <div id="data-symbol-directory-summary" class="action-card-grid symbol-directory-summary"></div>
-        <section class="nested-section symbol-coverage-ledger">
+        <section data-data-lens="diagnostics" class="nested-section symbol-coverage-ledger">
           <div class="section-head">
             <h2>Symbol Coverage Ledger</h2>
             <span class="button-pair">
@@ -1726,7 +1638,7 @@
             <span id="data-storage-audit-note" class="section-note">No storage audit loaded</span>
           </span>
         </div>
-        <section class="data-storage-assistant" aria-label="Storage audit assistant">
+        <section data-data-lens="diagnostics" class="data-storage-assistant" aria-label="Storage audit assistant">
           <div>
             <span class="eyebrow">Storage Audit Assistant</span>
             <strong id="data-storage-assistant-title">No storage audit loaded</strong>
@@ -2376,17 +2288,12 @@
           <span id="fetch-jobs-note" class="section-note">No fetch manifests loaded</span>
         </span>
       </div>
-      <div class="overview-lens-bar fetch-lens-bar" aria-label="Fetch Jobs focus">
+      <div class="overview-lens-bar fetch-lens-bar" aria-label="Fetch Jobs">
         <div>
-          <span class="eyebrow">Fetch Focus</span>
-          <strong id="fetch-lens-title">Home</strong>
-          <small id="fetch-lens-note">Manifest roots, fetch health, recovery pressure, and next action.</small>
+          <span class="eyebrow">Fetch Jobs</span>
+          <strong>Pulls, resumes &amp; outputs</strong>
         </div>
-        <div class="overview-lens-actions fetch-lens-actions" role="tablist" aria-label="Fetch Jobs focus tabs">
-          <button id="fetch-lens-home" class="overview-lens-button" type="button" data-fetch-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="fetch-lens-jobs" class="overview-lens-button" type="button" data-fetch-lens-target="jobs" role="tab" aria-selected="false">Jobs</button>
-          <button id="fetch-lens-detail" class="overview-lens-button" type="button" data-fetch-lens-target="detail" role="tab" aria-selected="false">Detail</button>
-        </div>
+        <button id="fetch-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; job list &amp; per-job detail</button>
       </div>
       <div class="data-library-summary" data-fetch-lens="home jobs">
         <div class="data-library-card">
@@ -2666,20 +2573,9 @@
     </section>
 
     <section class="dashboard-section" data-view="workbench" hidden>
-      <div class="overview-lens-bar workbench-lens-bar" aria-label="Workbench focus">
-        <div>
-          <span class="eyebrow">Workbench Focus</span>
-          <strong id="workbench-lens-title">Home</strong>
-          <small id="workbench-lens-note">Simulation path, selected data, alignment state, and next action.</small>
-        </div>
-        <div class="overview-lens-actions workbench-lens-actions" role="tablist" aria-label="Workbench focus tabs">
-          <button id="workbench-lens-home" class="overview-lens-button" type="button" data-workbench-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="workbench-lens-builder" class="overview-lens-button" type="button" data-workbench-lens-target="builder" role="tab" aria-selected="false">Builder</button>
-          <button id="workbench-lens-run" class="overview-lens-button" type="button" data-workbench-lens-target="run" role="tab" aria-selected="false">Run</button>
-          <button id="workbench-lens-artifacts" class="overview-lens-button" type="button" data-workbench-lens-target="artifacts" role="tab" aria-selected="false">Artifacts</button>
-        </div>
-      </div>
-      <div data-workbench-lens="home">
+      <details class="meta-disclosure workbench-overview-disclosure">
+        <summary>Overview &amp; guide</summary>
+        <div class="meta-disclosure-body">
       <section class="workbench-home-panel">
         <div class="workbench-home-main">
           <span class="eyebrow">Workbench Home</span>
@@ -2775,8 +2671,9 @@
       </div>
       <div id="workbench-stepper" class="workbench-stepper" aria-label="Simulation workflow steps"></div>
       <div id="workbench-guide" class="checklist"></div>
-      </div>
-      <div data-workbench-lens="builder">
+        </div>
+      </details>
+      <div>
       <div class="section-head">
         <h2>Config Builder</h2>
         <span id="config-validation" class="section-note">No draft generated</span>
@@ -2790,16 +2687,45 @@
         <div id="workbench-builder-assistant-cards" class="workbench-builder-assistant-cards"></div>
         <div id="workbench-builder-assistant-actions" class="workbench-builder-assistant-actions"></div>
       </section>
+      <form id="config-form" class="builder-form">
+        <div id="config-form-fields" class="builder-form-fields"></div>
+        <div class="config-builder-actions">
+          <button id="config-preview-alignment" class="secondary" type="button">Preview Alignment</button>
+          <button id="config-preview-draft" class="secondary" type="button">Preview Draft</button>
+          <button id="config-generate-draft" class="secondary" type="submit">Save without running</button>
+          <button id="config-run-backtest" class="primary-run" type="button">Run Backtest &rarr;</button>
+        </div>
+      </form>
+      <section class="workbench-result-panel" id="workbench-result">
+        <div class="workbench-result-main">
+          <span class="eyebrow">Result</span>
+          <strong id="workbench-result-title">No run selected</strong>
+          <span id="workbench-result-note">Pick data and a strategy above, then Run Backtest.</span>
+          <div class="hero-actions">
+            <button id="workbench-result-open-performance" class="secondary" type="button">Open Performance</button>
+            <button id="workbench-result-open-runs" class="secondary" type="button">Open Runs</button>
+            <button id="workbench-result-open-log" class="secondary" type="button">Open Log</button>
+          </div>
+        </div>
+        <div id="workbench-result-tiles" class="workbench-result-tiles"></div>
+      </section>
+      <details class="workbench-advanced meta-disclosure">
+        <summary>Advanced &mdash; validation, run setup, history &amp; logs</summary>
+        <div class="meta-disclosure-body">
+      <div class="section-head artifact-head">
+        <h2>Validation Messages</h2>
+        <span id="config-validation-message-note" class="section-note">No validation messages</span>
+      </div>
+      <div id="config-validation-messages" class="validation-message-grid"></div>
       <section class="workbench-plugin-boundary-assistant">
         <div>
           <span class="eyebrow">Public / Private Boundary</span>
           <strong id="workbench-plugin-boundary-title">No plugin selected</strong>
-          <span id="workbench-plugin-boundary-note">Public examples are generic wiring demos; local private plugins stay in ignored registry files.</span>
+          <span id="workbench-plugin-boundary-note">Bundled strategies and local private plugins use the same registry contract.</span>
         </div>
         <div id="workbench-plugin-boundary-cards" class="workbench-plugin-boundary-cards"></div>
         <div id="workbench-plugin-boundary-actions" class="workbench-plugin-boundary-actions"></div>
       </section>
-      <div id="config-builder-readiness" class="action-card-grid"></div>
       <section class="workbench-selected-data-panel">
         <div class="section-head inline-section-head">
           <h2>Selected Data Packet</h2>
@@ -2835,28 +2761,23 @@
           </div>
         </section>
       </section>
-      <div class="section-head artifact-head">
-        <h2>Compatibility Review</h2>
-        <span id="config-compatibility-note" class="section-note">Schema, plugin, data, and draft checks</span>
-      </div>
-      <div id="config-compatibility-cards" class="health-grid compatibility-grid"></div>
-      <dl id="config-compatibility-detail" class="kv wide-kv"></dl>
-      <div class="section-head artifact-head">
-        <h2>Validation Messages</h2>
-        <span id="config-validation-message-note" class="section-note">No validation messages</span>
-      </div>
-      <div id="config-validation-messages" class="validation-message-grid"></div>
-      <form id="config-form" class="builder-form">
-        <div id="config-form-fields" class="builder-form-fields"></div>
-        <div class="config-builder-actions">
-          <button id="config-preview-alignment" class="secondary" type="button">Preview Alignment</button>
-          <button id="config-preview-draft" class="secondary" type="button">Preview Draft</button>
-          <button id="config-generate-draft" type="submit">Generate / Save</button>
+      <details class="meta-disclosure builder-developer-info">
+        <summary>Developer info - compatibility, schema versions, registry paths</summary>
+        <div class="meta-disclosure-body">
+          <div class="section-head artifact-head">
+            <h2>Compatibility Review</h2>
+            <span id="config-compatibility-note" class="section-note">Schema, plugin, data, and draft checks</span>
+          </div>
+          <div id="config-compatibility-cards" class="health-grid compatibility-grid"></div>
+          <dl id="config-compatibility-detail" class="kv wide-kv"></dl>
         </div>
-      </form>
+      </details>
+      <details class="meta-disclosure">
+        <summary>Advanced — config details, exports &amp; alignment</summary>
+        <div class="meta-disclosure-body">
       <div class="section-head artifact-head">
         <h2>Plugin Boundary</h2>
-        <span id="config-plugin-boundary-note" class="section-note">Public examples only</span>
+        <span id="config-plugin-boundary-note" class="section-note">Bundled public strategies</span>
       </div>
       <dl id="config-plugin-boundary" class="kv wide-kv"></dl>
       <div class="section-head artifact-head">
@@ -2921,8 +2842,10 @@
         <span id="config-alignment-note" class="section-note">No draft generated</span>
       </div>
       <dl id="config-alignment" class="kv wide-kv"></dl>
+        </div>
+      </details>
       </div>
-      <div data-workbench-lens="run">
+      <div>
       <div class="section-head">
         <h2>Run Draft</h2>
         <span class="button-pair">
@@ -2942,7 +2865,7 @@
         </label>
         <label>
           <span>Max Steps</span>
-          <input id="config-run-max-steps" type="number" min="1" max="500" step="1" value="100">
+          <input id="config-run-max-steps" type="number" min="1" max="1000000" step="1" value="100">
         </label>
         <label>
           <span>Timeout Seconds</span>
@@ -2958,15 +2881,6 @@
         <div id="workbench-run-readiness-cards" class="action-card-grid"></div>
         <div id="workbench-run-readiness-actions" class="hero-actions"></div>
       </section>
-      <section class="nested-section workbench-draft-inventory-panel" aria-label="Saved draft inventory review">
-        <div class="section-head">
-          <h2 id="workbench-draft-inventory-title">Draft Inventory Review</h2>
-          <span id="workbench-draft-inventory-note" class="section-note">Review saved draft folders, tags, validation state, latest runs, and next action before scanning tables.</span>
-        </div>
-        <div id="workbench-draft-inventory-cards" class="action-card-grid"></div>
-        <div id="workbench-draft-inventory-body" class="performance-report-body"></div>
-        <div id="workbench-draft-inventory-actions" class="hero-actions"></div>
-      </section>
       <section class="workbench-run-command-panel">
         <div class="section-head inline-section-head">
           <h2>Selected Draft Commands</h2>
@@ -2975,26 +2889,27 @@
         <div id="workbench-run-command-cards" class="action-card-grid"></div>
         <dl id="workbench-run-commands" class="kv"></dl>
       </section>
-      <section class="workbench-result-panel">
-        <div class="workbench-result-main">
-          <span class="eyebrow">Run Result</span>
-          <strong id="workbench-result-title">No run selected</strong>
-          <span id="workbench-result-note">Run a saved draft to inspect artifacts, performance, and logs.</span>
-          <div class="hero-actions">
-            <button id="workbench-result-open-performance" class="secondary" type="button">Open Performance</button>
-            <button id="workbench-result-open-runs" class="secondary" type="button">Open Runs</button>
-            <button id="workbench-result-open-log" class="secondary" type="button">Open Log</button>
-          </div>
         </div>
-        <div id="workbench-result-tiles" class="workbench-result-tiles"></div>
-      </section>
-      <dl id="config-draft-validations" class="kv wide-kv"></dl>
-      <div class="section-head artifact-head">
-        <h2>Workbench Triage</h2>
-        <span id="workbench-triage-note" class="section-note">No saved workbench activity loaded</span>
-      </div>
-      <div id="workbench-triage-cards" class="action-card-grid"></div>
-      <div class="table-wrap compact-table">
+      </details>
+      <details class="meta-disclosure builder-developer-info">
+        <summary>Draft &amp; run inventory - saved drafts, validations, and triage</summary>
+        <div class="meta-disclosure-body">
+          <section class="nested-section workbench-draft-inventory-panel" aria-label="Saved draft inventory review">
+            <div class="section-head">
+              <h2 id="workbench-draft-inventory-title">Draft Inventory Review</h2>
+              <span id="workbench-draft-inventory-note" class="section-note">Review saved draft folders, tags, validation state, latest runs, and next action before scanning tables.</span>
+            </div>
+            <div id="workbench-draft-inventory-cards" class="action-card-grid"></div>
+            <div id="workbench-draft-inventory-body" class="performance-report-body"></div>
+            <div id="workbench-draft-inventory-actions" class="hero-actions"></div>
+          </section>
+          <dl id="config-draft-validations" class="kv wide-kv"></dl>
+          <div class="section-head artifact-head">
+            <h2>Workbench Triage</h2>
+            <span id="workbench-triage-note" class="section-note">No saved workbench activity loaded</span>
+          </div>
+          <div id="workbench-triage-cards" class="action-card-grid"></div>
+          <div class="table-wrap compact-table">
         <table>
           <thead>
             <tr>
@@ -3032,6 +2947,11 @@
           <tbody id="config-runs-body"></tbody>
         </table>
       </div>
+        </div>
+      </details>
+      <details class="workbench-advanced meta-disclosure">
+        <summary>Compare past runs</summary>
+        <div class="meta-disclosure-body">
       <div class="section-head artifact-head">
         <h2>Run Comparison</h2>
         <span class="button-pair">
@@ -3111,8 +3031,12 @@
           <tbody id="comparison-body"></tbody>
         </table>
       </div>
+        </div>
+      </details>
       </div>
-      <div data-workbench-lens="artifacts">
+      <details class="meta-disclosure">
+        <summary>Loaded run details (advanced)</summary>
+        <div class="meta-disclosure-body">
       <section class="nested-section workbench-artifacts-action-summary-panel" aria-label="Workbench artifacts action summary">
         <div class="section-head">
           <h2>Artifacts Action Summary</h2>
@@ -3175,8 +3099,14 @@
         <div id="workbench-artifacts-assistant-cards" class="workbench-artifacts-assistant-cards"></div>
         <div id="workbench-artifacts-assistant-actions" class="workbench-artifacts-assistant-actions"></div>
       </section>
+      <div id="artifact-tearsheet" class="workbench-result-tiles"></div>
       <div class="artifact-grid">
-        <dl id="artifact-summary" class="kv"></dl>
+        <details class="meta-disclosure artifact-metadata-disclosure">
+          <summary>Full run metadata</summary>
+          <div class="meta-disclosure-body">
+            <dl id="artifact-summary" class="kv"></dl>
+          </div>
+        </details>
         <div id="artifact-equity-chart" class="detail-chart-wrap"></div>
         <div class="artifact-wide">
           <div class="section-head artifact-head">
@@ -3425,29 +3355,16 @@
           <tbody id="artifact-account-body"></tbody>
         </table>
       </div>
-      </div>
+        </div>
+      </details>
     </section>
 
     <section class="dashboard-section" data-view="runs" hidden>
-      <div class="overview-lens-bar runs-lens-bar" aria-label="Runs focus">
-        <div>
-          <span class="eyebrow">Runs Focus</span>
-          <strong id="runs-lens-title">Home</strong>
-          <small id="runs-lens-note">Run triage, latest activity, artifact readiness, and next action.</small>
-        </div>
-        <div class="overview-lens-actions runs-lens-actions" role="tablist" aria-label="Runs focus tabs">
-          <button id="runs-lens-home" class="overview-lens-button" type="button" data-runs-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="runs-lens-state" class="overview-lens-button" type="button" data-runs-lens-target="state" role="tab" aria-selected="false">State</button>
-          <button id="runs-lens-runs" class="overview-lens-button" type="button" data-runs-lens-target="runs" role="tab" aria-selected="false">Runs</button>
-          <button id="runs-lens-events" class="overview-lens-button" type="button" data-runs-lens-target="events" role="tab" aria-selected="false">Events</button>
-        </div>
+      <div class="overview-lens-bar runs-lens-bar" aria-label="Inspect">
+        <span class="eyebrow">Inspect</span>
+        <button id="runs-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; account state &amp; events</button>
       </div>
       <div data-runs-lens="home">
-      <div class="section-head">
-        <h2>Runs Triage</h2>
-        <span id="runs-triage-note" class="section-note">No run activity loaded</span>
-      </div>
-      <div id="runs-triage-cards" class="action-card-grid"></div>
       <section class="runs-review-panel" aria-label="Runs review">
         <div class="runs-review-main">
           <span class="eyebrow">Runs Review</span>
@@ -3458,8 +3375,13 @@
         <div id="runs-review-cards" class="runs-review-cards"></div>
       </section>
       <details class="meta-disclosure">
-        <summary>Detailed evidence and action summary</summary>
+        <summary>Run triage, evidence &amp; action summary</summary>
         <div class="meta-disclosure-body">
+      <div class="section-head">
+        <h2>Runs Triage</h2>
+        <span id="runs-triage-note" class="section-note">No run activity loaded</span>
+      </div>
+      <div id="runs-triage-cards" class="action-card-grid"></div>
       <section class="nested-section runs-evidence-panel" aria-label="Runs evidence">
         <div class="section-head">
           <h2>Runs Evidence</h2>
@@ -3535,7 +3457,7 @@
       </div>
     </section>
 
-    <section class="dashboard-section nested-section runs-event-flow-report-panel" data-view="runs" data-runs-lens="home events" hidden aria-label="Runs event flow report">
+    <section class="dashboard-section nested-section runs-event-flow-report-panel" data-view="runs" data-runs-lens="events" hidden aria-label="Runs event flow report">
       <div class="section-head">
         <h2>Event Flow Report</h2>
         <span id="runs-event-flow-note" class="section-note">No event flow report loaded</span>
@@ -4355,20 +4277,12 @@
         <h2>Help</h2>
         <span class="section-note">Local-first guide for operating the public workbench</span>
       </div>
-      <div class="overview-lens-bar help-lens-bar" aria-label="Help focus">
+      <div class="overview-lens-bar help-lens-bar" aria-label="Help">
         <div>
-          <span class="eyebrow">Help Focus</span>
-          <strong id="help-lens-title">Home</strong>
-          <small id="help-lens-note">Start by question, current setup gaps, and first next action.</small>
+          <span class="eyebrow">Help</span>
+          <strong>Guides &amp; runbooks</strong>
         </div>
-        <div class="overview-lens-actions help-lens-actions" role="tablist" aria-label="Help focus tabs">
-          <button id="help-lens-home" class="overview-lens-button" type="button" data-help-lens-target="home" role="tab" aria-selected="true">Home</button>
-          <button id="help-lens-pages" class="overview-lens-button" type="button" data-help-lens-target="pages" role="tab" aria-selected="false">Pages</button>
-          <button id="help-lens-workflows" class="overview-lens-button" type="button" data-help-lens-target="workflows" role="tab" aria-selected="false">Workflows</button>
-          <button id="help-lens-data" class="overview-lens-button" type="button" data-help-lens-target="data" role="tab" aria-selected="false">Data</button>
-          <button id="help-lens-boundary" class="overview-lens-button" type="button" data-help-lens-target="boundary" role="tab" aria-selected="false">Boundary</button>
-          <button id="help-lens-docs" class="overview-lens-button" type="button" data-help-lens-target="docs" role="tab" aria-selected="false">Docs</button>
-        </div>
+        <button id="help-details-toggle" type="button" class="secondary overview-details-toggle" aria-expanded="false">&#9662; Details &mdash; page guide, workflows, data, boundary &amp; docs</button>
       </div>
       <div data-help-lens="home">
       <section class="help-start-panel">
@@ -4694,7 +4608,7 @@
           <strong>Glossary</strong>
           <dl class="mini-glossary">
             <dt>Runner</dt><dd>A local process that evaluates a plugin and records decisions, orders, fills, and account snapshots.</dd>
-            <dt>Draft</dt><dd>A generated example runner config saved by the Workbench.</dd>
+            <dt>Draft</dt><dd>A generated runner config saved by the Workbench.</dd>
             <dt>Replay</dt><dd>Run a plugin against saved bars.</dd>
             <dt>Shadow</dt><dd>Observe decisions without submitting orders.</dd>
             <dt>Simulated paper</dt><dd>Use local simulated fills and account state.</dd>

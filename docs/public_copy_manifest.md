@@ -20,6 +20,7 @@ pushing this working tree.
 - Read-only telemetry prototype:
   - `scripts/publish_status.py`
   - `scripts/cloud_status_catalog.py`
+  - `scripts/consolidate_saved_bars.py`
   - `scripts/cloud_status_server.py`
   - `config/cloud_status.example.yaml`
   - `config/cloud_status_hosted.example.yaml`

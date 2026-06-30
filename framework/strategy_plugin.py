@@ -42,6 +42,30 @@ class StrategyDecision:
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
+def equity_fraction_cash(
+    context: "StrategyContext",
+    fraction: float,
+    *,
+    available: float | None = None,
+    min_cash: float = 1.0,
+) -> float | None:
+    """Dollars to allocate to one entry: ``fraction`` of current equity, capped by the
+    cash still available so concurrent positions across symbols never over-allocate the
+    account. Returns ``None`` when too little cash remains to take a meaningful position.
+
+    Pass ``available`` (a running cash budget you decrement as you append intents in one
+    ``on_data`` call) to keep several same-bar entries from collectively over-spending.
+    """
+    equity = context.equity if context.equity is not None else context.cash
+    if equity is None:
+        return None
+    target = float(equity) * float(fraction)
+    cap = context.cash if available is None else available
+    if cap is not None:
+        target = min(target, float(cap))
+    return target if target >= float(min_cash) else None
+
+
 class StrategyPlugin(Protocol):
     """Protocol implemented by public examples and private strategy plugins."""
 

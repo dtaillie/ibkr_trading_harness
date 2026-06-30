@@ -37,6 +37,7 @@ def test_export_public_repo_preserves_git_metadata_on_force(tmp_path: Path):
     assert (dest / "scripts" / "audit_dashboard_contracts.py").exists()
     assert (dest / "scripts" / "audit_workbench_contracts.py").exists()
     assert (dest / "scripts" / "cloud_status_catalog.py").exists()
+    assert (dest / "scripts" / "consolidate_saved_bars.py").exists()
     assert (dest / "scripts" / "install_dashboard_server.sh").exists()
     assert (dest / "scripts" / "install_local_monitoring_stack.sh").exists()
     assert (dest / "scripts" / "public_publish_check.py").exists()
@@ -98,6 +99,7 @@ def test_export_public_repo_lists_public_manifest_without_writing_destination(tm
     assert "web/dashboard/app/90_bootstrap.js" in rows
     assert "scripts/export_public_repo.py" in rows
     assert "scripts/cloud_status_catalog.py" in rows
+    assert "scripts/consolidate_saved_bars.py" in rows
     assert "scripts/public_publish_check.py" in rows
     assert "config/plugin_runner.example.yaml" in rows
     assert not any(row.startswith("paper_logs/") for row in rows)

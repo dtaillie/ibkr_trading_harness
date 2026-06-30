@@ -52,13 +52,16 @@ def test_dashboard_contract_audit_json_output():
     assert payload["finding_count"] == 0
 
 
-def test_dashboard_contract_audit_reports_duplicate_task_label(tmp_path: Path):
+def test_dashboard_contract_audit_rejects_reintroduced_task_selector(tmp_path: Path):
+    # The "I want to" task selector was deleted as a nav crutch; the contract
+    # now requires it stays gone. Re-adding a task <select> must be a blocker.
     copy_audited_files(tmp_path)
     html_path = tmp_path / "web/dashboard/index.html"
     body = html_path.read_text(encoding="utf-8")
     body = body.replace(
-        '<option value="fetch">Recover a fetch job</option>',
-        '<option value="data">Find saved data</option>\n              <option value="fetch">Recover a fetch job</option>',
+        '<div class="toolbar">',
+        '<div class="toolbar">\n          <select id="dashboard-task">'
+        '<option value="monitor">Monitor today\'s run</option></select>',
     )
     html_path.write_text(body, encoding="utf-8")
 
@@ -70,14 +73,19 @@ def test_dashboard_contract_audit_reports_duplicate_task_label(tmp_path: Path):
     )
 
     assert result.returncode == 1
-    assert "task selector contains duplicate labels: Find saved data" in result.stdout
+    assert "task selector labels do not match the public workflow contract" in result.stdout
 
 
-def test_dashboard_contract_audit_reports_missing_lens_button(tmp_path: Path):
+def test_dashboard_contract_audit_reports_nav_target_mismatch(tmp_path: Path):
+    # The views are flattened (no lens-tab contract left); the nav-target list is
+    # now the central navigation contract, so mutating it must be a blocker.
     copy_audited_files(tmp_path)
     html_path = tmp_path / "web/dashboard/index.html"
     html_path.write_text(
-        html_path.read_text(encoding="utf-8").replace('data-help-lens-target="docs"', 'data-help-lens-target="reference"'),
+        html_path.read_text(encoding="utf-8").replace(
+            'data-view-target="overview" aria-current="page"',
+            'data-view-target="bogus" aria-current="page"',
+        ),
         encoding="utf-8",
     )
 
@@ -89,4 +97,4 @@ def test_dashboard_contract_audit_reports_missing_lens_button(tmp_path: Path):
     )
 
     assert result.returncode == 1
-    assert "help lenses must be" in result.stdout
+    assert "nav targets must be" in result.stdout

@@ -23,6 +23,33 @@ import { renderDataCompare, renderDataCompareControls } from "./43_data_detail_c
 import { draftValidationById, normalizeConfigDraftErrors, renderConfigLivePanels, replaceOptions, selectedRunDraft } from "./60_workbench_builder.js";
 import { copyText, loadDataCompare, loadDataDetail } from "./90_bootstrap.js";
 
+const WORKBENCH_OPERATIONAL_FILE_NAMES = new Set([
+  "exit_monitor.csv",
+  "fetch_manifest.csv",
+  "fills.csv",
+  "ledger.csv",
+  "orders.csv",
+  "paper_eod_flatten.csv",
+  "paper_fills.csv",
+  "paper_orders.csv",
+  "shadow_signals.csv",
+  "signal.csv",
+  "signals.csv",
+  "subscriptions.csv",
+  "today_bars.csv",
+]);
+
+const WORKBENCH_OPERATIONAL_SYMBOLS = new Set([
+  "BARS",
+  "FILLS",
+  "ORDERS",
+  "SHADOW",
+  "SIGNAL",
+  "SIGNALS",
+  "SUBSCRIPTIONS",
+  "TODAY",
+]);
+
 export function latestTelemetryRun() {
   const runs = (state.status && state.status.runs) || [];
   if (!runs.length) return null;
@@ -262,20 +289,255 @@ export function selectedConfigDatasets() {
   const select = $("config-dataset");
   if (!select) return [];
   const catalogByPath = new Map(workbenchDatasetRows().map((item) => [item.path, item]));
-  return Array.from(select.selectedOptions)
-    .map((option) => catalogByPath.get(option.value) || datasetFromConfigOption(option))
+  const selectedValues = Array.from(select.selectedOptions).map((option) => option.value);
+  const fallbackValues = Array.isArray(state.workbenchSelectedDatasetPaths) ? state.workbenchSelectedDatasetPaths : [];
+  const values = selectedValues.length ? selectedValues : fallbackValues;
+  const optionByValue = new Map(Array.from(select.options).map((option) => [option.value, option]));
+  return values
+    .map((value) => catalogByPath.get(value) || datasetFromConfigOption(optionByValue.get(value)) || (state.workbenchExtraDatasets || {})[value])
     .filter((dataset) => dataset && dataset.path);
 }
 
 export function workbenchDatasetRows() {
-  const catalogRows = (state.dataCatalog.datasets || []).filter((dataset) => dataset && dataset.path);
+  const selectedPaths = new Set(Array.isArray(state.workbenchSelectedDatasetPaths) ? state.workbenchSelectedDatasetPaths : []);
+  // When a picker symbol search is active, scope the listbox to the server-side
+  // matches instead of the loaded catalog. The catalog scan is capped for speed,
+  // so a searched symbol may not be in it at all; clearing the search box (sets
+  // workbenchDatasetSearch back to null) restores the full catalog.
+  const search = state.workbenchDatasetSearch;
+  const searchActive = Boolean(search && search.query && Array.isArray(search.datasets));
+  const baseRows = searchActive ? search.datasets : (state.dataCatalog.datasets || []);
+  const catalogRows = baseRows.filter((dataset) => (
+    dataset
+    && dataset.path
+    && (workbenchDatasetSelectable(dataset) || selectedPaths.has(dataset.path))
+  ));
   const rowsByPath = new Map(catalogRows.map((dataset) => [dataset.path, dataset]));
+  // Keep any already-selected dataset visible even while a search scopes the list,
+  // so an active selection never silently drops out of the picker.
+  if (searchActive) {
+    for (const dataset of (state.dataCatalog.datasets || [])) {
+      if (dataset && dataset.path && selectedPaths.has(dataset.path) && !rowsByPath.has(dataset.path)) {
+        rowsByPath.set(dataset.path, dataset);
+      }
+    }
+  }
   for (const dataset of Object.values(state.workbenchExtraDatasets || {})) {
     if (dataset && dataset.path && !rowsByPath.has(dataset.path)) {
       rowsByPath.set(dataset.path, dataset);
     }
   }
   return Array.from(rowsByPath.values());
+}
+
+export function workbenchDatasetSelectable(dataset = {}) {
+  const rawPath = text(dataset.path || "");
+  if (!rawPath || rawPath === "n/a") return false;
+  // Structurally unusable files (no close column, no rows, no timestamps, ...) can
+  // never be backtested — the run gate blocks them — so keep them out of the picker.
+  // This catches operational runtime logs (shadow_signals/fills/orders, including
+  // date-prefixed names the lists below miss) that scan in from the paper_logs roots.
+  if (text(dataset.quality_blocking_status).toLowerCase() === "bad") return false;
+  const name = rawPath.split(/[\\/]/).pop().toLowerCase();
+  const stem = name.replace(/\.(csv|parquet)$/i, "");
+  const symbol = text(dataset.symbol || dataset.canonical_symbol || "").toUpperCase();
+  if (WORKBENCH_OPERATIONAL_FILE_NAMES.has(name)) return false;
+  if (/^bars_\d+(min|m|h|d)$/.test(stem)) return false;
+  if (WORKBENCH_OPERATIONAL_SYMBOLS.has(symbol)) return false;
+  return true;
+}
+
+export function workbenchDatasetOptionLabel(dataset = {}) {
+  return `${text(dataset.symbol)} ${text(dataset.bar_size)} [${text(dataset.quality_status)}/${text(dataset.storage_contract_status)}] - ${dataset.path}`;
+}
+
+function worstDatasetStatus(statuses) {
+  const rank = { bad: 3, warn: 2, ok: 1 };
+  let worst = "ok";
+  for (const status of statuses) {
+    const value = text(status).toLowerCase();
+    if ((rank[value] || 0) > (rank[worst] || 0)) worst = value;
+  }
+  return worst;
+}
+
+// Pick the single file that represents a symbol+bar+session group for a run.
+// The runner takes one file per symbol, so a group must resolve to exactly one
+// path: prefer an already-consolidated multi-day file, otherwise the widest /
+// most-complete chunk.
+function workbenchGroupRepresentative(members) {
+  // Honor an explicit per-file pick (e.g. "Use in Workbench" on one chunk) so the
+  // picker keeps highlighting it; otherwise prefer a consolidated multi-day file.
+  const selected = new Set(Array.isArray(state.workbenchSelectedDatasetPaths) ? state.workbenchSelectedDatasetPaths : []);
+  const picked = members.find((item) => selected.has(item.path));
+  if (picked) return picked;
+  const consolidated = members.find((item) => /(^|[\\/])consolidated_bars[\\/]/.test(text(item.path)));
+  if (consolidated) return consolidated;
+  return members.slice().sort((left, right) => {
+    const spanLeft = (timestampMillis(left.last_timestamp) || 0) - (timestampMillis(left.first_timestamp) || 0);
+    const spanRight = (timestampMillis(right.last_timestamp) || 0) - (timestampMillis(right.first_timestamp) || 0);
+    if (spanRight !== spanLeft) return spanRight - spanLeft;
+    return (Number(right.rows) || 0) - (Number(left.rows) || 0);
+  })[0];
+}
+
+// Sort key for a bar size: minutes per bar. Lets the duration selector list
+// 1min before 5min before 1h before 1d regardless of catalog order. Unknown
+// sizes sort last.
+export function barSizeMinutes(barSize) {
+  // Alternation is longest-prefix-first (regex picks the leftmost match): "month"
+  // / "mo" must precede bare "m" or an unanchored match would stop at "m" and read
+  // a month bar as one minute.
+  const match = text(barSize).toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(min|month|mo|hour|hr|h|day|d|week|w|m)?/);
+  if (!match) return Infinity;
+  const value = Number(match[1]);
+  const unit = match[2] || "min";
+  if (unit.startsWith("mo")) return value * 1440 * 30;
+  if (unit.startsWith("w")) return value * 1440 * 7;
+  if (unit.startsWith("d")) return value * 1440;
+  if (unit.startsWith("h")) return value * 60;
+  return value;
+}
+
+// Friendly label for a bar size: "1min" -> "1 min", "1h" -> "1 hour", "1d" -> "1 day".
+export function barSizeDurationLabel(barSize) {
+  const raw = text(barSize);
+  const match = raw.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(min|m|h|hr|hour|d|day|w|week|mo|month)?$/);
+  if (!match) return raw;
+  const value = match[1];
+  const unit = match[2] || "min";
+  const word = unit.startsWith("mo") ? "month" : unit.startsWith("w") ? "week"
+    : unit.startsWith("d") ? "day" : unit.startsWith("h") ? "hour" : "min";
+  const plural = word !== "min" && Number(value) !== 1 ? "s" : "";
+  return `${value} ${word}${plural}`;
+}
+
+// Bar durations seen in saved data this session. The catalog scan is capped, so a
+// later (re)scan can return a different subset of files; remembering every duration
+// we have ever seen keeps the "Bar duration" selector stable instead of dropping an
+// option mid-session (which would strand the user on whatever duration they're on).
+const workbenchSeenDurations = new Set();
+
+// Distinct bar durations across the saved data the picker can reach (loaded
+// catalog + any explicitly-remembered datasets + active search results), with a
+// count each, sorted finest-first. Feeds the "Bar duration" selector; derived
+// from the full catalog (not the search-scoped rows) so the options stay stable.
+export function workbenchAvailableDurations() {
+  const counts = new Map();
+  const tally = (rows) => {
+    for (const dataset of rows || []) {
+      if (dataset && dataset.path && workbenchDatasetSelectable(dataset)) {
+        const barSize = text(dataset.bar_size || "n/a");
+        counts.set(barSize, (counts.get(barSize) || 0) + 1);
+        workbenchSeenDurations.add(barSize);
+      }
+    }
+  };
+  tally(state.dataCatalog.datasets || []);
+  tally(Object.values(state.workbenchExtraDatasets || {}));
+  if (state.workbenchDatasetSearch && Array.isArray(state.workbenchDatasetSearch.datasets)) {
+    tally(state.workbenchDatasetSearch.datasets);
+  }
+  // Re-add any duration seen earlier this session that this (capped) scan missed,
+  // so the selector keeps every option it has ever offered.
+  for (const barSize of workbenchSeenDurations) {
+    if (!counts.has(barSize)) counts.set(barSize, 0);
+  }
+  return Array.from(counts.entries())
+    .map(([bar_size, count]) => ({ bar_size, count }))
+    .sort((left, right) => barSizeMinutes(left.bar_size) - barSizeMinutes(right.bar_size) || left.bar_size.localeCompare(right.bar_size));
+}
+
+// Collapse the per-file dataset rows into one entry per symbol+bar_size+session
+// (the same key consolidate_saved_bars.py merges on) so the picker shows
+// "AAL · 1min · 165 files · <range>" instead of 165 near-identical rows.
+export function workbenchDatasetGroups() {
+  const groups = new Map();
+  for (const dataset of workbenchDatasetRows()) {
+    const symbol = text(dataset.canonical_symbol || dataset.symbol || "UNKNOWN");
+    const barSize = text(dataset.bar_size || "n/a");
+    const session = text(dataset.storage_session || "");
+    const key = `${symbol}|${barSize}|${session}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, symbol, bar_size: barSize, storage_session: session, members: [], file_count: 0, total_rows: 0, first_timestamp: null, last_timestamp: null };
+      groups.set(key, group);
+    }
+    group.members.push(dataset);
+    group.file_count += 1;
+    group.total_rows += Number(dataset.rows) || 0;
+    if (dataset.first_timestamp && (!group.first_timestamp || String(dataset.first_timestamp) < String(group.first_timestamp))) group.first_timestamp = dataset.first_timestamp;
+    if (dataset.last_timestamp && (!group.last_timestamp || String(dataset.last_timestamp) > String(group.last_timestamp))) group.last_timestamp = dataset.last_timestamp;
+  }
+  const result = [];
+  for (const group of groups.values()) {
+    group.representative = workbenchGroupRepresentative(group.members);
+    group.quality_status = worstDatasetStatus(group.members.map((item) => item.quality_status));
+    // quality_blocking_status only flags real corruption (dup timestamps, OHLC
+    // inversions, negative volume, ...) — not the benign session-gap advisories
+    // that mark virtually every intraday file "warn". The picker badges on this.
+    group.quality_blocking_status = worstDatasetStatus(group.members.map((item) => item.quality_blocking_status));
+    group.storage_contract_status = worstDatasetStatus(group.members.map((item) => item.storage_contract_status));
+    group.bar_size_mismatch = group.members.some((item) => item.bar_size_mismatch);
+    group.bar_size_mixed = group.members.some((item) => item.bar_size_mixed);
+    result.push(group);
+  }
+  // Scope to a single bar duration so a symbol that exists at 1min AND 5min shows
+  // once, not twice — you can't then accidentally backtest the same name at two
+  // cadences. "" / null means "All durations". An already-selected dataset is kept
+  // visible even when it is off-duration so switching duration never silently drops
+  // a selection.
+  // Raw value, not text(): text("") returns "n/a", which would filter to a
+  // non-existent "n/a" duration and empty the picker when "All durations" ("") is
+  // selected.
+  const duration = state.workbenchDatasetDuration || "";
+  const scoped = duration
+    ? result.filter((group) => {
+        if (group.bar_size === duration) return true;
+        const selectedPaths = new Set(Array.isArray(state.workbenchSelectedDatasetPaths) ? state.workbenchSelectedDatasetPaths : []);
+        return group.members.some((member) => selectedPaths.has(member.path));
+      })
+    : result;
+  scoped.sort((left, right) => left.symbol.localeCompare(right.symbol) || barSizeMinutes(left.bar_size) - barSizeMinutes(right.bar_size));
+  return scoped;
+}
+
+export function workbenchDatasetGroupLabel(group = {}) {
+  const session = group.storage_session && group.storage_session !== "n/a" ? ` · ${group.storage_session}` : "";
+  // After consolidation most groups are a single file; only surface a count when
+  // there is more than one, to keep the (often-truncated) row label short.
+  const files = group.file_count > 1 ? ` · ${numberText(group.file_count, 0)} files` : "";
+  const day = (timestamp) => text(timestamp).slice(0, 10);
+  const span = group.first_timestamp ? ` · ${day(group.first_timestamp)} → ${day(group.last_timestamp)}` : "";
+  // Show the granularity actually present, not just the filename label: older
+  // "1min" extended files are frequently 5-minute data (IBKR lookback limit), so a
+  // mismatch is flagged inline so it is not silently backtested as 1-minute bars.
+  const rep = group.representative || {};
+  let bar = text(group.bar_size);
+  if (group.bar_size_mixed) bar = `${bar} (mixed cadence)`;
+  else if (group.bar_size_mismatch && rep.bar_size_actual) bar = `${bar}→${text(rep.bar_size_actual)} bars`;
+  // Badge only genuine corruption; benign session-gap advisories no longer mark
+  // every intraday row as suspicious.
+  const quality = group.quality_blocking_status === "bad" ? " [corrupt]" : "";
+  return `${text(group.symbol)} · ${bar}${session}${files}${span}${quality}`;
+}
+
+export function setWorkbenchSelectedDatasetPaths(paths = []) {
+  const unique = Array.from(new Set(paths.map(text).filter((value) => value && value !== "n/a")));
+  state.workbenchSelectedDatasetPaths = unique;
+  const select = $("config-dataset");
+  if (select) {
+    const selected = new Set(unique);
+    for (const option of select.options) {
+      option.selected = selected.has(option.value);
+    }
+  }
+  return unique;
+}
+
+export function syncWorkbenchSelectedDatasetPathsFromSelect() {
+  const select = $("config-dataset");
+  return setWorkbenchSelectedDatasetPaths(select ? Array.from(select.selectedOptions).map((option) => option.value) : []);
 }
 
 export function rememberWorkbenchDataset(dataset = {}) {
@@ -356,7 +618,10 @@ export function attachDatasetOptionMetadata(option, dataset = {}) {
 }
 
 export function selectedDataReadiness(selected = selectedConfigDatasets()) {
-  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  // Mirror the run gate: only genuine corruption blocks readiness. Benign
+  // session-gap advisories (which mark almost every intraday file "warn") must not
+  // make a runnable dataset look "not ready".
+  const qualityIssues = selected.filter((dataset) => text(dataset.quality_blocking_status || dataset.quality_status).toLowerCase() === "bad");
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const badContract = contractIssues.some((dataset) => text(dataset.storage_contract_status).toLowerCase() === "bad");
   const issueCount = qualityIssues.length + contractIssues.length;
@@ -398,14 +663,14 @@ export function renderConfigDataQuality() {
     return;
   }
   const warningRows = selected.filter((dataset) => (
-    dataset.quality_status === "warn" || dataset.quality_status === "bad"
+    text(dataset.quality_blocking_status || dataset.quality_status).toLowerCase() === "bad"
   ));
   $("config-data-quality-note").innerHTML = warningRows.length
-    ? `<span class="status-warn">${warningRows.length} suspicious of ${selected.length} selected</span>`
+    ? `<span class="status-warn">${warningRows.length} corrupt of ${selected.length} selected</span>`
     : `<span class="status-ok">${selected.length} selected datasets ready</span>`;
   $("config-data-quality-body").innerHTML = selected.map((dataset) => row([
     escapeHtml(text(dataset.symbol)),
-    qualityBadge(dataset.quality_status, dataset.quality_warnings),
+    qualityBadge(dataset.quality_blocking_status || dataset.quality_status, dataset.quality_blocking_warnings || dataset.quality_warnings),
     qualityBadge(dataset.storage_contract_status, dataset.storage_contract_warnings),
     escapeHtml(text(dataset.bar_size)),
     escapeHtml(numberText(dataset.rows, 0)),
@@ -431,7 +696,7 @@ export function renderWorkbenchSelectedDataPacket(selected = selectedConfigDatas
   renderWorkbenchSelectedDataCoverage(selected);
   const alignment = state.alignmentPreview || (state.configDraft && state.configDraft.alignment) || {};
   const range = configDateRangePayload();
-  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const qualityIssues = selected.filter((dataset) => text(dataset.quality_blocking_status || dataset.quality_status).toLowerCase() === "bad");
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
   const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
@@ -634,7 +899,7 @@ export function renderWorkbenchSelectedDataCoverage(selected = selectedConfigDat
 
 export function renderConfigDataActions(selected = selectedConfigDatasets()) {
   if (!$("config-data-actions-note") || !$("config-data-actions-cards")) return;
-  const qualityIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.quality_status).toLowerCase()));
+  const qualityIssues = selected.filter((dataset) => text(dataset.quality_blocking_status || dataset.quality_status).toLowerCase() === "bad");
   const contractIssues = selected.filter((dataset) => ["warn", "bad"].includes(text(dataset.storage_contract_status).toLowerCase()));
   const symbols = Array.from(new Set(selected.map((dataset) => text(dataset.symbol)).filter((value) => value !== "n/a")));
   const bars = Array.from(new Set(selected.map((dataset) => text(dataset.bar_size)).filter((value) => value !== "n/a")));
@@ -752,6 +1017,7 @@ export function removeWorkbenchSelectedDataset(path) {
   for (const option of select.options) {
     if (option.value === path) option.selected = false;
   }
+  syncWorkbenchSelectedDatasetPathsFromSelect();
   state.configDraft = null;
   state.configDraftErrors = [];
   state.alignmentPreview = null;
@@ -1325,7 +1591,7 @@ export function workbenchExampleGalleryModel() {
       mode: defaultMode,
       label: "Ignored Local",
       title: `${numberText(privatePlugins.length, 0)} private/local plugin${privatePlugins.length === 1 ? "" : "s"}`,
-      note: "Local registry metadata is loaded from ignored config files. Keep real strategy logic, tuned defaults, and private results out of public examples.",
+      note: "Local registry metadata is loaded from ignored config files. Keep private strategy logic, tuned defaults, and private results out of public commits.",
       detail: registry.localCount ? `${numberText(registry.localCount, 0)} local registry path${registry.localCount === 1 ? "" : "s"} detected.` : "Private plugin metadata is available in this dashboard state.",
       action: "select-private",
       actionLabel: "Use Local",
@@ -1534,14 +1800,14 @@ export function renderWorkbenchReadinessReview(stateModel = workbenchHomeState()
   } else if (selected.length && alignmentReady && !plugin.id) {
     status = "idle";
     title = "Choose Plugin";
-    note = "Pick a public example plugin or ignored local/private plugin before generating a draft.";
+    note = "Pick a registered strategy plugin before generating a draft.";
     primaryHref = "#workbench/builder";
     primaryLabel = "Choose Plugin";
   } else if (selected.length && alignmentReady && !draftGenerated) {
     status = publicExample ? "warn" : "ok";
     title = "Generate Draft";
     note = publicExample
-      ? "A public example plugin is selected; generate only as a wiring example, not a viable strategy."
+      ? "A bundled public strategy is selected; generate a replay draft against the selected data."
       : "Data and alignment are ready for draft preview/generation.";
     primaryHref = "#workbench/builder";
     primaryLabel = "Generate Draft";
@@ -1760,7 +2026,7 @@ export function workbenchEvidenceModel() {
       status: plugin.id ? pluginBoundaryStatus(plugin) : "idle",
       title: "Plugin Boundary",
       detail: plugin.id
-        ? `${text(plugin.id)} is ${text(plugin.visibility || plugin.status || "registry")}; public examples are wiring demos and private plugins should stay in ignored local config.`
+        ? `${text(plugin.id)} is ${text(plugin.visibility || plugin.status || "registry")}; bundled strategies run through the generic runner and private plugins should stay in ignored local config.`
         : "No Workbench plugin is selected.",
     },
     {
@@ -1939,7 +2205,7 @@ export function workbenchWorkflowCards() {
       value: plugin.status || "plugin",
       status: plugin.visibility === "public_example" || plugin.status === "example_only" ? "warn" : plugin.id ? "ok" : "idle",
       detail: plugin.id
-        ? text(plugin.boundary || "Public examples are illustrative; private strategies belong in ignored local configs.")
+        ? text(plugin.boundary || "Registered strategy metadata loaded for this draft.")
         : "Choose a configured Workbench plugin before generating a draft.",
       href: workflowHref("workbench", "builder"),
       cta: "Review",
@@ -2083,7 +2349,7 @@ export function renderWorkbenchPluginBoundary() {
     },
     {
       status: publicCount ? "warn" : "bad",
-      label: "Public Examples",
+      label: "Bundled Strategies",
       title: numberText(publicCount, 0),
       note: otherCount
         ? `${numberText(otherCount, 0)} uncategorized plugin${otherCount === 1 ? "" : "s"} also loaded.`
@@ -2150,7 +2416,7 @@ export function renderWorkbenchPluginBoundary() {
     {
       action: "help-boundary",
       title: "Open Boundary Guide",
-      note: "Read the Help view notes on public examples versus private local config.",
+      note: "Read the Help view notes on bundled strategies versus private local config.",
       label: "Help",
       disabled: false,
     },
@@ -2187,7 +2453,7 @@ export function renderConfigPluginBoundary() {
   const plugin = selectedConfigPlugin();
   const visibility = plugin.visibility || plugin.status || "unknown";
   $("config-plugin-boundary-note").innerHTML = visibility === "public_example"
-    ? `<span class="status-warn">example only</span>`
+    ? `<span class="status-warn">bundled public strategy</span>`
     : statusText(visibility);
   const pairs = [
     ["Selected Plugin", text(plugin.label || plugin.id)],
@@ -2459,4 +2725,3 @@ export async function applyDataCompareRangePreset() {
   await loadDataCompare();
   $("last-refresh").textContent = `Compare range preset applied: ${preset}`;
 }
-
