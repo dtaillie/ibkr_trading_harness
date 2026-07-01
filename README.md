@@ -18,7 +18,7 @@ In 10 seconds:
 - **Public boundary:** bundled textbook strategies are intentionally non-viable; tuned
   signals, credentials, account data, and logs stay private.
 
-![Dashboard overview with seeded example telemetry](docs/images/dashboard_overview.png)
+![Animated dashboard tour: today's health and P&L, backtest, data, and inspect](docs/images/dashboard_demo.gif)
 
 ## Try It In 30 Seconds
 
@@ -31,6 +31,8 @@ This serves the full dashboard at `http://127.0.0.1:8765/` seeded with
 public-safe example telemetry, saved bars, and a fetch manifest — no broker
 connection, credentials, or token required. Everything you see is the same UI
 a real deployment uses; only the data is synthetic.
+
+![The seeded dashboard overview you land on](docs/images/dashboard_overview.png)
 
 For public posting and feedback collection, see `docs/public_launch_plan.md`.
 
