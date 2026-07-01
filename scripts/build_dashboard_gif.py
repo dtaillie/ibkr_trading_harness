@@ -14,7 +14,8 @@ Reuses:
 Requires: google-chrome (or chromium) on PATH and Pillow (`pip install Pillow`).
 
 Run:  python3 scripts/build_dashboard_gif.py
-Writes: docs/images/dashboard_demo.gif, dashboard_overview.png, dashboard_performance.png
+Writes: docs/images/dashboard_demo.gif and the static stills dashboard_overview.png,
+dashboard_performance.png, dashboard_runs.png, dashboard_workbench.png
 """
 
 from __future__ import annotations
@@ -66,10 +67,36 @@ FRAMES = [
     ("runs", 3000),
 ]
 
-# Full-resolution static hero shots for the README.
+# Full-resolution static hero shots for the README and walkthrough docs. Bare
+# routes land on each page's default "home" lens.
 STATIC_SHOTS = [
     ("overview", "dashboard_overview.png"),
     ("performance", "dashboard_performance.png"),
+    ("runs", "dashboard_runs.png"),
+    ("workbench", "dashboard_workbench.png"),
+]
+
+# Interactive stills: a route plus a JS setup action run before capture, for states
+# a bare route cannot reach — here, the Backtest config builder with a dataset selected
+# and the builder scrolled into view.
+INTERACTIVE_SHOTS = [
+    (
+        "workbench",
+        "dashboard_workbench_generate_draft.png",
+        """
+        (() => {
+          const sel = document.querySelector('#config-dataset');
+          if (sel && sel.options.length) {
+            for (const o of sel.options) o.selected = false;
+            sel.options[0].selected = true; sel.selectedIndex = 0;
+            sel.dispatchEvent(new Event('input', {bubbles: true}));
+            sel.dispatchEvent(new Event('change', {bubbles: true}));
+          }
+          const anchor = document.querySelector('#config-form-fields') || document.querySelector('#config-form');
+          if (anchor) window.scrollTo(0, anchor.getBoundingClientRect().top + window.scrollY - 150);
+        })()
+        """,
+    ),
 ]
 
 
@@ -202,6 +229,14 @@ def main() -> None:
             ready = _await_ready(checker, route)
             info = checker.capture_png(output=dest, min_bytes=2000)
             print(f"  static {filename:28s} {info['bytes'] // 1024} KB -> {dest}{'' if ready else '  [readiness timeout]'}")
+        for route, filename, action in INTERACTIVE_SHOTS:
+            dest = args.images_dir / filename
+            checker.navigate(f"{base}/#{route}")
+            _await_ready(checker, route)
+            checker.client.send("Runtime.evaluate", {"expression": action})
+            time.sleep(args.settle_seconds)
+            info = checker.capture_png(output=dest, min_bytes=2000)
+            print(f"  interactive {filename:24s} {info['bytes'] // 1024} KB -> {dest}")
     finally:
         checker.close()
         server.shutdown()
