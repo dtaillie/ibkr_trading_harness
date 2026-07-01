@@ -1,8 +1,8 @@
 # Workbench Backtest Walkthrough
 
 This runbook traces the end-to-end backtest loop entirely from the browser:
-pick saved data, choose a plugin, narrow a date window, generate and validate a
-config, run it, and read the results — without editing YAML or touching the
+pick saved data, choose a plugin, optionally narrow a date window, generate and
+validate a config, run it, and read the results — without editing YAML or touching the
 command line. It uses only public-safe local modes and never exposes private
 strategy logic, account IDs, credentials, or runtime logs.
 
@@ -30,12 +30,15 @@ the Workbench's quick-iteration bounds), see
 3. Open `http://127.0.0.1:8765/` and click **Backtest** in the left nav (this is
    the Workbench surface; deep link: `http://127.0.0.1:8765/#workbench`).
 
-The Workbench leads with a **Config Builder**. At the top of it a **Builder
-Assistant** shows live status cards (Data, Plugin, Alignment, Draft, Run) plus
-action buttons (Select/Change Data, Preview Alignment, Generate Draft, Open Run);
-the config form sits below. The same step-by-step flow is also available as a
-stepper and checklist under the collapsed **Overview & guide** disclosure. You
-can follow the steps or work straight from the Builder Assistant and form.
+The Workbench leads with a **Config Builder** whose form is front and center:
+choose a plugin, pick one or more datasets, tune the plugin's parameters, and
+press **Run Backtest**. Secondary controls — the draft name and an optional
+replay date range, plus account size, risk limits, simulated costs, and session
+windows — sit under an **Advanced settings** disclosure so the default path stays
+short. Step-by-step guidance is one click away: a **Builder Assistant** with live
+status cards (Data, Plugin, Alignment, Draft, Run) and action buttons under the
+collapsed **Builder help** disclosure, and a stepper and checklist under the
+collapsed **Overview & guide** disclosure.
 
 ![Workbench builder with seeded demo state](images/dashboard_workbench.png)
 
@@ -61,9 +64,9 @@ the consolidated files as cleaner replay candidates.
 ## The Seven-Step Flow
 
 The seven steps below are the conceptual path. The literal stepper and checklist
-now live under the collapsed **Overview & guide** disclosure, while the **Builder
-Assistant** cards (Data, Plugin, Alignment, Draft, Run) at the top of the Config
-Builder track the same progress.
+live under the collapsed **Overview & guide** disclosure, and the **Builder
+Assistant** cards (Data, Plugin, Alignment, Draft, Run) that track the same
+progress live under the collapsed **Builder help** disclosure.
 
 ### 1. Choose Data
 
@@ -90,15 +93,16 @@ indexed.
 Before replaying, review any catalog quality warnings and storage-contract
 metadata for the files you picked. If a dataset is flagged `warn` or `bad`, the
 Workbench will not silently use it: you must explicitly tick **Allow suspicious
-data for this draft** (in the Output section) to proceed. This is a deliberate
+data for this draft** (under **Advanced settings → Output**) to proceed. This is a deliberate
 guard against backtesting on malformed bars.
 
 ### 3. Choose Range
 
 Optionally narrow the replay to a date window using the **Start Date** and
-**End Date** fields. Leaving them blank replays the full extent of the selected
-files. The end date is inclusive through end-of-day. These fields write the
-`data.start` and `data.end` keys into the generated config.
+**End Date** fields, under **Advanced settings → Optional**. Leaving them blank
+(the default) replays the full extent of the selected files. The end date is
+inclusive through end-of-day. These fields write the `data.start` and `data.end`
+keys into the generated config.
 
 ### 4. Inspect Alignment
 
@@ -112,10 +116,11 @@ easier to catch here than in the output.
 Generate a public-safe runner config from the form, then validate it. Validation
 instantiates the selected plugin and checks the runner contract before anything
 executes, so configuration mistakes surface here rather than mid-run. Tick
-**Save draft locally** to persist the generated YAML under the local Workbench
-state directory; a saved, valid draft is required for the Run step.
+**Save draft locally** (under **Advanced settings → Output**) to persist the
+generated YAML under the local Workbench state directory; a saved, valid draft is
+required for the Run step.
 
-![Workbench Generate Draft form with selected dataset and date window](images/dashboard_workbench_generate_draft.png)
+![Workbench Config Builder with a dataset selected, ready to generate a draft](images/dashboard_workbench_generate_draft.png)
 
 ### 6. Run Simulation
 
@@ -136,34 +141,46 @@ engine used on the command line, captures its output, and records the run.
 ### 7. Inspect Results
 
 A completed `simulated_paper` run archives its artifacts and computes a summary.
-Open them on the **Performance** page (equity curve, drawdown, realized PnL,
-return bars, KPIs, and a per-symbol **Price & Trades** candlestick chart with
-your buy/sell markers and a symbol selector) and the **Runs** page (per-run
-`decisions`, `orders`, `fills`, `account`, and `summary` records). Trade rows
-are paired from sanitized fills, so win rate and profit factor reflect real
-round trips. The Price & Trades chart only populates for runs that produced
-fills, so use `simulated_paper` (not `replay`) to see entries and exits plotted
-on the price bars.
+Open them on the **Performance** page, which leads with the headline return and
+account equity and then a grouped **Charts** panel (equity curve, drawdown,
+realized PnL, return bars, KPIs, and a per-symbol **Price & Trades** candlestick
+chart with your buy/sell markers and a symbol selector). The **Inspect** page
+(labeled *Inspect* in the left nav; deep link `#runs`) leads with a flattened
+**Orders & Fills** table and carries the per-run `decisions`, `orders`, `fills`,
+`account`, and `summary` records. Trade rows are paired from sanitized fills, so
+win rate and profit factor reflect real round trips. The Price & Trades chart
+only populates for runs that produced fills, so use `simulated_paper` (not
+`replay`) to see entries and exits plotted on the price bars.
 
-![Performance page with seeded simulated-paper results](images/dashboard_performance.png)
+![Performance page leading with headline return and grouped charts](images/dashboard_performance.png)
 
-![Runs page with artifacts and event context](images/dashboard_runs.png)
+![Inspect page leading with the flattened Orders & Fills table](images/dashboard_runs.png)
 
 ## Config Form Reference
 
-The form groups fields into sections. Only the most run-shaping fields are
-listed here; each field carries inline help in the UI.
+The form groups fields into sections. The primary form carries the run-shaping
+choices; everything secondary sits under the **Advanced settings** disclosure, so
+the default path is pick plugin + data → run. Each field carries inline help in
+the UI; only the most run-shaping fields are listed here.
 
-- **Setup** — draft name, plugin, and run mode (`replay`, `shadow`, or
-  `simulated_paper`). This run *mode* is baked into the generated YAML and is
-  distinct from the Run-step *action* (`validate`, `replay`, `simulated_paper`)
-  in Step 6: `validate` re-checks the config without running, and `shadow`
-  (mirror-live decisions, no orders) is a valid mode but is not offered as a
-  Workbench Run action.
-- **Data** — selected datasets and the optional start/end date window.
+Primary form:
+
+- **Setup** — plugin and run mode (`replay`, `shadow`, or `simulated_paper`).
+  This run *mode* is baked into the generated YAML and is distinct from the
+  Run-step *action* (`validate`, `replay`, `simulated_paper`) in Step 6:
+  `validate` re-checks the config without running, and `shadow` (mirror-live
+  decisions, no orders) is a valid mode but is not offered as a Workbench Run
+  action.
+- **Data** — bar duration and selected datasets.
 - **Plugin Settings** — the public-safe parameters the selected plugin exposes
   (for example, fast/slow lengths for an SMA-crossover example). These are
-  declared by the plugin, so the available fields change with the plugin.
+  declared by the plugin, so the available fields change with the plugin, and
+  only the selected plugin's fields are shown.
+
+Under **Advanced settings**:
+
+- **Optional** — the draft name and the optional start/end replay date window
+  (blank replays the full extent of the selected files).
 - **Account** — `Starting Cash`, `History Bars` (prior bars handed to the
   plugin's decision window), and `Max Steps`.
 - **Runtime** — optional session window (timezone, start/end, weekdays, and

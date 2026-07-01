@@ -298,9 +298,18 @@ export function renderConfigFormSchema() {
   const OPTIONAL = "optional";
   const sectionTitleOf = (section) => section === OPTIONAL
     ? "Optional" : configSectionTitle(section, sectionMetadata);
-  const sectionHelpOf = (section) => section === OPTIONAL
-    ? "Draft name and an optional replay date range — defaults are fine for a quick run."
-    : configSectionHelp(section, sectionMetadata);
+  // Demoting the name + date fields leaves the backend-provided Setup/Data help
+  // describing fields that now live in Advanced, so override those two blurbs to
+  // match what the section actually shows.
+  const HELP_OVERRIDES = {
+    [OPTIONAL]: "Draft name and an optional replay date range — defaults are fine for a quick run.",
+    identity: "Choose the strategy plugin and the run mode.",
+    data: "Pick a bar duration and one or more saved datasets.",
+  };
+  const sectionHelpOf = (section) =>
+    Object.prototype.hasOwnProperty.call(HELP_OVERRIDES, section)
+      ? HELP_OVERRIDES[section]
+      : configSectionHelp(section, sectionMetadata);
   const sectionOrderOf = (section) => section === OPTIONAL
     ? -1 : configSectionOrder(section, sectionMetadata);
   const sections = [];
