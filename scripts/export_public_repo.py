@@ -56,6 +56,7 @@ COPY_FILES = [
     "docs/work_queue.md",
     "docs/public_copy_manifest.md",
     "docs/blog_public_ibkr_harness_draft.md",
+    "docs/writeup.md",
     "live/__init__.py",
     "live/broker_adapters.py",
     "live/fetch_manifest.py",
